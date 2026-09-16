@@ -16,18 +16,25 @@ import {
   Building2,
   Cpu,
   Zap,
+  Users,
+  Globe,
+  FileSpreadsheet,
+  Eye,
+  Brain,
 } from 'lucide-react';
 import {
   CatalogItem,
   CatalogRecommendation,
   StatusKind,
   WhiteLabelBrand,
+  CustomerPersona,
 } from '../types';
 import {
   CATALOG_CATEGORIES,
   SAMPLE_QUERIES,
   WHITE_LABEL_BRANDS,
 } from '../data/catalog';
+import { CUSTOMER_PERSONAS } from '../data/personas';
 import {
   computeCatalogEmbeddingsWithModel,
   buildCatalogSimilarityMatrix,
@@ -38,10 +45,14 @@ import {
   ModelChoice,
   EmbedderPipeline,
 } from '../utils/recommenderEngine';
+import { decomposeSimilarityFeatures } from '../utils/featureAttribution';
 import { ProductCard } from './ProductCard';
 import { PitchModal } from './PitchModal';
 import { ApiConsoleModal } from './ApiConsoleModal';
 import { RoiCalculatorModal } from './RoiCalculatorModal';
+import { FeedImporterModal } from './FeedImporterModal';
+import { ABTestReportModal } from './ABTestReportModal';
+import { VisualExplanationLayer } from './VisualExplanationLayer';
 
 declare global {
   interface Window {
@@ -59,10 +70,14 @@ interface RecommenderViewProps {
 
 export const RecommenderView: React.FC<RecommenderViewProps> = ({
   catalog,
+  onUpdateCatalog,
   onShowToast,
 }) => {
   // Brand selection (White-Label showcase)
   const [currentBrand, setCurrentBrand] = useState<WhiteLabelBrand>(WHITE_LABEL_BRANDS[0]);
+
+  // Customer Persona state (Real-time personalization)
+  const [selectedPersona, setSelectedPersona] = useState<CustomerPersona>(CUSTOMER_PERSONAS[0]);
 
   // Main UI Mode: 'showcase' (Product view) | 'comparison' (A/B Test) | 'engine' (Under the hood)
   const [activeMode, setActiveMode] = useState<'showcase' | 'comparison' | 'engine'>('showcase');
@@ -71,6 +86,8 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
   const [isPitchOpen, setIsPitchOpen] = useState(false);
   const [isApiOpen, setIsApiOpen] = useState(false);
   const [isRoiOpen, setIsRoiOpen] = useState(false);
+  const [isFeedImporterOpen, setIsFeedImporterOpen] = useState(false);
+  const [isABReportOpen, setIsABReportOpen] = useState(false);
 
   // Model & State
   const [modelChoice, setModelChoice] = useState<ModelChoice>('e5-small');
@@ -92,6 +109,10 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<CatalogRecommendation[] | null>(null);
 
+  // Visual Explanation layer state
+  const [hoveredRecId, setHoveredRecId] = useState<number | null>(null);
+  const [visualExplanationMode, setVisualExplanationMode] = useState<'hover' | 'always'>('hover');
+
   // Graph Canvas
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -101,17 +122,65 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
     return catalog.filter((item) => item.category === selectedCategory);
   }, [catalog, selectedCategory]);
 
-  // Semantic Recommendations for selected item (item-to-item)
+  // Semantic Recommendations for selected item (item-to-item) with real-time Persona Personalization
   const recommendations = useMemo(() => {
     if (!similarityMatrix || !selectedItem) return [];
-    return getRecommendationsForItem(
+    const baseRecs = getRecommendationsForItem(
       selectedItem.id,
       catalog,
       similarityMatrix,
-      5,
+      8,
       minSimThreshold
     );
-  }, [similarityMatrix, selectedItem, catalog, minSimThreshold]);
+
+    // If a customer persona is active, re-rank recommendations with persona affinity
+    if (selectedPersona.id !== 'neutral') {
+      return baseRecs
+        .map((rec) => {
+          let affinity = 0;
+          if (selectedPersona.preferredCategories.includes(rec.item.category)) {
+            affinity += 0.15;
+          }
+          if (rec.item.tags) {
+            const matches = rec.item.tags.filter((t) =>
+              selectedPersona.affinityTags.some((at) => at.toLowerCase() === t.toLowerCase())
+            );
+            affinity += matches.length * 0.09;
+          }
+          const blendedSim = Math.min(0.99, Number((rec.sim * 0.7 + affinity * 0.3).toFixed(2)));
+          let why = rec.whyRecommended;
+          if (affinity > 0) {
+            why = `Персонализировано для «${selectedPersona.name}» (${selectedPersona.role})`;
+          }
+          return {
+            ...rec,
+            sim: blendedSim,
+            whyRecommended: why,
+          };
+        })
+        .sort((a, b) => b.sim - a.sim)
+        .slice(0, 5);
+    }
+
+    return baseRecs.slice(0, 5);
+  }, [similarityMatrix, selectedItem, catalog, minSimThreshold, selectedPersona]);
+
+  // Active hovered recommendation item
+  const hoveredRecommendation = useMemo(() => {
+    if (!hoveredRecId) return null;
+    return recommendations.find((r) => r.item.id === hoveredRecId) || null;
+  }, [hoveredRecId, recommendations]);
+
+  // Feature attribution for the currently hovered recommendation
+  const hoveredExplanation = useMemo(() => {
+    if (!selectedItem || !hoveredRecommendation) return null;
+    return decomposeSimilarityFeatures(
+      selectedItem,
+      hoveredRecommendation.item,
+      hoveredRecommendation.sim,
+      selectedPersona
+    );
+  }, [selectedItem, hoveredRecommendation, selectedPersona]);
 
   // Top pairwise edges for Engine tab
   const topEdges = useMemo(() => {
@@ -199,6 +268,20 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
     setSearchResults(null);
     setSearchQuery('');
     setSubmittedQuery('');
+  };
+
+  // Import items from YML/JSON feed
+  const handleImportFeedItems = (newItems: CatalogItem[]) => {
+    const existingIds = new Set(catalog.map((c) => c.id));
+    const toAdd = newItems.filter((item) => !existingIds.has(item.id));
+    if (toAdd.length === 0) {
+      onShowToast('Все товары из фида уже присутствуют в каталоге', 'info');
+      return;
+    }
+    const merged = [...catalog, ...toAdd];
+    onUpdateCatalog(merged);
+    onShowToast(`Импортировано ${toAdd.length} товаров. Пересчитываем векторное поле...`, 'success');
+    initEngine(modelChoice);
   };
 
   // Render Engine Canvas Graph
@@ -463,6 +546,60 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
               </div>
             </div>
 
+            {/* Real-Time Customer Persona Switcher */}
+            <div className="p-4 bg-[#0e0e18] border border-[#1e1e35] rounded-2xl shadow-xl flex flex-col gap-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Users size={16} className="text-[#b478ff]" />
+                  <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#e8e8f0]">
+                    Симуляция профиля покупателя (Real-Time Persona Affinity)
+                  </span>
+                </div>
+                {selectedPersona.id !== 'neutral' && (
+                  <span className="text-[11px] font-mono text-[#3ee89a] flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#3ee89a]" />
+                    Векторный профиль активен: +15% скор к аффинным категориям
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {CUSTOMER_PERSONAS.map((persona) => {
+                  const isActive = selectedPersona.id === persona.id;
+                  return (
+                    <button
+                      key={persona.id}
+                      onClick={() => {
+                        setSelectedPersona(persona);
+                        onShowToast(`Профиль покупателя: ${persona.name} (${persona.role})`, 'info');
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-mono flex items-center gap-2 shrink-0 transition-all cursor-pointer border ${
+                        isActive
+                          ? 'bg-[#1a1a2e] border-[#00f0ff] text-white shadow-[0_0_12px_rgba(0,240,255,0.2)]'
+                          : 'bg-[#141424] border-[#1e1e35] text-[#8a8aa3] hover:text-[#e8e8f0] hover:border-[#2a2a40]'
+                      }`}
+                    >
+                      <span className="text-base">{persona.avatar}</span>
+                      <div className="text-left">
+                        <div className="font-bold leading-tight">{persona.name}</div>
+                        <div className="text-[10px] text-[#8a8aa3] leading-tight">{persona.role}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedPersona.id !== 'neutral' && (
+                <div className="text-xs text-[#8a8aa3] flex flex-wrap items-center gap-2 pt-1 border-t border-[#1e1e35]/60">
+                  <span className="text-[11px] text-[#e8e8f0]">{selectedPersona.tagline}</span>
+                  <span className="text-[#1e1e35]">•</span>
+                  <span className="text-[11px] font-mono text-[#b478ff]">
+                    Аффинность: {selectedPersona.preferredCategories.join(', ') || 'Все'}
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Split View: Left = Catalog / Results Grid | Right = Spotlight Recommendations with "Why We Recommend" */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column (Catalog / Results) */}
@@ -476,14 +613,24 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
                     </h3>
                   </div>
 
-                  {searchResults !== null && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={handleResetSearch}
-                      className="text-xs mono text-[#00f0ff] hover:underline flex items-center gap-1 cursor-pointer"
+                      onClick={() => setIsFeedImporterOpen(true)}
+                      className="px-3 py-1 rounded-lg bg-[#141424] hover:bg-[#1e1e35] border border-[#00f0ff]/30 text-[#00f0ff] font-mono text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Импортировать каталог по ссылке на YML/JSON фид"
                     >
-                      <RotateCcw size={11} /> Весь каталог
+                      <Globe size={12} />
+                      <span>Импорт YML/URL</span>
                     </button>
-                  )}
+                    {searchResults !== null && (
+                      <button
+                        onClick={handleResetSearch}
+                        className="text-xs mono text-[#00f0ff] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <RotateCcw size={11} /> Весь каталог
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Categories filter pills */}
@@ -542,14 +689,28 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
                         Умные рекомендации на основе выбранного объекта
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] mono bg-[#b478ff]/15 text-[#b478ff] border border-[#b478ff]/30 font-bold">
-                      Semantic AI
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setVisualExplanationMode((prev) => (prev === 'hover' ? 'always' : 'hover'))}
+                        title="Переключить режим слоя объяснений: при наведении или всегда развернут"
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] mono font-bold border transition-all cursor-pointer ${
+                          visualExplanationMode === 'always'
+                            ? 'bg-[#00f0ff]/20 text-[#00f0ff] border-[#00f0ff]/50 shadow-[0_0_12px_rgba(0,240,255,0.25)]'
+                            : 'bg-[#141424] text-[#8a8aa3] border-[#1e1e35] hover:text-[#e8e8f0] hover:border-[#2e2e46]'
+                        }`}
+                      >
+                        <Eye size={11} />
+                        <span>Слой объяснений: {visualExplanationMode === 'always' ? 'Всегда' : 'При наведении'}</span>
+                      </button>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] mono bg-[#b478ff]/15 text-[#b478ff] border border-[#b478ff]/30 font-bold">
+                        Semantic AI
+                      </span>
+                    </div>
                   </div>
 
                   {/* Active target showcase banner */}
                   {selectedItem && (
-                    <div className="p-3.5 rounded-xl bg-[#141424] border border-[#00f0ff]/30 flex flex-col gap-1.5">
+                    <div className="p-3.5 rounded-xl bg-[#141424] border border-[#00f0ff]/30 flex flex-col gap-1.5 transition-all">
                       <div className="flex items-center justify-between text-xs">
                         <span className="mono text-[10px] uppercase text-[#00f0ff] font-bold tracking-wider">
                           Вы просматриваете:
@@ -561,24 +722,71 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
                         <span className="font-bold text-sm text-[#e8e8f0]">{selectedItem.title}</span>
                       </div>
                       <div className="text-xs text-[#8a8aa3] leading-relaxed">{selectedItem.description}</div>
+
+                      {/* Dynamic Two-Way Visual Bridge when hovering over a recommendation */}
+                      {hoveredExplanation && (
+                        <div className="mt-2 pt-2.5 border-t border-[#00f0ff]/25 flex flex-col gap-1.5 animate-in fade-in duration-200">
+                          <div className="flex items-center justify-between text-[11px] font-mono">
+                            <span className="text-[#00f0ff] font-bold flex items-center gap-1">
+                              <Brain size={12} className="animate-pulse" />
+                              <span>Связанные признаки с «{hoveredExplanation.recommendedTitle}»:</span>
+                            </span>
+                            <span className="text-[#3ee89a] font-bold bg-[#3ee89a]/10 px-1.5 py-0.5 rounded border border-[#3ee89a]/20">
+                              {(hoveredExplanation.similarityScore * 100).toFixed(0)}% сходство
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {hoveredExplanation.features.map((feat) => (
+                              <span
+                                key={feat.id}
+                                className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold border flex items-center gap-1"
+                                style={{
+                                  backgroundColor: `${feat.color}15`,
+                                  borderColor: `${feat.color}40`,
+                                  color: feat.color,
+                                }}
+                              >
+                                <span>{feat.label.split(' ')[0]}</span>
+                                <span className="font-bold">+{feat.absoluteContribution}</span>
+                              </span>
+                            ))}
+                            {hoveredExplanation.matchedKeywords.length > 0 && (
+                              <span className="text-[10px] text-[#8a8aa3] font-mono">
+                                Ключевые термины: {hoveredExplanation.matchedKeywords.join(', ')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Recommendations with "Why we recommend" */}
-                  <div className="flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1">
+                  {/* Recommendations with "Why we recommend" and Visual Explanation Layer on hover */}
+                  <div className="flex flex-col gap-3 max-h-[580px] overflow-y-auto pr-1">
                     {recommendations.length === 0 ? (
                       <div className="py-12 text-center text-xs text-[#8a8aa3]">
                         Загрузка семантических связей...
                       </div>
                     ) : (
-                      recommendations.map((rec, idx) => {
+                      recommendations.map((rec) => {
                         const percent = (rec.sim * 100).toFixed(0);
+                        const isHovered = hoveredRecId === rec.item.id;
+                        const showExplanation = isHovered || visualExplanationMode === 'always';
+                        const explanation = selectedItem
+                          ? decomposeSimilarityFeatures(selectedItem, rec.item, rec.sim, selectedPersona)
+                          : null;
 
                         return (
                           <div
                             key={rec.item.id}
                             onClick={() => setSelectedItem(rec.item)}
-                            className="group p-3.5 rounded-xl bg-[#111120] hover:bg-[#141829] border border-[#1e1e35] hover:border-[#00f0ff]/60 transition-all cursor-pointer flex flex-col gap-2 relative overflow-hidden"
+                            onMouseEnter={() => setHoveredRecId(rec.item.id)}
+                            onMouseLeave={() => setHoveredRecId(null)}
+                            className={`group p-3.5 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col gap-2.5 relative overflow-hidden ${
+                              isHovered
+                                ? 'bg-[#14182b] border-[#00f0ff] shadow-[0_0_24px_rgba(0,240,255,0.22)] ring-1 ring-[#00f0ff]/50'
+                                : 'bg-[#111120] hover:bg-[#141829] border-[#1e1e35] hover:border-[#00f0ff]/60'
+                            }`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5">
@@ -587,23 +795,34 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
                                   <div className="font-bold text-xs text-[#e8e8f0] group-hover:text-[#00f0ff] transition-colors line-clamp-1">
                                     {rec.item.title}
                                   </div>
-                                  <div className="text-[11px] text-[#8a8aa3]">{rec.item.category} · {rec.item.price || '1 990 ₽'}</div>
+                                  <div className="text-[11px] text-[#8a8aa3]">
+                                    {rec.item.category} · {rec.item.price || '1 990 ₽'}
+                                  </div>
                                 </div>
                               </div>
-                              <span className="text-xs mono font-bold text-[#3ee89a] bg-[#3ee89a]/10 px-2 py-0.5 rounded border border-[#3ee89a]/20 shrink-0">
-                                {percent}% совпадение
-                              </span>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {isHovered && (
+                                  <span className="text-[9px] mono font-bold text-[#00f0ff] bg-[#00f0ff]/15 px-1.5 py-0.5 rounded border border-[#00f0ff]/30 flex items-center gap-1 animate-pulse">
+                                    <Brain size={10} />
+                                    <span>Слой признаков</span>
+                                  </span>
+                                )}
+                                <span className="text-xs mono font-bold text-[#3ee89a] bg-[#3ee89a]/10 px-2 py-0.5 rounded border border-[#3ee89a]/20">
+                                  {percent}% совпадение
+                                </span>
+                              </div>
                             </div>
 
                             {/* PROGRESS BAR */}
                             <div className="w-full bg-[#0a0a12] h-1.5 rounded-full overflow-hidden">
                               <div
-                                className="bg-gradient-to-r from-[#00f0ff] via-[#b478ff] to-[#3ee89a] h-full rounded-full"
+                                className="bg-gradient-to-r from-[#00f0ff] via-[#b478ff] to-[#3ee89a] h-full rounded-full transition-all duration-300"
                                 style={{ width: `${Math.min(100, rec.sim * 100)}%` }}
                               />
                             </div>
 
-                            {/* "WHY WE RECOMMEND THIS" (User-requested feature) */}
+                            {/* "WHY WE RECOMMEND THIS" */}
                             {rec.whyRecommended && (
                               <div className="p-2 rounded-lg bg-[#0e0e18] border border-[#1e1e35] text-[11px] text-[#8a8aa3] leading-relaxed flex items-start gap-1.5">
                                 <Info size={13} className="text-[#00f0ff] shrink-0 mt-0.5" />
@@ -611,6 +830,26 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
                                   <strong className="text-[#e8e8f0] font-medium">Почему рекомендуем: </strong>
                                   <span>{rec.whyRecommended}</span>
                                 </div>
+                              </div>
+                            )}
+
+                            {/* VISUAL EXPLANATION LAYER (Activated on hover or always if toggled) */}
+                            {showExplanation && explanation ? (
+                              <VisualExplanationLayer
+                                explanation={explanation}
+                                targetIcon={selectedItem?.icon}
+                                recommendedIcon={rec.item.icon}
+                              />
+                            ) : (
+                              /* Hover Affordance CTA when collapsed */
+                              <div className="flex items-center justify-between text-[10px] font-mono text-[#8a8aa3] pt-1 border-t border-[#1e1e35]/60">
+                                <span className="flex items-center gap-1.5 group-hover:text-[#00f0ff] transition-colors">
+                                  <Eye size={11} className="text-[#00f0ff]" />
+                                  <span>Наведите для визуализации признаков сходства</span>
+                                </span>
+                                <span className="text-[#3ee89a] font-semibold">
+                                  {explanation?.topLatentConcept.split(',')[0] || 'Векторное сходство'}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -629,13 +868,22 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
         {/* ============================================================ */}
         {activeMode === 'comparison' && (
           <div className="p-6 bg-[#0e0e18] border border-[#1e1e35] rounded-2xl shadow-xl flex flex-col gap-6">
-            <div>
-              <h3 className="text-xl font-extrabold text-[#e8e8f0] mono">
-                Интерактивное сравнение: Обычный поиск VS Движок EIDOS
-              </h3>
-              <p className="text-sm text-[#8a8aa3] mt-1">
-                Попробуйте один и тот же запрос в двух парадигмах: слепой поиск по буквам против понимания смысла.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-extrabold text-[#e8e8f0] mono">
+                  Интерактивное сравнение: Обычный поиск VS Движок EIDOS
+                </h3>
+                <p className="text-sm text-[#8a8aa3] mt-1">
+                  Попробуйте один и тот же запрос в двух парадигмах: слепой поиск по буквам против понимания смысла.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsABReportOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1f1f33] hover:bg-[#2a2a46] text-[#3ee89a] font-mono text-xs font-bold border border-[#3ee89a]/30 transition-all cursor-pointer shrink-0 shadow-[0_0_12px_rgba(62,232,154,0.15)]"
+              >
+                <FileSpreadsheet size={15} />
+                <span>📊 Экспорт бенчмарка (CSV / PDF)</span>
+              </button>
             </div>
 
             {/* Test input bar */}
@@ -834,6 +1082,19 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
         isOpen={isRoiOpen}
         onClose={() => setIsRoiOpen(false)}
         onOpenPitch={() => setIsPitchOpen(true)}
+      />
+
+      <FeedImporterModal
+        isOpen={isFeedImporterOpen}
+        onClose={() => setIsFeedImporterOpen(false)}
+        onImportItems={handleImportFeedItems}
+        onShowToast={onShowToast}
+      />
+
+      <ABTestReportModal
+        isOpen={isABReportOpen}
+        onClose={() => setIsABReportOpen(false)}
+        onShowToast={onShowToast}
       />
     </div>
   );

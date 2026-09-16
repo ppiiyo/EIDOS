@@ -28,7 +28,7 @@ interface IntegrationHubViewProps {
   onShowToast: (msg: string, type?: 'info' | 'success' | 'error') => void;
 }
 
-type PlatformTab = 'shopify' | 'woocommerce' | 'bitrix' | 'js_widget' | 'nodejs' | 'python' | 'curl';
+type PlatformTab = 'shopify' | 'woocommerce' | 'bitrix' | 'react' | 'js_widget' | 'nodejs' | 'python' | 'curl';
 type StrategyType = 'similar' | 'cross_category' | 'cold_start' | 'search';
 
 export const IntegrationHubView: React.FC<IntegrationHubViewProps> = ({
@@ -250,6 +250,51 @@ if (!empty($data['recommendations'])) {
         echo '<div class="item">' . htmlspecialcharsbx($item['title']) . ' (' . $item['confidence'] . ')</div>';
     }
     echo '</div>';
+}`;
+
+      case 'react':
+        return `// React / Next.js / Remix Component (SDK @eidos/recommender-react)
+import React from 'react';
+import { EidosCarousel, useEidosRecommendations } from '@eidos/recommender-react';
+
+export function ProductRecommendations({ productId }: { productId: number }) {
+  // Вариант 1: Готовый адаптивный UI-компонент
+  return (
+    <div className="eidos-container my-6">
+      <h3 className="text-base font-bold font-mono mb-3">С этим товаром также выбирают</h3>
+      <EidosCarousel
+        apiKey="eidos_live_sk_94a28f731c"
+        itemId={productId}
+        strategy="${selectedStrategy}"
+        theme="${widgetTheme}"
+        limit={${widgetLimit}}
+        showSimilarityBadge={${showSimilarityBadge}}
+        showReasonTag={${showReasonTag}}
+        onSelect={(item) => console.log('Клик по рекомендации:', item)}
+      />
+    </div>
+  );
+}
+
+// Вариант 2: Headless React Hook для индивидуального дизайна
+export function CustomHookSection({ productId }: { productId: number }) {
+  const { data, isLoading } = useEidosRecommendations({
+    itemId: productId,
+    limit: ${widgetLimit},
+    strategy: '${selectedStrategy}',
+  });
+
+  if (isLoading) return <div>Загрузка семантических связей...</div>;
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {data?.map((item) => (
+        <div key={item.id} className="p-3 border rounded-xl">
+          <p className="font-bold text-sm">{item.title}</p>
+          <span className="text-xs text-cyan-400 font-mono">{item.similarity}% совпадение</span>
+        </div>
+      ))}
+    </div>
+  );
 }`;
 
       case 'js_widget':
@@ -796,6 +841,7 @@ async def get_eidos_recommendations(product_id: int):
               { id: 'shopify', label: 'Shopify' },
               { id: 'woocommerce', label: 'WooCommerce' },
               { id: 'bitrix', label: '1С-Битрикс' },
+              { id: 'react', label: 'React / Next.js' },
               { id: 'js_widget', label: 'HTML/JS Widget' },
               { id: 'nodejs', label: 'Node.js' },
               { id: 'python', label: 'Python' },

@@ -134,3 +134,16 @@ export interface WhiteLabelBrand {
   accentColor: string;
   niche: string;
 }
+
+export interface CustomerPersona {
+  id: string;
+  name: string;
+  role: string;
+  avatar: string;
+  tagline: string;
+  preferredCategories: string[];
+  affinityTags: string[];
+  semanticInterest: string;
+  color: string;
+}
+
