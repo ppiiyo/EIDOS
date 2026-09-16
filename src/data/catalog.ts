@@ -265,4 +265,22 @@ export const WHITE_LABEL_BRANDS = [
     accentColor: '#38bdf8',
     niche: 'Книги и образование',
   },
+  {
+    id: 'devstack',
+    name: 'DevStack B2B Cloud',
+    tagline: 'Каталог облачных инструментов, баз данных и микросервисов',
+    logo: '⚡',
+    primaryColor: '#38bdf8',
+    accentColor: '#a855f7',
+    niche: 'B2B SaaS & DevTools',
+  },
+  {
+    id: 'maisonluxe',
+    name: 'Maison Capsule Studio',
+    tagline: 'Премиальный бутик: подбор капсульных коллекций по стилю',
+    logo: '💎',
+    primaryColor: '#fbbf24',
+    accentColor: '#f43f5e',
+    niche: 'Fashion & Luxury Ритейл',
+  },
 ];

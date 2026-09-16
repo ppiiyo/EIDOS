@@ -21,6 +21,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { CatalogItem } from '../types';
+import { LaunchKitSection } from './LaunchKitSection';
 
 interface IntegrationHubViewProps {
   catalog: CatalogItem[];
@@ -1046,7 +1047,10 @@ async def get_eidos_recommendations(product_id: int):
         </div>
       </section>
 
-      {/* SECTION 5: BUSINESS ROI CALCULATOR */}
+      {/* SECTION 5: PRODUCTION LAUNCH KIT & DOWNLOADABLE ARTIFACTS */}
+      <LaunchKitSection onShowToast={onShowToast} />
+
+      {/* SECTION 6: BUSINESS ROI CALCULATOR */}
       <section className="rounded-2xl bg-gradient-to-br from-[#11111a] via-[#151526] to-[#11111a] border border-[#2a2a44] p-6 lg:p-8 shadow-xl">
         <div className="max-w-xl mb-6">
           <div className="text-xs font-mono uppercase tracking-widest text-[#3ee89a]">

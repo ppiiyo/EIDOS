@@ -1,6 +1,7 @@
-import React from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Edit2, Trash2, Cloud, RefreshCw, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { Project, StatusKind, ActiveTab } from '../types';
+import { useFirebase } from '../context/FirebaseContext';
 
 interface HeaderProps {
   projects: Project[];
@@ -26,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   onDeleteProject,
 }) => {
   const isRecommenderMode = activeTab === 'recommender';
+  const { user, loading, isSyncing, cloudConnected, login, logout } = useFirebase();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <header className="flex items-center gap-4 px-5 h-16 border-b border-[#1e1e35] bg-[#0b0b13]/80 backdrop-blur-xl z-20 shrink-0">
@@ -138,8 +141,21 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       )}
 
-      {/* Status Pill */}
+      {/* Right Controls: Cloud Status & User Auth & Status Pill */}
       <div className="ml-auto flex items-center gap-3">
+        {/* Firebase Cloud status */}
+        <div
+          title={cloudConnected ? 'Firebase Firestore подключен' : 'Локальный режим'}
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111120] border border-[#1e1e35] text-[11px] mono text-[#8a8aa3]"
+        >
+          <Cloud size={13} className={cloudConnected ? 'text-[#3ee89a]' : 'text-[#8a8aa3]'} />
+          <span className="hidden md:inline">
+            {cloudConnected ? 'Cloud DB' : 'Offline'}
+          </span>
+          {isSyncing && <RefreshCw size={11} className="animate-spin text-[#00e5ff]" />}
+        </div>
+
+        {/* System Status Pill */}
         <div
           id="system-status-pill"
           className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#00e5ff]/5 border border-[#00e5ff]/15 mono text-[11px] text-[#8a8aa3]"
@@ -153,8 +169,68 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'bg-[#ff6b9d] shadow-[0_0_8px_#ff6b9d]'
             }`}
           />
-          <span>{status.text}</span>
+          <span className="hidden lg:inline">{status.text}</span>
         </div>
+
+        {/* User Auth Profile / Login Button */}
+        {loading ? (
+          <div className="w-8 h-8 rounded-lg bg-[#111120] animate-pulse" />
+        ) : user ? (
+          <div className="relative">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#111120] border border-[#1e1e35] hover:border-[#00e5ff]/40 transition-colors cursor-pointer"
+            >
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.displayName || 'User'}
+                  className="w-5 h-5 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-[#00e5ff]/20 text-[#00e5ff] flex items-center justify-center text-[10px] font-bold">
+                  {user.displayName?.[0] || 'U'}
+                </div>
+              )}
+              <span className="text-xs font-mono text-[#e8e8f0] max-w-[90px] truncate hidden sm:inline">
+                {user.displayName?.split(' ')[0] || 'User'}
+              </span>
+            </button>
+
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#111120] border border-[#1e1e35] shadow-2xl py-2 z-50">
+                <div className="px-3.5 py-2 border-b border-[#1e1e35]">
+                  <p className="text-xs font-semibold text-white truncate">{user.displayName}</p>
+                  <p className="text-[11px] text-[#8a8aa3] truncate">{user.email}</p>
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#3ee89a] font-mono">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#3ee89a]" />
+                    <span>Firestore активен</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full px-3.5 py-2 text-left text-xs text-[#ff6b9d] hover:bg-[#ff6b9d]/10 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <LogOut size={13} />
+                  <span>Выйти из аккаунта</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => login()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-gradient-to-r from-[#00e5ff]/10 to-[#b478ff]/10 border border-[#00e5ff]/30 text-[#00e5ff] hover:border-[#00e5ff] hover:bg-[#00e5ff]/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(0,229,255,0.15)]"
+          >
+            <LogIn size={13} />
+            <span className="hidden sm:inline">Войти через Google</span>
+            <span className="sm:hidden">Войти</span>
+          </button>
+        )}
       </div>
     </header>
   );

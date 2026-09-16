@@ -32,6 +32,7 @@ import { ExportView } from './components/ExportView';
 import { RecommenderView } from './components/RecommenderView';
 import { PresentationLandingView } from './components/PresentationLandingView';
 import { IntegrationHubView } from './components/IntegrationHubView';
+import { useFirebase } from './context/FirebaseContext';
 import {
   NewProjectModal,
   RenameProjectModal,
@@ -162,6 +163,39 @@ export default function App() {
   const dismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
+
+  // Firebase Auth and Cloud Sync
+  const { user, syncData, loadCloudData } = useFirebase();
+
+  // Load from Cloud on initial user login
+  useEffect(() => {
+    if (!user) return;
+    let isMounted = true;
+    loadCloudData().then((cloudData) => {
+      if (!isMounted || !cloudData) return;
+      if (cloudData.projects && cloudData.projects.length > 0) {
+        setProjects(cloudData.projects);
+        addToast('Облачные проекты синхронизированы из Firestore', 'info');
+      } else if (projects.length > 0) {
+        syncData(projects, catalog);
+      }
+      if (cloudData.catalog && cloudData.catalog.length > 0) {
+        setCatalog(cloudData.catalog);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.uid]);
+
+  // Debounced auto-sync to Firestore on local updates when user is logged in
+  useEffect(() => {
+    if (!user) return;
+    const timeout = setTimeout(() => {
+      syncData(projects, catalog);
+    }, 2500);
+    return () => clearTimeout(timeout);
+  }, [projects, catalog, user?.uid]);
 
   // Run Semantic Pipeline
   const runAnalysis = useCallback(async () => {
