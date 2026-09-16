@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { 
   getFirestore, 
+  initializeFirestore,
   doc, 
   getDoc, 
   getDocFromServer,
@@ -25,7 +26,20 @@ import { Project, CatalogItem } from '../types';
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize Firestore with specific databaseId (required by AI Studio Firebase setup)
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Using experimentalForceLongPolling to prevent WebChannel streaming timeouts in sandboxed iframes & preview proxies
+let dbInstance;
+try {
+  dbInstance = initializeFirestore(
+    app,
+    {
+      experimentalForceLongPolling: true,
+    },
+    firebaseConfig.firestoreDatabaseId
+  );
+} catch {
+  dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+export const db = dbInstance;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -80,11 +94,19 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // Connection check
 export async function testFirestoreConnection(): Promise<boolean> {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    const checkPromise = getDocFromServer(doc(db, 'test', 'connection'));
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('the client is offline')), 4000)
+    );
+    await Promise.race([checkPromise, timeoutPromise]);
     return true;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore is offline or unreachable.');
+    if (error instanceof Error && (
+      error.message.includes('the client is offline') ||
+      error.message.includes('Could not reach Cloud Firestore backend') ||
+      error.message.includes('unavailable')
+    )) {
+      console.warn('Firestore is offline or unreachable. Please check your Firebase configuration.');
       return false;
     }
     // Permission denied on test/connection is expected if rules deny it, but proves connectivity to server
@@ -100,15 +122,20 @@ export async function loginWithGoogle(): Promise<User | null> {
     if (user) {
       // Sync user profile to Firestore
       const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, {
-        uid: user.uid,
-        displayName: user.displayName || 'Anonymous User',
-        email: user.email || '',
-        photoURL: user.photoURL || '',
-        tier: 'business',
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-      }, { merge: true });
+      const userPath = `users/${user.uid}`;
+      try {
+        await setDoc(userRef, {
+          uid: user.uid,
+          displayName: user.displayName || 'Anonymous User',
+          email: user.email || '',
+          photoURL: user.photoURL || '',
+          tier: 'business',
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, userPath);
+      }
     }
     return user;
   } catch (err) {
