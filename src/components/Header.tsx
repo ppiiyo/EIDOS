@@ -47,24 +47,34 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Module Switcher Pills */}
       <div className="flex items-center gap-1 bg-[#111120] p-1 rounded-xl border border-[#1e1e35]">
         <button
-          onClick={() => onChangeTab('recommender')}
+          onClick={() => onChangeTab('landing')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
-            isRecommenderMode
+            activeTab === 'landing'
               ? 'bg-[#00e5ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 font-semibold shadow-[0_0_12px_rgba(0,229,255,0.2)]'
               : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
           }`}
         >
-          <span>🎯 Recommender</span>
+          <span>🌟 Презентация</span>
         </button>
         <button
-          onClick={() => onChangeTab(activeTab === 'recommender' ? 'analyze' : activeTab)}
+          onClick={() => onChangeTab('recommender')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
-            !isRecommenderMode
+            activeTab === 'recommender'
+              ? 'bg-[#00e5ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 font-semibold shadow-[0_0_12px_rgba(0,229,255,0.2)]'
+              : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
+          }`}
+        >
+          <span>🎯 Витрина</span>
+        </button>
+        <button
+          onClick={() => onChangeTab(activeTab === 'recommender' || activeTab === 'landing' ? 'analyze' : activeTab)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
+            activeTab !== 'recommender' && activeTab !== 'landing'
               ? 'bg-[#b478ff]/15 text-[#b478ff] border border-[#b478ff]/30 font-semibold shadow-[0_0_12px_rgba(180,120,255,0.2)]'
               : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
           }`}
         >
-          <span>◈ Ideation</span>
+          <span>◈ Ideation & Граф</span>
         </button>
       </div>
 

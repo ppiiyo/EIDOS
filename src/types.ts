@@ -66,7 +66,7 @@ export interface PresetDomain {
   description?: string;
 }
 
-export type ActiveTab = 'recommender' | 'analyze' | 'graph' | 'insights' | 'export';
+export type ActiveTab = 'landing' | 'recommender' | 'analyze' | 'graph' | 'insights' | 'export';
 export type StatusKind = 'ready' | 'busy' | 'error' | 'loading';
 
 export interface CatalogItem {

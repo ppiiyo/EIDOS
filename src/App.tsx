@@ -30,6 +30,7 @@ import { GraphView } from './components/GraphView';
 import { InsightsView } from './components/InsightsView';
 import { ExportView } from './components/ExportView';
 import { RecommenderView } from './components/RecommenderView';
+import { PresentationLandingView } from './components/PresentationLandingView';
 import {
   NewProjectModal,
   RenameProjectModal,
@@ -110,8 +111,8 @@ export default function App() {
     }
   }, [projects, currentId]);
 
-  // 2. Navigation & UI state - start directly in Recommender tab as requested!
-  const [activeTab, setActiveTab] = useState<ActiveTab>('recommender');
+  // 2. Navigation & UI state - start in Landing Presentation mode
+  const [activeTab, setActiveTab] = useState<ActiveTab>('landing');
   const [threshold, setThreshold] = useState<number>(() => {
     return currentProject.simThreshold ?? 0.25;
   });
@@ -435,7 +436,7 @@ export default function App() {
       {/* Main workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar (Ideation mode) */}
-        {activeTab !== 'recommender' && (
+        {activeTab !== 'recommender' && activeTab !== 'landing' && (
           <Sidebar
             project={currentProject}
             threshold={threshold}
@@ -454,7 +455,8 @@ export default function App() {
           {/* Navigation Tabs */}
           <nav className="flex items-center gap-1 px-5 pt-2 border-b border-[#1e1e35] bg-[#0b0b13]/80 select-none overflow-x-auto">
             {[
-              { key: 'recommender', label: '🎯 Рекомендации' },
+              { key: 'landing', label: '🌟 Презентация & Лендинг' },
+              { key: 'recommender', label: '🎯 Витрина Recommender' },
               { key: 'analyze', label: 'Анализ' },
               { key: 'graph', label: 'Граф' },
               { key: 'insights', label: 'Инсайты' },
@@ -485,6 +487,14 @@ export default function App() {
 
           {/* Active View Container */}
           <div className="flex-1 overflow-hidden relative">
+            {activeTab === 'landing' && (
+              <PresentationLandingView
+                catalog={catalog}
+                onSelectTab={setActiveTab}
+                onShowToast={addToast}
+              />
+            )}
+
             {activeTab === 'recommender' && (
               <RecommenderView
                 catalog={catalog}

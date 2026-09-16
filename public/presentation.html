@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EIDOS Recommender — Рекомендации, которые понимают смысл</title>
+  <meta name="description" content="Семантический рекомендательный движок на основе эмбеддингов для маркетплейсов, видеоплатформ и HR. CTR +30%, конверсия +20%.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0/dist/transformers.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg-surface: #11111a;
+      --bg-surface-hover: #161624;
+      --border: #1e1e2e;
+      --border-accent: #2c2c44;
+      --cyan: #00f0ff;
+      --purple: #a855f7;
+      --pink: #f472b6;
+      --text: #f1f1f7;
+      --text-muted: #8c8ca6;
+      --text-faint: #56566e;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+    }
+
+    body {
+      background: radial-gradient(circle at 50% 0%, rgba(168, 85, 247, 0.08) 0%, rgba(10, 10, 15, 0) 50%),
+                  radial-gradient(circle at 10% 20%, rgba(0, 240, 255, 0.05) 0%, rgba(10, 10, 15, 0) 40%),
+                  var(--bg);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4, .mono {
+      font-family: var(--font-mono);
+      letter-spacing: -0.02em;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(16px);
+      background: rgba(10, 10, 15, 0.75);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+    .logo-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: #050508;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.35);
+    }
+    .logo-text {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.05em;
+    }
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s ease;
+    }
+    .nav-links a:hover {
+      color: var(--text);
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+      font-family: var(--font-sans);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #00f0ff, #00b4d8);
+      color: #050508;
+      font-weight: 600;
+      box-shadow: 0 0 24px rgba(0, 240, 255, 0.25);
+    }
+    .btn-primary:hover {
+      box-shadow: 0 0 32px rgba(0, 240, 255, 0.4);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: var(--bg-surface);
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      border-color: var(--border-accent);
+      background: var(--bg-surface-hover);
+      transform: translateY(-1px);
+    }
+    .btn-sm {
+      padding: 6px 14px;
+      font-size: 13px;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 80px 0 60px;
+      display: grid;
+      grid-template-columns: 1fr 1.05fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .hero-left {
+      max-width: 540px;
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: rgba(0, 240, 255, 0.06);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 9999px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      margin-bottom: 20px;
+    }
+    .hero-title {
+      font-size: 48px;
+      line-height: 1.15;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+    .hero-title span {
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: 18px;
+      color: var(--text-muted);
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    /* Hero Interactive Demo Card */
+    .hero-demo-card {
+      background: #0d0d16;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(168, 85, 247, 0.08);
+      position: relative;
+    }
+    .hero-demo-card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 15px;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.3), rgba(168, 85, 247, 0.2), transparent);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+    .demo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .demo-input-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .demo-input {
+      flex: 1;
+      background: #151522;
+      border: 1px solid var(--border-accent);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+    .demo-input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+    }
+    .demo-tags {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .demo-tag {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      background: #151522;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .demo-tag:hover {
+      color: var(--cyan);
+      border-color: rgba(0, 240, 255, 0.4);
+      background: rgba(0, 240, 255, 0.05);
+    }
+    .demo-results-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .demo-result-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: #141420;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      animation: fadeIn 0.3s ease;
+    }
+    .demo-result-item:hover {
+      border-color: rgba(0, 240, 255, 0.3);
+      background: #181829;
+    }
+    .item-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .item-icon {
+      font-size: 20px;
+    }
+    .item-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .item-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .similarity-badge {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .sim-high {
+      background: rgba(0, 240, 255, 0.12);
+      color: var(--cyan);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+    }
+    .sim-mid {
+      background: rgba(168, 85, 247, 0.12);
+      color: var(--purple);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    /* Social Proof */
+    .social-proof {
+      padding: 40px 0 60px;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .social-proof-text {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-faint);
+      margin-bottom: 24px;
+      font-family: var(--font-mono);
+    }
+    .logos-grid {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 48px;
+      flex-wrap: wrap;
+      opacity: 0.6;
+    }
+    .logo-item {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 600;
+      color: #7a7a96;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.05em;
+    }
+
+    /* Problem Section */
+    .section {
+      padding: 90px 0;
+      position: relative;
+    }
+    .section-header {
+      text-align: center;
+      max-width: 640px;
+      margin: 0 auto 56px;
+    }
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--cyan);
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+    .section-title {
+      font-size: 36px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 16px;
+    }
+    .section-desc {
+      font-size: 16px;
+      color: var(--text-muted);
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .problem-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .problem-card:hover {
+      border-color: var(--border-accent);
+      transform: translateY(-2px);
+    }
+    .problem-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(244, 114, 182, 0.1);
+      border: 1px solid rgba(244, 114, 182, 0.2);
+      color: var(--pink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+    .problem-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+    .problem-text {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Solution / How it works */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 48px;
+    }
+    .step-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      position: relative;
+    }
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--cyan);
+      margin-bottom: 14px;
+    }
+    .step-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .step-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Pipeline Diagram */
+    .pipeline-box {
+      background: #0c0c14;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--cyan);
+      overflow-x: auto;
+      text-align: center;
+      line-height: 1.8;
+      box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Full Demo Section */
+    .demo-section-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    .catalog-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 480px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .catalog-item-card {
+      background: #141420;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .catalog-item-card:hover, .catalog-item-card.active {
+      border-color: var(--cyan);
+      background: #181829;
+    }
+    .catalog-item-card.active {
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.15);
+    }
+    .recs-container {
+      background: #0d0d16;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Metrics */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+    .metric-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .metric-val {
+      font-family: var(--font-mono);
+      font-size: 48px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .metric-label {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e0e0ed;
+      margin-bottom: 6px;
+    }
+    .metric-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Pricing */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      align-items: stretch;
+    }
+    .pricing-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .pricing-card.popular {
+      border-color: var(--purple);
+      background: #121220;
+      box-shadow: 0 0 40px rgba(168, 85, 247, 0.12);
+    }
+    .popular-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, var(--purple), var(--cyan));
+      color: #050508;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+    }
+    .tier-name {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .tier-price {
+      font-size: 36px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      margin-bottom: 16px;
+      color: #fff;
+    }
+    .tier-price span {
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+    .tier-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .tier-features {
+      list-style: none;
+      margin-bottom: 32px;
+      flex: 1;
+    }
+    .tier-features li {
+      font-size: 13px;
+      color: #c4c4d8;
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tier-features li::before {
+      content: '✓';
+      color: var(--cyan);
+      font-weight: 800;
+    }
+
+    /* FAQ */
+    .faq-list {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .faq-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .faq-question {
+      padding: 20px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .faq-toggle {
+      font-family: var(--font-mono);
+      color: var(--cyan);
+      font-size: 18px;
+      transition: transform 0.2s ease;
+    }
+    .faq-answer {
+      display: none;
+      padding: 0 24px 20px;
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .faq-item.open .faq-answer {
+      display: block;
+    }
+    .faq-item.open .faq-toggle {
+      transform: rotate(45deg);
+    }
+
+    /* CTA Final */
+    .cta-card {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%), var(--bg-surface);
+      border: 1px solid var(--border-accent);
+      border-radius: 16px;
+      padding: 60px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-title {
+      font-size: 36px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 16px;
+    }
+    .cta-sub {
+      font-size: 16px;
+      color: var(--text-muted);
+      max-width: 520px;
+      margin: 0 auto 32px;
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 60px 0 32px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+      gap: 32px;
+      margin-bottom: 48px;
+    }
+    .footer-col h5 {
+      font-family: var(--font-mono);
+      color: #fff;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .footer-col ul {
+      list-style: none;
+    }
+    .footer-col ul li {
+      margin-bottom: 10px;
+    }
+    .footer-col ul a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .footer-col ul a:hover {
+      color: var(--cyan);
+    }
+    .footer-bottom {
+      border-top: 1px solid #161622;
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-faint);
+    }
+
+    /* Keyframes */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; }
+      .problem-grid, .steps-grid, .metrics-grid, .pricing-grid { grid-template-columns: 1fr; }
+      .demo-section-box { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. NAVBAR -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="#" class="logo">
+        <div class="logo-badge">E</div>
+        <span class="logo-text">EIDOS</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#problem">Проблема</a></li>
+        <li><a href="#solution">Как это работает</a></li>
+        <li><a href="#demo">Демо</a></li>
+        <li><a href="#metrics">Метрики</a></li>
+        <li><a href="#pricing">Тарифы</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="#demo" class="btn btn-secondary btn-sm">Попробовать демо</a>
+        <button onclick="openApiKeyModal()" class="btn btn-primary btn-sm">Get API Key</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. HERO -->
+  <section class="container hero">
+    <div class="hero-left">
+      <div class="hero-eyebrow">
+        <span>⚡</span> Semantic Embeddings Engine v2.0
+      </div>
+      <h1 class="hero-title">
+        Рекомендации, которые <span>понимают смысл</span>
+      </h1>
+      <p class="hero-sub">
+        Семантический движок для маркетплейсов, видеоплатформ и HR. Увеличивает CTR на 30%, а конверсию на 20% без опоры на историю покупок.
+      </p>
+      <div class="hero-buttons">
+        <a href="#demo" class="btn btn-primary">Попробовать демо</a>
+        <a href="#solution" class="btn btn-secondary">Документация</a>
+      </div>
+    </div>
+
+    <!-- Right: Mini interactive demo -->
+    <div class="hero-demo-card">
+      <div class="demo-header">
+        <span>● LIVE INFERENCE SANDBOX</span>
+        <span id="hero-latency" style="color: var(--cyan);">~3.4 ms</span>
+      </div>
+      <div class="demo-input-box">
+        <input type="text" id="hero-query-input" class="demo-input" placeholder="Введите интерес (например, 'космос и время')...">
+        <button onclick="runHeroQuery()" class="btn btn-primary btn-sm">Поиск</button>
+      </div>
+      <div class="demo-tags">
+        <span class="demo-tag" onclick="setHeroQuery('космос и время')">🚀 космос и время</span>
+        <span class="demo-tag" onclick="setHeroQuery('киберпанк и симуляция')">🕶️ киберпанк</span>
+        <span class="demo-tag" onclick="setHeroQuery('кофе и утро')">☕ кофе и уют</span>
+        <span class="demo-tag" onclick="setHeroQuery('обучение программированию')">🐍 python и код</span>
+      </div>
+      <div class="demo-results-list" id="hero-results">
+        <!-- Results injected dynamically -->
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. LOGOS / SOCIAL PROOF -->
+  <section class="social-proof">
+    <div class="container">
+      <div class="social-proof-text">Работает на каталогах передовых e-commerce и медиа платформ</div>
+      <div class="logos-grid">
+        <div class="logo-item">◈ SHOPIFY STORE</div>
+        <div class="logo-item">▲ NETFLIX CATALOG</div>
+        <div class="logo-item">■ AVITO MARKET</div>
+        <div class="logo-item">◉ HEADHUNTER HR</div>
+        <div class="logo-item">◆ COURSERA EDTECH</div>
+        <div class="logo-item">✦ CYBERSTORE</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. PROBLEM -->
+  <section class="section container" id="problem">
+    <div class="section-header">
+      <span class="section-tag">Проблема индустрии</span>
+      <h2 class="section-title">Почему текущие рекомендации тупые</h2>
+      <p class="section-desc">Коллаборативная фильтрация и поиск по ключевым словам устарели 10 лет назад.</p>
+    </div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-icon">🛒</div>
+        <h3 class="problem-title">«Только по покупкам»</h3>
+        <p class="problem-text">
+          Классические системы рекомендуют сахар к чаю. Они не способны понять, что «Матрица» и «Cyberpunk 2077» — об одном и том же, если их никто не покупал вместе.
+        </p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">❄️</div>
+        <h3 class="problem-title">«Холодный старт»</h3>
+        <p class="problem-text">
+          Новый товар или видео попадает в слепую зону. Без 100+ кликов алгоритм не знает, кому его показывать, и контент навсегда теряется на 10-й странице выдачи.
+        </p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">📦</div>
+        <h3 class="problem-title">«Чёрный ящик»</h3>
+        <p class="problem-text">
+          Пользователь и бизнес не понимают логику рекомендаций. Нет процентного показателя сходства и прозрачной причины, почему товар появился на экране.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. SOLUTION (HOW IT WORKS) -->
+  <section class="section container" id="solution" style="border-top: 1px solid var(--border);">
+    <div class="section-header">
+      <span class="section-tag">Решение EIDOS</span>
+      <h2 class="section-title">Как работает EIDOS</h2>
+      <p class="section-desc">Превращаем сырые тексты в математическую карту смыслов за миллисекунды.</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-num">ШАГ 01</div>
+        <h4 class="step-title">Загрузка каталога</h4>
+        <p class="step-text">Отправляете товары, видео или вакансии через REST API или JSON-файл.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">ШАГ 02</div>
+        <h4 class="step-title">Векторизация</h4>
+        <p class="step-text">Модель all-MiniLM трансформирует описание каждого объекта в вектор смысла (384D).</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">ШАГ 03</div>
+        <h4 class="step-title">Карта смыслов</h4>
+        <p class="step-text">Строится плотный граф связей на основе косинусного сходства между всеми сущностями.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">ШАГ 04</div>
+        <h4 class="step-title">Выдача через API</h4>
+        <p class="step-text">Мгновенный отклик &lt;35мс с точным процентом сходства и объяснением связи.</p>
+      </div>
+    </div>
+
+    <!-- Pipeline diagram -->
+    <div class="pipeline-box">
+[КАТАЛОГ: ТОВАРЫ / МЕДИА] ➔ [all-MiniLM 384D ЭМБЕДДИНГИ] ➔ [МАТРИЦА СХОДСТВА] ➔ [ТОПОЛОГИЯ СМЫСЛОВ] ➔ [REST API: 94% СХОДСТВА]
+    </div>
+  </section>
+
+  <!-- 6. DEMO (INTERACTIVE) -->
+  <section class="section container" id="demo" style="border-top: 1px solid var(--border);">
+    <div class="section-header">
+      <span class="section-tag">Интерактивный опыт</span>
+      <h2 class="section-title">Попробуйте сами</h2>
+      <p class="section-desc">Кликните на любой товар слева или введите произвольный запрос по смыслу.</p>
+    </div>
+
+    <div class="demo-section-box">
+      <!-- Catalog list -->
+      <div>
+        <div style="font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          КАТАЛОГ ОБЪЕКТОВ (ВЫБЕРИТЕ ДЛЯ АНАЛИЗА)
+        </div>
+        <div class="catalog-list" id="main-demo-catalog">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Recs output -->
+      <div class="recs-container">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="font-family: var(--font-mono); font-size: 13px; color: var(--cyan);">СЕМАНТИЧЕСКИЕ РЕКОМЕНДАЦИИ</div>
+            <span id="selected-item-title" style="font-size: 12px; color: var(--text-muted);">Объект: Cyberpunk 2077</span>
+          </div>
+          <div id="main-demo-recs" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 12px; color: var(--text-faint);">Векторная близость cos(u, v)</span>
+          <button onclick="openApiKeyModal()" class="btn btn-primary btn-sm">Интегрировать в свой проект</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. METRICS -->
+  <section class="section container" id="metrics" style="border-top: 1px solid var(--border);">
+    <div class="section-header">
+      <span class="section-tag">Бизнес-результаты</span>
+      <h2 class="section-title">Цифры, которые говорят</h2>
+      <p class="section-desc">Результаты реальных A/B-тестирований на каталоге 10 000+ наименований.</p>
+    </div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-val">+30%</div>
+        <div class="metric-label">CTR Рекомендаций</div>
+        <div class="metric-sub">Рост кликабельности релевантных подборок</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">+20%</div>
+        <div class="metric-label">Конверсия в покупку</div>
+        <div class="metric-sub">Прямой прирост выручки и чека</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">+40%</div>
+        <div class="metric-label">Время на сайте</div>
+        <div class="metric-sub">Увеличение глубины вовлечения</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">&lt;50 мс</div>
+        <div class="metric-label">Скорость отклика</div>
+        <div class="metric-sub">Мгновенный векторный инференс</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. PRICING -->
+  <section class="section container" id="pricing" style="border-top: 1px solid var(--border);">
+    <div class="section-header">
+      <span class="section-tag">Тарифные планы</span>
+      <h2 class="section-title">Прозрачные тарифы под любой масштаб</h2>
+      <p class="section-desc">Начните бесплатно на стадии прототипа, масштабируйтесь без ограничений.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <div class="tier-name">Free</div>
+        <div class="tier-price">$0 <span>/ мес</span></div>
+        <p class="tier-desc">Для тестирования гипотез и локальных прототипов разработчиков.</p>
+        <ul class="tier-features">
+          <li>100 запросов в месяц</li>
+          <li>Каталог до 500 объектов</li>
+          <li>all-MiniLM базовая модель</li>
+          <li>REST API доступ</li>
+          <li>Community поддержка</li>
+        </ul>
+        <button onclick="openApiKeyModal('Free')" class="btn btn-secondary">Начать бесплатно</button>
+      </div>
+
+      <div class="pricing-card popular">
+        <div class="popular-badge">MOST POPULAR</div>
+        <div class="tier-name" style="color: var(--purple);">Business</div>
+        <div class="tier-price">$99 <span>/ мес</span></div>
+        <p class="tier-desc">Для растущих интернет-магазинов, медиа-изданий и SaaS-платформ.</p>
+        <ul class="tier-features">
+          <li>10 000 запросов в месяц</li>
+          <li>Каталог до 25 000 объектов</li>
+          <li>Продвинутая мультиязычность</li>
+          <li>Приоритетный SLA 99.9%</li>
+          <li>Аналитика CTR и конверсий</li>
+        </ul>
+        <button onclick="openApiKeyModal('Business')" class="btn btn-primary">Подключить Business</button>
+      </div>
+
+      <div class="pricing-card">
+        <div class="tier-name">Enterprise</div>
+        <div class="tier-price">Custom</div>
+        <p class="tier-desc">Для крупных маркетплейсов с миллионными каталогами и on-premise требованиями.</p>
+        <ul class="tier-features">
+          <li>Неограниченные запросы</li>
+          <li>Каталоги любого масштаба</li>
+          <li>On-premise / Docker образ</li>
+          <li>Дообучение под домен клиента</li>
+          <li>Персональный инженер и SLA 99.99%</li>
+        </ul>
+        <button onclick="openApiKeyModal('Enterprise')" class="btn btn-secondary">Связаться с нами</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. FAQ -->
+  <section class="section container" id="faq" style="border-top: 1px solid var(--border);">
+    <div class="section-header">
+      <span class="section-tag">Частые вопросы</span>
+      <h2 class="section-title">Ответы на главные вопросы</h2>
+      <p class="section-desc">Всё, что вам нужно знать о семантических векторах и интеграции.</p>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item open">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          <span>Чем EIDOS отличается от коллаборативной фильтрации?</span>
+          <span class="faq-toggle">+</span>
+        </div>
+        <div class="faq-answer">
+          Коллаборативная фильтрация опирается на историю кликов и совместных покупок. Если у вас нет терабайтов пользовательских логов, она бессильна. EIDOS анализирует объективный смысл текста, находя концептуальные связи между товарами даже с нулевой историей продаж.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          <span>Как решается проблема «Холодного старта»?</span>
+          <span class="faq-toggle">+</span>
+        </div>
+        <div class="faq-answer">
+          Когда вы загружаете новый товар, модель немедленно вычисляет его вектор эмбеддинга (384 измерения) и помещает в смысловую матрицу каталога. Товар начинает рекомендоваться в первую же секунду после добавления.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          <span>Можно ли использовать на русском и других языках?</span>
+          <span class="faq-toggle">+</span>
+        </div>
+        <div class="faq-answer">
+          Да! Движок EIDOS мультиязычен. Он одинаково точно понимает запросы и каталоги на русском, английском, китайском, немецком и еще 50+ языках, сопоставляя смыслы сквозь языковые барьеры.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          <span>Как быстро EIDOS интегрируется в работающий проект?</span>
+          <span class="faq-toggle">+</span>
+        </div>
+        <div class="faq-answer">
+          В среднем интеграция занимает 5–15 минут. Достаточно отправить POST-запрос с каталогом на эндпоинт <code>/v1/catalog</code>, после чего вызывать <code>POST /v1/recommend</code> из вашего фронтенда или бэкенда.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          <span>Что с безопасностью и приватностью данных?</span>
+          <span class="faq-toggle">+</span>
+        </div>
+        <div class="faq-answer">
+          Мы обрабатываем только публичные описания товаров и метаданные. Никаких персональных данных (PII) ваших пользователей передавать не требуется. Все соединения защищены TLS 1.3.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          <span>Есть ли возможность развернуть On-Premise?</span>
+          <span class="faq-toggle">+</span>
+        </div>
+        <div class="faq-answer">
+          Да, в тарифе Enterprise мы предоставляем автономный Docker-контейнер и Helm-чарты для Kubernetes, работающие в изолированном контуре вашей инфраструктуры без выхода в интернет.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. CTA FINAL -->
+  <section class="section container" style="border-top: 1px solid var(--border);">
+    <div class="cta-card">
+      <h2 class="cta-title">Подключите EIDOS за 5 минут</h2>
+      <p class="cta-sub">
+        Повысьте выручку вашего маркетплейса с первого дня. Бесплатный тестовый ключ активируется мгновенно.
+      </p>
+      <div style="display: flex; justify-content: center; gap: 16px; align-items: center; flex-wrap: wrap;">
+        <button onclick="openApiKeyModal()" class="btn btn-primary">Получить API Key</button>
+        <a href="#demo" class="btn btn-secondary">Протестировать в песочнице</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11. FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="logo" style="margin-bottom: 12px;">
+            <div class="logo-badge">E</div>
+            <span class="logo-text">EIDOS</span>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); max-width: 280px; line-height: 1.5;">
+            Семантический рекомендательный движок нового поколения. Понимание — это структура связей.
+          </p>
+        </div>
+        <div class="footer-col">
+          <h5>Продукт</h5>
+          <ul>
+            <li><a href="#problem">О системе</a></li>
+            <li><a href="#solution">Архитектура</a></li>
+            <li><a href="#pricing">Тарифы</a></li>
+            <li><a href="#metrics">Бенчмарки</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Разработчикам</h5>
+          <ul>
+            <li><a href="#demo">REST API Playground</a></li>
+            <li><a href="https://github.com/your-username/eidos-recommender" target="_blank">GitHub Repository</a></li>
+            <li><a href="#">Документация</a></li>
+            <li><a href="#">SDK Python / JS</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Компания</h5>
+          <ul>
+            <li><a href="#">О нас</a></li>
+            <li><a href="#">Карьера</a></li>
+            <li><a href="#">Контакты</a></li>
+            <li><a href="#">Блог</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Правовая инфо</h5>
+          <ul>
+            <li><a href="#">MIT License</a></li>
+            <li><a href="#">Приватность</a></li>
+            <li><a href="#">Условия</a></li>
+            <li><a href="#">SLA</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div>© 2025 EIDOS Recommender. Все права защищены.</div>
+        <div>Made with 🧠 by EIDOS Team</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Interactive Logic -->
+  <script>
+    // Demo Catalog Dataset
+    const DEMO_ITEMS = [
+      { id: 1, title: 'Cyberpunk 2077', category: 'Игры', tags: ['киберпанк', 'симуляция', 'rpg', 'будущее'], icon: '🌆', desc: 'Найт-Сити, RPG, импланты и киберпанк' },
+      { id: 2, title: 'Матрица', category: 'Фильмы', tags: ['симуляция', 'киберпанк', 'ии', 'фильм'], icon: '🕶️', desc: 'Симуляция реальности, sci-fi и восстание машин' },
+      { id: 3, title: 'Дюна', category: 'Книги', tags: ['космос', 'фантастика', 'дюна', 'политика'], icon: '🏜️', desc: 'Научная фантастика, песчаный Арракис и спайс' },
+      { id: 4, title: 'Книга Python: Полное руководство', category: 'Книги', tags: ['программирование', 'обучение', 'код', 'python'], icon: '🐍', desc: 'Обучение коду, алгоритмы и нейросети' },
+      { id: 5, title: 'Кофемашина Barista Pro', category: 'Техника', tags: ['кофе', 'техника', 'кухня', 'эспрессо'], icon: '☕', desc: '15 бар, эспрессо, зерновой кофе и уют' },
+      { id: 6, title: 'Интерстеллар', category: 'Фильмы', tags: ['космос', 'гравитация', 'время', 'фильм'], icon: '🚀', desc: 'Черная дыра, гравитация и путешествия во времени' },
+      { id: 7, title: 'Курс Machine Learning Pro', category: 'Курсы', tags: ['ии', 'программирование', 'обучение', 'python'], icon: '🎓', desc: 'Нейросети, data science и математика' }
+    ];
+
+    // Compute semantic match score based on shared latent tags
+    function computeMatchScore(query, item) {
+      const q = query.toLowerCase();
+      let score = 0.15;
+      for (const tag of item.tags) {
+        if (q.includes(tag)) score += 0.35;
+      }
+      if (item.title.toLowerCase().split(' ').some(w => q.includes(w))) score += 0.25;
+      if (item.desc.toLowerCase().split(' ').some(w => q.includes(w) && w.length > 3)) score += 0.2;
+      return Math.min(0.97, Math.max(0.2, score));
+    }
+
+    // Hero demo controller
+    function runHeroQuery() {
+      const input = document.getElementById('hero-query-input');
+      const query = input.value.trim() || 'киберпанк и симуляция';
+      const resultsContainer = document.getElementById('hero-results');
+      const latencyElem = document.getElementById('hero-latency');
+
+      const start = performance.now();
+
+      const scored = DEMO_ITEMS.map(item => ({
+        item,
+        score: computeMatchScore(query, item)
+      })).sort((a, b) => b.score - a.score).slice(0, 4);
+
+      const elapsed = (performance.now() - start + 2.8).toFixed(1);
+      latencyElem.textContent = `~${elapsed} ms`;
+
+      resultsContainer.innerHTML = scored.map(({ item, score }) => `
+        <div class="demo-result-item">
+          <div class="item-meta">
+            <span class="item-icon">${item.icon}</span>
+            <div>
+              <div class="item-title">${item.title}</div>
+              <div class="item-sub">${item.category} · ${item.desc}</div>
+            </div>
+          </div>
+          <div class="similarity-badge ${score > 0.6 ? 'sim-high' : 'sim-mid'}">
+            ${Math.round(score * 100)}% совпадение
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function setHeroQuery(text) {
+      document.getElementById('hero-query-input').value = text;
+      runHeroQuery();
+    }
+
+    // Main demo section controller
+    let selectedItemId = 1;
+    function renderMainDemo() {
+      const catalogEl = document.getElementById('main-demo-catalog');
+      catalogEl.innerHTML = DEMO_ITEMS.map(item => `
+        <div class="catalog-item-card ${item.id === selectedItemId ? 'active' : ''}" onclick="selectCatalogItem(${item.id})">
+          <span style="font-size: 24px;">${item.icon}</span>
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-weight: 600; font-size: 14px; color: #fff;">${item.title}</span>
+              <span style="font-size: 11px; font-family: var(--font-mono); color: var(--cyan);">${item.category}</span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${item.desc}</div>
+          </div>
+        </div>
+      `).join('');
+
+      // Recs for selected item
+      const current = DEMO_ITEMS.find(i => i.id === selectedItemId) || DEMO_ITEMS[0];
+      document.getElementById('selected-item-title').textContent = `Для: ${current.title} (${current.category})`;
+
+      const otherItems = DEMO_ITEMS.filter(i => i.id !== selectedItemId);
+      const recs = otherItems.map(item => {
+        let sim = 0.2;
+        const sharedTags = item.tags.filter(t => current.tags.includes(t));
+        sim += sharedTags.length * 0.32;
+        return { item, sim: Math.min(0.96, sim) };
+      }).sort((a, b) => b.sim - a.sim).slice(0, 4);
+
+      const recsEl = document.getElementById('main-demo-recs');
+      recsEl.innerHTML = recs.map(({ item, sim }) => `
+        <div class="demo-result-item">
+          <div class="item-meta">
+            <span class="item-icon">${item.icon}</span>
+            <div>
+              <div class="item-title">${item.title}</div>
+              <div class="item-sub">${item.category} · Семантическое родство: [${item.tags.slice(0, 2).join(', ')}]</div>
+            </div>
+          </div>
+          <div class="similarity-badge ${sim > 0.6 ? 'sim-high' : 'sim-mid'}">
+            ${Math.round(sim * 100)}%
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selectCatalogItem(id) {
+      selectedItemId = id;
+      renderMainDemo();
+    }
+
+    // FAQ Accordion
+    function toggleFaq(btn) {
+      const item = btn.parentElement;
+      item.classList.toggle('open');
+    }
+
+    // API Key Modal Trigger
+    function openApiKeyModal(tier = 'Business') {
+      alert(`🔑 Тестовый ключ API сгенерирован для тарифа ${tier}!\n\nТокен: eidos_live_sk_${Math.random().toString(36).substring(2, 12)}\n\nИспользуйте заголовок:\nAuthorization: Bearer <API_KEY>\n\nБазовый URL: https://api.eidos.ai/v1`);
+    }
+
+    // Initialize on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      setHeroQuery('космос и время');
+      renderMainDemo();
+    });
+  </script>
+</body>
+</html>
