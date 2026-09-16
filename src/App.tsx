@@ -31,6 +31,7 @@ import { InsightsView } from './components/InsightsView';
 import { ExportView } from './components/ExportView';
 import { RecommenderView } from './components/RecommenderView';
 import { PresentationLandingView } from './components/PresentationLandingView';
+import { IntegrationHubView } from './components/IntegrationHubView';
 import {
   NewProjectModal,
   RenameProjectModal,
@@ -436,7 +437,7 @@ export default function App() {
       {/* Main workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar (Ideation mode) */}
-        {activeTab !== 'recommender' && activeTab !== 'landing' && (
+        {activeTab !== 'recommender' && activeTab !== 'landing' && activeTab !== 'integration' && (
           <Sidebar
             project={currentProject}
             threshold={threshold}
@@ -456,6 +457,7 @@ export default function App() {
           <nav className="flex items-center gap-1 px-5 pt-2 border-b border-[#1e1e35] bg-[#0b0b13]/80 select-none overflow-x-auto">
             {[
               { key: 'landing', label: '🌟 Презентация & Лендинг' },
+              { key: 'integration', label: '⚡ Интеграция & SDK' },
               { key: 'recommender', label: '🎯 Витрина Recommender' },
               { key: 'analyze', label: 'Анализ' },
               { key: 'graph', label: 'Граф' },
@@ -491,6 +493,13 @@ export default function App() {
               <PresentationLandingView
                 catalog={catalog}
                 onSelectTab={setActiveTab}
+                onShowToast={addToast}
+              />
+            )}
+
+            {activeTab === 'integration' && (
+              <IntegrationHubView
+                catalog={catalog}
                 onShowToast={addToast}
               />
             )}

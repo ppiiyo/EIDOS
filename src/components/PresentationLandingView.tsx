@@ -18,6 +18,7 @@ import {
   Search,
   ShoppingCart,
   BookOpen,
+  Code,
 } from 'lucide-react';
 import { CatalogItem, ActiveTab } from '../types';
 
@@ -188,8 +189,15 @@ export const PresentationLandingView: React.FC<PresentationLandingViewProps> = (
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => onSelectTab('integration')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#181829] border border-[#a855f7]/40 text-[#a855f7] hover:border-[#a855f7] transition-all cursor-pointer"
+            >
+              <Zap size={13} />
+              <span>Интеграция & SDK</span>
+            </button>
+            <button
               onClick={() => setIsPitchModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#1a1a2e] border border-[#2a2a44] text-[#a855f7] hover:border-[#a855f7] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#1a1a2e] border border-[#2a2a44] text-[#8c8ca6] hover:text-white transition-all cursor-pointer"
             >
               <Presentation size={13} />
               <span>Питч (2 мин)</span>
@@ -247,9 +255,16 @@ export const PresentationLandingView: React.FC<PresentationLandingViewProps> = (
                 <span>Попробовать демо</span>
                 <ArrowRight size={15} />
               </a>
+              <button
+                onClick={() => onSelectTab('integration')}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#11111a] border border-[#a855f7]/40 hover:border-[#a855f7] text-[#a855f7] text-sm font-semibold transition-all cursor-pointer"
+              >
+                <Code size={15} />
+                <span>Внедрение & SDK</span>
+              </button>
               <a
                 href="#solution"
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#11111a] border border-[#1e1e2e] hover:border-[#2c2c44] text-[#f1f1f7] text-sm transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#11111a] border border-[#1e1e2e] hover:border-[#2c2c44] text-[#f1f1f7] text-sm transition-all"
               >
                 <span>Как это работает</span>
               </a>

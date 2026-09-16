@@ -57,6 +57,16 @@ export const Header: React.FC<HeaderProps> = ({
           <span>🌟 Презентация</span>
         </button>
         <button
+          onClick={() => onChangeTab('integration')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
+            activeTab === 'integration'
+              ? 'bg-[#a855f7]/15 text-[#a855f7] border border-[#a855f7]/30 font-semibold shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+              : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
+          }`}
+        >
+          <span>⚡ Интеграция & SDK</span>
+        </button>
+        <button
           onClick={() => onChangeTab('recommender')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
             activeTab === 'recommender'
@@ -67,9 +77,9 @@ export const Header: React.FC<HeaderProps> = ({
           <span>🎯 Витрина</span>
         </button>
         <button
-          onClick={() => onChangeTab(activeTab === 'recommender' || activeTab === 'landing' ? 'analyze' : activeTab)}
+          onClick={() => onChangeTab(activeTab === 'recommender' || activeTab === 'landing' || activeTab === 'integration' ? 'analyze' : activeTab)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
-            activeTab !== 'recommender' && activeTab !== 'landing'
+            activeTab !== 'recommender' && activeTab !== 'landing' && activeTab !== 'integration'
               ? 'bg-[#b478ff]/15 text-[#b478ff] border border-[#b478ff]/30 font-semibold shadow-[0_0_12px_rgba(180,120,255,0.2)]'
               : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
           }`}
