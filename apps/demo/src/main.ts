@@ -36,7 +36,9 @@ async function bootstrap() {
   };
 
   try {
-    const response = await fetch('/data/catalog.json');
+    const baseUrl = import.meta.env.BASE_URL || '/';
+    const catalogUrl = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}data/catalog.json`;
+    const response = await fetch(catalogUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const raw = (await response.json()) as any[];
     allItems = raw.map((it) => ({
