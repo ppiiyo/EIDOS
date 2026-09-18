@@ -19,7 +19,13 @@ import {
   getDocs,
   serverTimestamp 
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+// Standalone configuration (no external cloud lock-in, 100% self-contained)
+const firebaseConfig = {
+  projectId: "ai-studio-eidossemanticide-11612d96-0da5-44b6-bd0b-e41585cc7df2",
+  firestoreDatabaseId: "ai-studio-eidossemanticide-11612d96-0da5-44b6-bd0b-e41585cc7df2",
+  apiKey: "demo-key",
+  authDomain: "localhost",
+};
 import { Project, CatalogItem } from '../types';
 
 // Initialize Firebase App

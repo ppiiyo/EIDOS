@@ -3,7 +3,7 @@
  * Higher entropy indicates higher diversity across categories.
  *
  * @param categories - Array of categorical labels from recommendations
- * @returns Shannon entropy value in nats
+ * @returns Shannon entropy value in bits
  */
 export function calculateCategoryEntropy(categories: string[]): number {
   if (categories.length === 0) {
@@ -26,6 +26,38 @@ export function calculateCategoryEntropy(categories: string[]): number {
   }
 
   return Math.round(entropy * 10000) / 10000;
+}
+
+/**
+ * Calculates raw Shannon entropy in bits (log2) for a probability distribution.
+ *
+ * @param probabilities - Array of probabilities that must sum to 1
+ * @returns Shannon entropy value in bits
+ */
+export function shannonEntropy(probabilities: number[]): number {
+  if (probabilities.length === 0) return 0;
+  if (probabilities.length === 1 && probabilities[0] === 1) return 0;
+
+  let sum = 0;
+  for (const p of probabilities) {
+    if (p < 0) {
+      throw new Error('Probabilities must be non-negative');
+    }
+    sum += p;
+  }
+
+  if (Math.abs(sum - 1.0) > 1e-4) {
+    throw new Error(`Probabilities must sum to 1, got ${sum}`);
+  }
+
+  let entropy = 0;
+  for (const p of probabilities) {
+    if (p > 0) {
+      entropy -= p * Math.log2(p);
+    }
+  }
+
+  return entropy;
 }
 
 /**

@@ -4,14 +4,20 @@ import { calculateCategoryEntropy, calculateMMRScore, cosineSimilarity } from '@
 import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 
-const recommendRequestSchema = z.object({
-  itemId: z.string().min(1, 'itemId is required'),
-  limit: z.number().int().min(1).max(50).default(5),
-  minSimilarity: z.number().min(0).max(1).default(0.35),
-  diversityFactor: z.number().min(0).max(1).default(0.7),
-  excludeIds: z.array(z.string()).optional(),
-  filterCategory: z.string().optional(),
-});
+const recommendRequestSchema = z
+  .object({
+    itemId: z.string().optional(),
+    item_id: z.string().optional(),
+    limit: z.number().int().min(1).max(50).default(5),
+    minSimilarity: z.number().min(0).max(1).default(0.35),
+    diversityFactor: z.number().min(0).max(1).default(0.7),
+    excludeIds: z.array(z.string()).optional(),
+    filterCategory: z.string().optional(),
+  })
+  .refine((data) => !!(data.itemId || data.item_id), {
+    message: 'itemId or item_id is required',
+    path: ['itemId'],
+  });
 
 export async function recommendRoutes(
   fastify: FastifyInstance,
@@ -29,8 +35,9 @@ export async function recommendRoutes(
       });
     }
 
-    const { itemId, limit, minSimilarity, diversityFactor, excludeIds = [], filterCategory } =
+    const { limit, minSimilarity, diversityFactor, excludeIds = [], filterCategory } =
       parseResult.data;
+    const itemId = (parseResult.data.itemId || parseResult.data.item_id)!;
 
     const sourceItem = opts.vectorStore.get(itemId);
     if (!sourceItem) {

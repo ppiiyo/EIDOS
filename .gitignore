@@ -4,5 +4,9 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+.env
+.env.local
+.turbo/
+playwright-report/
+test-results/
 !.env.example

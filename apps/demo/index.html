@@ -14,7 +14,7 @@
     </div>
     <div class="tabs">
       <button class="tab-btn active" id="tab-recs">Recommendations & Search</button>
-      <button class="tab-btn" id="tab-graph">Semantic Graph</button>
+      <button class="tab-btn" id="tab-graph" data-testid="btn-build-graph">Semantic Graph</button>
     </div>
   </header>
 
@@ -28,7 +28,7 @@
       <div class="search-bar">
         <input type="text" id="catalog-filter-input" placeholder="Filter catalog list...">
       </div>
-      <div class="product-grid" id="catalog-container"></div>
+      <div class="product-grid" id="catalog-container" data-testid="catalog"></div>
     </section>
 
     <!-- Right Column: Semantic Results or Graph -->
@@ -41,7 +41,7 @@
         </div>
 
         <div class="search-bar">
-          <input type="text" id="semantic-search-input" placeholder="Enter natural language query (e.g., 'ergonomic desk lighting')...">
+          <input type="text" id="semantic-search-input" data-testid="search-input" placeholder="Enter natural language query (e.g., 'ergonomic desk lighting')...">
           <button class="tab-btn" id="btn-search">Search</button>
         </div>
 
@@ -52,7 +52,7 @@
       <div id="view-graph" style="display: none; flex-direction: column; gap: 1rem;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <h3 style="font-size: 1.1rem; font-weight: 600;">Semantic Field Topology</h3>
-          <span style="font-size: 0.8rem; color: var(--text-muted);">Threshold: 0.55 Cosine</span>
+          <span id="graph-preview-status" data-testid="graph-preview" style="font-size: 0.8rem; color: var(--text-muted);">Threshold: 55% Cosine</span>
         </div>
         <canvas id="graph-canvas" width="700" height="550"></canvas>
       </div>

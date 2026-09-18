@@ -12,6 +12,7 @@ export function renderCatalog(
     const card = document.createElement('div');
     card.className = `product-card ${selectedId === item.id ? 'selected' : ''}`;
     card.id = `catalog-item-${item.id}`;
+    card.setAttribute('data-testid', 'item-card');
 
     card.innerHTML = `
       <div>

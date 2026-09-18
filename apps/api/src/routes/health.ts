@@ -6,7 +6,7 @@ export async function healthRoutes(fastify: FastifyInstance, opts: { vectorStore
 
   fastify.get('/v1/health', async (_request, _reply) => {
     return {
-      status: 'healthy',
+      status: 'ok',
       version: '1.0.0',
       itemsCount: opts.vectorStore.count(),
       uptimeSeconds: Math.floor((Date.now() - startTime) / 1000),

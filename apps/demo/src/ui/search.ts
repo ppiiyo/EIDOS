@@ -19,6 +19,7 @@ export function renderSearchResults(
     const card = document.createElement('div');
     card.className = 'product-card search-result-item';
     card.id = `search-item-${res.item.id}`;
+    card.setAttribute('data-testid', 'rec-item');
 
     const scorePercent = (res.similarity * 100).toFixed(1);
 

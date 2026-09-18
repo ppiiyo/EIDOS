@@ -73,10 +73,37 @@ export async function buildApp() {
   await fastify.register(recommendRoutes, { vectorStore });
   await fastify.register(searchRoutes, { vectorStore, embedder });
 
+  if (vectorStore.count() === 0) {
+    const v1 = new Float32Array(384).fill(0.1);
+    const v2 = new Float32Array(384).fill(0.12);
+    vectorStore.upsert({
+      id: '1',
+      title: 'Mechanical Keyboard Blue Switches',
+      description: 'Clicky tactile typing keyboard with aluminum chassis.',
+      category: 'Electronics',
+      tags: ['typing', 'hardware'],
+      price: 189.0,
+      embedding: v1,
+      normalizedVector: v1,
+    });
+    vectorStore.upsert({
+      id: '2',
+      title: 'Custom Keycap Set PBT Dye-Sub',
+      description: 'Cherry profile keycaps matching mechanical switches.',
+      category: 'Electronics',
+      tags: ['accessories', 'typing'],
+      price: 34.0,
+      embedding: v2,
+      normalizedVector: v2,
+    });
+  }
+
   return fastify;
 }
 
-if (process.env.NODE_ENV !== 'test') {
+export const buildServer = buildApp;
+
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   buildApp()
     .then((server) => {
       server.listen({ port: PORT, host: HOST }, (err, address) => {

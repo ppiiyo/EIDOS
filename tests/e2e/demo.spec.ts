@@ -1,38 +1,35 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('EIDOS Interactive Demo Workflow', () => {
-  test('executes catalog loading, graph rendering, recommendation selection and search', async ({ page }) => {
-    // Navigate to local demo application
-    await page.goto('http://localhost:3000');
-    await page.waitForLoadState('networkidle');
+test.describe('EIDOS Demo App', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+  });
 
-    // 1. Verify Catalog renders
-    const catalogHeader = page.locator('#catalog-section');
-    await expect(catalogHeader).toBeVisible();
+  test('loads the catalog', async ({ page }) => {
+    await expect(page.locator('[data-testid="catalog"]')).toBeVisible();
+    const items = page.locator('[data-testid="item-card"]');
+    await expect(items.first()).toBeVisible();
+  });
 
-    // 2. Select an item for semantic recommendations
-    const firstProductCard = page.locator('.product-card').first();
-    await firstProductCard.click();
+  test('builds semantic graph on button click', async ({ page }) => {
+    await page.click('[data-testid="btn-build-graph"]');
+    await expect(page.locator('[data-testid="graph-preview"]')).toContainText('%', {
+      timeout: 60000,
+    });
+  });
 
-    // 3. Inspect semantic recommendations list
-    const recSection = page.locator('#recommendations-section');
-    await expect(recSection).toBeVisible();
+  test('semantic search returns results', async ({ page }) => {
+    await page.click('[data-testid="btn-build-graph"]');
+    await page.waitForTimeout(3000);
+    await page.fill('[data-testid="search-input"]', 'cyberpunk');
+    await page.press('[data-testid="search-input"]', 'Enter');
+    await expect(page.locator('[data-testid="rec-item"]').first()).toBeVisible();
+  });
 
-    // 4. Test Semantic Search
-    const searchInput = page.locator('#semantic-search-input');
-    await searchInput.fill('ergonomic workspace mechanical typing');
-    await page.keyboard.press('Enter');
-
-    // Verify search results appear
-    const searchResults = page.locator('.search-result-item');
-    await expect(searchResults.first()).toBeVisible({ timeout: 10000 });
-
-    // 5. Toggle Graph View
-    const graphTab = page.locator('#tab-graph');
-    if (await graphTab.isVisible()) {
-      await graphTab.click();
-      const canvas = page.locator('#semantic-graph-canvas');
-      await expect(canvas).toBeVisible();
-    }
+  test('clicking item shows recommendations', async ({ page }) => {
+    await page.click('[data-testid="btn-build-graph"]');
+    await page.waitForTimeout(3000);
+    await page.click('[data-testid="item-card"]', { position: { x: 10, y: 10 } });
+    await expect(page.locator('[data-testid="rec-item"]').first()).toBeVisible();
   });
 });

@@ -10,7 +10,7 @@ COPY packages/core ./packages/core
 COPY packages/sdk ./packages/sdk
 COPY apps/api ./apps/api
 
-RUN pnpm install --frozen-lockfile
+RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install --no-frozen-lockfile; fi
 RUN pnpm --filter @eidos/core build || true
 RUN pnpm --filter @eidos/api build
 

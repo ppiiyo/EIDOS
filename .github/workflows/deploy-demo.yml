@@ -3,15 +3,33 @@ name: Deploy Demo
 on:
   push:
     branches: [main]
+    paths:
+      - 'apps/demo/**'
+      - 'packages/**'
+      - 'data/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  deploy-gh-pages:
+    name: Deploy Demo to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -21,18 +39,20 @@ jobs:
         with:
           version: 9
 
-      - name: Install Dependencies
-        run: pnpm install
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Build Demo App
-        run: pnpm run build
+      - name: Build Demo Application
+        run: pnpm --filter @eidos/demo build
 
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        if: env.VERCEL_TOKEN != ''
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
-          working-directory: './'
+          path: apps/demo/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
