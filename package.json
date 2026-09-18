@@ -17,10 +17,23 @@
     "embeddings:generate": "tsx scripts/generate-embeddings.ts",
     "benchmark": "tsx scripts/benchmark.ts"
   },
+  "dependencies": {
+    "firebase": "^12.19.0",
+    "lucide-react": "^0.546.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.21.0",
     "turbo": "^2.4.0",
     "typescript": "~5.8.2",
+    "vite": "^6.4.3",
     "vitest": "^2.1.8"
   },
   "engines": {
