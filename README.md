@@ -134,7 +134,7 @@ Open `http://localhost:3000` (or `http://localhost:5173` for demo app) to explor
 Benchmarked on **AMD EPYC 7763** (2 vCPU, 4GB RAM, Linux x86_64, Node.js 20):
 
 | Operation | Batch / Size | Latency (p50) | Latency (p99) | Throughput |
-| :--- | :--- | :--- | :--- | :--- |
+|:----------|:-------------|:--------------|:--------------|:-----------|
 | **Cosine Similarity (384-dim)** | 1 pair | 0.93 µs | 1.45 µs | 1,077,000 ops/sec |
 | **Corpus Scan (1,000 items)** | 1 query | 0.91 ms | 1.48 ms | 1,098 scans/sec |
 | **Corpus Scan (10,000 items)** | 1 query | 7.85 ms | 11.20 ms | 127 scans/sec |
@@ -150,7 +150,7 @@ Benchmarked on **AMD EPYC 7763** (2 vCPU, 4GB RAM, Linux x86_64, Node.js 20):
 ## Paradigm Comparison
 
 | Capability | Collaborative Filtering | Lexical Search (BM25 / Elasticsearch) | EIDOS Semantic Engine |
-| :--- | :--- | :--- | :--- |
+|:-----------|:------------------------|:--------------------------------------|:----------------------|
 | **Cold-Start Handling** | Fails (requires click history) | Partial (matches keywords only) | Instant (embeddings at creation) |
 | **Vocabulary Mismatch** | Not addressed | High failure on synonyms | Resolved in dense vector space |
 | **Client-Side Execution** | No (requires server telemetry) | Inefficient inverted index | Native (WebAssembly Transformers.js) |

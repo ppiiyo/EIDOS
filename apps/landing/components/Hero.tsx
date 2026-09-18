@@ -80,7 +80,7 @@ export function Hero() {
           </div>
           <div className="flex items-center gap-1 text-slate-400">
             <Cpu className="w-3.5 h-3.5" />
-            <span>sub-20ms inference</span>
+            <span>p50 ~14ms / p99 ~28ms</span>
           </div>
         </div>
         <pre className="text-slate-300 leading-relaxed overflow-x-auto">
