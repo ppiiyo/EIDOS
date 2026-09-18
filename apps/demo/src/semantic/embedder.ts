@@ -50,10 +50,9 @@ export class Embedder {
   /**
    * Generates a deterministic pseudo-semantic 384-dimensional vector when offline.
    */
-  private generateFallbackVector(text: string): Float32Array {
+  public generateFallbackVector(text: string): Float32Array {
     const vector = new Float32Array(384);
-    const normalized = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-    const tokens = normalized.split(/\s+/).filter(Boolean);
+    const tokens = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
     for (let i = 0; i < tokens.length; i++) {
       const word = tokens[i];
@@ -65,6 +64,18 @@ export class Embedder {
       const index = Math.abs(hash) % 384;
       const sign = (hash & 1) === 0 ? 1.0 : -1.0;
       vector[index] += sign * (1.0 + word.length / 10);
+
+      // Bigram context
+      if (i < tokens.length - 1) {
+        const bigram = word + '_' + tokens[i + 1];
+        let bHash = 0;
+        for (let c = 0; c < bigram.length; c++) {
+          bHash = (bHash << 5) - bHash + bigram.charCodeAt(c);
+          bHash |= 0;
+        }
+        const bIndex = Math.abs(bHash) % 384;
+        vector[bIndex] += 0.5;
+      }
     }
 
     let sumSquares = 0;

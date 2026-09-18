@@ -18,8 +18,7 @@ interface CatalogItem {
  */
 function computeDeterministicVector(text: string, dimensions = 384): number[] {
   const vector = new Float32Array(dimensions);
-  const normalized = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-  const tokens = normalized.split(/\s+/).filter(Boolean);
+  const tokens = text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
   for (let i = 0; i < tokens.length; i++) {
     const word = tokens[i];
@@ -78,16 +77,20 @@ async function main() {
   let updatedCount = 0;
 
   for (const item of items) {
-    const compositeText = `${item.title}. ${item.category}. ${item.tags.join(', ')}. ${item.description}`;
+    const compositeText = `${item.title}. ${item.category}. ${(item.tags || []).join(', ')}. ${item.description}`;
     item.embedding = computeDeterministicVector(compositeText, 384);
     updatedCount++;
   }
 
   fs.writeFileSync(catalogPath, JSON.stringify(items, null, 2), 'utf-8');
-  const duration = Date.now() - startTime;
+  const demoPublicPath = path.resolve(process.cwd(), 'apps/demo/public/data/catalog.json');
+  if (fs.existsSync(path.dirname(demoPublicPath))) {
+    fs.writeFileSync(demoPublicPath, JSON.stringify(items, null, 2), 'utf-8');
+  }
 
+  const duration = Date.now() - startTime;
   console.log(`Generated embeddings for ${updatedCount} items in ${duration}ms.`);
-  console.log(`Saved updated catalog to ${catalogPath}`);
+  console.log(`Saved updated catalog to ${catalogPath} and ${demoPublicPath}`);
 }
 
 main().catch(console.error);
