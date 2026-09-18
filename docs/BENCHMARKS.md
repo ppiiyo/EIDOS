@@ -43,7 +43,7 @@ Comparison of sentence transformer models evaluated for retrieval accuracy, memo
 | **`intfloat/e5-base-v2`** | 109.0 M | 768 | ~435 MB | ~54 ms |
 | **`bge-small-en-v1.5`** | 33.5 M | 384 | ~133 MB | ~18 ms |
 
-*Assessment:* `all-MiniLM-L6-v2` delivers the optimal trade-off for real-time recommendation servers and client-side browser execution, yielding sub-20ms inference with high semantic clustering coherence.
+*Assessment:* `all-MiniLM-L6-v2` delivers the optimal trade-off for real-time recommendation servers and client-side browser execution, yielding p50 ~14ms / p99 ~28ms inference with high semantic clustering coherence.
 
 ---
 

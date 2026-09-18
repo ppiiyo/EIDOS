@@ -32,7 +32,7 @@ import { ExportView } from './components/ExportView';
 import { RecommenderView } from './components/RecommenderView';
 import { PresentationLandingView } from './components/PresentationLandingView';
 import { IntegrationHubView } from './components/IntegrationHubView';
-import { useFirebase } from './context/FirebaseContext';
+import { useStorage } from './context/StorageContext';
 import {
   NewProjectModal,
   RenameProjectModal,
@@ -164,8 +164,8 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Firebase Auth and Cloud Sync
-  const { user, syncData, loadCloudData } = useFirebase();
+  // Self-Hosted Storage and Local Sync
+  const { user, syncData, loadCloudData } = useStorage();
 
   // Load from Cloud on initial user login
   useEffect(() => {

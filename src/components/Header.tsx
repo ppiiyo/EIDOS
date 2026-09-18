@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Cloud, RefreshCw, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { Project, StatusKind, ActiveTab } from '../types';
-import { useFirebase } from '../context/FirebaseContext';
+import { useStorage } from '../context/StorageContext';
 
 interface HeaderProps {
   projects: Project[];
@@ -27,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onDeleteProject,
 }) => {
   const isRecommenderMode = activeTab === 'recommender';
-  const { user, loading, isSyncing, cloudConnected, login, logout } = useFirebase();
+  const { user, loading, isSyncing, cloudConnected, login, logout } = useStorage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -205,7 +205,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <p className="text-[11px] text-[#8a8aa3] truncate">{user.email}</p>
                   <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#3ee89a] font-mono">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#3ee89a]" />
-                    <span>Firestore активен</span>
+                    <span>Автономный режим (100% Self-hosted)</span>
                   </div>
                 </div>
                 <button
@@ -216,7 +216,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="w-full px-3.5 py-2 text-left text-xs text-[#ff6b9d] hover:bg-[#ff6b9d]/10 flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <LogOut size={13} />
-                  <span>Выйти из аккаунта</span>
+                  <span>Выйти из сессии</span>
                 </button>
               </div>
             )}
@@ -227,7 +227,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-gradient-to-r from-[#00e5ff]/10 to-[#b478ff]/10 border border-[#00e5ff]/30 text-[#00e5ff] hover:border-[#00e5ff] hover:bg-[#00e5ff]/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(0,229,255,0.15)]"
           >
             <LogIn size={13} />
-            <span className="hidden sm:inline">Войти через Google</span>
+            <span className="hidden sm:inline">Локальная сессия</span>
             <span className="sm:hidden">Войти</span>
           </button>
         )}

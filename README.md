@@ -124,7 +124,7 @@ Open `http://localhost:3000` (or `http://localhost:5173` for demo app) to explor
 [ Shannon Category Entropy Evaluation ] ───────> Verify distribution balance across taxonomy
                  │
                  ▼
-[ Output Recommendations Payload ] ────────────> Sub-20ms JSON response
+[ Output Recommendations Payload ] ────────────> p50 ~14ms / p99 ~28ms JSON response
 ```
 
 ---

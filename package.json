@@ -21,7 +21,6 @@
     "benchmark": "tsx scripts/benchmark.ts"
   },
   "dependencies": {
-    "firebase": "^12.19.0",
     "lucide-react": "^0.546.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

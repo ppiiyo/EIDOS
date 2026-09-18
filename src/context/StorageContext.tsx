@@ -1,19 +1,20 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
 import { 
   auth, 
+  onAuthStateChanged,
   loginWithGoogle, 
   logoutUser, 
   syncProjectsToCloud, 
   fetchProjectsFromCloud, 
   syncCatalogToCloud, 
   fetchCatalogFromCloud,
-  testFirestoreConnection
-} from '../lib/firebase';
+  testFirestoreConnection,
+  LocalUser
+} from '../lib/storage';
 import { Project, CatalogItem } from '../types';
 
-interface FirebaseContextType {
-  user: User | null;
+interface StorageContextType {
+  user: LocalUser | null;
   loading: boolean;
   isSyncing: boolean;
   cloudConnected: boolean;
@@ -23,19 +24,17 @@ interface FirebaseContextType {
   loadCloudData: () => Promise<{ projects: Project[]; catalog: CatalogItem[] } | null>;
 }
 
-const FirebaseContext = createContext<FirebaseContextType | null>(null);
+const StorageContext = createContext<StorageContextType | null>(null);
 
-export function FirebaseProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+export function StorageProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<LocalUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [cloudConnected, setCloudConnected] = useState<boolean>(false);
+  const [cloudConnected, setCloudConnected] = useState<boolean>(true);
 
   useEffect(() => {
-    // Check connection
     testFirestoreConnection().then((ok) => setCloudConnected(ok));
 
-    // Listen for auth changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -48,7 +47,7 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
     try {
       await loginWithGoogle();
     } catch (error) {
-      console.error('Failed to log in with Google:', error);
+      console.error('Failed to authenticate:', error);
       throw error;
     }
   };
@@ -71,7 +70,7 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
         syncCatalogToCloud(user.uid, catalog),
       ]);
     } catch (error) {
-      console.error('Cloud sync error:', error);
+      console.error('Local sync error:', error);
     } finally {
       setIsSyncing(false);
     }
@@ -90,7 +89,7 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
         catalog: cloudCatalog,
       };
     } catch (error) {
-      console.error('Failed to load cloud data:', error);
+      console.error('Failed to load storage data:', error);
       return null;
     } finally {
       setIsSyncing(false);
@@ -98,7 +97,7 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <FirebaseContext.Provider
+    <StorageContext.Provider
       value={{
         user,
         loading,
@@ -111,14 +110,19 @@ export function FirebaseProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-    </FirebaseContext.Provider>
+    </StorageContext.Provider>
   );
 }
 
-export function useFirebase() {
-  const context = useContext(FirebaseContext);
+export function useStorage() {
+  const context = useContext(StorageContext);
   if (!context) {
-    throw new Error('useFirebase must be used within a FirebaseProvider');
+    throw new Error('useStorage must be used within a StorageProvider');
   }
   return context;
 }
+
+// Aliases for compatibility
+export const useFirebase = useStorage;
+export const FirebaseProvider = StorageProvider;
+
