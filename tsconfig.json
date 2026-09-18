@@ -16,11 +16,12 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@eidos/core": ["./packages/core/src/index.ts"],
+      "@eidos/sdk": ["./packages/sdk/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": ["src"]
 }

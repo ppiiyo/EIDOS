@@ -1,0 +1,19 @@
+{
+  "name": "@eidos/demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "@eidos/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3"
+  }
+}

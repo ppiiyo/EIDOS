@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "outDir": "./dist",
+    "paths": {
+      "@eidos/core": ["../../packages/core/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

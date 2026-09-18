@@ -1,0 +1,13 @@
+{
+  "name": "@eidos/core",
+  "version": "1.0.0",
+  "description": "Core vector mathematics, graph clustering and entropy algorithms for EIDOS Recommender",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "keywords": ["embeddings", "vector-search", "recommender", "cosine-similarity", "graph-clustering"],
+  "author": "EIDOS Open Source Contributors",
+  "license": "MIT"
+}
