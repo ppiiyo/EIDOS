@@ -28,10 +28,22 @@ async function bootstrap() {
   // Initialize Recommender
   recommender = new Recommender();
 
+  const switchToRecs = () => {
+    tabRecs.classList.add('active');
+    tabGraph.classList.remove('active');
+    viewRecs.style.display = 'flex';
+    viewGraph.style.display = 'none';
+  };
+
   try {
     const response = await fetch('/data/catalog.json');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    allItems = (await response.json()) as DemoItem[];
+    const raw = (await response.json()) as any[];
+    allItems = raw.map((it) => ({
+      ...it,
+      id: String(it.id),
+      price: typeof it.price === 'number' ? it.price : (parseFloat(String(it.price).replace(/[^0-9.]/g, '')) || 99),
+    }));
   } catch {
     // Fallback seed items
     allItems = [
@@ -78,11 +90,15 @@ async function bootstrap() {
     ];
   }
 
+  // Ensure items have vectors
   recommender.loadCatalog(allItems);
+  recommender.indexAll().catch(console.warn);
+
   if (catalogCount) catalogCount.textContent = `${allItems.length} items loaded`;
 
   const handleSelect = (id: string) => {
     selectedItemId = id;
+    switchToRecs();
     renderCatalog(catalogContainer, allItems, selectedItemId, handleSelect);
     const recs = recommender.recommend(id, 6, 0.25);
     renderRecommendations(recsContainer, recs);
@@ -113,6 +129,7 @@ async function bootstrap() {
     const q = searchInput.value.trim();
     if (!q) return;
 
+    switchToRecs();
     statusTag.textContent = 'Inferencing...';
     try {
       const results = await recommender.search(q, 6, 0.2);

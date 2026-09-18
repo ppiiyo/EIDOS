@@ -23,6 +23,10 @@ export function renderSearchResults(
 
     const scorePercent = (res.similarity * 100).toFixed(1);
 
+    const numericPrice = typeof res.item.price === 'number'
+      ? res.item.price
+      : (parseFloat(String(res.item.price ?? '0').replace(/[^0-9.]/g, '')) || 0);
+
     card.innerHTML = `
       <div>
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.5rem;">
@@ -33,7 +37,7 @@ export function renderSearchResults(
       </div>
       <div class="product-meta">
         <span style="color: var(--accent-cyan);">${escapeHtml(res.item.category)}</span>
-        <span style="font-weight: 600;">$${(res.item.price ?? 0).toFixed(2)}</span>
+        <span style="font-weight: 600;">$${numericPrice.toFixed(2)}</span>
       </div>
     `;
 

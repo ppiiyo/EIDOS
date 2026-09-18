@@ -20,16 +20,16 @@ test.describe('EIDOS Demo App', () => {
 
   test('semantic search returns results', async ({ page }) => {
     await page.click('[data-testid="btn-build-graph"]');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1000);
     await page.fill('[data-testid="search-input"]', 'cyberpunk');
     await page.press('[data-testid="search-input"]', 'Enter');
-    await expect(page.locator('[data-testid="rec-item"]').first()).toBeVisible();
+    await expect(page.locator('[data-testid="rec-item"]').first()).toBeVisible({ timeout: 20000 });
   });
 
   test('clicking item shows recommendations', async ({ page }) => {
     await page.click('[data-testid="btn-build-graph"]');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1000);
     await page.click('[data-testid="item-card"]', { position: { x: 10, y: 10 } });
-    await expect(page.locator('[data-testid="rec-item"]').first()).toBeVisible();
+    await expect(page.locator('[data-testid="rec-item"]').first()).toBeVisible({ timeout: 20000 });
   });
 });

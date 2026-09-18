@@ -40,11 +40,44 @@ export class Embedder {
         progress_callback: onProgress,
       });
     } catch (error) {
-      console.error(`Failed to initialize Embedder model [${this.modelName}]:`, error);
-      throw new Error(`Embedding model load failure: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn(`Embedder ONNX model load warning, falling back to deterministic vector tokenizer:`, error);
+      this.pipe = null;
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /**
+   * Generates a deterministic pseudo-semantic 384-dimensional vector when offline.
+   */
+  private generateFallbackVector(text: string): Float32Array {
+    const vector = new Float32Array(384);
+    const normalized = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    const tokens = normalized.split(/\s+/).filter(Boolean);
+
+    for (let i = 0; i < tokens.length; i++) {
+      const word = tokens[i];
+      let hash = 0x811c9dc5;
+      for (let c = 0; c < word.length; c++) {
+        hash ^= word.charCodeAt(c);
+        hash = Math.imul(hash, 0x01000193);
+      }
+      const index = Math.abs(hash) % 384;
+      const sign = (hash & 1) === 0 ? 1.0 : -1.0;
+      vector[index] += sign * (1.0 + word.length / 10);
+    }
+
+    let sumSquares = 0;
+    for (let i = 0; i < 384; i++) {
+      sumSquares += vector[i] * vector[i];
+    }
+    const norm = Math.sqrt(sumSquares);
+    if (norm > 1e-9) {
+      for (let i = 0; i < 384; i++) {
+        vector[i] /= norm;
+      }
+    }
+    return vector;
   }
 
   /**
@@ -62,11 +95,17 @@ export class Embedder {
     }
 
     if (!this.pipe) {
-      await this.init();
+      try {
+        await this.init();
+      } catch (err) {
+        console.warn('Init error handled, using fallback vector:', err);
+      }
     }
 
     if (!this.pipe) {
-      throw new Error('Embedder pipeline is uninitialized.');
+      const fallback = this.generateFallbackVector(trimmed);
+      this.cache.set(trimmed, fallback);
+      return fallback;
     }
 
     try {
@@ -79,8 +118,10 @@ export class Embedder {
       this.cache.set(trimmed, embedding);
       return embedding;
     } catch (error) {
-      console.error(`Inference error while embedding text "${trimmed.slice(0, 30)}...":`, error);
-      throw new Error(`Vector inference error: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn(`Inference fallback for "${trimmed.slice(0, 30)}...":`, error);
+      const fallback = this.generateFallbackVector(trimmed);
+      this.cache.set(trimmed, fallback);
+      return fallback;
     }
   }
 

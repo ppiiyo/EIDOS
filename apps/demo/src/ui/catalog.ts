@@ -14,6 +14,10 @@ export function renderCatalog(
     card.id = `catalog-item-${item.id}`;
     card.setAttribute('data-testid', 'item-card');
 
+    const numericPrice = typeof item.price === 'number'
+      ? item.price
+      : (parseFloat(String(item.price ?? '0').replace(/[^0-9.]/g, '')) || 0);
+
     card.innerHTML = `
       <div>
         <div class="product-title">${escapeHtml(item.title)}</div>
@@ -21,7 +25,7 @@ export function renderCatalog(
       </div>
       <div class="product-meta">
         <span style="color: var(--accent-cyan); font-size: 0.75rem;">${escapeHtml(item.category)}</span>
-        <span style="font-weight: 600;">$${(item.price ?? 0).toFixed(2)}</span>
+        <span style="font-weight: 600;">$${numericPrice.toFixed(2)}</span>
       </div>
     `;
 
