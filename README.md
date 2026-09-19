@@ -234,6 +234,114 @@ curl -X POST http://localhost:8080/v1/recommend \
 
 ---
 
+## Adaptive Intelligence Layer (AIL)
+
+Опциональный слой поверх EIDOS Core. Включается через `AIL_ENABLED=true`.
+
+### Что делает
+
+- **User Tower** — персонализация через эмбеддинг истории взаимодействий с экспоненциальным затуханием по времени и штрафом за категориальное однообразие.
+- **Multi-Feature Ranker** — композитный скор (`similarity`, `popularity`, `freshness`, `userAffinity`, `contextualRelevance`, `kgCentrality`, штраф за `categoryRepetition`).
+- **SMMR** — sampled diversity re-ranking на основе Boltzmann / softmax сэмплирования.
+- **KG Enrichment** — обогащение dense-эмбеддингов через граф знаний (вдохновлено PTransE / path-based embeddings).
+- **Context Signals** — учёт контекста (время суток, устройство, сессия).
+- **Online Feedback** — обучение на кликах/лайках/покупках через градиентный шаг.
+- **Candidate Fusion** — объединение кандидатов из разных источников через Reciprocal Rank Fusion (RRF) или взвешенную схему.
+
+### Включение
+
+```bash
+AIL_ENABLED=true pnpm dev
+```
+
+### Примеры
+
+```bash
+# Персональные рекомендации на основе профиля пользователя
+curl -X POST http://localhost:8080/v1/recommend/user \
+  -H "x-api-key: test-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user-42",
+    "history": ["prod-001", "prod-003", "prod-007"],
+    "limit": 10
+  }'
+
+# Адаптивные рекомендации (item + user fusion + KG enrichment)
+curl -X POST http://localhost:8080/v1/recommend/adaptive \
+  -H "x-api-key: test-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item_id": "prod-001",
+    "user_id": "user-42",
+    "history": ["prod-003"],
+    "limit": 10
+  }'
+
+# Обратная связь
+curl -X POST http://localhost:8080/v1/feedback \
+  -H "x-api-key: test-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user-42",
+    "itemId": "prod-002",
+    "eventType": "purchase",
+    "timestamp": 1700000000000
+  }'
+```
+
+### Архитектура
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           ADAPTIVE INTELLIGENCE LAYER (AIL)                 │
+│                                                             │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐    │
+│  │  User Tower  │   │   Context    │   │   Online     │    │
+│  │              │   │   Signals    │   │   Feedback   │    │
+│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘    │
+│         │                  │                  │             │
+│         └──────────────────┼──────────────────┘             │
+│                            ▼                                │
+│                  ┌─────────────────────┐                    │
+│                  │  Candidate Fusion   │                    │
+│                  │  (retrieval + user) │                    │
+│                  └──────────┬──────────┘                    │
+│                             ▼                               │
+│                  ┌─────────────────────┐                    │
+│                  │  KG Enrichment      │                    │
+│                  │  (PTransE-like)     │                    │
+│                  └──────────┬──────────┘                    │
+│                             ▼                               │
+│                  ┌─────────────────────┐                    │
+│                  │  Multi-Feature      │                    │
+│                  │  Ranker             │                    │
+│                  └──────────┬──────────┘                    │
+│                             ▼                               │
+│                  ┌─────────────────────┐                    │
+│                  │  SMMR Diversity     │                    │
+│                  └──────────┬──────────┘                    │
+│                             ▼                               │
+│                  ┌─────────────────────┐                    │
+│                  │  Final Results      │                    │
+│                  │  (p50 ~20ms)        │                    │
+│                  └─────────────────────┘                    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Feature Flags
+
+Все параметры конфигурируемы через env (`AIL_ALPHA`, `AIL_BETA`, `AIL_GAMMA`, `AIL_DELTA`, `AIL_EPSILON`, `AIL_ZETA`, `AIL_ETA`, `AIL_SMMR_LAMBDA`, `AIL_SMMR_SAMPLE_SIZE`, `AIL_SMMR_TEMPERATURE`, `AIL_USER_HISTORY_MAX`, `AIL_USER_RECENCY_DECAY`, `AIL_FEEDBACK_LEARNING_RATE`). Дефолтные значения — инженерные базовые константы (не результат эмпирического grid search). Для настройки под конкретный домен рекомендуется A/B-тестирование.
+
+### Тесты
+
+```bash
+pnpm test:unit --filter=adaptive
+```
+
+---
+
 ## Testing & Verification
 
 ```bash

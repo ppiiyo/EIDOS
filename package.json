@@ -11,6 +11,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",

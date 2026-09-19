@@ -9,6 +9,9 @@ import { healthRoutes } from './routes/health';
 import { catalogRoutes } from './routes/catalog';
 import { recommendRoutes } from './routes/recommend';
 import { searchRoutes } from './routes/search';
+import { recommendUserRoutes } from './routes/recommend-user';
+import { recommendAdaptiveRoutes } from './routes/recommend-adaptive';
+import { feedbackRoutes } from './routes/feedback';
 import { StoredItem } from './types';
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
@@ -72,6 +75,9 @@ export async function buildApp() {
   await fastify.register(catalogRoutes, { vectorStore, embedder });
   await fastify.register(recommendRoutes, { vectorStore });
   await fastify.register(searchRoutes, { vectorStore, embedder });
+  await fastify.register(recommendUserRoutes, { vectorStore });
+  await fastify.register(recommendAdaptiveRoutes, { vectorStore });
+  await fastify.register(feedbackRoutes);
 
   if (vectorStore.count() === 0) {
     const v1 = new Float32Array(384).fill(0.1);
