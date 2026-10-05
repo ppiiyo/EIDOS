@@ -1,4 +1,4 @@
-export interface ItemMetadata {
+export interface CatalogItemMetadata {
   [key: string]: string | number | boolean | string[] | undefined;
 }
 
@@ -9,7 +9,7 @@ export interface CatalogItem {
   category: string;
   tags: string[];
   price?: number;
-  metadata?: ItemMetadata;
+  metadata?: CatalogItemMetadata;
   embedding?: number[];
 }
 

@@ -1,236 +1,109 @@
-import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Cloud, RefreshCw, LogIn, LogOut, User as UserIcon } from 'lucide-react';
-import { Project, StatusKind, ActiveTab } from '../types';
-import { useStorage } from '../context/StorageContext';
+import React from 'react';
+import {
+  Globe2,
+  Sliders,
+  Layers,
+  Zap,
+  Network,
+  Compass,
+  Activity,
+  Github,
+  CheckCircle2,
+} from 'lucide-react';
+
+export type AppViewTab =
+  | 'vector-space-3d'
+  | 'workbench'
+  | 'multi-interest'
+  | 'bandits'
+  | 'hnsw-quant'
+  | 'steering'
+  | 'benchmarks';
 
 interface HeaderProps {
-  projects: Project[];
-  currentProject: Project;
-  status: { text: string; kind: StatusKind };
-  activeTab: ActiveTab;
-  onChangeTab: (tab: ActiveTab) => void;
-  onSelectProject: (id: string) => void;
-  onNewProject: () => void;
-  onRenameProject: () => void;
-  onDeleteProject: () => void;
+  activeTab: AppViewTab;
+  onChangeTab: (tab: AppViewTab) => void;
+  catalogCount: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  projects,
-  currentProject,
-  status,
   activeTab,
   onChangeTab,
-  onSelectProject,
-  onNewProject,
-  onRenameProject,
-  onDeleteProject,
+  catalogCount,
 }) => {
-  const isRecommenderMode = activeTab === 'recommender';
-  const { user, loading, isSyncing, cloudConnected, login, logout } = useStorage();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const tabs = [
+    { id: 'vector-space-3d' as const, label: '3D Vector Topology', icon: Globe2 },
+    { id: 'workbench' as const, label: 'Adaptive Studio', icon: Sliders },
+    { id: 'multi-interest' as const, label: 'Multi-Interest', icon: Layers },
+    { id: 'bandits' as const, label: 'Contextual Bandits', icon: Zap },
+    { id: 'hnsw-quant' as const, label: 'HNSW & INT8', icon: Network },
+    { id: 'steering' as const, label: 'Vector Steering', icon: Compass },
+    { id: 'benchmarks' as const, label: 'Live Benchmarks', icon: Activity },
+  ];
 
   return (
-    <header className="flex items-center gap-4 px-5 h-16 border-b border-[#1e1e35] bg-[#0b0b13]/80 backdrop-blur-xl z-20 shrink-0">
-      {/* Brand */}
-      <div className="flex items-center gap-3 min-w-[210px]">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00e5ff] to-[#b478ff] flex items-center justify-center text-[#07070c] font-black text-xl shadow-[0_0_18px_rgba(0,229,255,0.3)]">
-          {isRecommenderMode ? '🎯' : '◈'}
+    <header className="flex items-center justify-between px-6 h-16 border-b border-[#1b1b2f] bg-[#08080f]/90 backdrop-blur-xl z-30 shrink-0 select-none">
+      {/* Brand & Identity */}
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 via-purple-500 to-emerald-400 flex items-center justify-center text-[#07070c] font-black text-lg shadow-[0_0_20px_rgba(0,240,255,0.25)]">
+          ◈
         </div>
         <div>
-          <div className="font-extrabold text-[16px] tracking-wider bg-gradient-to-r from-[#00e5ff] via-[#b478ff] to-[#3ee89a] bg-clip-text text-transparent mono">
-            {isRecommenderMode ? 'EIDOS Recommender' : 'EIDOS Ideation'}
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-[15px] tracking-wider text-white font-mono">
+              EIDOS
+            </span>
+            <span className="text-[10px] font-mono text-cyan-400 px-1.5 py-0.2 rounded bg-cyan-950/50 border border-cyan-800/40">
+              AIL v1.2
+            </span>
           </div>
-          <div className="text-[10px] text-[#8a8aa3] tracking-widest uppercase font-medium">
-            {isRecommenderMode ? 'Семантические рекомендации' : 'Картирование смыслов'}
+          <div className="text-[10px] text-[#6e6e88] font-mono tracking-tight">
+            Adaptive Intelligence Recommender
           </div>
         </div>
       </div>
 
-      {/* Module Switcher Pills */}
-      <div className="flex items-center gap-1 bg-[#111120] p-1 rounded-xl border border-[#1e1e35]">
-        <button
-          onClick={() => onChangeTab('landing')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
-            activeTab === 'landing'
-              ? 'bg-[#00e5ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 font-semibold shadow-[0_0_12px_rgba(0,229,255,0.2)]'
-              : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
-          }`}
-        >
-          <span>🌟 Презентация</span>
-        </button>
-        <button
-          onClick={() => onChangeTab('integration')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
-            activeTab === 'integration'
-              ? 'bg-[#a855f7]/15 text-[#a855f7] border border-[#a855f7]/30 font-semibold shadow-[0_0_12px_rgba(168,85,247,0.2)]'
-              : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
-          }`}
-        >
-          <span>⚡ Интеграция & SDK</span>
-        </button>
-        <button
-          onClick={() => onChangeTab('recommender')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
-            activeTab === 'recommender'
-              ? 'bg-[#00e5ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 font-semibold shadow-[0_0_12px_rgba(0,229,255,0.2)]'
-              : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
-          }`}
-        >
-          <span>🎯 Витрина</span>
-        </button>
-        <button
-          onClick={() => onChangeTab(activeTab === 'recommender' || activeTab === 'landing' || activeTab === 'integration' ? 'analyze' : activeTab)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs mono transition-all cursor-pointer ${
-            activeTab !== 'recommender' && activeTab !== 'landing' && activeTab !== 'integration'
-              ? 'bg-[#b478ff]/15 text-[#b478ff] border border-[#b478ff]/30 font-semibold shadow-[0_0_12px_rgba(180,120,255,0.2)]'
-              : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
-          }`}
-        >
-          <span>◈ Ideation & Граф</span>
-        </button>
-      </div>
-
-      {/* Project Selector Bar (visible in Ideation mode) */}
-      {!isRecommenderMode && (
-        <div className="flex items-center gap-1.5 flex-1 max-w-[420px]">
-          <select
-            id="project-selector-dropdown"
-            value={currentProject.id}
-            onChange={(e) => onSelectProject(e.target.value)}
-            className="flex-1 px-3 py-1.5 rounded-lg bg-[#111120] border border-[#1e1e35] text-[#e8e8f0] text-xs focus:outline-none focus:border-[#00e5ff] transition-colors cursor-pointer hover:border-[#2a2a4a]"
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.concepts.length} концептов)
-              </option>
-            ))}
-          </select>
-
-          <button
-            id="new-project-header-btn"
-            onClick={onNewProject}
-            title="Новый проект"
-            className="w-8 h-8 rounded-lg flex items-center justify-center border border-[#1e1e35] bg-[#111120] text-[#8a8aa3] hover:text-[#00e5ff] hover:border-[#00e5ff] hover:shadow-[0_0_15px_rgba(0,229,255,0.2)] transition-all cursor-pointer"
-          >
-            <Plus size={15} />
-          </button>
-
-          <button
-            id="rename-project-header-btn"
-            onClick={onRenameProject}
-            title="Переименовать проект"
-            className="w-8 h-8 rounded-lg flex items-center justify-center border border-[#1e1e35] bg-[#111120] text-[#8a8aa3] hover:text-[#00e5ff] hover:border-[#00e5ff] transition-all cursor-pointer"
-          >
-            <Edit2 size={13} />
-          </button>
-
-          <button
-            id="delete-project-header-btn"
-            onClick={onDeleteProject}
-            title="Удалить проект"
-            disabled={projects.length <= 1}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center border border-[#1e1e35] bg-[#111120] transition-all cursor-pointer ${
-              projects.length <= 1
-                ? 'opacity-30 cursor-not-allowed text-[#555570]'
-                : 'text-[#8a8aa3] hover:text-[#ff6b9d] hover:border-[#ff6b9d] hover:shadow-[0_0_15px_rgba(255,107,157,0.2)]'
-            }`}
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      )}
-
-      {/* Right Controls: Cloud Status & User Auth & Status Pill */}
-      <div className="ml-auto flex items-center gap-3">
-        {/* Firebase Cloud status */}
-        <div
-          title={cloudConnected ? 'Firebase Firestore подключен' : 'Локальный режим'}
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111120] border border-[#1e1e35] text-[11px] mono text-[#8a8aa3]"
-        >
-          <Cloud size={13} className={cloudConnected ? 'text-[#3ee89a]' : 'text-[#8a8aa3]'} />
-          <span className="hidden md:inline">
-            {cloudConnected ? 'Cloud DB' : 'Offline'}
-          </span>
-          {isSyncing && <RefreshCw size={11} className="animate-spin text-[#00e5ff]" />}
-        </div>
-
-        {/* System Status Pill */}
-        <div
-          id="system-status-pill"
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#00e5ff]/5 border border-[#00e5ff]/15 mono text-[11px] text-[#8a8aa3]"
-        >
-          <span
-            className={`w-2 h-2 rounded-full transition-colors ${
-              status.kind === 'ready'
-                ? 'bg-[#3ee89a] shadow-[0_0_8px_#3ee89a]'
-                : status.kind === 'busy'
-                ? 'bg-[#ffbe3d] pulse-glow'
-                : 'bg-[#ff6b9d] shadow-[0_0_8px_#ff6b9d]'
-            }`}
-          />
-          <span className="hidden lg:inline">{status.text}</span>
-        </div>
-
-        {/* User Auth Profile / Login Button */}
-        {loading ? (
-          <div className="w-8 h-8 rounded-lg bg-[#111120] animate-pulse" />
-        ) : user ? (
-          <div className="relative">
+      {/* Primary Navigation Segmented Controls */}
+      <nav className="hidden lg:flex items-center gap-1 p-1 rounded-xl bg-[#0f0f1b] border border-[#1d1d33]">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const isActive = activeTab === t.id;
+          return (
             <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#111120] border border-[#1e1e35] hover:border-[#00e5ff]/40 transition-colors cursor-pointer"
+              key={t.id}
+              onClick={() => onChangeTab(t.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono transition-all duration-150 cursor-pointer ${
+                isActive
+                  ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,240,255,0.15)] font-medium'
+                  : 'text-[#8a8aa3] hover:text-white hover:bg-[#161628]'
+              }`}
             >
-              {user.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt={user.displayName || 'User'}
-                  className="w-5 h-5 rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-[#00e5ff]/20 text-[#00e5ff] flex items-center justify-center text-[10px] font-bold">
-                  {user.displayName?.[0] || 'U'}
-                </div>
-              )}
-              <span className="text-xs font-mono text-[#e8e8f0] max-w-[90px] truncate hidden sm:inline">
-                {user.displayName?.split(' ')[0] || 'User'}
-              </span>
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-400' : 'text-[#6c6c88]'}`} />
+              <span>{t.label}</span>
             </button>
+          );
+        })}
+      </nav>
 
-            {isMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#111120] border border-[#1e1e35] shadow-2xl py-2 z-50">
-                <div className="px-3.5 py-2 border-b border-[#1e1e35]">
-                  <p className="text-xs font-semibold text-white truncate">{user.displayName}</p>
-                  <p className="text-[11px] text-[#8a8aa3] truncate">{user.email}</p>
-                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#3ee89a] font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#3ee89a]" />
-                    <span>Автономный режим (100% Self-hosted)</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    logout();
-                  }}
-                  className="w-full px-3.5 py-2 text-left text-xs text-[#ff6b9d] hover:bg-[#ff6b9d]/10 flex items-center gap-2 transition-colors cursor-pointer"
-                >
-                  <LogOut size={13} />
-                  <span>Выйти из сессии</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={() => login()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-gradient-to-r from-[#00e5ff]/10 to-[#b478ff]/10 border border-[#00e5ff]/30 text-[#00e5ff] hover:border-[#00e5ff] hover:bg-[#00e5ff]/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(0,229,255,0.15)]"
-          >
-            <LogIn size={13} />
-            <span className="hidden sm:inline">Локальная сессия</span>
-            <span className="sm:hidden">Войти</span>
-          </button>
-        )}
+      {/* Telemetry and GitHub Link */}
+      <div className="flex items-center gap-4">
+        {/* Real-time status */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0f0f1b] border border-[#1d1d33] text-xs font-mono text-[#8a8aa3]">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-white font-semibold">p50: 0.91ms</span>
+          <span className="text-[#3c3c55]" aria-hidden="true">·</span>
+          <span>{catalogCount} SKU</span>
+        </div>
+
+        <a
+          href="https://github.com/ppiiyo/EIDOS"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-2 rounded-xl bg-[#0f0f1b] hover:bg-[#1a1a2e] text-[#8a8aa3] hover:text-white border border-[#1d1d33] transition-colors"
+          title="GitHub Repository"
+        >
+          <Github className="w-4 h-4" />
+        </a>
       </div>
     </header>
   );

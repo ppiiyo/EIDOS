@@ -70,6 +70,8 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@eidos/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
+        '@eidos/sdk': path.resolve(__dirname, 'packages/sdk/src/index.ts'),
       },
     },
     server: {
