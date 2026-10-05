@@ -67,12 +67,15 @@ export interface PresetDomain {
 }
 
 export type ActiveTab =
-  | 'landing'
-  | 'agent_studio'
   | 'recommender'
-  | 'integration'
-  | 'analyze'
+  | 'universe3d'
+  | 'adaptive'
+  | 'agent_studio'
   | 'graph'
+  | 'integration'
+  | 'overview'
+  | 'landing'
+  | 'analyze'
   | 'insights'
   | 'export';
 export type StatusKind = 'ready' | 'busy' | 'error' | 'loading';
