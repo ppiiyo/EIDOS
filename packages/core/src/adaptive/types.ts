@@ -168,3 +168,34 @@ export interface BanditArmScore {
   finalScore: number;
 }
 
+export interface RecommendationExplanation {
+  itemId: string;
+  summary: string;
+  confidence: number;
+  primaryDriver: 'similarity' | 'user_affinity' | 'popularity' | 'freshness' | 'kg_path' | 'context';
+  attributions: Array<{ feature: string; percentage: number; scoreContribution: number }>;
+  kgPath?: {
+    sourceItemId: string;
+    relation: string;
+    hops: number;
+    similarity: number;
+  };
+}
+
+export interface SteeringModifier {
+  vector: Float32Array;
+  weight: number;
+  type: 'positive' | 'negative';
+  label?: string;
+}
+
+export interface SteeringConfig {
+  /** Base vector weight multiplier (default: 1.0) */
+  baseWeight: number;
+  /** Maximum allowable angular deviation from base vector (cosine distance clamp, default: 0.75) */
+  maxAngularDeviation: number;
+  /** Normalization rule for the steered vector */
+  normalization: 'l2' | 'none';
+}
+
+

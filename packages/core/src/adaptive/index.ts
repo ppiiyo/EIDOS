@@ -9,3 +9,5 @@ export * from './context-signals';
 export * from './feedback-loop';
 export * from './bandit-explorer';
 export * from './candidate-fusion';
+export * from './explainability';
+export * from './vector-steering';
