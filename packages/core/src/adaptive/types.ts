@@ -134,3 +134,37 @@ export interface Candidate {
   rawScore: number;
   embedding: Float32Array;
 }
+
+export interface BanditArmState {
+  armId: string;
+  pulls: number;
+  totalReward: number;
+  /** Flattened d x d inverse covariance matrix */
+  aInv: Float32Array;
+  /** Accumulated context-reward vector in R^d */
+  b: Float32Array;
+  /** Estimated linear weights theta = A_inv * b */
+  theta: Float32Array;
+  lastUpdated: number;
+}
+
+export interface BanditConfig {
+  /** Feature dimension of context vector (e.g. 4 to 32) */
+  featureDimension: number;
+  /** Exploration coefficient alpha for LinUCB (default: 0.5) */
+  alpha: number;
+  /** Regularization parameter lambda (default: 1.0) */
+  lambda: number;
+  /** Bandit algorithm: 'linucb' or 'thompson' */
+  strategy: 'linucb' | 'thompson';
+  /** Variance scale for Thompson sampling (default: 0.25) */
+  varianceScale: number;
+}
+
+export interface BanditArmScore {
+  armId: string;
+  expectedReward: number;
+  explorationBonus: number;
+  finalScore: number;
+}
+

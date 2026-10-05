@@ -7,4 +7,5 @@ export * from './smmr';
 export * from './kg-enricher';
 export * from './context-signals';
 export * from './feedback-loop';
+export * from './bandit-explorer';
 export * from './candidate-fusion';
