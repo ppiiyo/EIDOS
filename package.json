@@ -19,14 +19,13 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "seed": "tsx scripts/seed-catalog.ts",
     "embeddings:generate": "tsx scripts/generate-embeddings.ts",
-    "benchmark": "tsx scripts/benchmark.ts"
+    "benchmark": "tsx scripts/benchmark.ts",
+    "test:integration": "tsx scripts/test-real-integration.ts"
   },
   "dependencies": {
-    "@types/three": "^0.186.0",
     "lucide-react": "^0.546.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "three": "^0.186.1"
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

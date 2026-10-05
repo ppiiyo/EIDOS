@@ -73,3 +73,67 @@ export interface HNSWSearchResult {
   distance: number;
 }
 
+export interface ShardNode {
+  shardId: string;
+  endpoint?: string;
+  weight: number;
+  itemCount: number;
+  healthy: boolean;
+}
+
+export interface DistributedClusterConfig {
+  shardsCount: number;
+  virtualNodesPerShard: number;
+  replicationFactor: number;
+}
+
+export interface AgentIntent {
+  query: string;
+  targetCategory?: string;
+  maxPrice?: number;
+  positiveModifiers: string[];
+  negativeModifiers: string[];
+  requestedAction: 'search' | 'compare' | 'explain' | 'recommend';
+}
+
+export interface AgentDialogueMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  structuredPayload?: {
+    recommendedItemIds?: string[];
+    steeringVectorApplied?: boolean;
+    confidence?: number;
+  };
+}
+
+export interface MultimodalItem {
+  id: string;
+  text: string;
+  imageUrl?: string;
+  textEmbedding?: Float32Array;
+  imageEmbedding?: Float32Array;
+  jointEmbedding?: Float32Array;
+}
+
+export interface EnterpriseTenant {
+  tenantId: string;
+  name: string;
+  plan: 'community' | 'pro' | 'enterprise';
+  apiKeyHash: string;
+  allowedScopes: string[];
+  rateLimitPerMinute: number;
+  createdAt: number;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  tenantId: string;
+  action: 'search' | 'ingest' | 'delete' | 'cluster_rebalance' | 'rbac_change';
+  actor: string;
+  resourceId?: string;
+  timestamp: number;
+  ipAddress?: string;
+  status: 'success' | 'denied' | 'error';
+}
+

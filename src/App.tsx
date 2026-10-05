@@ -38,6 +38,7 @@ import { AdaptivePanel } from './components/AdaptivePanel';
 import { PresentationLandingView } from './components/PresentationLandingView';
 import { IntegrationHubView } from './components/IntegrationHubView';
 import { MultiAgentStudioView } from './components/MultiAgentStudioView';
+import { PromptInspectorModal } from './components/PromptInspectorModal';
 import { useStorage } from './context/StorageContext';
 import {
   NewProjectModal,
@@ -50,6 +51,7 @@ import { ToastContainer } from './components/ToastContainer';
 const STORAGE_PROJECTS_KEY = 'eidos.projects.v4';
 const STORAGE_CURRENT_KEY = 'eidos.currentId.v4';
 const STORAGE_CATALOG_KEY = 'eidos.catalog.v4';
+const STORAGE_TAB_KEY = 'eidos.activeTab.v4';
 
 export default function App() {
   // 1. Catalog State (Production Recommender & Embeddings)
@@ -128,8 +130,39 @@ export default function App() {
     }
   }, [projects, currentId]);
 
-  // 3. Navigation State - Default to real working Recommender Showcase
-  const [activeTab, setActiveTab] = useState<ActiveTab>('recommender');
+  // 3. Navigation State - Default to real working Showcase & Architecture
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_TAB_KEY);
+      if (
+        saved &&
+        [
+          'landing',
+          'recommender',
+          'universe3d',
+          'adaptive',
+          'agent_studio',
+          'graph',
+          'integration',
+          'overview',
+        ].includes(saved)
+      ) {
+        return saved as ActiveTab;
+      }
+    } catch {
+      // ignore
+    }
+    return 'landing';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_TAB_KEY, activeTab);
+    } catch {
+      // ignore
+    }
+  }, [activeTab]);
+
   const [threshold, setThreshold] = useState<number>(() => {
     return currentProject.simThreshold ?? 0.25;
   });
@@ -154,6 +187,7 @@ export default function App() {
   const [isRenameProjectOpen, setIsRenameProjectOpen] = useState(false);
   const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
   const [isBatchPasteOpen, setIsBatchPasteOpen] = useState(false);
+  const [isPromptInspectorOpen, setIsPromptInspectorOpen] = useState(false);
 
   // 6. Toasts State
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -328,6 +362,7 @@ export default function App() {
         onNewProject={() => setIsNewProjectOpen(true)}
         onRenameProject={() => setIsRenameProjectOpen(true)}
         onDeleteProject={() => setIsDeleteProjectOpen(true)}
+        onOpenPromptInspector={() => setIsPromptInspectorOpen(true)}
       />
 
       {/* Main Workspace Area */}
@@ -404,6 +439,7 @@ export default function App() {
                 catalog={catalog}
                 onShowToast={addToast}
                 onNavigateToRecommender={() => setActiveTab('recommender')}
+                onOpenPromptInspector={() => setIsPromptInspectorOpen(true)}
               />
             )}
 
@@ -495,6 +531,13 @@ export default function App() {
         isOpen={isBatchPasteOpen}
         onClose={() => setIsBatchPasteOpen(false)}
         onImport={handleBatchImport}
+      />
+
+      {/* Prompt Inspector & Live Trace Modal */}
+      <PromptInspectorModal
+        isOpen={isPromptInspectorOpen}
+        onClose={() => setIsPromptInspectorOpen(false)}
+        onShowToast={addToast}
       />
 
       {/* Toast Notifications */}
