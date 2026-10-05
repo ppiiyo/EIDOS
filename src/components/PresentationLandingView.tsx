@@ -187,7 +187,21 @@ export const PresentationLandingView: React.FC<PresentationLandingViewProps> = (
             </a>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => onSelectTab('agent_studio')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#142322] border border-[#3ee89a]/40 text-[#3ee89a] hover:border-[#3ee89a] shadow-[0_0_12px_rgba(62,232,154,0.2)] transition-all cursor-pointer font-bold"
+            >
+              <Cpu size={13} />
+              <span>🤖 Multi-Agent Studio</span>
+            </button>
+            <button
+              onClick={() => onSelectTab('recommender')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#10192e] border border-[#00f0ff]/40 text-[#00f0ff] hover:border-[#00f0ff] shadow-[0_0_12px_rgba(0,240,255,0.2)] transition-all cursor-pointer font-bold"
+            >
+              <ShoppingCart size={13} />
+              <span>🪐 Витрина & 3D</span>
+            </button>
             <button
               onClick={() => onSelectTab('integration')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#181829] border border-[#a855f7]/40 text-[#a855f7] hover:border-[#a855f7] transition-all cursor-pointer"
@@ -201,13 +215,6 @@ export const PresentationLandingView: React.FC<PresentationLandingViewProps> = (
             >
               <Presentation size={13} />
               <span>Питч (2 мин)</span>
-            </button>
-            <button
-              onClick={() => onSelectTab('recommender')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#11111a] border border-[#1e1e2e] text-[#f1f1f7] hover:border-[#00f0ff]/40 transition-all cursor-pointer"
-            >
-              <ShoppingCart size={13} className="text-[#00f0ff]" />
-              <span>Витрина магазина</span>
             </button>
             <button
               onClick={() => {
@@ -248,35 +255,33 @@ export const PresentationLandingView: React.FC<PresentationLandingViewProps> = (
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <a
-                href="#demo"
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-[#00f0ff] to-[#00b4d8] text-[#050508] font-semibold text-sm shadow-[0_0_24px_rgba(0,240,255,0.25)] hover:shadow-[0_0_32px_rgba(0,240,255,0.4)] transition-all"
+              <button
+                onClick={() => onSelectTab('agent_studio')}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-[#3ee89a] to-[#00f0ff] text-[#050508] font-bold text-sm shadow-[0_0_24px_rgba(62,232,154,0.3)] hover:shadow-[0_0_32px_rgba(62,232,154,0.45)] transition-all cursor-pointer font-mono"
               >
-                <span>Попробовать демо</span>
-                <ArrowRight size={15} />
-              </a>
+                <Cpu size={15} />
+                <span>🤖 Multi-Agent Studio</span>
+              </button>
+              <button
+                onClick={() => onSelectTab('recommender')}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#11111a] border border-[#00f0ff]/40 hover:border-[#00f0ff] text-[#00f0ff] text-sm font-semibold transition-all cursor-pointer font-mono shadow-[0_0_15px_rgba(0,240,255,0.15)]"
+              >
+                <Sparkles size={15} />
+                <span>🪐 3D Universe & Витрина</span>
+              </button>
               <button
                 onClick={() => onSelectTab('integration')}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#11111a] border border-[#a855f7]/40 hover:border-[#a855f7] text-[#a855f7] text-sm font-semibold transition-all cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#11111a] border border-[#a855f7]/40 hover:border-[#a855f7] text-[#a855f7] text-sm font-semibold transition-all cursor-pointer font-mono"
               >
                 <Code size={15} />
                 <span>Внедрение & SDK</span>
               </button>
               <a
-                href="#solution"
+                href="#demo"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#11111a] border border-[#1e1e2e] hover:border-[#2c2c44] text-[#f1f1f7] text-sm transition-all"
               >
-                <span>Как это работает</span>
-              </a>
-              <a
-                href="/presentation.html"
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-mono text-[#8c8ca6] hover:text-[#00f0ff] transition-colors"
-                title="Открыть чистый автономный HTML"
-              >
-                <ExternalLink size={13} />
-                <span>Standalone HTML</span>
+                <span>Интерактивное демо</span>
+                <ArrowRight size={14} />
               </a>
             </div>
           </div>

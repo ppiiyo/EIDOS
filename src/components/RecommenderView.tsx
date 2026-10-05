@@ -53,6 +53,8 @@ import { RoiCalculatorModal } from './RoiCalculatorModal';
 import { FeedImporterModal } from './FeedImporterModal';
 import { ABTestReportModal } from './ABTestReportModal';
 import { VisualExplanationLayer } from './VisualExplanationLayer';
+import { VectorCanvas3D } from './VectorCanvas3D';
+import { AdaptivePanel } from './AdaptivePanel';
 
 declare global {
   interface Window {
@@ -79,8 +81,10 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
   // Customer Persona state (Real-time personalization)
   const [selectedPersona, setSelectedPersona] = useState<CustomerPersona>(CUSTOMER_PERSONAS[0]);
 
-  // Main UI Mode: 'showcase' (Product view) | 'comparison' (A/B Test) | 'engine' (Under the hood)
-  const [activeMode, setActiveMode] = useState<'showcase' | 'comparison' | 'engine'>('showcase');
+  // Main UI Mode: 'showcase' (Product view) | '3d-space' (Three.js WebGL) | 'adaptive' (AIL Studio) | 'comparison' | 'engine'
+  const [activeMode, setActiveMode] = useState<
+    'showcase' | '3d-space' | 'adaptive' | 'comparison' | 'engine'
+  >('showcase');
 
   // Modals state
   const [isPitchOpen, setIsPitchOpen] = useState(false);
@@ -442,12 +446,12 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
           </div>
         </div>
 
-        {/* MODE SWITCHER TABS: Showcase (Product) | A/B Comparison | Engine (Under the hood) */}
+        {/* MODE SWITCHER TABS: Showcase | 3D Topology | Adaptive AIL | A/B Comparison | Engine */}
         <div className="flex items-center justify-between flex-wrap gap-3 border-b border-[#1e1e35] pb-3">
-          <div className="flex items-center gap-1 bg-[#0e0e18] p-1 rounded-xl border border-[#1e1e35]">
+          <div className="flex items-center gap-1 bg-[#0e0e18] p-1 rounded-xl border border-[#1e1e35] overflow-x-auto max-w-full">
             <button
               onClick={() => setActiveMode('showcase')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs mono font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs mono font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeMode === 'showcase'
                   ? 'bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 shadow-[0_0_12px_rgba(0,240,255,0.2)]'
                   : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
@@ -457,25 +461,47 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveMode('3d-space')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeMode === '3d-space'
+                  ? 'bg-[#00f0ff]/15 text-[#00f0ff] border border-[#00f0ff]/30 shadow-[0_0_12px_rgba(0,240,255,0.2)]'
+                  : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
+              }`}
+            >
+              <span>🌐 3D Топология</span>
+            </button>
+
+            <button
+              onClick={() => setActiveMode('adaptive')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeMode === 'adaptive'
+                  ? 'bg-[#a855f7]/15 text-[#a855f7] border border-[#a855f7]/30 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                  : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
+              }`}
+            >
+              <span>⚡ Adaptive AI (AIL)</span>
+            </button>
+
+            <button
               onClick={() => setActiveMode('comparison')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs mono font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs mono font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeMode === 'comparison'
                   ? 'bg-[#b478ff]/15 text-[#b478ff] border border-[#b478ff]/30 shadow-[0_0_12px_rgba(180,120,255,0.2)]'
                   : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
               }`}
             >
-              <span>⚖️ Сравнение (Обычный поиск vs EIDOS AI)</span>
+              <span>⚖️ Сравнение (Поиск vs AI)</span>
             </button>
 
             <button
               onClick={() => setActiveMode('engine')}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs mono font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs mono font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeMode === 'engine'
                   ? 'bg-[#3ee89a]/15 text-[#3ee89a] border border-[#3ee89a]/30 shadow-[0_0_12px_rgba(62,232,154,0.2)]'
                   : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
               }`}
             >
-              <span>⚡ Под капотом (ML & Векторы)</span>
+              <span>⚡ ML & Векторы</span>
             </button>
           </div>
 
@@ -864,7 +890,40 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* MODE 2: COMPARISON (Traditional Keyword Search vs EIDOS AI)   */}
+        {/* MODE: 3D VECTOR HYPERSPHERE (Three.js WebGL)                */}
+        {/* ============================================================ */}
+        {activeMode === '3d-space' && (
+          <div className="flex flex-col gap-4">
+            <VectorCanvas3D
+              catalog={catalog}
+              embeddings={embeddings}
+              selectedItemId={selectedItem?.id ?? null}
+              onSelectItem={(id) => {
+                const found = catalog.find((c) => c.id === id);
+                if (found) setSelectedItem(found);
+              }}
+              onSetSeed={(item) => {
+                setSelectedItem(item);
+                setActiveMode('showcase');
+                onShowToast(`Выбран как опорный товар: ${item.title}`, 'success');
+              }}
+              height="650px"
+            />
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* MODE: ADAPTIVE INTELLIGENCE LAYER (AIL Studio)              */}
+        {/* ============================================================ */}
+        {activeMode === 'adaptive' && (
+          <AdaptivePanel
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            onSelectItem={setSelectedItem}
+            onShowToast={onShowToast}
+          />
+        )}
         {/* ============================================================ */}
         {activeMode === 'comparison' && (
           <div className="p-6 bg-[#0e0e18] border border-[#1e1e35] rounded-2xl shadow-xl flex flex-col gap-6">
