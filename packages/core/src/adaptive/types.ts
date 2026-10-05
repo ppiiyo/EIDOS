@@ -198,4 +198,39 @@ export interface SteeringConfig {
   normalization: 'l2' | 'none';
 }
 
+export interface CrossEncoderCandidate {
+  id: string;
+  title?: string;
+  category?: string;
+  tags?: string[];
+  embedding: Float32Array;
+  baseScore: number;
+}
+
+export interface CrossEncoderQuery {
+  id?: string;
+  title?: string;
+  category?: string;
+  tags?: string[];
+  embedding: Float32Array;
+}
+
+export interface CrossEncoderResult {
+  id: string;
+  crossScore: number;
+  baseScore: number;
+  blendedScore: number;
+  tokenOverlap: number;
+}
+
+export interface CrossEncoderConfig {
+  /** Weight assigned to the deep cross-interaction score (0.0 to 1.0, default: 0.6) */
+  crossWeight: number;
+  /** Weight assigned to lexical/tag/attribute alignment (default: 0.2) */
+  attributeWeight: number;
+  /** Sigmoid temperature scale (default: 1.0) */
+  temperature: number;
+}
+
+
 
