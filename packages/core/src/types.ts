@@ -46,3 +46,30 @@ export interface RecommendationOptions {
   excludeIds?: string[];
   filterCategory?: string;
 }
+
+export interface QuantizedVector {
+  id?: string;
+  data: Int8Array;
+  scale: number;
+  norm: number;
+}
+
+export interface HNSWConfig {
+  /** Maximum number of outgoing edges per node per level (default: 16) */
+  M: number;
+  /** Maximum outgoing edges on ground layer 0 (default: 32) */
+  M0: number;
+  /** Size of dynamic candidate list during construction (default: 64) */
+  efConstruction: number;
+  /** Size of dynamic candidate list during query search (default: 32) */
+  efSearch: number;
+  /** Enable INT8 scalar quantization for memory reduction and integer dot products */
+  useQuantization?: boolean;
+}
+
+export interface HNSWSearchResult {
+  id: string;
+  score: number;
+  distance: number;
+}
+
