@@ -1,5 +1,6 @@
 export * from './types';
 export * from './user-tower';
+export * from './multi-interest-tower';
 export * from './metadata-store';
 export * from './ranker';
 export * from './smmr';

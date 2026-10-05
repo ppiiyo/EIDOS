@@ -13,6 +13,34 @@ export interface UserProfile {
   updatedAt: number;
 }
 
+export interface MultiInterestProfile {
+  userId: string;
+  history: string[];
+  /** Multiple distinct interest cluster vectors (e.g. 2 to 4 capsules) */
+  interestEmbeddings: Float32Array[];
+  /** Relative weight/importance of each interest cluster (sums to 1.0) */
+  interestWeights: number[];
+  /** Associated top categories or labels for each interest cluster */
+  interestCategories: string[][];
+  categoryDistribution: Map<string, number>;
+  updatedAt: number;
+}
+
+export interface MultiInterestConfig {
+  /** Maximum number of interest capsules to form (default: 3) */
+  maxInterests: number;
+  /** Maximum number of history items considered for clustering */
+  maxHistoryLength: number;
+  /** Decay factor per positional step away from the newest item (0 < recencyDecay <= 1) */
+  recencyDecay: number;
+  /** Number of dynamic routing / spherical clustering iterations (default: 3) */
+  routingIterations: number;
+  /** Temperature factor for routing softmax assignment (default: 0.2) */
+  temperature: number;
+  /** Vector normalization method */
+  normalization: 'l2' | 'none';
+}
+
 export interface UserTowerConfig {
   /** Maximum number of history items considered for embedding aggregation */
   maxHistoryLength: number;
