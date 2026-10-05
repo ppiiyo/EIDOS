@@ -34,11 +34,14 @@ export function cosineSimilarity(
   }
 
   const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-  if (denominator <= 1e-12) {
+  if (denominator <= 1e-12 || !Number.isFinite(denominator)) {
     return 0;
   }
 
   const similarity = dotProduct / denominator;
+  if (!Number.isFinite(similarity) || Number.isNaN(similarity)) {
+    return 0;
+  }
   // Guard against slight floating point overshoot
   return Math.max(-1, Math.min(1, similarity));
 }

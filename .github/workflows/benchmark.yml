@@ -1,0 +1,33 @@
+name: Performance Benchmark
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    paths:
+      - 'packages/core/**'
+      - 'scripts/benchmark.ts'
+
+jobs:
+  benchmark:
+    name: Vector Latency Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Execute Vector Engine Benchmarks
+        run: pnpm run benchmark

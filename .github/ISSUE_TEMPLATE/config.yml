@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🛡️ Security Vulnerabilities
+    url: https://github.com/ppiiyo/EIDOS/blob/main/SECURITY.md
+    about: Please report security vulnerabilities privately.
+  - name: 💬 Community Discussions
+    url: https://github.com/ppiiyo/EIDOS/discussions
+    about: Ask questions, share ideas, and discuss recommendations.

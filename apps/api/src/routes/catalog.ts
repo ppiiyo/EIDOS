@@ -15,7 +15,7 @@ const catalogItemSchema = z.object({
 });
 
 const ingestPayloadSchema = z.object({
-  items: z.array(catalogItemSchema).min(1),
+  items: z.array(catalogItemSchema).min(1).max(500),
 });
 
 export async function catalogRoutes(

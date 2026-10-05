@@ -1,4 +1,17 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
+import * as crypto from 'crypto';
+
+/**
+ * Constant-time string comparison to prevent timing side-channel attacks on API tokens.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const apiKeyHeader = (request.headers['x-api-key'] as string) || '';
@@ -21,12 +34,10 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return;
   }
 
-  if (
-    process.env.NODE_ENV !== 'test' &&
-    token !== configuredKey &&
-    token !== 'eidos_dev_key' &&
-    token !== 'test-key'
-  ) {
+  const validKeys = [configuredKey, 'eidos_dev_key', 'test-key'];
+  const isValid = validKeys.some((k) => timingSafeEqual(token, k));
+
+  if (process.env.NODE_ENV !== 'test' && !isValid) {
     reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
@@ -35,3 +46,4 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return;
   }
 }
+

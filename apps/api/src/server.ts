@@ -19,6 +19,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 export async function buildApp() {
   const fastify = Fastify({
+    bodyLimit: 1048576, // 1MB payload ceiling to prevent body flooding DoS
     logger: {
       level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
       transport:
@@ -29,6 +30,35 @@ export async function buildApp() {
             }
           : undefined,
     },
+  });
+
+  // Enterprise Security Headers Hook
+  fastify.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('X-XSS-Protection', '0');
+  });
+
+  // Unified Error Handler (Shield internal stack traces in production)
+  fastify.setErrorHandler((error, _request, reply) => {
+    const statusCode = error.statusCode || 500;
+    if (statusCode >= 500) {
+      fastify.log.error(error);
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message:
+          process.env.NODE_ENV === 'production'
+            ? 'An unexpected server error occurred.'
+            : error.message,
+      });
+    }
+    return reply.status(statusCode).send({
+      statusCode,
+      error: error.name || 'Error',
+      message: error.message,
+    });
   });
 
   // Security and Rate Limit Middlewares
