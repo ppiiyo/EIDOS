@@ -38,6 +38,7 @@ import { AdaptivePanel } from './components/AdaptivePanel';
 import { PresentationLandingView } from './components/PresentationLandingView';
 import { IntegrationHubView } from './components/IntegrationHubView';
 import { MultiAgentStudioView } from './components/MultiAgentStudioView';
+import { ConversationalAgentView } from './components/ConversationalAgentView';
 import { PromptInspectorModal } from './components/PromptInspectorModal';
 import { useStorage } from './context/StorageContext';
 import {
@@ -433,12 +434,15 @@ export default function App() {
               </div>
             )}
 
-            {/* 4. MULTI-AGENT AUTONOMOUS AI STUDIO */}
+            {/* 4. CONVERSATIONAL RECSYS AGENT & ENTERPRISE SECURITY SENTINEL */}
             {activeTab === 'agent_studio' && (
-              <MultiAgentStudioView
+              <ConversationalAgentView
                 catalog={catalog}
                 onShowToast={addToast}
-                onNavigateToRecommender={() => setActiveTab('recommender')}
+                onSelectItem={(item) => {
+                  setSelectedCatalogItem(item);
+                  setActiveTab('recommender');
+                }}
                 onOpenPromptInspector={() => setIsPromptInspectorOpen(true)}
               />
             )}

@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
     { key: 'recommender', label: '🛍️ Витрина & Поиск', desc: 'RecSys' },
     { key: 'universe3d', label: '🪐 3D Universe', desc: 'Three.js' },
     { key: 'adaptive', label: '⚡ Adaptive AI', desc: 'AIL Studio' },
-    { key: 'agent_studio', label: '🤖 Multi-Agent Studio', desc: '6 Roles' },
+    { key: 'agent_studio', label: '🤖 ИИ-Агент & Защита', desc: 'RecSys Copilot' },
     { key: 'graph', label: '◈ Семантический Граф', desc: 'KG' },
     { key: 'integration', label: '⚡ REST API & SDK', desc: 'Endpoints' },
   ];
@@ -103,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="hidden md:flex items-center gap-2">
             <span className="px-2.5 py-1 rounded-lg bg-[#0e1222] border border-[#1b233a] text-[11px] font-mono text-emerald-400 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
-              <span>97/97 Tests ✓</span>
+              <span>103/103 Tests ✓</span>
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-[#0e1222] border border-[#1b233a] text-[11px] font-mono text-cyan-400 flex items-center gap-1">
               <Boxes className="w-3 h-3" />
