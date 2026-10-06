@@ -34,7 +34,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^2.1.8",
     "tailwindcss": "^4.3.3",
