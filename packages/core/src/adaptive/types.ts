@@ -139,12 +139,14 @@ export interface BanditArmState {
   armId: string;
   pulls: number;
   totalReward: number;
-  /** Flattened d x d inverse covariance matrix */
-  aInv: Float32Array;
+  /** Flattened d x d inverse covariance matrix or Cholesky factor */
+  aInv: Float64Array | Float32Array;
+  /** Lower triangular Cholesky factor L (if using Cholesky parameterization) */
+  L?: Float64Array;
   /** Accumulated context-reward vector in R^d */
-  b: Float32Array;
+  b: Float64Array | Float32Array;
   /** Estimated linear weights theta = A_inv * b */
-  theta: Float32Array;
+  theta: Float64Array | Float32Array;
   lastUpdated: number;
 }
 

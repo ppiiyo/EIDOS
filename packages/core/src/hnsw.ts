@@ -1,7 +1,7 @@
 import { HNSWConfig, HNSWSearchResult, QuantizedVector } from './types';
 import { ScalarQuantizer } from './quantization';
 
-interface HNSWNode {
+export interface HNSWNode {
   id: string;
   vector: Float32Array;
   quantized?: QuantizedVector;
@@ -368,6 +368,100 @@ export class HNSWIndex {
    */
   public size(): number {
     return this.nodes.size;
+  }
+
+  /**
+   * Returns all nodes currently stored in the index.
+   */
+  public getAllNodes(): HNSWNode[] {
+    return Array.from(this.nodes.values());
+  }
+
+  /**
+   * Returns a copy of the index hyperparameters configuration.
+   */
+  public getConfig(): HNSWConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Returns the current entry point node ID.
+   */
+  public getEntryPointId(): string | null {
+    return this.entryPointId;
+  }
+
+  /**
+   * Returns the maximum layer level in the graph.
+   */
+  public getMaxLevel(): number {
+    return this.maxLevel;
+  }
+
+  /**
+   * Deletes a node from the index and rewires connections.
+   */
+  public delete(id: string): boolean {
+    if (!this.nodes.has(id)) {
+      return false;
+    }
+
+    this.nodes.delete(id);
+
+    // Clean up references from neighbors at all levels
+    for (const node of this.nodes.values()) {
+      for (let l = 0; l <= node.level; l++) {
+        if (node.friends[l]) {
+          const idx = node.friends[l].indexOf(id);
+          if (idx !== -1) {
+            node.friends[l].splice(idx, 1);
+          }
+        }
+      }
+    }
+
+    // If deleted node was the entry point, elect new entry point
+    if (this.entryPointId === id) {
+      if (this.nodes.size === 0) {
+        this.entryPointId = null;
+        this.maxLevel = -1;
+      } else {
+        let bestEp: string | null = null;
+        let highestLvl = -1;
+        for (const [nId, n] of this.nodes.entries()) {
+          if (n.level > highestLvl) {
+            highestLvl = n.level;
+            bestEp = nId;
+          }
+        }
+        this.entryPointId = bestEp;
+        this.maxLevel = highestLvl;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Restores internal state of the index from serialized node records.
+   */
+  public restoreInternalState(
+    nodes: Array<{ id: string; level: number; vector: Float32Array; friends: string[][]; quantized?: QuantizedVector }>,
+    entryPointId: string | null,
+    maxLevel: number
+  ): void {
+    this.clear();
+    for (const n of nodes) {
+      this.nodes.set(n.id, {
+        id: n.id,
+        level: n.level,
+        vector: n.vector,
+        friends: n.friends,
+        quantized: n.quantized,
+      });
+    }
+    this.entryPointId = entryPointId;
+    this.maxLevel = maxLevel;
   }
 
   /**

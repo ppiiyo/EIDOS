@@ -10,4 +10,5 @@ export * from './conversational-agent';
 export * from './multimodal';
 export * from './webgpu-accelerator';
 export * from './enterprise';
+export * from './persistence';
 
