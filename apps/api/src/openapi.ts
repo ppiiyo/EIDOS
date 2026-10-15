@@ -15,7 +15,7 @@ export async function registerOpenAPI(fastify: FastifyInstance): Promise<void> {
         version: '2.1.0',
         contact: {
           name: 'EIDOS Engineering Team',
-          url: 'https://github.com/ppiiyo/EIDOS',
+          url: 'https://github.com/ppiiyo/eidos',
         },
       },
       servers: [

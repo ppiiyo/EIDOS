@@ -83,7 +83,7 @@ export const LaunchKitView: React.FC = () => {
       {tab === 'quickstart' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {[
-            { step:'1', title:'Clone and install', code:`git clone https://github.com/ppiiyo/EIDOS.git\ncd EIDOS\npnpm install` },
+            { step:'1', title:'Clone and install', code:`git clone https://github.com/ppiiyo/eidos.git\ncd eidos\npnpm install` },
             { step:'2', title:'Start development server', code:`pnpm dev` },
             { step:'3', title:'Build for production', code:`pnpm build` },
             { step:'4', title:'Run API server', code:`cd apps/api\nEIDOS_API_KEY=your-secret-key node dist/server.js` },

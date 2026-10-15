@@ -54,8 +54,8 @@ Clone the monorepo and start the browser workspace:
 
 ```bash
 # Clone the repository
-git clone https://github.com/ppiiyo/EIDOS.git
-cd EIDOS
+git clone https://github.com/ppiiyo/eidos.git
+cd eidos
 
 # Install monorepo dependencies
 pnpm install

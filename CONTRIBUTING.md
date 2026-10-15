@@ -14,8 +14,8 @@ All contributors and maintainers are expected to follow our [Code of Conduct](./
 
 1. Fork and clone the repository:
    ```bash
-   git clone https://github.com/ppiiyo/EIDOS.git
-   cd EIDOS
+   git clone https://github.com/ppiiyo/eidos.git
+   cd eidos
    ```
 2. Install dependencies:
    ```bash

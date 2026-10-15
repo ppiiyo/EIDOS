@@ -54,7 +54,7 @@ export function Hero() {
           <ArrowRight className="w-4 h-4" />
         </a>
         <a
-          href="https://github.com/ppiiyo/EIDOS"
+          href="https://github.com/ppiiyo/eidos"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-medium text-sm transition-colors"

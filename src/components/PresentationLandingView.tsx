@@ -173,7 +173,7 @@ console.log('Top affinity items:', recommendations);`;
               <ArrowRight size={15} />
             </button>
             <a
-              href="https://github.com/ppiiyo/EIDOS"
+              href="https://github.com/ppiiyo/eidos"
               target="_blank"
               rel="noreferrer"
               className="w-full sm:w-auto px-7 py-3 border border-[#E5E5E5] hover:bg-[#F5F5F5] text-[#0A0A0A] rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"
@@ -697,7 +697,7 @@ console.log('Top affinity items:', recommendations);`;
           </div>
           <div className="flex items-center gap-6">
             <a
-              href="https://github.com/ppiiyo/EIDOS"
+              href="https://github.com/ppiiyo/eidos"
               target="_blank"
               rel="noreferrer"
               className="hover:text-[#0A0A0A] transition-colors"

@@ -2,8 +2,8 @@
 
 <div align="center">
 
-[![CI](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/Coverage-%3E80%25-brightgreen.svg)](https://github.com/ppiiyo/EIDOS)
+[![CI](https://github.com/ppiiyo/eidos/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiiyo/eidos/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/Coverage-%3E80%25-brightgreen.svg)](https://github.com/ppiiyo/eidos)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![pnpm](https://img.shields.io/badge/pnpm-9.x-F69220?logo=pnpm&logoColor=white)](https://pnpm.io)
@@ -87,7 +87,7 @@ EIDOS 是一款面向电子商务、流媒体和知识库的高性能开源语�
 
 ```bash
 # 1. Clone repository and install dependencies
-git clone https://github.com/ppiiyo/EIDOS.git && cd EIDOS && pnpm install
+git clone https://github.com/ppiiyo/eidos.git && cd eidos && pnpm install
 
 # 2. Run local development environment
 pnpm dev
@@ -96,7 +96,7 @@ pnpm dev
 pnpm benchmark
 ```
 
-Open `http://localhost:3000` (or `http://localhost:5173` for demo app) to explore the real-time canvas and WASM pipeline.
+Open `http://localhost:3000` to explore the real-time canvas and semantic recommendation engine.
 
 ---
 
@@ -347,21 +347,6 @@ pnpm test:unit --filter=adaptive
 
 ---
 
-## 🤖 Multi-Agent Autonomous Engineering Matrix
-
-EIDOS incorporates an integrated multi-agent architecture where autonomous AI personas collaborate in a continuous lifecycle:
-
-| Agent | Codename | Role | Key Output |
-|:------|:---------|:-----|:-----------|
-| 🧠 **Architect** | `Neo-Architect` | Chief AI & RecSys Strategist | Algorithmic Formulations (MIND, LinUCB, HNSW), Topologies |
-| 📝 **Prompt Lead** | `Apex-Prompt` | Formal Spec & Prompt Engineer | RFC System Prompts, Contract Definitions, Acceptance Criteria |
-| ⚡ **Core Dev** | `Codex-Dev` | Senior Systems Developer | Pure TypeScript Core, WebGL 3D Shaders, SIMD Dot Products |
-| 🛡️ **QA Lead** | `Sentinel-QA` | Verification & Test Engineer | 88/88 Vitest Tests (100% Green), Regressions & Coverage Gates |
-| 🚀 **DevOps** | `Atlas-Ops` | GitHub CI/CD & Security Lead | GitHub Actions (`ci.yml`, `multi-agent-orchestrator.yml`), PR Automation |
-| 📊 **SRE** | `Vanguard-SRE` | Site Reliability & Latency Lead | Sub-millisecond Telemetry, INT8 RAM Compression Audit (-75%) |
-
----
-
 ## 🪐 3D WebGL Vector Universe & Visual Engine
 
 EIDOS includes an enterprise-grade 3D vector space visualizer powered by Three.js:
@@ -377,7 +362,7 @@ EIDOS includes an enterprise-grade 3D vector space visualizer powered by Three.j
 ## Testing & Verification
 
 ```bash
-# Run 88 unit and integration tests across all packages
+# Run 149 unit and integration tests across all packages
 pnpm test
 
 # Run unit tests with code coverage report (>85%)
@@ -411,9 +396,10 @@ docker run -d \
 
 - [x] **v1.0.0:** Monorepo architecture, WASM in-browser inference, Fastify microservice, comprehensive test suite.
 - [x] **v1.2.0:** Multi-Interest Capsules (MIND), Contextual Bandits (LinUCB / Thompson), HNSW ANN Indexing, INT8 Scalar Quantization, Vector Steering, Explainability Engine.
-- [x] **v2.0.0:** Multi-Agent Autonomous Matrix Studio, Next-Gen Three.js 3D Vector Universe, Enterprise White-Label Showcase.
-- [ ] **v2.5.0:** Distributed Redis Streams event ingestion & BullMQ background workers.
-- [ ] **v3.0.0:** Multi-modal Vision (CLIP/SigLIP) & Rust-compiled WebAssembly SIMD kernels.
+- [x] **v2.0.0:** Interactive Vector Space, Enterprise RecSys Architecture.
+- [x] **v3.0.0:** Clean minimal UI, statistical A/B engine, rule-based NLU agent, session analytics, and HNSW heap performance monitor.
+- [ ] **v3.5.0:** Distributed Redis Streams event ingestion & BullMQ background workers.
+- [ ] **v4.0.0:** Multi-modal Vision (CLIP/SigLIP) & Rust-compiled WebAssembly SIMD kernels.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for full milestones.
 

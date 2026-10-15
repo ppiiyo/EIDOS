@@ -8,7 +8,7 @@ export function Footer() {
         <p className="mt-1">Built with Fastify, Transformers.js, and TypeScript.</p>
       </div>
       <div className="flex gap-6">
-        <a href="https://github.com/ppiiyo/EIDOS" target="_blank" rel="noopener noreferrer" className="hover:text-slate-300 transition-colors">
+        <a href="https://github.com/ppiiyo/eidos" target="_blank" rel="noopener noreferrer" className="hover:text-slate-300 transition-colors">
           GitHub
         </a>
         <a href="/docs" className="hover:text-slate-300 transition-colors">

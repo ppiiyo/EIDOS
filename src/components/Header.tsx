@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* GitHub Link */}
           <a
-            href="https://github.com/ppiiyo/EIDOS"
+            href="https://github.com/ppiiyo/eidos"
             target="_blank"
             rel="noreferrer"
             className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-[#A3A3A3] hover:text-[#F5F5F5] hover:bg-[#141418] transition-colors"
