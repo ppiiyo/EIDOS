@@ -1,0 +1,6 @@
+{
+  "name": "EIDOS — Semantic Recommender & Ideation",
+  "description": "Семантическая рекомендательная система EIDOS Recommender на основе эмбеддингов, поиск по смыслу, каталог товаров и платформа картирования смысловых полей.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

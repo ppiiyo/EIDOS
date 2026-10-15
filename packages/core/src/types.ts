@@ -1,0 +1,139 @@
+export interface CatalogItemMetadata {
+  [key: string]: string | number | boolean | string[] | undefined;
+}
+
+export interface CatalogItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  tags: string[];
+  price?: number;
+  metadata?: CatalogItemMetadata;
+  embedding?: number[];
+}
+
+export interface SimilarityResult {
+  item: CatalogItem;
+  score: number;
+  sharedClusters?: string[];
+}
+
+export interface GraphNode {
+  id: string;
+  title: string;
+  category: string;
+  cluster: number;
+  degree: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  weight: number;
+}
+
+export interface SemanticGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  density: number;
+}
+
+export interface RecommendationOptions {
+  limit?: number;
+  minSimilarity?: number;
+  diversityFactor?: number;
+  excludeIds?: string[];
+  filterCategory?: string;
+}
+
+export interface QuantizedVector {
+  id?: string;
+  data: Int8Array;
+  scale: number;
+  norm: number;
+}
+
+export interface HNSWConfig {
+  /** Maximum number of outgoing edges per node per level (default: 16) */
+  M: number;
+  /** Maximum outgoing edges on ground layer 0 (default: 32) */
+  M0: number;
+  /** Size of dynamic candidate list during construction (default: 64) */
+  efConstruction: number;
+  /** Size of dynamic candidate list during query search (default: 32) */
+  efSearch: number;
+  /** Enable INT8 scalar quantization for memory reduction and integer dot products */
+  useQuantization?: boolean;
+}
+
+export interface HNSWSearchResult {
+  id: string;
+  score: number;
+  distance: number;
+}
+
+export interface ShardNode {
+  shardId: string;
+  endpoint?: string;
+  weight: number;
+  itemCount: number;
+  healthy: boolean;
+}
+
+export interface DistributedClusterConfig {
+  shardsCount: number;
+  virtualNodesPerShard: number;
+  replicationFactor: number;
+}
+
+export interface AgentIntent {
+  query: string;
+  targetCategory?: string;
+  maxPrice?: number;
+  positiveModifiers: string[];
+  negativeModifiers: string[];
+  requestedAction: 'search' | 'compare' | 'explain' | 'recommend';
+}
+
+export interface AgentDialogueMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  structuredPayload?: {
+    recommendedItemIds?: string[];
+    steeringVectorApplied?: boolean;
+    confidence?: number;
+  };
+}
+
+export interface MultimodalItem {
+  id: string;
+  text: string;
+  imageUrl?: string;
+  textEmbedding?: Float32Array;
+  imageEmbedding?: Float32Array;
+  jointEmbedding?: Float32Array;
+}
+
+export interface EnterpriseTenant {
+  tenantId: string;
+  name: string;
+  plan: 'community' | 'pro' | 'enterprise';
+  apiKeyHash: string;
+  allowedScopes: string[];
+  rateLimitPerMinute: number;
+  createdAt: number;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  tenantId: string;
+  action: 'search' | 'ingest' | 'delete' | 'cluster_rebalance' | 'rbac_change';
+  actor: string;
+  resourceId?: string;
+  timestamp: number;
+  ipAddress?: string;
+  status: 'success' | 'denied' | 'error';
+}
+
