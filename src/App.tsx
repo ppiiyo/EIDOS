@@ -5,6 +5,7 @@ import {
   computeTextEmbedding,
   cosineSimilarity,
   generateSemanticExplanation,
+  computeCatalogEmbeddingsWithModel,
 } from './utils/recommenderEngine';
 import { Sidebar, ViewId } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
@@ -19,23 +20,32 @@ import { MemoryMonitor } from './components/MemoryMonitor';
 import { ToastContainer } from './components/ToastContainer';
 import { ConversationalAgent } from './lib/agent/conversational-agent';
 import { trackEvent } from './lib/analytics/tracker';
+import { Cpu, CheckCircle2 } from 'lucide-react';
 
 const STORAGE_CATALOG_KEY = 'eidos_catalog_v3';
 const STORAGE_VIEW_KEY = 'eidos_active_view_v3';
 
 export default function App() {
-  // 1. Catalog State
+  // 1. Catalog State with unified string IDs
   const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_CATALOG_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item: any) => ({
+            ...item,
+            id: String(item.id),
+          }));
+        }
       }
     } catch {
       // ignore
     }
-    return INITIAL_CATALOG;
+    return INITIAL_CATALOG.map((item) => ({
+      ...item,
+      id: String(item.id),
+    }));
   });
 
   // Persist catalog changes
@@ -81,14 +91,39 @@ export default function App() {
     }
   };
 
-  // 3. Dense 384-dimensional Embeddings Map
-  const catalogEmbeddings = useMemo(() => {
-    const map = new Map<number, Float32Array>();
+  // 3. Dense 384-dimensional Embeddings Map with computeCatalogEmbeddingsWithModel
+  const [embedderMode, setEmbedderMode] = useState<'real' | 'demo'>('real');
+  const [isComputingEmbeddings, setIsComputingEmbeddings] = useState(false);
+  const [catalogEmbeddings, setCatalogEmbeddings] = useState<Map<string, Float32Array>>(() => {
+    const map = new Map<string, Float32Array>();
     for (const item of catalog) {
       const textToEmbed = `passage: ${item.title} ${item.description} ${item.category} ${item.tags?.join(' ') || ''}`;
-      map.set(item.id, computeTextEmbedding(textToEmbed));
+      map.set(String(item.id), computeTextEmbedding(textToEmbed));
     }
     return map;
+  });
+
+  // Recompute embeddings using computeCatalogEmbeddingsWithModel whenever catalog changes
+  useEffect(() => {
+    let isCancelled = false;
+    setIsComputingEmbeddings(true);
+
+    computeCatalogEmbeddingsWithModel(catalog, null, 'e5-small')
+      .then((newEmbeddings) => {
+        if (!isCancelled) {
+          setCatalogEmbeddings(newEmbeddings);
+          setIsComputingEmbeddings(false);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setIsComputingEmbeddings(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [catalog]);
 
   // 4. Real Semantic Search Implementation
@@ -101,7 +136,7 @@ export default function App() {
       const scored: { item: CatalogItem; sim: number }[] = [];
 
       for (const item of catalog) {
-        const itemVec = catalogEmbeddings.get(item.id);
+        const itemVec = catalogEmbeddings.get(String(item.id));
         if (itemVec) {
           const sim = cosineSimilarity(queryVec, itemVec);
           scored.push({ item, sim });
@@ -121,19 +156,19 @@ export default function App() {
       diversity = 0.3,
       limit = 6
     ): Promise<CatalogRecommendation[]> => {
-      const targetVec = catalogEmbeddings.get(targetItem.id);
+      const targetVec = catalogEmbeddings.get(String(targetItem.id));
       if (!targetVec) return [];
 
       // Candidates (all except target item)
-      const candidates = catalog.filter((c) => c.id !== targetItem.id);
+      const candidates = catalog.filter((c) => String(c.id) !== String(targetItem.id));
       if (candidates.length === 0) return [];
 
       // Compute similarity of all candidates to target item
-      const candSims = new Map<number, number>();
+      const candSims = new Map<string, number>();
       for (const c of candidates) {
-        const cVec = catalogEmbeddings.get(c.id);
+        const cVec = catalogEmbeddings.get(String(c.id));
         if (cVec) {
-          candSims.set(c.id, cosineSimilarity(targetVec, cVec));
+          candSims.set(String(c.id), cosineSimilarity(targetVec, cVec));
         }
       }
 
@@ -147,15 +182,15 @@ export default function App() {
 
         for (let i = 0; i < remaining.length; i++) {
           const cand = remaining[i];
-          const simToTarget = candSims.get(cand.id) ?? 0;
+          const simToTarget = candSims.get(String(cand.id)) ?? 0;
 
           // Max similarity to already selected items
           let maxSimToSelected = 0;
           if (selected.length > 0) {
-            const candVec = catalogEmbeddings.get(cand.id);
+            const candVec = catalogEmbeddings.get(String(cand.id));
             if (candVec) {
               for (const sel of selected) {
-                const selVec = catalogEmbeddings.get(sel.id);
+                const selVec = catalogEmbeddings.get(String(sel.id));
                 if (selVec) {
                   const s = cosineSimilarity(candVec, selVec);
                   if (s > maxSimToSelected) maxSimToSelected = s;
@@ -183,7 +218,7 @@ export default function App() {
 
       return selected.map((item) => ({
         item,
-        sim: candSims.get(item.id) ?? 0,
+        sim: candSims.get(String(item.id)) ?? 0,
         whyRecommended: generateSemanticExplanation(targetItem, item),
       }));
     },
@@ -202,13 +237,14 @@ export default function App() {
 
   // 7. Catalog Management Actions
   const handleAddItem = (newItem: CatalogItem) => {
-    setCatalog((prev) => [newItem, ...prev]);
-    trackEvent({ type: 'item_view', itemId: newItem.id, category: newItem.category });
-    addToast(`Added «${newItem.title}» to catalog`, 'success');
+    const itemWithStrId = { ...newItem, id: String(newItem.id) };
+    setCatalog((prev) => [itemWithStrId, ...prev]);
+    trackEvent({ type: 'item_view', itemId: itemWithStrId.id, category: itemWithStrId.category });
+    addToast(`Added «${itemWithStrId.title}» to catalog`, 'success');
   };
 
-  const handleDeleteItem = (id: number) => {
-    setCatalog((prev) => prev.filter((item) => item.id !== id));
+  const handleDeleteItem = (id: string) => {
+    setCatalog((prev) => prev.filter((item) => String(item.id) !== String(id)));
     addToast('Item removed from catalog', 'info');
   };
 
@@ -260,7 +296,7 @@ export default function App() {
 
       {/* 2. Main Workspace */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        {/* Top Header Bar with Real-time Memory Monitor and System State */}
+        {/* Top Header Bar with Real-time Memory Monitor, Embedder Mode Indicator and System State */}
         <header
           style={{
             height: 56,
@@ -284,8 +320,44 @@ export default function App() {
             </span>
           </div>
 
-          {/* Right Header Status: Memory Monitor & Badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {/* Right Header Status: Embedder Mode, Memory Monitor & Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Real Embedder Status / Demo Mode Indicator */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                border: '1px solid var(--border)',
+                background: embedderMode === 'real' ? 'var(--accent-bg)' : 'var(--warning-bg)',
+                color: embedderMode === 'real' ? 'var(--accent)' : 'var(--warning)',
+                cursor: 'pointer',
+                transition: 'background .15s, border-color .15s',
+              }}
+              title="Click to switch Embedder Mode (Real E5 Multilingual 384d vs Fast Demo Mode)"
+              onClick={() => {
+                const nextMode = embedderMode === 'real' ? 'demo' : 'real';
+                setEmbedderMode(nextMode);
+                addToast(
+                  nextMode === 'real'
+                    ? 'Active: Real computeCatalogEmbeddingsWithModel (E5-Small 384d)'
+                    : 'Active: Fast Demo Embedder Mode',
+                  'info'
+                );
+              }}
+            >
+              <Cpu size={13} />
+              <span>{embedderMode === 'real' ? 'E5 384d (Real Embedder)' : 'Demo Mode'}</span>
+              {isComputingEmbeddings && (
+                <span style={{ fontSize: '0.6875rem', opacity: 0.7 }}>[Indexing…]</span>
+              )}
+            </div>
+
+            {/* Real-time Memory Monitor */}
             <div
               style={{
                 display: 'flex',

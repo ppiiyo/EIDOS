@@ -37,7 +37,7 @@ import {
 
 interface AdaptivePanelProps {
   catalog: CatalogItem[];
-  embeddings: Map<number, Float32Array>;
+  embeddings: Map<string, Float32Array>;
   selectedItem: CatalogItem | null;
   onSelectItem: (item: CatalogItem) => void;
   onShowToast?: (msg: string, type?: 'info' | 'success' | 'error') => void;
@@ -90,8 +90,8 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
       .buildProfile(
         'user_demo',
         capsuleHistory.map(String),
-        async (id) => embeddings.get(Number(id)) || new Float32Array(384).fill(0.1),
-        (id) => catalog.find((c) => c.id === Number(id))?.category || 'General'
+        async (id) => embeddings.get(id) || new Float32Array(384).fill(0.1),
+        (id) => catalog.find((c) => c.id === id)?.category || 'General'
       )
       .then((p) => {
         if (active) setCapsuleProfile(p);
@@ -140,7 +140,8 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
       const candEmb = embeddings.get(cand.id);
       const sim = candEmb ? cosineSimilarity(Array.from(seedEmb), Array.from(candEmb)) : 0.4;
       const popularity = Math.min(1.0, (cand.reviews || 500) / 15000);
-      const freshness = ((cand.id * 19) % 100) / 100;
+      const idNum = parseInt(cand.id.replace(/\D/g, ''), 10) || 1;
+      const freshness = ((idNum * 19) % 100) / 100;
       const userAffinity = sim * 0.9;
       const categoryRepetition = cand.category === currentSeed.category ? 0.3 : 0.0;
       const contextualRelevance = 0.75;

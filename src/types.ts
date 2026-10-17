@@ -81,7 +81,7 @@ export type ActiveTab =
 export type StatusKind = 'ready' | 'busy' | 'error' | 'loading';
 
 export interface CatalogItem {
-  id: number;
+  id: string;
   title: string;
   description: string;
   category: string;
@@ -101,8 +101,8 @@ export interface CatalogRecommendation {
 }
 
 export interface CatalogEdge {
-  fromId: number;
-  toId: number;
+  fromId: string;
+  toId: string;
   from: string;
   to: string;
   fromCat: string;

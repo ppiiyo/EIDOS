@@ -379,15 +379,46 @@ pnpm run build
 
 ## Docker Deployment
 
-Deploy in production with a single command:
+### 1. Run Pre-Built Image from GitHub Container Registry (GHCR)
+
+Deploy the standalone Fastify vector microservice with a single command:
 
 ```bash
 docker run -d \
   -p 8080:8080 \
   -e PORT=8080 \
-  -e EIDOS_API_KEY=your_secret_key \
+  -e HOST=0.0.0.0 \
+  -e EIDOS_API_KEY=your_secret_production_key_min_32_chars \
   --name eidos-service \
   ghcr.io/ppiiyo/eidos-api:latest
+```
+
+Verify health check:
+```bash
+curl http://localhost:8080/v1/health
+```
+
+### 2. Full Observability Stack with Docker Compose
+
+Run EIDOS together with Redis cache, Prometheus metrics, and Jaeger distributed tracing:
+
+```bash
+# Start all microservices in the background
+docker compose up -d
+
+# Check cluster logs
+docker compose logs -f eidos-api
+```
+
+Services exposed:
+- **EIDOS API Server**: `http://localhost:8080` (OpenAPI Swagger UI at `/docs`)
+- **Prometheus Metrics**: `http://localhost:9090`
+- **Jaeger Traces UI**: `http://localhost:16686`
+
+### 3. Build Container Image from Source
+
+```bash
+docker build -t ghcr.io/ppiiyo/eidos-api:latest -f apps/api/Dockerfile .
 ```
 
 ---

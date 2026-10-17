@@ -22,9 +22,9 @@ import {
 
 interface VectorCanvas3DProps {
   catalog: CatalogItem[];
-  embeddings: Map<number, Float32Array>;
-  selectedItemId: number | null;
-  onSelectItem: (id: number) => void;
+  embeddings: Map<string, Float32Array>;
+  selectedItemId: string | null;
+  onSelectItem: (id: string) => void;
   onSetSeed?: (item: CatalogItem) => void;
   height?: string;
 }
@@ -78,7 +78,7 @@ export const VectorCanvas3D: React.FC<VectorCanvas3DProps> = ({
 
   // Compute 3D positions based on current topology mode
   const itemCoordinates = useMemo(() => {
-    const coords = new Map<number, THREE.Vector3>();
+    const coords = new Map<string, THREE.Vector3>();
     const radius = 130;
 
     catalog.forEach((item, index) => {
@@ -106,7 +106,8 @@ export const VectorCanvas3D: React.FC<VectorCanvas3DProps> = ({
       if (topologyMode === 'hnsw_layers') {
         // HNSW Layering: partition items into 3 vertical tiers
         // L0 (base layer, all items), L1 (intermediate ~30%), L2 (highway top layer ~10%)
-        const layer = (item.id * 17) % 100 < 15 ? 2 : (item.id * 17) % 100 < 45 ? 1 : 0;
+        const idNum = parseInt(item.id.replace(/\D/g, ''), 10) || (index + 1);
+        const layer = (idNum * 17) % 100 < 15 ? 2 : (idNum * 17) % 100 < 45 ? 1 : 0;
         const layerZ = layer === 2 ? 80 : layer === 1 ? 0 : -80;
         const spread = layer === 2 ? 0.6 : layer === 1 ? 0.85 : 1.1;
         coords.set(item.id, new THREE.Vector3(x * spread, y * spread, layerZ));
@@ -519,7 +520,7 @@ export const VectorCanvas3D: React.FC<VectorCanvas3DProps> = ({
         targetMesh = targetMesh.parent;
       }
       if (targetMesh && targetMesh.userData?.id) {
-        onSelectItem(targetMesh.userData.id);
+        onSelectItem(String(targetMesh.userData.id));
       }
     }
   };

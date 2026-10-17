@@ -14,7 +14,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
   onGetRecommendations,
   onSelectItem,
 }) => {
-  const [selectedItemId, setSelectedItemId] = useState<number>(catalog[0]?.id || 1);
+  const [selectedItemId, setSelectedItemId] = useState<string>(String(catalog[0]?.id || '1'));
   const [diversity, setDiversity] = useState<number>(0.3);
   const [recs, setRecs] = useState<CatalogRecommendation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,7 +61,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
               className="input"
               value={selectedItemId}
               onChange={(e) => {
-                setSelectedItemId(Number(e.target.value));
+                setSelectedItemId(e.target.value);
                 setHasRun(false);
               }}
             >

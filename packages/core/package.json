@@ -1,13 +1,40 @@
 {
   "name": "@eidos/core",
   "version": "1.0.0",
-  "description": "Core vector mathematics, graph clustering and entropy algorithms for EIDOS Recommender",
+  "description": "High-performance vector similarity, graph clustering, HNSW ANN indexing, and entropy algorithms for recommendation systems.",
   "main": "./src/index.ts",
+  "module": "./src/index.ts",
   "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "test": "vitest run"
+    "build": "tsc",
+    "test": "vitest run",
+    "prepack": "tsc"
   },
-  "keywords": ["embeddings", "vector-search", "recommender", "cosine-similarity", "graph-clustering"],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ppiiyo/eidos.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "eidos",
+    "embeddings",
+    "vector-search",
+    "recommender",
+    "cosine-similarity",
+    "hnsw",
+    "graph-clustering"
+  ],
   "author": "EIDOS Open Source Contributors",
   "license": "MIT"
 }

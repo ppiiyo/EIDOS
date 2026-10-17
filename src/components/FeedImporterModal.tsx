@@ -29,7 +29,7 @@ const PRESET_FEEDS = [
     itemsCount: 8,
     sample: [
       {
-        id: 301,
+        id: '301',
         title: 'Умная колонка Яндекс Станция Макс с Zigbee',
         description: 'Флагманская акустика с голосовым ассистентом Алиса, LED-экраном и управлением умным домом.',
         category: 'Электроника',
@@ -42,7 +42,7 @@ const PRESET_FEEDS = [
         custom: true,
       },
       {
-        id: 302,
+        id: '302',
         title: 'Робот-пылесос Roborock S8 Pro Ultra',
         description: 'Топовая сухая и влажная уборка с док-станцией самоочистки и лазерной 3D-навигацией LiDAR.',
         category: 'Электроника',
@@ -55,7 +55,7 @@ const PRESET_FEEDS = [
         custom: true,
       },
       {
-        id: 303,
+        id: '303',
         title: 'Эргономичное офисное кресло Herman Miller Aeron',
         description: 'Культовое кресло с дышащей сеткой Pellicle и регулируемой поддержкой осанки PostureFit SL.',
         category: 'Мебель и офис',
@@ -68,7 +68,7 @@ const PRESET_FEEDS = [
         custom: true,
       },
       {
-        id: 304,
+        id: '304',
         title: 'Умная светодиодная лента Philips Hue Gradient Lightstrip',
         description: 'Адресная фоновая подсветка для монитора и ТВ с синхронизацией игрового изображения.',
         category: 'Электроника',
@@ -90,7 +90,7 @@ const PRESET_FEEDS = [
     itemsCount: 6,
     sample: [
       {
-        id: 401,
+        id: '401',
         title: 'ClickHouse Managed Cloud Cluster',
         description: 'Быстрая колоночная аналитическая СУБД для обработки петабайт данных в реальном времени.',
         category: 'B2B SaaS & DevTools',
@@ -103,7 +103,7 @@ const PRESET_FEEDS = [
         custom: true,
       },
       {
-        id: 402,
+        id: '402',
         title: 'Qdrant Vector Database Enterprise',
         description: 'Векторный поисковый движок на Rust с фильтрацией полезной нагрузки для RAG и семантики.',
         category: 'B2B SaaS & DevTools',
@@ -116,7 +116,7 @@ const PRESET_FEEDS = [
         custom: true,
       },
       {
-        id: 403,
+        id: '403',
         title: 'Supabase PostgreSQL Pro Tier',
         description: 'Полноценный бекенд как сервис с Realtime-подписками, Edge Functions и векторным pgvector.',
         category: 'B2B SaaS & DevTools',
@@ -138,7 +138,7 @@ const PRESET_FEEDS = [
     itemsCount: 5,
     sample: [
       {
-        id: 501,
+        id: '501',
         title: 'Кашемировое пальто оверсайз оттенка Camel',
         description: 'Итальянский премиальный кашемир double-face ручной работы, свободный силуэт и шелковый подклад.',
         category: 'Fashion & Luxury Ритейл',
@@ -151,7 +151,7 @@ const PRESET_FEEDS = [
         custom: true,
       },
       {
-        id: 502,
+        id: '502',
         title: 'Шелковая рубашка прямого кроя Ivory White',
         description: 'Плотный шелк малбери плотностью 22 момми, скрытая застежка на пуговицы из натурального перламутра.',
         category: 'Fashion & Luxury Ритейл',
@@ -164,7 +164,7 @@ const PRESET_FEEDS = [
         custom: true,
       },
       {
-        id: 503,
+        id: '503',
         title: 'Кожаный тоут с тиснением и замшевой отделкой',
         description: 'Телячья кожа растительного дубления, латунная фурнитура с золотым напылением, отделение под ноутбук 14".',
         category: 'Fashion & Luxury Ритейл',
@@ -229,7 +229,7 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
       const parsed = JSON.parse(rawText);
       if (Array.isArray(parsed) && parsed.length > 0) {
         const validated: CatalogItem[] = parsed.map((item, idx) => ({
-          id: Number(item.id) || Date.now() + idx,
+          id: String(item.id || (Date.now() + idx)),
           title: String(item.title || 'Новый товар'),
           description: String(item.description || ''),
           category: String(item.category || 'Импорт'),

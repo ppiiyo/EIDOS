@@ -13,9 +13,9 @@ export interface FeatureContribution {
 }
 
 export interface DetailedSemanticExplanation {
-  targetId: number;
+  targetId: string;
   targetTitle: string;
-  recommendedId: number;
+  recommendedId: string;
   recommendedTitle: string;
   similarityScore: number; // 0..1 (e.g. 0.84)
   topLatentConcept: string;

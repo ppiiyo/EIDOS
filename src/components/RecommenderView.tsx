@@ -96,7 +96,7 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
   // Model & State
   const [modelChoice, setModelChoice] = useState<ModelChoice>('e5-small');
   const [embedderInstance, setEmbedderInstance] = useState<EmbedderPipeline | null>(null);
-  const [embeddings, setEmbeddings] = useState<Map<number, Float32Array>>(new Map());
+  const [embeddings, setEmbeddings] = useState<Map<string, Float32Array>>(new Map());
   const [similarityMatrix, setSimilarityMatrix] = useState<Float32Array[] | null>(null);
 
   // Search & Selection
@@ -114,7 +114,7 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
   const [searchResults, setSearchResults] = useState<CatalogRecommendation[] | null>(null);
 
   // Visual Explanation layer state
-  const [hoveredRecId, setHoveredRecId] = useState<number | null>(null);
+  const [hoveredRecId, setHoveredRecId] = useState<string | null>(null);
   const [visualExplanationMode, setVisualExplanationMode] = useState<'hover' | 'always'>('hover');
 
   // Graph Canvas

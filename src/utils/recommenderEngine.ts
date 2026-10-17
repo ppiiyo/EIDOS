@@ -293,11 +293,12 @@ export async function computeCatalogEmbeddingsWithModel(
   customEmbedder: EmbedderPipeline | null,
   modelName: ModelChoice = 'e5-small',
   onProgress?: (current: number, total: number) => void
-): Promise<Map<number, Float32Array>> {
-  const map = new Map<number, Float32Array>();
+): Promise<Map<string, Float32Array>> {
+  const map = new Map<string, Float32Array>();
 
   for (let i = 0; i < catalog.length; i++) {
     const item = catalog[i];
+    const itemId = String(item.id);
     const textToEmbed =
       modelName === 'e5-small'
         ? `passage: ${item.title} ${item.description} ${item.category} ${item.tags?.join(' ') || ''}`
@@ -310,18 +311,18 @@ export async function computeCatalogEmbeddingsWithModel(
           normalize: true,
         });
         map.set(
-          item.id,
+          itemId,
           output.data instanceof Float32Array
             ? output.data
             : new Float32Array(output.data)
         );
       } catch {
         const vec = computeTextEmbedding(textToEmbed);
-        map.set(item.id, vec);
+        map.set(itemId, vec);
       }
     } else {
       const vec = computeTextEmbedding(textToEmbed);
-      map.set(item.id, vec);
+      map.set(itemId, vec);
     }
 
     if (onProgress) {
@@ -340,18 +341,18 @@ export async function computeCatalogEmbeddingsWithModel(
  */
 export function buildCatalogSimilarityMatrix(
   catalog: CatalogItem[],
-  embeddings: Map<number, Float32Array>
+  embeddings: Map<string, Float32Array>
 ): Float32Array[] {
   const n = catalog.length;
   const matrix: Float32Array[] = Array.from({ length: n }, () => new Float32Array(n));
 
   for (let i = 0; i < n; i++) {
     matrix[i][i] = 1.0;
-    const v1 = embeddings.get(catalog[i].id);
+    const v1 = embeddings.get(String(catalog[i].id));
     if (!v1) continue;
 
     for (let j = i + 1; j < n; j++) {
-      const v2 = embeddings.get(catalog[j].id);
+      const v2 = embeddings.get(String(catalog[j].id));
       if (!v2) continue;
       const sim = cosineSimilarity(v1, v2);
       matrix[i][j] = sim;
@@ -366,13 +367,13 @@ export function buildCatalogSimilarityMatrix(
  * Item-to-Item recommendations with rich explanations
  */
 export function getRecommendationsForItem(
-  itemId: number,
+  itemId: string | number,
   catalog: CatalogItem[],
   matrix: Float32Array[],
   limit = 5,
   minThreshold = 0.05
 ): CatalogRecommendation[] {
-  const idx = catalog.findIndex((i) => i.id === itemId);
+  const idx = catalog.findIndex((i) => String(i.id) === String(itemId));
   if (idx === -1 || !matrix[idx]) return [];
 
   const target = catalog[idx];
@@ -402,7 +403,7 @@ export function getRecommendationsForItem(
 export async function searchCatalogWithModel(
   query: string,
   catalog: CatalogItem[],
-  embeddings: Map<number, Float32Array>,
+  embeddings: Map<string, Float32Array>,
   customEmbedder: EmbedderPipeline | null,
   modelName: ModelChoice = 'e5-small',
   limit = 6
@@ -491,8 +492,8 @@ export function extractTopCatalogEdges(
       const sim = matrix[i][j];
       if (sim >= minThreshold) {
         edges.push({
-          fromId: catalog[i].id,
-          toId: catalog[j].id,
+          fromId: String(catalog[i].id),
+          toId: String(catalog[j].id),
           from: catalog[i].title,
           to: catalog[j].title,
           fromCat: catalog[i].category,

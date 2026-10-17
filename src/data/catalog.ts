@@ -2,7 +2,7 @@ import { CatalogItem } from '../types';
 
 export const INITIAL_CATALOG: CatalogItem[] = [
   {
-    id: 1,
+    id: '1',
     title: 'Cyberpunk 2077',
     description: 'Открытый мир Найт-Сити, киберпанк, RPG, симуляция будущего, импланты и искусственный интеллект',
     category: 'Игры',
@@ -14,7 +14,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['киберпанк', 'симуляция', 'rpg', 'будущее'],
   },
   {
-    id: 2,
+    id: '2',
     title: 'Матрица',
     description: 'Культовый фильм, симуляция реальности, sci-fi, восстание машин, киберпанк и поиск истины',
     category: 'Фильмы',
@@ -26,7 +26,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['симуляция', 'киберпанк', 'ии', 'фильм'],
   },
   {
-    id: 3,
+    id: '3',
     title: 'Дюна',
     description: 'Научная фантастика Фрэнка Герберта, песчаная планета Арракис, космическая политика, пророчество и спайс',
     category: 'Книги',
@@ -38,7 +38,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['космос', 'фантастика', 'дюна', 'политика'],
   },
   {
-    id: 4,
+    id: '4',
     title: 'Книга Python: Полное руководство',
     description: 'Программирование с нуля, обучение, код, алгоритмы, backend-разработка и нейросети',
     category: 'Книги',
@@ -50,7 +50,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['программирование', 'обучение', 'код', 'python'],
   },
   {
-    id: 5,
+    id: '5',
     title: 'Кофемашина Barista Pro',
     description: 'Премиальная бытовая техника, 15 бар, эспрессо, капучино, встроенная кофемолка, зерновой кофе',
     category: 'Техника',
@@ -62,7 +62,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['кофе', 'бытовая техника', 'эспрессо', 'капучино'],
   },
   {
-    id: 6,
+    id: '6',
     title: 'The Witcher 3: Дикая Охота',
     description: 'Фэнтези RPG, открытый мир, магия, чудовища, ведьмак Геральт, моральный выбор и эпос',
     category: 'Игры',
@@ -74,7 +74,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['фэнтези', 'магия', 'rpg', 'ведьмак'],
   },
   {
-    id: 7,
+    id: '7',
     title: 'Фильм "Интерстеллар"',
     description: 'Научно-фантастический шедевр Кристофера Нолана о релятивистском времени, черных дырах и любви сквозь космос',
     category: 'Фильмы',
@@ -86,7 +86,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['космос', 'фантастика', 'нолан', 'время'],
   },
   {
-    id: 8,
+    id: '8',
     title: 'Ноутбук ProBook X1 Metal',
     description: 'Флагманский ультрабук для программирования и работы, Intel Core i7, 32GB RAM, 1TB SSD, 16" 120Hz',
     category: 'Техника',
@@ -98,7 +98,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['компьютер', 'работа', 'код', 'ноутбук'],
   },
   {
-    id: 9,
+    id: '9',
     title: 'Беспроводные наушники SoundMax ANC',
     description: 'Премиальный Hi-Res звук, адаптивное активное шумоподавление, Bluetooth 5.3, 45 часов автономности',
     category: 'Техника',
@@ -110,7 +110,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['звук', 'музыка', 'bluetooth', 'наушники'],
   },
   {
-    id: 10,
+    id: '10',
     title: 'Книга "1984" Джорджа Оруэлла',
     description: 'Роман-антиутопия о тоталитарном надзоре, Большом Брате, новоязе и борьбе за свободу мысли',
     category: 'Книги',
@@ -122,7 +122,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['антиутопия', 'оруэлл', 'контроль', 'политика'],
   },
   {
-    id: 11,
+    id: '11',
     title: 'Книга "Гарри Поттер и философский камень"',
     description: 'Магический мир Хогвартса, уроки зельеварения, дружба, тайны замка и великие заклинания',
     category: 'Книги',
@@ -134,7 +134,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['фэнтези', 'магия', 'обучение', 'хогвартс'],
   },
   {
-    id: 12,
+    id: '12',
     title: 'Фильм "Начало"',
     description: 'Интеллектуальный триллер Кристофера Нолана о многоуровневых снах, архитектуре подсознания и иллюзиях',
     category: 'Фильмы',
@@ -146,7 +146,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['сны', 'нолан', 'триллер', 'разум'],
   },
   {
-    id: 13,
+    id: '13',
     title: 'Игра "Stray"',
     description: 'Уютное и трогательное приключение рыжего кота в неоновом кибергороде забытых роботов',
     category: 'Игры',
@@ -158,7 +158,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['кот', 'киберпанк', 'роботы', 'приключения'],
   },
   {
-    id: 14,
+    id: '14',
     title: 'Смартфон Galaxy Ultra Pro',
     description: 'Флагманский камерофон 200 Мп с AI-обработкой кадров, стилусом S-Pen и Dynamic AMOLED 2X 120Hz',
     category: 'Техника',
@@ -170,7 +170,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['телефон', 'гаджет', 'камера', 'флагман'],
   },
   {
-    id: 15,
+    id: '15',
     title: 'Кроссовки RunMax Aero Carbon',
     description: 'Профессиональная беговая обувь с карбоновой пластиной, упругой пеной и дышащей мембраной',
     category: 'Спорт',
@@ -182,7 +182,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['бег', 'спорт', 'обувь', 'тренировки'],
   },
   {
-    id: 16,
+    id: '16',
     title: 'Умный фитнес-браслет BandPro 8',
     description: 'Круглосуточный мониторинг SpO2, вариабельности пульса, фаз сна и 120 спортивных режимов',
     category: 'Спорт',
@@ -194,7 +194,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['спорт', 'фитнес', 'пульс', 'трекер'],
   },
   {
-    id: 17,
+    id: '17',
     title: 'Фильм "Властелин колец: Братство кольца"',
     description: 'Величайшая экранизация эпоса Дж. Р. Р. Толкина о спасении Средиземья, братстве и магии',
     category: 'Фильмы',
@@ -206,7 +206,7 @@ export const INITIAL_CATALOG: CatalogItem[] = [
     tags: ['фэнтези', 'эпос', 'толкин', 'магия'],
   },
   {
-    id: 18,
+    id: '18',
     title: 'Настольная игра "Монополия Deluxe"',
     description: 'Классическая экономическая стратегия с металлическими фишками, аукционами и покупкой недвижимости',
     category: 'Игры',

@@ -104,7 +104,7 @@ export const PitchModal: React.FC<PitchModalProps> = ({
       actionButtonText: '✨ Открыть рекомендации Интерстеллар',
       onAction: () => {
         onSelectItem({
-          id: 7,
+          id: '7',
           title: 'Фильм "Интерстеллар"',
           description: 'Научно-фантастический шедевр Кристофера Нолана о релятивистском времени, черных дырах и любви сквозь космос',
           category: 'Фильмы',

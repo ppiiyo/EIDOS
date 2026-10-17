@@ -26,7 +26,7 @@ import { cosineSimilarity } from '../utils/recommenderEngine';
 
 interface DashboardViewProps {
   catalog: CatalogItem[];
-  embeddings: Map<number, Float32Array>;
+  embeddings: Map<string, Float32Array>;
   onNavigate: (view: ViewId) => void;
   onSearch: (query: string) => Promise<CatalogItem[]>;
   onSelectItem?: (item: CatalogItem) => void;

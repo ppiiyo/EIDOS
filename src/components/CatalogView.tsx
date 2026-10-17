@@ -6,7 +6,7 @@ import { trackEvent } from '../lib/analytics/tracker';
 interface CatalogViewProps {
   catalog: CatalogItem[];
   onAddItem: (item: CatalogItem) => void;
-  onDeleteItem: (id: number) => void;
+  onDeleteItem: (id: string) => void;
   onSelectItem?: (item: CatalogItem) => void;
 }
 
@@ -38,7 +38,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     if (!newTitle.trim()) return;
 
     const item: CatalogItem = {
-      id: Date.now(),
+      id: String(Date.now()),
       title: newTitle.trim(),
       description: newDesc.trim() || newTitle.trim(),
       category: newCat.trim() || 'General',

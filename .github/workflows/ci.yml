@@ -59,12 +59,13 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
 
-      - name: Run Test Suite
-        run: pnpm test
-
-      - name: Generate Coverage Report
+      - name: Run Test Suite & Enforce Coverage Gate (>80%)
         if: matrix.node-version == 20
-        run: pnpm run test:coverage || pnpm test
+        run: pnpm run test:coverage
+
+      - name: Run Test Suite (Node 22)
+        if: matrix.node-version != 20
+        run: pnpm test
 
       - name: Upload Coverage Artifact
         if: matrix.node-version == 20 && always()
