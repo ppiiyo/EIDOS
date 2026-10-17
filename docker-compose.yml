@@ -1,8 +1,9 @@
 version: '3.8'
 
 services:
-  eidos-api:
+  api:
     image: ghcr.io/ppiiyo/eidos-api:latest
+    container_name: eidos-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile

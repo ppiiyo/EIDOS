@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eidos-client"
+version = "3.0.0"
+description = "Official Python client SDK for EIDOS Semantic Recommendation & Vector Search Engine"
+readme = "README.md"
+authors = [{ name = "EIDOS Engineering Team" }]
+license = { text = "MIT" }
+requires-python = ">=3.8"
+keywords = ["recsys", "recommendations", "vector-search", "embeddings", "hnsw", "bm25", "eidos"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/ppiiyo/eidos"
+Repository = "https://github.com/ppiiyo/eidos.git"
+Documentation = "https://github.com/ppiiyo/eidos#readme"

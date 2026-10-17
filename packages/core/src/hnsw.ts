@@ -3,16 +3,101 @@ import { ScalarQuantizer } from './quantization';
 
 export interface HNSWNode {
   id: string;
+  intId: number;
   vector: Float32Array;
   quantized?: QuantizedVector;
   level: number;
-  // friends[l] contains neighbor node IDs at layer l
+  // Phase 2: Int32 friends per level stored in flat Int32Array
+  friendsInt32: Int32Array[];
+  // Backwards-compatible string array per layer
   friends: string[][];
 }
 
-interface DistCandidate {
+export interface DistCandidate {
   id: string;
+  intId: number;
   dist: number;
+}
+
+/**
+ * High-performance Binary Heap for O(log N) priority queue operations.
+ */
+export class BinaryHeap<T> {
+  private data: T[] = [];
+
+  constructor(private readonly compare: (a: T, b: T) => number) {}
+
+  public push(item: T): void {
+    this.data.push(item);
+    this.bubbleUp(this.data.length - 1);
+  }
+
+  public pop(): T | undefined {
+    if (this.data.length === 0) return undefined;
+    const top = this.data[0];
+    const bottom = this.data.pop()!;
+    if (this.data.length > 0) {
+      this.data[0] = bottom;
+      this.sinkDown(0);
+    }
+    return top;
+  }
+
+  public peek(): T | undefined {
+    return this.data[0];
+  }
+
+  public size(): number {
+    return this.data.length;
+  }
+
+  public values(): T[] {
+    return this.data;
+  }
+
+  public toSortedArray(): T[] {
+    const copy = [...this.data];
+    return copy.sort(this.compare);
+  }
+
+  private bubbleUp(index: number): void {
+    const item = this.data[index];
+    while (index > 0) {
+      const parentIdx = (index - 1) >> 1;
+      const parent = this.data[parentIdx];
+      if (this.compare(item, parent) >= 0) break;
+      this.data[index] = parent;
+      index = parentIdx;
+    }
+    this.data[index] = item;
+  }
+
+  private sinkDown(index: number): void {
+    const length = this.data.length;
+    const item = this.data[index];
+    while (true) {
+      const leftIdx = (index << 1) + 1;
+      const rightIdx = leftIdx + 1;
+      let swapIdx = -1;
+
+      if (leftIdx < length) {
+        if (this.compare(this.data[leftIdx], item) < 0) {
+          swapIdx = leftIdx;
+        }
+      }
+      if (rightIdx < length) {
+        const compareWith = swapIdx === -1 ? item : this.data[swapIdx];
+        if (this.compare(this.data[rightIdx], compareWith) < 0) {
+          swapIdx = rightIdx;
+        }
+      }
+
+      if (swapIdx === -1) break;
+      this.data[index] = this.data[swapIdx];
+      index = swapIdx;
+    }
+    this.data[index] = item;
+  }
 }
 
 /**
@@ -66,8 +151,7 @@ function quantizedCosineDistance(a: QuantizedVector, b: QuantizedVector): number
 
 /**
  * Hierarchical Navigable Small World (HNSW) vector index.
- * Provides logarithmic-time approximate nearest neighbor (ANN) retrieval for high-dimensional vectors.
- * Supports INT8 scalar quantization for 4x memory savings and accelerated integer dot-products.
+ * Phase 2 optimized: Int32 flat array neighbor links and Binary Heap searchLayer.
  */
 export class HNSWIndex {
   private readonly config: HNSWConfig;
@@ -75,15 +159,11 @@ export class HNSWIndex {
   private nodes = new Map<string, HNSWNode>();
   private idToInternal = new Map<string, number>();
   private internalToId: string[] = [];
+  private internalToNode: (HNSWNode | undefined)[] = [];
   private nextInternalId = 0;
   private entryPointId: string | null = null;
   private maxLevel = -1;
 
-  /**
-   * Initializes the HNSW index.
-   *
-   * @param config - HNSW hyperparameter configuration
-   */
   constructor(config?: Partial<HNSWConfig>) {
     this.config = {
       M: config?.M ?? 16,
@@ -135,7 +215,7 @@ export class HNSWIndex {
   }
 
   /**
-   * Searches a specific layer for nearest neighbors using greedy candidate beam search.
+   * Phase 2: High-performance Layer Search using Binary Min/Max Heaps and Int32 Flat Friends.
    */
   private searchLayer(
     queryVec: Float32Array,
@@ -144,71 +224,106 @@ export class HNSWIndex {
     ef: number,
     level: number
   ): DistCandidate[] {
-    const visited = new Set<string>();
-    const candidates: DistCandidate[] = [];
-    const results: DistCandidate[] = [];
+    const visited = new Set<number>();
+
+    // Min-heap for unvisited candidates: lowest distance on top (to explore closest first)
+    const candidateHeap = new BinaryHeap<DistCandidate>((a, b) => a.dist - b.dist);
+
+    // Max-heap for current top results: furthest distance on top (to easily inspect / drop worst)
+    const resultHeap = new BinaryHeap<DistCandidate>((a, b) => b.dist - a.dist);
 
     for (const epId of entryPoints) {
       const epNode = this.nodes.get(epId);
       if (!epNode) continue;
       const d = this.getDistance(queryVec, queryQuant, epNode);
-      visited.add(epId);
-      candidates.push({ id: epId, dist: d });
-      results.push({ id: epId, dist: d });
+      visited.add(epNode.intId);
+      const cand: DistCandidate = { id: epId, intId: epNode.intId, dist: d };
+      candidateHeap.push(cand);
+      resultHeap.push(cand);
     }
 
-    candidates.sort((a, b) => a.dist - b.dist);
-    results.sort((a, b) => a.dist - b.dist);
+    while (candidateHeap.size() > 0) {
+      const current = candidateHeap.pop()!;
+      const worstResult = resultHeap.peek();
 
-    while (candidates.length > 0) {
-      // Extract nearest candidate
-      const current = candidates.shift()!;
-      const furthestResultDist = results[results.length - 1]?.dist ?? Infinity;
-
-      if (current.dist > furthestResultDist) {
+      // Early termination: if closest candidate is worse than furthest in full results pool
+      if (worstResult && resultHeap.size() >= ef && current.dist > worstResult.dist) {
         break;
       }
 
-      const currNode = this.nodes.get(current.id);
+      const currNode = this.internalToNode[current.intId];
       if (!currNode) continue;
 
-      const friends = currNode.friends[level] || [];
-      for (const neighborId of friends) {
-        if (visited.has(neighborId)) continue;
-        visited.add(neighborId);
+      // Phase 2: Traverse flat Int32Array friends buffer directly
+      const friendsInt32 = currNode.friendsInt32[level];
+      if (!friendsInt32) continue;
 
-        const neighborNode = this.nodes.get(neighborId);
+      const friendsLen = friendsInt32.length;
+      for (let i = 0; i < friendsLen; i++) {
+        const neighborIntId = friendsInt32[i];
+        if (visited.has(neighborIntId)) continue;
+        visited.add(neighborIntId);
+
+        const neighborNode = this.internalToNode[neighborIntId];
         if (!neighborNode) continue;
 
         const d = this.getDistance(queryVec, queryQuant, neighborNode);
-        const worstResultDist = results[results.length - 1]?.dist ?? Infinity;
+        const currentWorst = resultHeap.peek();
 
-        if (d < worstResultDist || results.length < ef) {
-          // Insert into candidates (sorted ascending)
-          let cIdx = candidates.findIndex((c) => c.dist > d);
-          if (cIdx === -1) candidates.push({ id: neighborId, dist: d });
-          else candidates.splice(cIdx, 0, { id: neighborId, dist: d });
+        if (resultHeap.size() < ef || (currentWorst && d < currentWorst.dist)) {
+          const cand: DistCandidate = {
+            id: neighborNode.id,
+            intId: neighborIntId,
+            dist: d,
+          };
 
-          // Insert into results (sorted ascending)
-          let rIdx = results.findIndex((r) => r.dist > d);
-          if (rIdx === -1) results.push({ id: neighborId, dist: d });
-          else results.splice(rIdx, 0, { id: neighborId, dist: d });
+          candidateHeap.push(cand);
+          resultHeap.push(cand);
 
-          if (results.length > ef) {
-            results.pop();
+          if (resultHeap.size() > ef) {
+            resultHeap.pop(); // Drop furthest result in O(log ef)
           }
         }
       }
     }
 
-    return results;
+    // Return results sorted by distance ascending (nearest first)
+    return resultHeap.values().sort((a, b) => a.dist - b.dist);
+  }
+
+  /**
+   * Synchronizes flat Int32Array and string array for a node's level.
+   */
+  private setNodeFriends(node: HNSWNode, level: number, friendIntIds: number[]): void {
+    node.friendsInt32[level] = new Int32Array(friendIntIds);
+    node.friends[level] = friendIntIds.map((intId) => this.internalToId[intId] || '');
+  }
+
+  /**
+   * Adds a friend link to a node at a given level.
+   */
+  private addFriend(node: HNSWNode, level: number, friendIntId: number): void {
+    const existing = node.friendsInt32[level];
+    if (!existing || existing.length === 0) {
+      node.friendsInt32[level] = new Int32Array([friendIntId]);
+      node.friends[level] = [this.internalToId[friendIntId] || ''];
+      return;
+    }
+
+    // Avoid duplicates
+    for (let i = 0; i < existing.length; i++) {
+      if (existing[i] === friendIntId) return;
+    }
+
+    const next = new Int32Array(existing.length + 1);
+    next.set(existing);
+    next[existing.length] = friendIntId;
+    node.friendsInt32[level] = next;
+    node.friends[level].push(this.internalToId[friendIntId] || '');
   }
 
   /**
    * Inserts an item into the HNSW graph.
-   *
-   * @param id - Unique identifier for the item
-   * @param vector - Raw Float32Array embedding
    */
   public insert(id: string, vector: Float32Array): void {
     if (this.nodes.has(id)) {
@@ -218,22 +333,27 @@ export class HNSWIndex {
     const normVec = normalizeL2(vector);
     const quantized = this.config.useQuantization ? ScalarQuantizer.quantize(normVec, id) : undefined;
     const nodeLevel = this.getRandomLevel();
+    const intId = this.getInternalId(id);
 
+    const friendsInt32: Int32Array[] = [];
     const friends: string[][] = [];
     for (let l = 0; l <= nodeLevel; l++) {
+      friendsInt32.push(new Int32Array(0));
       friends.push([]);
     }
 
     const newNode: HNSWNode = {
       id,
+      intId,
       vector: normVec,
       quantized,
       level: nodeLevel,
+      friendsInt32,
       friends,
     };
 
-    this.getInternalId(id);
     this.nodes.set(id, newNode);
+    this.internalToNode[intId] = newNode;
 
     if (this.entryPointId === null) {
       this.entryPointId = id;
@@ -242,7 +362,8 @@ export class HNSWIndex {
     }
 
     let currEp = this.entryPointId;
-    let currEpDist = this.getDistance(normVec, quantized, this.nodes.get(currEp)!);
+    let currEpNode = this.nodes.get(currEp)!;
+    let currEpDist = this.getDistance(normVec, quantized, currEpNode);
 
     // Phase 1: Greedy routing from top level down to nodeLevel + 1
     for (let l = this.maxLevel; l > nodeLevel; l--) {
@@ -251,15 +372,16 @@ export class HNSWIndex {
         changed = false;
         const epNode = this.nodes.get(currEp);
         if (!epNode) break;
-        const neighbors = epNode.friends[l] || [];
+        const neighbors = epNode.friendsInt32[l];
+        if (!neighbors) break;
 
-        for (const nId of neighbors) {
-          const nNode = this.nodes.get(nId);
+        for (let i = 0; i < neighbors.length; i++) {
+          const nNode = this.internalToNode[neighbors[i]];
           if (!nNode) continue;
           const d = this.getDistance(normVec, quantized, nNode);
           if (d < currEpDist) {
             currEpDist = d;
-            currEp = nId;
+            currEp = nNode.id;
             changed = true;
           }
         }
@@ -282,22 +404,21 @@ export class HNSWIndex {
       const maxM = l === 0 ? this.config.M0 : this.config.M;
       const selectedNeighbors = candidates.slice(0, maxM);
 
+      const newFriendIntIds: number[] = [];
       for (const neighbor of selectedNeighbors) {
-        newNode.friends[l].push(neighbor.id);
-        const neighborNode = this.nodes.get(neighbor.id);
+        newFriendIntIds.push(neighbor.intId);
+        const neighborNode = this.internalToNode[neighbor.intId];
         if (neighborNode) {
-          if (!neighborNode.friends[l]) {
-            neighborNode.friends[l] = [];
-          }
-          neighborNode.friends[l].push(id);
+          this.addFriend(neighborNode, l, intId);
 
           // Prune neighbor connections if exceeding maxM
-          if (neighborNode.friends[l].length > maxM) {
+          if (neighborNode.friendsInt32[l].length > maxM) {
             this.pruneNeighbors(neighborNode, l, maxM);
           }
         }
       }
 
+      this.setNodeFriends(newNode, l, newFriendIntIds);
       enterCandidates = candidates.map((c) => c.id);
     }
 
@@ -311,29 +432,25 @@ export class HNSWIndex {
    * Prunes connections of a node at layer l to keep only the closest maxM neighbors.
    */
   private pruneNeighbors(node: HNSWNode, level: number, maxM: number): void {
-    const neighbors = node.friends[level];
+    const neighbors = node.friendsInt32[level];
     if (!neighbors || neighbors.length <= maxM) return;
 
-    const scored: DistCandidate[] = [];
-    for (const nId of neighbors) {
-      const target = this.nodes.get(nId);
+    const scored: { intId: number; dist: number }[] = [];
+    for (let i = 0; i < neighbors.length; i++) {
+      const target = this.internalToNode[neighbors[i]];
       if (target) {
         const d = this.getDistance(node.vector, node.quantized, target);
-        scored.push({ id: nId, dist: d });
+        scored.push({ intId: neighbors[i], dist: d });
       }
     }
 
     scored.sort((a, b) => a.dist - b.dist);
-    node.friends[level] = scored.slice(0, maxM).map((s) => s.id);
+    const pruned = scored.slice(0, maxM).map((s) => s.intId);
+    this.setNodeFriends(node, level, pruned);
   }
 
   /**
-   * Searches the HNSW index for the K approximate nearest neighbors to a query vector.
-   *
-   * @param query - Input query vector (384-dim or arbitrary dimension)
-   * @param k - Number of top nearest neighbors to retrieve (default: 10)
-   * @param efSearch - Optional search candidate pool size (defaults to config.efSearch)
-   * @returns Array of HNSWSearchResult sorted by distance ascending (similarity descending)
+   * Searches the HNSW index for the K approximate nearest neighbors.
    */
   public search(query: Float32Array, k = 10, efSearch?: number): HNSWSearchResult[] {
     if (this.entryPointId === null || this.nodes.size === 0) {
@@ -346,7 +463,8 @@ export class HNSWIndex {
       : undefined;
 
     let currEp = this.entryPointId;
-    let currEpDist = this.getDistance(normQuery, queryQuant, this.nodes.get(currEp)!);
+    let currEpNode = this.nodes.get(currEp)!;
+    let currEpDist = this.getDistance(normQuery, queryQuant, currEpNode);
 
     // Greedy routing from top level down to layer 1
     for (let l = this.maxLevel; l >= 1; l--) {
@@ -355,15 +473,16 @@ export class HNSWIndex {
         changed = false;
         const epNode = this.nodes.get(currEp);
         if (!epNode) break;
-        const neighbors = epNode.friends[l] || [];
+        const neighbors = epNode.friendsInt32[l];
+        if (!neighbors) break;
 
-        for (const nId of neighbors) {
-          const nNode = this.nodes.get(nId);
+        for (let i = 0; i < neighbors.length; i++) {
+          const nNode = this.internalToNode[neighbors[i]];
           if (!nNode) continue;
           const d = this.getDistance(normQuery, queryQuant, nNode);
           if (d < currEpDist) {
             currEpDist = d;
-            currEp = nId;
+            currEp = nNode.id;
             changed = true;
           }
         }
@@ -377,7 +496,6 @@ export class HNSWIndex {
     const topK = candidates.slice(0, k);
 
     return topK.map((c) => {
-      // similarity score = 1 - distance
       const score = Math.max(-1.0, Math.min(1.0, 1.0 - c.dist));
       return {
         id: c.id,
@@ -387,69 +505,54 @@ export class HNSWIndex {
     });
   }
 
-  /**
-   * Returns the total number of indexed vectors.
-   */
   public size(): number {
     return this.nodes.size;
   }
 
-  /**
-   * Returns all nodes currently stored in the index.
-   */
   public getAllNodes(): HNSWNode[] {
     return Array.from(this.nodes.values());
   }
 
-  /**
-   * Returns a copy of the index hyperparameters configuration.
-   */
   public getConfig(): HNSWConfig {
     return { ...this.config };
   }
 
-  /**
-   * Returns the current entry point node ID.
-   */
   public getEntryPointId(): string | null {
     return this.entryPointId;
   }
 
-  /**
-   * Returns the maximum layer level in the graph.
-   */
   public getMaxLevel(): number {
     return this.maxLevel;
   }
 
-  /**
-   * Deletes a node from the index and rewires connections.
-   */
   public delete(id: string): boolean {
-    if (!this.nodes.has(id)) {
+    const node = this.nodes.get(id);
+    if (!node) {
       return false;
     }
 
+    const intId = node.intId;
     this.nodes.delete(id);
-    const internalId = this.idToInternal.get(id);
-    if (internalId !== undefined) {
-      delete this.internalToId[internalId];
-      this.idToInternal.delete(id);
-    }
+    this.internalToNode[intId] = undefined;
+    delete this.internalToId[intId];
+    this.idToInternal.delete(id);
 
     // Clean up references from neighbors at all levels
-    for (const node of this.nodes.values()) {
-      for (let l = 0; l <= node.level; l++) {
-        if (node.friends[l]) {
-          const idx = node.friends[l].indexOf(id);
-          if (idx !== -1) {
-            node.friends[l].splice(idx, 1);
+    for (const other of this.nodes.values()) {
+      for (let l = 0; l <= other.level; l++) {
+        const friends = other.friendsInt32[l];
+        if (friends) {
+          const filtered: number[] = [];
+          for (let i = 0; i < friends.length; i++) {
+            if (friends[i] !== intId) filtered.push(friends[i]);
+          }
+          if (filtered.length !== friends.length) {
+            this.setNodeFriends(other, l, filtered);
           }
         }
       }
     }
 
-    // If deleted node was the entry point, elect new entry point
     if (this.entryPointId === id) {
       if (this.nodes.size === 0) {
         this.entryPointId = null;
@@ -471,9 +574,6 @@ export class HNSWIndex {
     return true;
   }
 
-  /**
-   * Restores internal state of the index from serialized node records.
-   */
   public restoreInternalState(
     nodes: Array<{ id: string; level: number; vector: Float32Array; friends: string[][]; quantized?: QuantizedVector }>,
     entryPointId: string | null,
@@ -481,22 +581,36 @@ export class HNSWIndex {
   ): void {
     this.clear();
     for (const n of nodes) {
-      this.getInternalId(n.id);
-      this.nodes.set(n.id, {
+      const intId = this.getInternalId(n.id);
+      const friendsInt32: Int32Array[] = [];
+      const nodeObj: HNSWNode = {
         id: n.id,
+        intId,
         level: n.level,
         vector: n.vector,
         friends: n.friends,
+        friendsInt32,
         quantized: n.quantized,
-      });
+      };
+      this.nodes.set(n.id, nodeObj);
+      this.internalToNode[intId] = nodeObj;
     }
+
+    // Now resolve friend internal IDs
+    for (const node of this.nodes.values()) {
+      for (let l = 0; l <= node.level; l++) {
+        const stringFriends = node.friends[l] || [];
+        const intFriends = stringFriends
+          .map((sf) => this.idToInternal.get(sf))
+          .filter((id): id is number => id !== undefined);
+        node.friendsInt32[l] = new Int32Array(intFriends);
+      }
+    }
+
     this.entryPointId = entryPointId;
     this.maxLevel = maxLevel;
   }
 
-  /**
-   * Get memory usage statistics.
-   */
   public getMemoryStats(): {
     nodeCount: number;
     estimatedBytes: number;
@@ -505,7 +619,7 @@ export class HNSWIndex {
     const nodeCount = this.nodes.size;
     const dimension = 384;
     const avgFriendsPerNode = this.config.M;
-    const bytesPerNode = 50 + (dimension * 4) + (avgFriendsPerNode * 20);
+    const bytesPerNode = 40 + (dimension * 4) + (avgFriendsPerNode * 4); // Phase 2: Int32 is 4 bytes vs string overhead
     const estimatedBytes = nodeCount * bytesPerNode;
 
     return {
@@ -515,13 +629,11 @@ export class HNSWIndex {
     };
   }
 
-  /**
-   * Resets and clears the entire index.
-   */
   public clear(): void {
     this.nodes.clear();
     this.idToInternal.clear();
     this.internalToId = [];
+    this.internalToNode = [];
     this.nextInternalId = 0;
     this.entryPointId = null;
     this.maxLevel = -1;

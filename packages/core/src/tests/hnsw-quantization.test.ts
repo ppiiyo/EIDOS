@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ScalarQuantizer } from '../quantization';
-import { HNSWIndex } from '../hnsw';
+import { HNSWIndex, BinaryHeap } from '../hnsw';
 import { cosineSimilarity } from '../cosine';
 
 describe('ScalarQuantizer (INT8 Quantization)', () => {
@@ -147,5 +147,44 @@ describe('HNSWIndex (Approximate Nearest Neighbors)', () => {
 
     index.clear();
     expect(index.size()).toBe(0);
+  });
+
+  it('Phase 2: BinaryHeap correctly orders items and pops minimums/maximums', () => {
+    const minHeap = new BinaryHeap<{ val: number }>((a, b) => a.val - b.val);
+    [10, 4, 15, 1, 8].forEach((val) => minHeap.push({ val }));
+
+    expect(minHeap.size()).toBe(5);
+    expect(minHeap.peek()?.val).toBe(1);
+    expect(minHeap.pop()?.val).toBe(1);
+    expect(minHeap.pop()?.val).toBe(4);
+    expect(minHeap.pop()?.val).toBe(8);
+    expect(minHeap.pop()?.val).toBe(10);
+    expect(minHeap.pop()?.val).toBe(15);
+    expect(minHeap.pop()).toBeUndefined();
+  });
+
+  it('Phase 2: stores Int32 friends in flat Int32Array and supports deletion/restoration', () => {
+    const index = new HNSWIndex({ M: 4, M0: 8 });
+    index.insert('n1', new Float32Array([1, 0, 0, 0]));
+    index.insert('n2', new Float32Array([0.9, 0.1, 0, 0]));
+    index.insert('n3', new Float32Array([0.8, 0.2, 0, 0]));
+
+    const allNodes = index.getAllNodes();
+    expect(allNodes.length).toBe(3);
+
+    // Verify flat Int32Array structure
+    for (const node of allNodes) {
+      expect(typeof node.intId).toBe('number');
+      expect(Array.isArray(node.friendsInt32)).toBe(true);
+      expect(node.friendsInt32[0] instanceof Int32Array).toBe(true);
+    }
+
+    // Verify node deletion cleans up links
+    const deleted = index.delete('n2');
+    expect(deleted).toBe(true);
+    expect(index.size()).toBe(2);
+
+    const searchAfterDelete = index.search(new Float32Array([0.95, 0.05, 0, 0]), 2);
+    expect(searchAfterDelete.some((r) => r.id === 'n2')).toBe(false);
   });
 });

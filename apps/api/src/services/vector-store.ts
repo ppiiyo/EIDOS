@@ -1,4 +1,11 @@
-import { cosineSimilarity, HNSWIndex, HNSWIndexSerializer, WriteAheadLog } from '@eidos/core';
+import {
+  cosineSimilarity,
+  HNSWIndex,
+  HNSWIndexSerializer,
+  WriteAheadLog,
+  BM25Index,
+  HybridSearch,
+} from '@eidos/core';
 import { StoredItem } from '../types';
 
 export interface VectorStoreOptions {
@@ -10,16 +17,14 @@ export interface VectorStoreOptions {
 
 /**
  * High-Performance Vector Store powered by HNSW Graph Indexing,
- * INT8 Scalar Quantization, and Write-Ahead Log (WAL) persistence.
- *
- * PR #4 UPGRADE:
- * - Sub-millisecond ANN search via Hierarchical Navigable Small World (HNSW).
- * - Automatic mutation durability via Write-Ahead Log.
- * - Binary serialization / deserialization snapshots for zero-downtime restarts.
+ * INT8 Scalar Quantization, BM25 Okapi Sparse Search, Hybrid Reciprocal Rank Fusion,
+ * and Write-Ahead Log (WAL) persistence.
  */
 export class VectorStore {
   private items = new Map<string, StoredItem>();
   private hnsw: HNSWIndex;
+  private bm25: BM25Index;
+  private hybrid: HybridSearch;
   private wal: WriteAheadLog;
 
   constructor(options?: VectorStoreOptions) {
@@ -30,6 +35,8 @@ export class VectorStore {
       efSearch: options?.efSearch ?? 32,
       useQuantization: options?.useQuantization ?? false,
     });
+    this.bm25 = new BM25Index();
+    this.hybrid = new HybridSearch(this.hnsw, this.bm25);
     this.wal = new WriteAheadLog(5000);
   }
 
@@ -42,8 +49,12 @@ export class VectorStore {
       normalizedVector: normalized,
     });
 
-    // Update in-memory HNSW index
+    // Update in-memory HNSW dense index
     this.hnsw.insert(id, normalized);
+
+    // Update in-memory BM25 sparse index
+    const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
+    this.bm25.addDocument(id, docText);
 
     // Append to Write-Ahead Log for crash resilience
     this.wal.append({
@@ -58,6 +69,7 @@ export class VectorStore {
     const existed = this.items.delete(strId);
     if (existed) {
       this.hnsw.delete(strId);
+      this.bm25.removeDocument(strId);
       this.wal.append({
         type: 'DELETE_NODE',
         nodeId: strId,
@@ -168,6 +180,47 @@ export class VectorStore {
 
     candidates.sort((a, b) => b.score - a.score);
     return candidates.slice(0, limit);
+  }
+
+  /**
+   * Executes unified Hybrid Search combining Dense (HNSW) and Sparse (BM25)
+   * using Reciprocal Rank Fusion (RRF).
+   */
+  public hybridSearch(
+    queryText: string,
+    queryVector: Float32Array | number[],
+    limit = 10,
+    denseWeight = 1.0,
+    sparseWeight = 1.0,
+    filterCategory?: string
+  ): { item: StoredItem; score: number; source?: string }[] {
+    const qVec = queryVector instanceof Float32Array ? queryVector : new Float32Array(queryVector);
+    const fused = this.hybrid.search(queryText, qVec, {
+      limit: Math.max(limit * 3, 20),
+      denseWeight,
+      sparseWeight,
+    });
+
+    const candidates: { item: StoredItem; score: number; source?: string }[] = [];
+    for (const res of fused) {
+      const stored = this.items.get(res.id);
+      if (!stored) continue;
+      if (filterCategory && stored.category !== filterCategory) continue;
+
+      candidates.push({
+        item: stored,
+        score: Math.round(res.score * 10000) / 10000,
+        source: res.source,
+      });
+
+      if (candidates.length >= limit) break;
+    }
+
+    return candidates;
+  }
+
+  public getBM25(): BM25Index {
+    return this.bm25;
   }
 
   private linearSearch(

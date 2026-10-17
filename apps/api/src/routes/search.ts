@@ -10,6 +10,8 @@ const searchRequestSchema = z.object({
   limit: z.number().int().min(1).max(50).default(10),
   minSimilarity: z.number().min(0).max(1).default(0.25),
   filterCategory: z.string().optional(),
+  mode: z.enum(['dense', 'sparse', 'hybrid']).default('hybrid'),
+  alpha: z.number().min(0).max(1).default(0.5), // 0.0 = pure sparse BM25, 1.0 = pure dense HNSW
 });
 
 export async function searchRoutes(
@@ -28,7 +30,7 @@ export async function searchRoutes(
       });
     }
 
-    const { query, limit, minSimilarity, filterCategory } = parseResult.data;
+    const { query, limit, minSimilarity, filterCategory, mode, alpha } = parseResult.data;
 
     // Security Guardrail: Scan and sanitize user query against prompt injection and XSS
     const securityScan = SecurityGuardrails.scanAndSanitize(query);
@@ -65,18 +67,44 @@ export async function searchRoutes(
     }
     const cleanVector = vectorCheck.corrected || queryVector;
 
-    const results = opts.vectorStore.search(
-      cleanVector,
-      limit,
-      minSimilarity,
-      undefined,
-      filterCategory
-    );
+    let results: Array<{ item: any; score: number; source?: string }> = [];
+
+    if (mode === 'hybrid') {
+      const denseW = alpha * 2;
+      const sparseW = (1 - alpha) * 2;
+      results = opts.vectorStore.hybridSearch(
+        safeQuery,
+        cleanVector,
+        limit,
+        denseW,
+        sparseW,
+        filterCategory
+      );
+    } else if (mode === 'dense') {
+      results = opts.vectorStore.search(
+        cleanVector,
+        limit,
+        minSimilarity,
+        undefined,
+        filterCategory
+      ).map((r) => ({ ...r, source: 'dense' }));
+    } else {
+      // Sparse BM25 only
+      const bm25Hits = opts.vectorStore.getBM25().search(safeQuery, limit * 2);
+      for (const hit of bm25Hits) {
+        const item = opts.vectorStore.get(hit.id);
+        if (!item) continue;
+        if (filterCategory && item.category !== filterCategory) continue;
+        results.push({ item, score: hit.score, source: 'sparse' });
+        if (results.length >= limit) break;
+      }
+    }
 
     const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
 
     return {
       query: safeQuery,
+      mode,
       results: results.map((r) => ({
         id: r.item.id,
         title: r.item.title,
@@ -85,6 +113,7 @@ export async function searchRoutes(
         tags: r.item.tags,
         price: r.item.price,
         score: r.score,
+        source: r.source,
       })),
       latencyMs,
     };
