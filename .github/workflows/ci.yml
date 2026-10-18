@@ -97,5 +97,16 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
 
-      - name: Build Web Application
-        run: pnpm run build
+      - name: Setup Turbo Cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Build Monorepo with Turbo
+        run: pnpm turbo run build
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

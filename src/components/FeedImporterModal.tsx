@@ -10,14 +10,24 @@ import {
   RefreshCw,
   Layers,
   ArrowRight,
+  Download,
+  Database,
+  Cpu,
 } from 'lucide-react';
 import { CatalogItem } from '../types';
+import {
+  exportCatalogWithEmbeddings,
+  parseCatalogWithEmbeddings,
+} from '../utils/catalogExportImport';
 
 interface FeedImporterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportItems: (items: CatalogItem[]) => void;
+  onImportItemsWithEmbeddings?: (items: CatalogItem[], embeddings: Map<string, Float32Array>) => void;
   onShowToast: (msg: string, type?: 'info' | 'success' | 'error') => void;
+  catalog?: CatalogItem[];
+  embeddings?: Map<string, Float32Array>;
 }
 
 const PRESET_FEEDS = [
@@ -184,19 +194,26 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
   isOpen,
   onClose,
   onImportItems,
+  onImportItemsWithEmbeddings,
   onShowToast,
+  catalog,
+  embeddings,
 }) => {
-  const [activeTab, setActiveTab] = useState<'url' | 'presets' | 'raw'>('presets');
+  const [activeTab, setActiveTab] = useState<'url' | 'presets' | 'raw' | 'vectors'>('presets');
   const [feedUrl, setFeedUrl] = useState<string>('https://cdn.eidos-engine.ai/feeds/sample_yandex_market.yml');
   const [rawText, setRawText] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [previewItems, setPreviewItems] = useState<CatalogItem[]>(PRESET_FEEDS[0].sample);
+  const [vectorBatchEmbeddings, setVectorBatchEmbeddings] = useState<Map<string, Float32Array> | null>(null);
+  const [vectorBatchInfo, setVectorBatchInfo] = useState<{ count: number; dim: number } | null>(null);
 
   if (!isOpen) return null;
 
   const handleApplyPreset = (preset: (typeof PRESET_FEEDS)[0]) => {
     setFeedUrl(preset.url);
     setPreviewItems(preset.sample);
+    setVectorBatchEmbeddings(null);
+    setVectorBatchInfo(null);
     onShowToast(`Выбран фид: ${preset.title}`, 'info');
   };
 
@@ -208,7 +225,8 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      // Determine preset or generate items based on URL
+      setVectorBatchEmbeddings(null);
+      setVectorBatchInfo(null);
       if (feedUrl.includes('yandex') || feedUrl.includes('yml')) {
         setPreviewItems(PRESET_FEEDS[0].sample);
       } else if (feedUrl.includes('devstack') || feedUrl.includes('saas') || feedUrl.includes('json')) {
@@ -242,6 +260,8 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
           custom: true,
         }));
         setPreviewItems(validated);
+        setVectorBatchEmbeddings(null);
+        setVectorBatchInfo(null);
         onShowToast(`Распознано ${validated.length} товаров из JSON`, 'success');
       } else {
         onShowToast('JSON должен быть массивом объектов с полями title и description', 'error');
@@ -251,13 +271,55 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
     }
   };
 
+  const handleParseVectorBatch = (jsonString: string) => {
+    if (!jsonString.trim()) {
+      onShowToast('Вставьте JSON с векторами или выберите файл', 'error');
+      return;
+    }
+    try {
+      const res = parseCatalogWithEmbeddings(jsonString);
+      setPreviewItems(res.items);
+      setVectorBatchEmbeddings(res.embeddings);
+      setVectorBatchInfo({ count: res.vectorsCount, dim: res.detectedDim });
+      onShowToast(
+        `Распознано ${res.items.length} товаров и ${res.vectorsCount} готовых ${res.detectedDim}-d эмбеддингов!`,
+        'success'
+      );
+    } catch (err: any) {
+      onShowToast(err.message || 'Ошибка парсинга векторного батча', 'error');
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result as string;
+      if (content) {
+        setRawText(content);
+        handleParseVectorBatch(content);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleConfirmImport = () => {
     if (previewItems.length === 0) {
       onShowToast('Нет товаров для импорта', 'error');
       return;
     }
-    onImportItems(previewItems);
-    onShowToast(`Успешно импортировано ${previewItems.length} товаров в витрину!`, 'success');
+
+    if (vectorBatchEmbeddings && vectorBatchEmbeddings.size > 0 && onImportItemsWithEmbeddings) {
+      onImportItemsWithEmbeddings(previewItems, vectorBatchEmbeddings);
+      onShowToast(
+        `Загружено ${previewItems.length} товаров с ${vectorBatchEmbeddings.size} готовыми векторами (0ms инференс)!`,
+        'success'
+      );
+    } else {
+      onImportItems(previewItems);
+      onShowToast(`Успешно импортировано ${previewItems.length} товаров в витрину!`, 'success');
+    }
     onClose();
   };
 
@@ -287,38 +349,68 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
           </button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-2 px-6 pt-4 border-b border-[#1e1e35] bg-[#0c0c16]">
-          <button
-            onClick={() => setActiveTab('presets')}
-            className={`px-4 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer ${
-              activeTab === 'presets'
-                ? 'border-[#00f0ff] text-[#00f0ff] font-bold'
-                : 'border-transparent text-[#8a8aa3] hover:text-white'
-            }`}
-          >
-            Готовые отраслевые фиды (1 клик)
-          </button>
-          <button
-            onClick={() => setActiveTab('url')}
-            className={`px-4 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer ${
-              activeTab === 'url'
-                ? 'border-[#00f0ff] text-[#00f0ff] font-bold'
-                : 'border-transparent text-[#8a8aa3] hover:text-white'
-            }`}
-          >
-            Свой URL фида (YML / XML / JSON)
-          </button>
-          <button
-            onClick={() => setActiveTab('raw')}
-            className={`px-4 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer ${
-              activeTab === 'raw'
-                ? 'border-[#00f0ff] text-[#00f0ff] font-bold'
-                : 'border-transparent text-[#8a8aa3] hover:text-white'
-            }`}
-          >
-            Вставить сырой JSON
-          </button>
+        {/* Tab Switcher & Export Action */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-6 pt-4 border-b border-[#1e1e35] bg-[#0c0c16]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setActiveTab('presets')}
+              className={`px-3 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer ${
+                activeTab === 'presets'
+                  ? 'border-[#00f0ff] text-[#00f0ff] font-bold'
+                  : 'border-transparent text-[#8a8aa3] hover:text-white'
+              }`}
+            >
+              Отраслевые фиды
+            </button>
+            <button
+              onClick={() => setActiveTab('url')}
+              className={`px-3 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer ${
+                activeTab === 'url'
+                  ? 'border-[#00f0ff] text-[#00f0ff] font-bold'
+                  : 'border-transparent text-[#8a8aa3] hover:text-white'
+              }`}
+            >
+              URL фида (YML / JSON)
+            </button>
+            <button
+              onClick={() => setActiveTab('raw')}
+              className={`px-3 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer ${
+                activeTab === 'raw'
+                  ? 'border-[#00f0ff] text-[#00f0ff] font-bold'
+                  : 'border-transparent text-[#8a8aa3] hover:text-white'
+              }`}
+            >
+              Сырой JSON
+            </button>
+            <button
+              onClick={() => setActiveTab('vectors')}
+              className={`px-3 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'vectors'
+                  ? 'border-[#00f0ff] text-[#00f0ff] font-bold'
+                  : 'border-transparent text-[#8a8aa3] hover:text-white'
+              }`}
+            >
+              <Cpu size={12} className="text-[#00f0ff]" />
+              <span>Векторный батч (JSON с эмбеддингами)</span>
+            </button>
+          </div>
+
+          {catalog && embeddings && (
+            <button
+              onClick={() => {
+                exportCatalogWithEmbeddings(catalog, embeddings);
+                onShowToast(
+                  `Экспортировано ${catalog.length} товаров и ${embeddings.size} эмбеддингов в JSON!`,
+                  'success'
+                );
+              }}
+              className="mb-2 px-3 py-1.5 text-[11px] font-mono rounded-lg bg-[#141526] hover:bg-[#1f2038] text-[#00f0ff] border border-[#00f0ff]/30 flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Скачать текущий каталог и 384-d векторы в виде JSON файла"
+            >
+              <Download size={13} />
+              <span>Экспорт JSON с векторами</span>
+            </button>
+          )}
         </div>
 
         {/* Modal Body */}
@@ -415,6 +507,76 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
               >
                 Распарсить JSON
               </button>
+            </div>
+          )}
+
+          {activeTab === 'vectors' && (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-[#141526] border border-[#23243f] text-xs flex flex-col gap-2">
+                <div className="flex items-center gap-2 text-[#00f0ff] font-bold">
+                  <Database size={15} />
+                  <span>Батч-загрузка товаров с готовыми векторными эмбеддингами</span>
+                </div>
+                <p className="text-[11px] text-[#8a8aa3]">
+                  Импортируйте каталог с готовыми векторами (`embedding: number[]` или `vector: number[]`). При импорте не требуется повторный инференс — данные мгновенно индексируются в HNSW!
+                </p>
+              </div>
+
+              {/* File upload input */}
+              <div className="flex items-center gap-3">
+                <label className="flex-1 px-4 py-3 rounded-xl border border-dashed border-[#00f0ff]/40 hover:border-[#00f0ff] bg-[#141422] text-center cursor-pointer transition-colors group">
+                  <input
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <div className="flex items-center justify-center gap-2 text-xs text-[#8a8aa3] group-hover:text-white">
+                    <Upload size={14} className="text-[#00f0ff]" />
+                    <span>Выберите файл <strong>.json</strong> с готовыми векторами</span>
+                  </div>
+                </label>
+              </div>
+
+              <div>
+                <label className="text-xs font-mono text-[#8a8aa3] block mb-1.5">
+                  Или вставьте JSON батч вручную:
+                </label>
+                <textarea
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  placeholder={`{
+  "items": [
+    {
+      "id": "item_101",
+      "title": "Умная колонка Яндекс Станция",
+      "description": "Голосовой помощник Алиса и звук Hi-Fi",
+      "category": "Электроника",
+      "price": "24 990 ₽",
+      "embedding": [0.012, -0.045, 0.088, 0.12]
+    }
+  ]
+}`}
+                  rows={6}
+                  className="w-full p-3 rounded-xl bg-[#141422] border border-[#1e1e35] text-white text-xs font-mono focus:outline-none focus:border-[#00f0ff] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => handleParseVectorBatch(rawText)}
+                  className="px-4 py-2 rounded-xl bg-[#00f0ff] text-black font-mono text-xs font-bold hover:bg-[#38bdf8] transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Cpu size={14} />
+                  <span>Распознать батч с векторами</span>
+                </button>
+
+                {vectorBatchInfo && (
+                  <div className="text-right text-[11px] font-mono text-[#10b981]">
+                    ✓ Обнаружено {vectorBatchInfo.count} векторов ({vectorBatchInfo.dim}-d)
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

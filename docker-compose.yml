@@ -18,8 +18,15 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     volumes:
       - eidos-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   redis:
@@ -28,6 +35,11 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
   prometheus:
@@ -40,6 +52,9 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   grafana:
@@ -53,7 +68,8 @@ services:
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
     restart: unless-stopped
 
   jaeger:

@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   Eye,
   Brain,
+  Download,
 } from 'lucide-react';
 import {
   CatalogItem,
@@ -42,9 +43,13 @@ import {
   searchCatalogWithModel,
   simulateKeywordSearch,
   extractTopCatalogEdges,
+  buildCatalogHNSWIndex,
+  benchmarkHnswVsLinear,
+  generateSyntheticScaledCatalog,
   ModelChoice,
   EmbedderPipeline,
 } from '../utils/recommenderEngine';
+import { exportCatalogWithEmbeddings } from '../utils/catalogExportImport';
 import { decomposeSimilarityFeatures } from '../utils/featureAttribution';
 import { ProductCard } from './ProductCard';
 import { PitchModal } from './PitchModal';
@@ -55,6 +60,7 @@ import { ABTestReportModal } from './ABTestReportModal';
 import { VisualExplanationLayer } from './VisualExplanationLayer';
 import { VectorCanvas3D } from './VectorCanvas3D';
 import { AdaptivePanel } from './AdaptivePanel';
+import { SemanticTrendsAnalytics } from './SemanticTrendsAnalytics';
 
 declare global {
   interface Window {
@@ -81,9 +87,9 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
   // Customer Persona state (Real-time personalization)
   const [selectedPersona, setSelectedPersona] = useState<CustomerPersona>(CUSTOMER_PERSONAS[0]);
 
-  // Main UI Mode: 'showcase' (Product view) | '3d-space' (Three.js WebGL) | 'adaptive' (AIL Studio) | 'comparison' | 'engine'
+  // Main UI Mode: 'showcase' (Product view) | '3d-space' (Three.js WebGL) | 'adaptive' (AIL Studio) | 'comparison' | 'engine' | 'trends' (Recharts)
   const [activeMode, setActiveMode] = useState<
-    'showcase' | '3d-space' | 'adaptive' | 'comparison' | 'engine'
+    'showcase' | '3d-space' | 'adaptive' | 'comparison' | 'engine' | 'trends'
   >('showcase');
 
   // Modals state
@@ -92,6 +98,16 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
   const [isRoiOpen, setIsRoiOpen] = useState(false);
   const [isFeedImporterOpen, setIsFeedImporterOpen] = useState(false);
   const [isABReportOpen, setIsABReportOpen] = useState(false);
+
+  // HNSW Scaling Benchmark State
+  const [hnswBenchmark, setHnswBenchmark] = useState<{
+    hnswLatencyMs: number;
+    linearLatencyMs: number;
+    speedup: string;
+    totalItems: number;
+    recallTopK: number;
+  } | null>(null);
+  const [isBenchmarking, setIsBenchmarking] = useState(false);
 
   // Model & State
   const [modelChoice, setModelChoice] = useState<ModelChoice>('e5-small');
@@ -128,13 +144,15 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
 
   // Semantic Recommendations for selected item (item-to-item) with real-time Persona Personalization
   const recommendations = useMemo(() => {
-    if (!similarityMatrix || !selectedItem) return [];
+    if (!selectedItem) return [];
+    if (!similarityMatrix && catalog.length < 1000) return [];
     const baseRecs = getRecommendationsForItem(
       selectedItem.id,
       catalog,
       similarityMatrix,
       8,
-      minSimThreshold
+      minSimThreshold,
+      embeddings
     );
 
     // If a customer persona is active, re-rank recommendations with persona affinity
@@ -286,6 +304,69 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
     onUpdateCatalog(merged);
     onShowToast(`Импортировано ${toAdd.length} товаров. Пересчитываем векторное поле...`, 'success');
     initEngine(modelChoice);
+  };
+
+  // Import items with pre-computed vectors (Zero-inference instant batch loading)
+  const handleImportItemsWithEmbeddings = (
+    newItems: CatalogItem[],
+    precomputedEmbeddings: Map<string, Float32Array>
+  ) => {
+    const existingIds = new Set(catalog.map((c) => c.id));
+    const toAdd = newItems.filter((item) => !existingIds.has(item.id));
+    if (toAdd.length === 0) {
+      onShowToast('Все товары из батча уже присутствуют в каталоге', 'info');
+      return;
+    }
+    const merged = [...catalog, ...toAdd];
+    const newEmbeddings = new Map<string, Float32Array>(embeddings);
+    for (const [id, vec] of precomputedEmbeddings.entries()) {
+      newEmbeddings.set(id, vec);
+    }
+    setEmbeddings(newEmbeddings);
+    onUpdateCatalog(merged);
+    const matrix = buildCatalogSimilarityMatrix(merged, newEmbeddings);
+    setSimilarityMatrix(matrix);
+    onShowToast(`Загружено ${toAdd.length} товаров с готовыми векторами! Индексация 0ms.`, 'success');
+  };
+
+  // Run HNSW 1,000+ items scale benchmark
+  const handleRunHnswBenchmark = () => {
+    setIsBenchmarking(true);
+    setStatus({ text: 'Сборка HNSW индекса для 1,200+ товаров...', kind: 'loading' });
+    setTimeout(() => {
+      try {
+        const { catalog: scaledCatalog, embeddings: scaledVecs } = generateSyntheticScaledCatalog(1200);
+        const hnsw = buildCatalogHNSWIndex(scaledCatalog, scaledVecs);
+        const queryVec = scaledVecs.get('scale_1') || new Float32Array(384).fill(0.1);
+        const bench = benchmarkHnswVsLinear(hnsw, scaledCatalog, scaledVecs, queryVec, 10);
+        setHnswBenchmark(bench);
+        setStatus({
+          text: `HNSW 1200+ тест: ${bench.hnswLatencyMs}ms vs Linear ${bench.linearLatencyMs}ms (${bench.speedup})`,
+          kind: 'ready',
+        });
+        onShowToast(
+          `HNSW масштабирование на 1,200+ товарах: ${bench.hnswLatencyMs}ms vs ${bench.linearLatencyMs}ms у Linear (${bench.speedup} ускорение, Recall: ${bench.recallTopK}%)!`,
+          'success'
+        );
+      } catch (err: any) {
+        onShowToast('Ошибка бенчмарка: ' + (err.message || String(err)), 'error');
+      } finally {
+        setIsBenchmarking(false);
+      }
+    }, 120);
+  };
+
+  const handleLoadScaledCatalog = () => {
+    setStatus({ text: 'Загрузка 1,200+ товаров с HNSW индексацией...', kind: 'loading' });
+    setTimeout(() => {
+      const { catalog: scaledCatalog, embeddings: scaledVecs } = generateSyntheticScaledCatalog(1200);
+      onUpdateCatalog(scaledCatalog);
+      setEmbeddings(scaledVecs);
+      setSimilarityMatrix(null);
+      setSelectedItem(scaledCatalog[0]);
+      setStatus({ text: '1,200+ товаров загружены · HNSW O(log N) поиск активен', kind: 'ready' });
+      onShowToast('Загружено 1,200 товаров! Включен HNSW ANN индекс поиска для масштабирования.', 'success');
+    }, 80);
   };
 
   // Render Engine Canvas Graph
@@ -542,9 +623,43 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
             >
               <span>HNSW Topology</span>
             </button>
+
+            <button
+              onClick={() => setActiveMode('trends')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                activeMode === 'trends'
+                  ? 'bg-[#2563EB] text-white shadow-xs'
+                  : 'text-[#A3A3A3] hover:text-white'
+              }`}
+            >
+              <TrendingUp size={13} className="text-[#00f0ff]" />
+              <span>Тренды (Recharts)</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono text-[#A3A3A3]">
+          <div className="flex items-center gap-2 text-xs font-mono text-[#A3A3A3] flex-wrap">
+            <button
+              onClick={() => {
+                exportCatalogWithEmbeddings(catalog, embeddings);
+                onShowToast(`Каталог с ${embeddings.size} эмбеддингами экспортирован в JSON!`, 'success');
+              }}
+              className="px-2.5 py-1 rounded-md bg-[#121216] hover:bg-[#1a1a22] text-[#00f0ff] border border-[#00f0ff]/30 flex items-center gap-1.5 transition-colors cursor-pointer text-xs"
+              title="Экспорт текущего каталога и вычисленных эмбеддингов в JSON"
+            >
+              <Download size={13} />
+              <span>Экспорт с векторами</span>
+            </button>
+
+            <button
+              onClick={handleRunHnswBenchmark}
+              disabled={isBenchmarking}
+              className="px-2.5 py-1 rounded-md bg-[#121216] hover:bg-[#1a1a22] text-[#10B981] border border-[#10B981]/30 flex items-center gap-1.5 transition-colors cursor-pointer text-xs"
+              title="Тестирование производительности HNSW ANN на 1000+ товарах"
+            >
+              <Zap size={13} />
+              <span>{isBenchmarking ? 'Тестирование...' : '1000+ HNSW Scale'}</span>
+            </button>
+
             <span
               className={`w-2 h-2 rounded-full ${
                 status.kind === 'loading'
@@ -560,6 +675,45 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
         {/* ============================================================ */}
         {activeMode === 'showcase' && (
           <div className="flex flex-col gap-6">
+            {/* Live HNSW Scale Benchmark Result Card */}
+            {hnswBenchmark && (
+              <div className="p-4 rounded-xl bg-[#0d1626] border border-[#00f0ff]/40 flex items-center justify-between flex-wrap gap-3 animate-fadeIn shadow-[0_0_20px_rgba(0,240,255,0.12)]">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#00f0ff]/10 border border-[#00f0ff]/30 flex items-center justify-center text-[#00f0ff]">
+                    <Zap size={18} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-2">
+                      HNSW ANN Масштабирование на {hnswBenchmark.totalItems.toLocaleString('ru-RU')} товарах
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#10b981]/20 text-[#10b981] font-bold border border-[#10b981]/40">
+                        {hnswBenchmark.speedup} ускорение
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#8a8aa3] font-mono mt-0.5">
+                      HNSW ANN: <span className="text-[#10b981] font-bold">{hnswBenchmark.hnswLatencyMs} ms</span> ·
+                      Linear Scan: <span className="text-[#f43f5e] font-bold">{hnswBenchmark.linearLatencyMs} ms</span> ·
+                      Recall@10: <span className="text-[#00f0ff] font-bold">{hnswBenchmark.recallTopK}%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleLoadScaledCatalog}
+                    className="text-xs text-[#00f0ff] hover:bg-[#00f0ff]/10 cursor-pointer px-2.5 py-1 rounded-lg bg-[#141526] border border-[#00f0ff]/40 flex items-center gap-1 transition-colors"
+                    title="Загрузить 1200 товаров в рабочее пространство для интерактивного поиска"
+                  >
+                    <span>Загрузить в каталог</span>
+                  </button>
+                  <button
+                    onClick={() => setHnswBenchmark(null)}
+                    className="text-xs text-[#8a8aa3] hover:text-white cursor-pointer px-2.5 py-1 rounded-lg bg-[#141526] border border-[#23243f]"
+                  >
+                    ✕ Закрыть
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Search Bar matching user's requirement: "Находит смысл, а не просто слова" */}
             <div className="p-5 bg-[#0e0e18] border border-[#1e1e35] rounded-2xl shadow-xl flex flex-col gap-3">
               <form
@@ -1152,6 +1306,11 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
             </div>
           </div>
         )}
+
+        {/* ============================================================ */}
+        {/* MODE: SEMANTIC SEARCH TRENDS & TOPIC CLUSTERS (Recharts)     */}
+        {/* ============================================================ */}
+        {activeMode === 'trends' && <SemanticTrendsAnalytics />}
       </div>
 
       {/* Modals */}
@@ -1185,7 +1344,10 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
         isOpen={isFeedImporterOpen}
         onClose={() => setIsFeedImporterOpen(false)}
         onImportItems={handleImportFeedItems}
+        onImportItemsWithEmbeddings={handleImportItemsWithEmbeddings}
         onShowToast={onShowToast}
+        catalog={catalog}
+        embeddings={embeddings}
       />
 
       <ABTestReportModal

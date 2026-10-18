@@ -92,7 +92,9 @@ export default function App() {
   };
 
   // 3. Dense 384-dimensional Embeddings Map with computeCatalogEmbeddingsWithModel
-  const [embedderMode, setEmbedderMode] = useState<'real' | 'demo'>('real');
+  const [customEmbedder, setCustomEmbedder] = useState<any>(null);
+  const [embeddingMode, setEmbeddingMode] = useState<'model' | 'fallback'>('fallback');
+  const [embeddingProgress, setEmbeddingProgress] = useState(1);
   const [isComputingEmbeddings, setIsComputingEmbeddings] = useState(false);
   const [catalogEmbeddings, setCatalogEmbeddings] = useState<Map<string, Float32Array>>(() => {
     const map = new Map<string, Float32Array>();
@@ -103,28 +105,65 @@ export default function App() {
     return map;
   });
 
-  // Recompute embeddings using computeCatalogEmbeddingsWithModel whenever catalog changes
+  // Automatically load browser-based Transformers.js pipeline (multilingual-e5-small)
+  useEffect(() => {
+    let cancelled = false;
+    async function loadEmbedder() {
+      if (typeof window !== 'undefined' && (window as any).Transformers) {
+        try {
+          const pipeline = await (window as any).Transformers.pipeline(
+            'feature-extraction',
+            'Xenova/multilingual-e5-small'
+          );
+          if (!cancelled && pipeline) {
+            setCustomEmbedder(() => pipeline);
+            setEmbeddingMode('model');
+          }
+        } catch (err) {
+          console.warn('Transformers.js network load fallback:', err);
+        }
+      }
+    }
+    loadEmbedder();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Recompute embeddings using computeCatalogEmbeddingsWithModel whenever catalog or customEmbedder changes
   useEffect(() => {
     let isCancelled = false;
     setIsComputingEmbeddings(true);
 
-    computeCatalogEmbeddingsWithModel(catalog, null, 'e5-small')
+    computeCatalogEmbeddingsWithModel(
+      catalog,
+      customEmbedder,
+      customEmbedder ? 'e5-small' : 'built-in',
+      (current, total) => {
+        if (!isCancelled) {
+          setEmbeddingProgress(current / total);
+        }
+      }
+    )
       .then((newEmbeddings) => {
         if (!isCancelled) {
           setCatalogEmbeddings(newEmbeddings);
+          setEmbeddingMode(customEmbedder ? 'model' : 'fallback');
           setIsComputingEmbeddings(false);
+          setEmbeddingProgress(1);
         }
       })
       .catch(() => {
         if (!isCancelled) {
           setIsComputingEmbeddings(false);
+          setEmbeddingProgress(1);
         }
       });
 
     return () => {
       isCancelled = true;
     };
-  }, [catalog]);
+  }, [catalog, customEmbedder]);
 
   // 4. Real Semantic Search Implementation
   const handleSearch = useCallback(
@@ -132,7 +171,24 @@ export default function App() {
       const trimmed = query.trim();
       if (!trimmed) return [];
 
-      const queryVec = computeTextEmbedding(`query: ${trimmed}`);
+      let queryVec: Float32Array;
+      if (customEmbedder) {
+        try {
+          const output = await customEmbedder(`query: ${trimmed}`, {
+            pooling: 'mean',
+            normalize: true,
+          });
+          queryVec =
+            output.data instanceof Float32Array
+              ? output.data
+              : new Float32Array(output.data);
+        } catch {
+          queryVec = computeTextEmbedding(`query: ${trimmed}`);
+        }
+      } else {
+        queryVec = computeTextEmbedding(`query: ${trimmed}`);
+      }
+
       const scored: { item: CatalogItem; sim: number }[] = [];
 
       for (const item of catalog) {
@@ -146,7 +202,7 @@ export default function App() {
       scored.sort((a, b) => b.sim - a.sim);
       return scored.slice(0, limit).map((s) => s.item);
     },
-    [catalog, catalogEmbeddings]
+    [catalog, catalogEmbeddings, customEmbedder]
   );
 
   // 5. Real MMR (Maximal Marginal Relevance) Recommendation Implementation
@@ -322,7 +378,7 @@ export default function App() {
 
           {/* Right Header Status: Embedder Mode, Memory Monitor & Badges */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {/* Real Embedder Status / Demo Mode Indicator */}
+            {/* Real Embedder Status / Fallback Mode Indicator Badge */}
             <div
               style={{
                 display: 'flex',
@@ -333,27 +389,54 @@ export default function App() {
                 fontSize: '0.75rem',
                 fontWeight: 500,
                 border: '1px solid var(--border)',
-                background: embedderMode === 'real' ? 'var(--accent-bg)' : 'var(--warning-bg)',
-                color: embedderMode === 'real' ? 'var(--accent)' : 'var(--warning)',
+                background: embeddingMode === 'model' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                color: embeddingMode === 'model' ? '#10B981' : '#F59E0B',
                 cursor: 'pointer',
                 transition: 'background .15s, border-color .15s',
               }}
-              title="Click to switch Embedder Mode (Real E5 Multilingual 384d vs Fast Demo Mode)"
+              title={
+                embeddingMode === 'model'
+                  ? 'Real Transformers.js model active (Xenova/multilingual-e5-small, 384d). Click to switch to fast fallback.'
+                  : 'Fast keyword-hash semantic fallback active. Click to load real Transformers.js model.'
+              }
               onClick={() => {
-                const nextMode = embedderMode === 'real' ? 'demo' : 'real';
-                setEmbedderMode(nextMode);
-                addToast(
-                  nextMode === 'real'
-                    ? 'Active: Real computeCatalogEmbeddingsWithModel (E5-Small 384d)'
-                    : 'Active: Fast Demo Embedder Mode',
-                  'info'
-                );
+                if (embeddingMode === 'model') {
+                  setCustomEmbedder(null);
+                  setEmbeddingMode('fallback');
+                  addToast('Switched to Fast Keyword/Hash Fallback Embedder', 'info');
+                } else {
+                  if (typeof window !== 'undefined' && (window as any).Transformers) {
+                    addToast('Loading Multilingual E5 Small Transformer weights...', 'info');
+                    (window as any).Transformers.pipeline('feature-extraction', 'Xenova/multilingual-e5-small')
+                      .then((pipe: any) => {
+                        setCustomEmbedder(() => pipe);
+                        setEmbeddingMode('model');
+                        addToast('Loaded 🧠 Model: e5-small (384d)', 'success');
+                      })
+                      .catch(() => {
+                        addToast('Network error loading weights. Remaining on fallback.', 'error');
+                      });
+                  } else {
+                    addToast('Transformers.js runtime not found in window', 'error');
+                  }
+                }
               }}
             >
-              <Cpu size={13} />
-              <span>{embedderMode === 'real' ? 'E5 384d (Real Embedder)' : 'Demo Mode'}</span>
-              {isComputingEmbeddings && (
-                <span style={{ fontSize: '0.6875rem', opacity: 0.7 }}>[Indexing…]</span>
+              {isComputingEmbeddings ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-ping" />
+                  <span>Computing {(embeddingProgress * 100).toFixed(0)}%</span>
+                </>
+              ) : embeddingMode === 'model' ? (
+                <>
+                  <CheckCircle2 size={13} />
+                  <span>🧠 Model: e5-small</span>
+                </>
+              ) : (
+                <>
+                  <Cpu size={13} />
+                  <span>⚡ Fallback: keyword</span>
+                </>
               )}
             </div>
 

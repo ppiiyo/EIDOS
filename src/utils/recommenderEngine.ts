@@ -1,4 +1,5 @@
 import { CatalogItem, CatalogRecommendation, CatalogEdge } from '../types';
+import { HNSWIndex } from '@eidos/core';
 
 /**
  * Semantic anchor categories tailored for E5 Multilingual and consumer domains
@@ -364,19 +365,60 @@ export function buildCatalogSimilarityMatrix(
 }
 
 /**
- * Item-to-Item recommendations with rich explanations
+ * Cached HNSW Index for scalable ANN retrieval on large catalogs (1,000+ items).
+ */
+let cachedHNSWIndex: { catalogLength: number; embeddingsSize: number; index: HNSWIndex } | null = null;
+
+export function getOrBuildCatalogHNSWIndex(
+  catalog: CatalogItem[],
+  embeddings: Map<string, Float32Array>,
+  useQuantization = false
+): HNSWIndex {
+  if (
+    cachedHNSWIndex &&
+    cachedHNSWIndex.catalogLength === catalog.length &&
+    cachedHNSWIndex.embeddingsSize === embeddings.size
+  ) {
+    return cachedHNSWIndex.index;
+  }
+  const index = buildCatalogHNSWIndex(catalog, embeddings, useQuantization);
+  cachedHNSWIndex = { catalogLength: catalog.length, embeddingsSize: embeddings.size, index };
+  return index;
+}
+
+/**
+ * Item-to-Item recommendations with rich explanations.
+ * Automatically delegates to HNSW ANN graph retrieval for catalogs larger than 1,000 items.
  */
 export function getRecommendationsForItem(
   itemId: string | number,
   catalog: CatalogItem[],
-  matrix: Float32Array[],
+  matrix?: Float32Array[] | null,
   limit = 5,
-  minThreshold = 0.05
+  minThreshold = 0.05,
+  embeddings?: Map<string, Float32Array>
 ): CatalogRecommendation[] {
-  const idx = catalog.findIndex((i) => String(i.id) === String(itemId));
-  if (idx === -1 || !matrix[idx]) return [];
+  const targetId = String(itemId);
+  const target = catalog.find((i) => String(i.id) === targetId);
+  if (!target) return [];
 
-  const target = catalog[idx];
+  // When catalog has 1,000+ items or matrix is omitted, scale retrieval via HNSW graph indexing
+  if ((catalog.length >= 1000 || !matrix || matrix.length === 0) && embeddings && embeddings.has(targetId)) {
+    const targetVec = embeddings.get(targetId)!;
+    const hnsw = getOrBuildCatalogHNSWIndex(catalog, embeddings);
+    const hnswRecs = searchWithHNSWIndex(hnsw, targetVec, catalog, limit + 1, 48);
+    return hnswRecs
+      .filter((r) => String(r.item.id) !== targetId && r.sim >= minThreshold)
+      .slice(0, limit)
+      .map((r) => ({
+        ...r,
+        whyRecommended: generateSemanticExplanation(target, r.item),
+      }));
+  }
+
+  const idx = catalog.findIndex((i) => String(i.id) === targetId);
+  if (idx === -1 || !matrix || !matrix[idx]) return [];
+
   const simRow = matrix[idx];
   const indices = Array.from({ length: simRow.length }, (_, i) => i);
   indices.sort((a, b) => simRow[b] - simRow[a]);
@@ -398,7 +440,8 @@ export function getRecommendationsForItem(
 }
 
 /**
- * Semantic query search (query: prefix for E5)
+ * Semantic query search (query: prefix for E5).
+ * Automatically delegates to HNSW logarithmic retrieval when catalog has 1000+ items.
  */
 export async function searchCatalogWithModel(
   query: string,
@@ -430,6 +473,12 @@ export async function searchCatalogWithModel(
     }
   } else {
     queryVec = computeTextEmbedding(formattedQuery);
+  }
+
+  // When catalog has 1,000+ items, automatically use HNSW approximate nearest neighbors for sub-millisecond retrieval
+  if (catalog.length >= 1000) {
+    const hnsw = getOrBuildCatalogHNSWIndex(catalog, embeddings);
+    return searchWithHNSWIndex(hnsw, queryVec, catalog, limit);
   }
 
   const scores: CatalogRecommendation[] = [];
@@ -507,3 +556,179 @@ export function extractTopCatalogEdges(
   edges.sort((a, b) => b.sim - a.sim);
   return edges.slice(0, limit);
 }
+
+/**
+ * Builds an in-memory HNSW approximate nearest neighbor index for the catalog.
+ * Dramatically accelerates retrieval from O(N) to O(log N) for catalogs larger than 1,000 items.
+ */
+export function buildCatalogHNSWIndex(
+  catalog: CatalogItem[],
+  embeddings: Map<string, Float32Array>,
+  useQuantization = false
+): HNSWIndex {
+  const index = new HNSWIndex({
+    M: 16,
+    M0: 32,
+    efConstruction: 64,
+    efSearch: 32,
+    useQuantization,
+  });
+
+  for (const item of catalog) {
+    const vec = embeddings.get(item.id);
+    if (vec && vec.length > 0) {
+      index.insert(item.id, vec);
+    }
+  }
+
+  return index;
+}
+
+/**
+ * Searches top-K nearest items using the HNSW index in logarithmic time.
+ */
+export function searchWithHNSWIndex(
+  hnsw: HNSWIndex,
+  queryVec: Float32Array,
+  catalog: CatalogItem[],
+  limit = 6,
+  efSearch = 48
+): CatalogRecommendation[] {
+  const results = hnsw.search(queryVec, limit, efSearch);
+  const catalogMap = new Map<string, CatalogItem>(catalog.map((c) => [c.id, c]));
+
+  const recs: CatalogRecommendation[] = [];
+  for (const res of results) {
+    const item = catalogMap.get(res.id);
+    if (item) {
+      recs.push({
+        item,
+        sim: res.score,
+        whyRecommended: `HNSW ANN поиск (дистанция ${res.distance.toFixed(3)}, совпадение ${(res.score * 100).toFixed(0)}%)`,
+      });
+    }
+  }
+
+  return recs;
+}
+
+/**
+ * Generates a synthetic catalog scaled to 1,000+ items with pre-computed embeddings
+ * to demonstrate and benchmark HNSW sub-millisecond retrieval scaling.
+ */
+export function generateSyntheticScaledCatalog(targetCount = 1200): {
+  catalog: CatalogItem[];
+  embeddings: Map<string, Float32Array>;
+} {
+  const categories = [
+    { name: 'Электроника', icon: '⚡', tags: ['gadgets', 'hardware', 'usb', 'screen', 'tech'] },
+    { name: 'B2B SaaS & DevTools', icon: '🚀', tags: ['database', 'cloud', 'rust', 'api', 'dev'] },
+    { name: 'Книги & IT-литература', icon: '📚', tags: ['python', 'algorithms', 'code', 'study'] },
+    { name: 'Фильмы & Киношедевры', icon: '🎬', tags: ['cinema', 'sci-fi', 'space', 'director'] },
+    { name: 'Fashion & Luxury', icon: '🧥', tags: ['cashmere', 'silk', 'luxury', 'apparel'] },
+    { name: 'Кофе & Бариста', icon: '☕', tags: ['espresso', 'coffee', 'brewing', 'roast'] },
+    { name: 'Гейминг & Консоли', icon: '🎮', tags: ['gaming', 'steam', 'controller', 'rgb'] },
+  ];
+
+  const modifiers = [
+    'Ultra Pro', 'Max Elite', 'Series X', 'Edition Prime', 'Smart v2',
+    'Custom Edition', 'Studio Line', 'Quantum Core', 'Turbo Drive', 'Hyper Compact'
+  ];
+
+  const catalog: CatalogItem[] = [];
+  const embeddings = new Map<string, Float32Array>();
+
+  for (let i = 1; i <= targetCount; i++) {
+    const cat = categories[i % categories.length];
+    const mod = modifiers[i % modifiers.length];
+    const id = `scale_${i}`;
+    const title = `${cat.name.split(' ')[0]} ${mod} #${i}`;
+    const description = `Масштабируемый компонент каталога ${cat.name} для нагрузочного стресс-тестирования HNSW индексации на ${targetCount}+ элементах.`;
+    const price = `${((i * 47) % 89000 + 1990).toLocaleString('ru-RU')} ₽`;
+
+    const item: CatalogItem = {
+      id,
+      title,
+      description,
+      category: cat.name,
+      tags: [...cat.tags, `id_${i}`],
+      icon: cat.icon,
+      price,
+      rating: 4.5 + ((i % 5) * 0.1),
+      reviews: (i * 13) % 900 + 12,
+      badge: '1000+ HNSW Scale',
+      custom: true,
+    };
+    catalog.push(item);
+
+    // Deterministic 384-dim pseudo-semantic embedding clustered by category
+    const vec = new Float32Array(384);
+    const catSeed = (i % categories.length) + 1;
+    let sumSq = 0;
+    for (let d = 0; d < 384; d++) {
+      const val = Math.sin(d * 0.1 + catSeed * 1.7) * 0.8 + Math.cos(d * 0.05 + (i % 20) * 0.3) * 0.3;
+      vec[d] = val;
+      sumSq += val * val;
+    }
+    const norm = Math.sqrt(sumSq) || 1;
+    for (let d = 0; d < 384; d++) {
+      vec[d] /= norm;
+    }
+    embeddings.set(id, vec);
+  }
+
+  return { catalog, embeddings };
+}
+
+/**
+ * Benchmark comparison: HNSW vs Linear Cosine Scan on 1,000+ items.
+ */
+export function benchmarkHnswVsLinear(
+  hnsw: HNSWIndex,
+  catalog: CatalogItem[],
+  embeddings: Map<string, Float32Array>,
+  queryVec: Float32Array,
+  k = 10
+): {
+  hnswLatencyMs: number;
+  linearLatencyMs: number;
+  speedup: string;
+  totalItems: number;
+  recallTopK: number;
+} {
+  // 1. Time Linear Brute Force
+  const tLinearStart = performance.now();
+  const linearScores: { id: string; sim: number }[] = [];
+  for (const item of catalog) {
+    const vec = embeddings.get(item.id);
+    if (vec) {
+      linearScores.push({ id: item.id, sim: cosineSimilarity(queryVec, vec) });
+    }
+  }
+  linearScores.sort((a, b) => b.sim - a.sim);
+  const linearTopK = linearScores.slice(0, k);
+  const linearLatencyMs = Math.round((performance.now() - tLinearStart) * 100) / 100;
+
+  // 2. Time HNSW ANN Retrieval
+  const tHnswStart = performance.now();
+  const hnswTopK = hnsw.search(queryVec, k, 48);
+  const hnswLatencyMs = Math.round((performance.now() - tHnswStart) * 100) / 100;
+
+  // 3. Compute Recall overlap
+  const exactSet = new Set(linearTopK.map((r) => r.id));
+  let hits = 0;
+  for (const h of hnswTopK) {
+    if (exactSet.has(h.id)) hits++;
+  }
+  const recallTopK = Math.round((hits / Math.max(1, k)) * 100);
+  const speedupRatio = (linearLatencyMs / Math.max(0.1, hnswLatencyMs)).toFixed(1);
+
+  return {
+    hnswLatencyMs,
+    linearLatencyMs,
+    speedup: `${speedupRatio}x`,
+    totalItems: catalog.length,
+    recallTopK,
+  };
+}
+
