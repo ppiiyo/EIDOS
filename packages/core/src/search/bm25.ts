@@ -1,16 +1,23 @@
 /**
- * BM25 (Okapi) Sparse Keyword Search Engine.
+ * BM25 (Okapi) Sparse Keyword Search Engine with Universal Multilingual & CJK Tokenization.
+ * Supports Latin, Cyrillic, Japanese (Kanji/Hiragana/Katakana), Chinese (Hanzi), Korean (Hangul), Arabic, etc.
  * Formula: score(D, Q) = Σ IDF(qi) * (f(qi, D) * (k1 + 1)) / (f(qi, D) + k1 * (1 - b + b * |D| / avgdl))
  */
 export interface BM25Document {
   id: string | number;
-  text: string;
+  text?: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
 }
 
 export interface BM25SearchResult {
   id: string;
   score: number;
 }
+
+const CJK_REGEX = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af]+/g;
 
 export class BM25Index {
   private documents: Map<string, string[]> = new Map();
@@ -27,23 +34,74 @@ export class BM25Index {
   }
 
   /**
-   * Tokenizes, stems and normalizes input text.
+   * Static helper that tokenizes and normalizes input text across all languages including CJK (Japanese, Chinese, Korean).
+   * For CJK sequences without spaces, extracts character unigrams, bigrams, and trigrams.
    */
-  public tokenize(text: string): string[] {
+  public static tokenize(text: string): string[] {
     if (!text) return [];
-    return text
-      .toLowerCase()
+    const normalized = text.toLowerCase().trim();
+    if (!normalized) return [];
+
+    const baseTokens = normalized
       .replace(/[^\p{L}\p{N}\s]/gu, ' ')
       .split(/\s+/)
       .filter((token) => token.length >= 2);
+
+    // Extract CJK character unigrams, bigrams, and trigrams for Japanese/Chinese/Korean
+    const cjkMatches = normalized.match(CJK_REGEX);
+    if (cjkMatches) {
+      for (const seq of cjkMatches) {
+        if (seq.length === 1) {
+          baseTokens.push(seq);
+        } else {
+          for (let i = 0; i < seq.length; i++) {
+            baseTokens.push(seq[i]);
+            if (i + 1 < seq.length) {
+              baseTokens.push(seq.slice(i, i + 2));
+            }
+            if (i + 2 < seq.length) {
+              baseTokens.push(seq.slice(i, i + 3));
+            }
+          }
+        }
+      }
+    }
+
+    return baseTokens;
+  }
+
+  /**
+   * Instance method delegating to static tokenizer.
+   */
+  public tokenize(text: string): string[] {
+    return BM25Index.tokenize(text);
   }
 
   /**
    * Adds or updates a document in the BM25 sparse index.
+   * Supports both (docId, text) and ({ id, title, description, category, tags }).
    */
-  public addDocument(docId: string | number, text: string): void {
-    const id = String(docId);
-    const tokens = this.tokenize(text);
+  public addDocument(docOrId: string | number | BM25Document, text?: string): void {
+    let id: string;
+    let combinedText: string;
+
+    if (typeof docOrId === 'object' && docOrId !== null) {
+      id = String(docOrId.id);
+      combinedText = [
+        docOrId.text || '',
+        docOrId.title || '',
+        docOrId.description || '',
+        docOrId.category || '',
+        ...(docOrId.tags || []),
+      ]
+        .filter(Boolean)
+        .join(' ');
+    } else {
+      id = String(docOrId);
+      combinedText = text || '';
+    }
+
+    const tokens = this.tokenize(combinedText);
 
     // If document already exists, remove old counts first
     if (this.documents.has(id)) {

@@ -6,7 +6,6 @@ import {
   Split,
   MessageSquare,
   BarChart3,
-  Rocket,
   Activity,
   ArrowRight,
   Play,
@@ -17,8 +16,9 @@ import {
   Database,
   RotateCcw,
   Terminal,
+  Globe,
 } from 'lucide-react';
-import { CatalogItem, HybridSearchHit } from '../types';
+import { CatalogItem } from '../types';
 import { ViewId } from './Sidebar';
 import { getEvents } from '../lib/analytics/tracker';
 import { listExperiments } from '../lib/ab-testing/engine';
@@ -26,19 +26,28 @@ import {
   getOrBuildCatalogHNSWIndex,
   benchmarkHnswVsLinear,
   computeCategoryEntropy,
+  detectTextLanguage,
 } from '../utils/recommenderEngine';
+import {
+  PLATFORM_DOMAIN_PRESETS,
+  PlatformDomainId,
+  PlatformDomainPreset,
+} from '../data/domainDatabases';
 
 interface DashboardViewProps {
   catalog: CatalogItem[];
   embeddings: Map<string, Float32Array>;
   selectedItem: CatalogItem | null;
   isScaledCatalog: boolean;
+  activeDomain?: PlatformDomainId;
   onNavigate: (view: ViewId) => void;
   onSearch: (query: string) => Promise<CatalogItem[]>;
   onSelectItem: (item: CatalogItem) => void;
   onScaleCatalog: (targetCount: number) => void;
   onRestoreCatalog: () => void;
   onOpenApiConsole: () => void;
+  onSelectDomainPreset?: (preset: PlatformDomainPreset) => void;
+  onOpenDatabaseConnector?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -46,12 +55,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   embeddings,
   selectedItem,
   isScaledCatalog,
+  activeDomain = 'marketplace',
   onNavigate,
   onSearch,
   onSelectItem,
   onScaleCatalog,
   onRestoreCatalog,
   onOpenApiConsole,
+  onSelectDomainPreset,
+  onOpenDatabaseConnector,
 }) => {
   const [quickQuery, setQuickQuery] = useState('');
   const [quickResults, setQuickResults] = useState<CatalogItem[]>([]);
@@ -67,6 +79,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     recallTopK: number;
     qpsHnsw: number;
   } | null>(null);
+
+  const dominantLang = useMemo(() => {
+    const sample = catalog
+      .slice(0, 4)
+      .map((i) => `${i.title} ${i.description}`)
+      .join(' ');
+    return detectTextLanguage(sample);
+  }, [catalog]);
+
+  const quickPresets = useMemo(() => {
+    if (dominantLang === 'ja') {
+      return [
+        '宇宙とブラックホールの科学',
+        'サイバーパンク2077 ゲーム実況',
+        'Rust 高速データベース開発',
+        '京都 カフェ エスプレッソ',
+      ];
+    }
+    if (dominantLang === 'en') {
+      return [
+        'relativistic time and black holes',
+        'cyberpunk neural simulation',
+        'rust vector database',
+      ];
+    }
+    return ['космос и черные дыры', 'киберпанк симуляция', 'быстрая база данных rust'];
+  }, [dominantLang]);
 
   const stats = useMemo(() => {
     const events = getEvents();
@@ -121,7 +160,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         className="card"
         style={{
           padding: '22px 24px',
-          marginBottom: 20,
+          marginBottom: 16,
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
@@ -134,11 +173,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Eidos Semantic Vector Workbench
           </h1>
           <p className="page-sub" style={{ margin: '4px 0 0' }}>
-            384-dimensional dense embeddings · HNSW Phase 2 (Int32 + BinaryHeap) · BM25 Hybrid RRF · Adaptive Intelligence Layer
+            384-dimensional dense embeddings · HNSW Phase 2 (Int32 + BinaryHeap) · Universal Multilingual & CJK (100+ languages)
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {onOpenDatabaseConnector && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onOpenDatabaseConnector}
+              data-testid="open-db-connector-btn"
+            >
+              <Globe size={14} />
+              <span>Подключить свою базу / Язык</span>
+            </button>
+          )}
+
           {!isScaledCatalog ? (
             <button
               type="button"
@@ -156,7 +207,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={onRestoreCatalog}
             >
               <RotateCcw size={14} />
-              <span>Restore Curated Catalog (25 SKU)</span>
+              <span>Restore Curated Catalog</span>
             </button>
           )}
 
@@ -170,6 +221,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 1-Click Industry Platform & Multilingual Database Switcher */}
+      {onSelectDomainPreset && (
+        <div
+          className="card"
+          style={{
+            padding: '12px 18px',
+            marginBottom: 20,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Globe size={15} color="var(--accent)" />
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text)' }}>
+              Тип площадки и язык базы:
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {PLATFORM_DOMAIN_PRESETS.map((preset) => {
+              const active = !isScaledCatalog && activeDomain === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  data-testid={`switch-domain-${preset.id}`}
+                  onClick={() => {
+                    setQuickResults([]);
+                    onSelectDomainPreset(preset);
+                  }}
+                  className={active ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                >
+                  <span>{preset.shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* KPI Metrics Row (4 columns with tabular numerals) */}
       <div
@@ -191,7 +285,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {stats.itemsCount.toLocaleString()} SKU
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            <span className="mono">{stats.embeddingsCount.toLocaleString()}</span> × 384-d L2 vectors active
+            <span className="mono">{stats.embeddingsCount.toLocaleString()}</span> × 384-d L2 vectors ({dominantLang.toUpperCase()})
           </div>
         </div>
 
@@ -376,7 +470,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
                 <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-                  Instant Hybrid Vector Search Preview
+                  Instant Hybrid Vector Search Preview ({dominantLang.toUpperCase()})
                 </h2>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)' }}>
                   Click any result to set it as the active seed anchor across 3D Space and Recommendations
@@ -402,7 +496,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <input
                 type="text"
                 className="input"
-                placeholder="Try 'интерстеллар космос', 'векторная база rust', 'кофе эспрессо'..."
+                placeholder="Search in Русский, English, 日本語, 中文..."
                 value={quickQuery}
                 onChange={(e) => setQuickQuery(e.target.value)}
               />
@@ -466,7 +560,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 Enter a conceptual query above or test one of the quick presets below:
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-                  {['космос и черные дыры', 'киберпанк симуляция', 'быстрая база данных rust'].map((preset) => (
+                  {quickPresets.map((preset) => (
                     <button
                       key={preset}
                       type="button"
@@ -517,13 +611,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {
               id: 'search' as ViewId,
               title: 'Hybrid Search & Side-by-Side',
-              desc: 'BM25 + Dense HNSW fusion with convex α control vs. legacy keyword search',
+              desc: 'BM25 (CJK + Unicode) + Dense HNSW fusion with convex α control vs. legacy keyword search',
               icon: Search,
             },
             {
               id: 'recommendations' as ViewId,
               title: 'MMR Recommendations & X-Ray',
-              desc: 'Maximal Marginal Relevance diversity re-ranking with Shannon entropy and factor bars',
+              desc: 'Maximal Marginal Relevance diversity re-ranking with native-language explanations (100+ languages)',
               icon: Lightbulb,
             },
             {

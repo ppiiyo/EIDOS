@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Sliders, Columns, Boxes, Lightbulb, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Sliders, Columns, Boxes, Lightbulb, AlertCircle, Globe } from 'lucide-react';
 import { CatalogItem } from '../types';
-import { HybridSearchHit, simulateKeywordSearch } from '../utils/recommenderEngine';
+import { HybridSearchHit, simulateKeywordSearch, detectTextLanguage } from '../utils/recommenderEngine';
 import { trackEvent } from '../lib/analytics/tracker';
 
 interface SearchViewProps {
@@ -17,20 +17,46 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onSelectItem,
   onInspectIn3D,
 }) => {
-  const [query, setQuery] = useState('релятивистское время и космос');
+  const dominantLang = useMemo(() => {
+    const sample = catalog
+      .slice(0, 4)
+      .map((i) => `${i.title} ${i.description}`)
+      .join(' ');
+    return detectTextLanguage(sample);
+  }, [catalog]);
+
+  const sampleQueries = useMemo(() => {
+    if (dominantLang === 'ja') {
+      return [
+        { label: '宇宙とブラックホールの科学と相対性理論', note: '日本語 4K科学ドキュメンタリー＆インターステラー考察を検索' },
+        { label: 'サイバーパンクと人工知能のゲーム実況', note: 'サイバーパンク2077＆猫の冒険Stray実況を検索' },
+        { label: 'RustとPythonによる高速データベース開発', note: 'Rust/WASMベクトルDB講座＆Python AI解説を検索' },
+        { label: '京都の朝カフェと深夜の作業用BGM音楽', note: '京都エスプレッソVLOG＆東京Lo-Fi BGM配信を検索' },
+      ];
+    }
+    if (dominantLang === 'en') {
+      return [
+        { label: 'relativistic time dilation and black holes in space', note: 'Finds Interstellar, Dune & Cosmos Documentary' },
+        { label: 'neon cyberpunk artificial intelligence and simulated reality', note: 'Finds Edgerunners, The Matrix & Synthwave Stream' },
+        { label: 'subconscious dreams and psychological mind thriller', note: 'Finds Inception & 1984' },
+        { label: 'rust vector databases and deep coding focus', note: 'Finds Silicon & Rust Doc + Coding Synthwave Audio' },
+      ];
+    }
+    return [
+      { label: 'релятивистское время и космос', note: 'Vocabulary mismatch test (finds Interstellar & Dune)' },
+      { label: 'симуляция реальности и нейросети', note: 'Conceptual match (finds Matrix & Cyberpunk)' },
+      { label: '宇宙とブラックホールの科学 (JP Query)', note: 'Multilingual Japanese CJK vector + BM25 test' },
+      { label: 'утренний эспрессо и уют в офисе', note: 'Cross-category lifestyle intent' },
+    ];
+  }, [dominantLang]);
+
+  const [query, setQuery] = useState(sampleQueries[0].label);
   const [alpha, setAlpha] = useState<number>(0.7);
   const [compareMode, setCompareMode] = useState<boolean>(true);
   const [hybridHits, setHybridHits] = useState<HybridSearchHit[]>([]);
   const [keywordHits, setKeywordHits] = useState<Array<{ item: CatalogItem; matchedWords: string[] }>>([]);
   const [latencyMs, setLatencyMs] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
-
-  const sampleQueries = [
-    { label: 'релятивистское время и космос', note: 'Vocabulary mismatch test (finds Interstellar & Dune)' },
-    { label: 'симуляция реальности и нейросети', note: 'Conceptual match (finds Matrix & Cyberpunk)' },
-    { label: 'быстрая аналитическая база данных rust', note: 'Hybrid B2B DevTools & Vector DB' },
-    { label: 'утренний эспрессо и уют в офисе', note: 'Cross-category lifestyle intent' },
-  ];
 
   const runSearch = async (targetQuery?: string, targetAlpha?: number) => {
     const q = (targetQuery ?? query).trim();
@@ -59,6 +85,13 @@ export const SearchView: React.FC<SearchViewProps> = ({
     }
   };
 
+  // Update query when catalog domain language changes
+  useEffect(() => {
+    const defaultQ = sampleQueries[0].label;
+    setQuery(defaultQ);
+    runSearch(defaultQ, alpha);
+  }, [dominantLang, catalog[0]?.id]);
+
   useEffect(() => {
     runSearch(query, alpha);
   }, [alpha, catalog.length]);
@@ -68,20 +101,26 @@ export const SearchView: React.FC<SearchViewProps> = ({
       {/* Header */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
         <div>
-          <h1 className="page-title">Hybrid Search Lab (Dense HNSW + Sparse BM25)</h1>
+          <h1 className="page-title">Hybrid Search Lab (Dense HNSW + Multilingual CJK BM25)</h1>
           <p className="page-sub">
-            Convex combination Score(q, d) = α · DenseCosine(q, d) + (1 − α) · BM25(q, d) with Side-by-Side Legacy Keyword comparison
+            Convex combination Score(q, d) = α · DenseCosine(q, d) + (1 − α) · BM25(q, d) across 100+ languages (RU · EN · 日本語 · 中文 · EU)
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setCompareMode((v) => !v)}
-          className={compareMode ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-        >
-          <Columns size={14} />
-          <span>{compareMode ? 'Side-by-Side Comparison: ON' : 'Side-by-Side Comparison: OFF'}</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="badge badge-accent" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <Globe size={12} />
+            <span>Corpus Script: {dominantLang.toUpperCase()}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setCompareMode((v) => !v)}
+            className={compareMode ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+          >
+            <Columns size={14} />
+            <span>{compareMode ? 'Side-by-Side Comparison: ON' : 'Side-by-Side Comparison: OFF'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Search Bar & Hybrid Alpha Controls */}
@@ -101,7 +140,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               style={{ paddingLeft: 40, height: 42, fontSize: '0.9375rem' }}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter natural language intent or technical keywords..."
+              placeholder="Enter query in any language (Русский, English, 日本語, 中文, Español)..."
             />
           </div>
           <button type="submit" className="btn btn-primary" disabled={isLoading || !query.trim()} style={{ height: 42 }}>
@@ -121,7 +160,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
             borderTop: '1px solid var(--border)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-sec)' }}>Mode Preset:</span>
             {[
               { label: 'Pure BM25 (α=0.0)', val: 0.0 },
@@ -272,7 +311,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                     </div>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={{ color: 'var(--text-sec)' }}>BM25 Lexical Match</span>
+                        <span style={{ color: 'var(--text-sec)' }}>BM25 Lexical Match (CJK + Unicode)</span>
                         <span className="mono" style={{ fontWeight: 600 }}>{(hit.bm25Score * 100).toFixed(1)}%</span>
                       </div>
                       <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
@@ -324,10 +363,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
               <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-sec)' }}>
                 <AlertCircle size={22} style={{ margin: '0 auto 8px', color: 'var(--warning)' }} />
                 <div style={{ fontWeight: 600, color: 'var(--text)' }}>
-                  0 results — Vocabulary Mismatch Failure
+                  0 results — Vocabulary / Script Mismatch Failure
                 </div>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 6 }}>
-                  Traditional keyword search failed because exact query tokens did not literally appear in product titles, whereas Eidos Hybrid Search retrieved {hybridHits.length} conceptually relevant items.
+                  Traditional whitespace keyword search failed because exact tokens or non-spaced CJK compounds did not match, whereas Eidos Hybrid Search retrieved {hybridHits.length} conceptually relevant items.
                 </p>
               </div>
             ) : (

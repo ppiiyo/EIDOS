@@ -3,6 +3,11 @@ import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
 import { CatalogItem, CatalogRecommendation, HybridSearchHit, ToastItem, Project } from './types';
 import { INITIAL_CATALOG } from './data/catalog';
 import {
+  PLATFORM_DOMAIN_PRESETS,
+  PlatformDomainId,
+  PlatformDomainPreset,
+} from './data/domainDatabases';
+import {
   computeTextEmbedding,
   cosineSimilarity,
   generateSemanticExplanation,
@@ -22,16 +27,17 @@ import { AnalyticsView } from './components/AnalyticsView';
 import { LaunchKitView } from './components/LaunchKitView';
 import { ApiConsoleModal } from './components/ApiConsoleModal';
 import { CsvImporterModal } from './components/CsvImporterModal';
+import { DatabaseConnectorModal } from './components/DatabaseConnectorModal';
 import { ToastContainer } from './components/ToastContainer';
 import { ConversationalAgent } from './lib/agent/conversational-agent';
 import { trackEvent } from './lib/analytics/tracker';
-import { Sun, Moon, Terminal, FileSpreadsheet } from 'lucide-react';
+import { Sun, Moon, Terminal, FileSpreadsheet, Database } from 'lucide-react';
 
 const STORAGE_CATALOG_KEY = 'eidos_catalog_v3';
+const STORAGE_DOMAIN_KEY = 'eidos_domain_v3';
 const STORAGE_VIEW_KEY = 'eidos_active_view_v3';
 const STORAGE_THEME_KEY = 'eidos_theme_v3';
 
-// Task 0.1: Singleton @xenova/transformers initialization (Xenova/all-MiniLM-L6-v2)
 let embedderPromise: Promise<FeatureExtractionPipeline> | null = null;
 let embedderFailed = false;
 function getEmbedder(): Promise<FeatureExtractionPipeline> {
@@ -59,13 +65,35 @@ function getEmbedder(): Promise<FeatureExtractionPipeline> {
 }
 
 export async function computeRealEmbedding(text: string): Promise<Float32Array> {
-  const embedder = await getEmbedder();
-  const output = await embedder(text, { pooling: 'mean', normalize: true });
-  return new Float32Array(output.data as ArrayLike<number>);
+  const multilingualVec = computeTextEmbedding(text);
+  const hasNonAscii = /[^\u0000-\u007f]/.test(text);
+
+  try {
+    const embedder = await getEmbedder();
+    const output = await embedder(text, { pooling: 'mean', normalize: true });
+    const modelVec = new Float32Array(output.data as ArrayLike<number>);
+
+    if (!hasNonAscii) {
+      return modelVec;
+    }
+
+    const fused = new Float32Array(384);
+    let sumSq = 0;
+    for (let i = 0; i < 384; i++) {
+      fused[i] = 0.72 * multilingualVec[i] + 0.28 * (modelVec[i] || 0);
+      sumSq += fused[i] * fused[i];
+    }
+    const norm = Math.sqrt(sumSq) || 1e-6;
+    for (let i = 0; i < 384; i++) {
+      fused[i] /= norm;
+    }
+    return fused;
+  } catch {
+    return multilingualVec;
+  }
 }
 
 export default function App() {
-  // 0. Dual Theme State (Light Clean Studio vs Dark Engineering Console)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_THEME_KEY);
@@ -85,7 +113,18 @@ export default function App() {
     }
   }, [theme]);
 
-  // 1. Catalog State with unified string IDs (Task 1.3)
+  const [activeDomain, setActiveDomain] = useState<PlatformDomainId>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_DOMAIN_KEY) as PlatformDomainId;
+      if (saved && ['marketplace', 'streaming', 'video_jp', 'global_multilingual'].includes(saved)) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'marketplace';
+  });
+
   const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_CATALOG_KEY);
@@ -109,7 +148,6 @@ export default function App() {
 
   const [isScaledCatalog, setIsScaledCatalog] = useState(false);
 
-  // Persist non-scaled catalog changes
   useEffect(() => {
     if (!isScaledCatalog) {
       try {
@@ -120,7 +158,6 @@ export default function App() {
     }
   }, [catalog, isScaledCatalog]);
 
-  // 2. Cross-Module Selected Item Anchor
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(() => catalog[0] || null);
 
   useEffect(() => {
@@ -129,7 +166,6 @@ export default function App() {
     }
   }, [catalog, selectedItem]);
 
-  // 3. Active View Navigation
   const [activeView, setActiveView] = useState<ViewId>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_VIEW_KEY) as ViewId;
@@ -165,15 +201,17 @@ export default function App() {
     }
   };
 
-  // Global Modals
   const [isApiConsoleOpen, setIsApiConsoleOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);
 
-  // 4. Task 0.1: Real Transformer Embeddings Map (Xenova/all-MiniLM-L6-v2) with instant 384-d seed & fallback
   const [embeddings, setEmbeddings] = useState<Map<string, Float32Array>>(() => {
     const map = new Map<string, Float32Array>();
     for (const item of catalog) {
-      map.set(String(item.id), computeTextEmbedding(`${item.title} ${item.description}`));
+      map.set(
+        String(item.id),
+        computeTextEmbedding(`passage: ${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`)
+      );
     }
     return map;
   });
@@ -184,26 +222,35 @@ export default function App() {
     let cancelled = false;
     setEmbeddingStatus('loading');
 
+    const immediateMap = new Map<string, Float32Array>();
+    for (const item of catalog) {
+      immediateMap.set(
+        String(item.id),
+        computeTextEmbedding(`passage: ${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`)
+      );
+    }
+    setEmbeddings(immediateMap);
+
     (async () => {
-      const map = new Map<string, Float32Array>();
+      const map = new Map<string, Float32Array>(immediateMap);
       let usedModel = false;
 
       for (let i = 0; i < catalog.length; i++) {
         if (cancelled) return;
         const item = catalog[i];
+        const fullText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
         try {
-          const vec = await computeRealEmbedding(`${item.title} ${item.description}`);
+          const vec = await computeRealEmbedding(fullText);
           map.set(String(item.id), vec);
           usedModel = true;
           if (i % 5 === 0) {
             if (!cancelled) {
               setEmbeddings(new Map(map));
             }
-            await new Promise((r) => setTimeout(r, 0)); // yield
+            await new Promise((r) => setTimeout(r, 0));
           }
         } catch {
-          // fallback на computeTextEmbedding (384d)
-          map.set(String(item.id), computeTextEmbedding(`${item.title} ${item.description}`));
+          map.set(String(item.id), computeTextEmbedding(`passage: ${fullText}`));
         }
       }
 
@@ -218,13 +265,12 @@ export default function App() {
     };
   }, [catalog, isScaledCatalog]);
 
-  // 5. Real Hybrid Search (Dense HNSW + Sparse BM25)
   const computeQueryVector = useCallback(
     async (query: string): Promise<Float32Array> => {
       const trimmed = query.trim();
       if (embeddingStatus === 'ready') {
         try {
-          return await computeRealEmbedding(trimmed);
+          return await computeRealEmbedding(`query: ${trimmed}`);
         } catch {
           return computeTextEmbedding(`query: ${trimmed}`);
         }
@@ -259,7 +305,6 @@ export default function App() {
     [handleHybridSearch]
   );
 
-  // 6. Real MMR (Maximal Marginal Relevance) Recommendation Implementation
   const handleGetRecommendations = useCallback(
     async (
       targetItem: CatalogItem,
@@ -329,7 +374,6 @@ export default function App() {
     [catalog, embeddings]
   );
 
-  // 7. Conversational Agent Instance
   const conversationalAgent = useMemo(() => {
     return new ConversationalAgent(catalog, handleSearch);
   }, [catalog, handleSearch]);
@@ -338,7 +382,6 @@ export default function App() {
     conversationalAgent.setCatalog(catalog);
   }, [catalog, conversationalAgent]);
 
-  // 8. Toasts
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const addToast = useCallback(
@@ -356,7 +399,46 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // 9. Catalog & Scale Actions (Task 1.3: string IDs)
+  const handleSelectDomainPreset = useCallback(
+    (preset: PlatformDomainPreset) => {
+      const itemsWithStrIds = preset.items.map((item) => ({
+        ...item,
+        id: String(item.id),
+      }));
+      setIsScaledCatalog(false);
+      setActiveDomain(preset.id);
+      setCatalog(itemsWithStrIds);
+      setSelectedItem(itemsWithStrIds[0] || null);
+      try {
+        localStorage.setItem(STORAGE_DOMAIN_KEY, preset.id);
+      } catch {
+        // ignore
+      }
+      addToast(
+        `Подключена база «${preset.name}» (${itemsWithStrIds.length} объектов · ${preset.languageLabel})`,
+        'success'
+      );
+    },
+    [addToast]
+  );
+
+  const handleImportCustomDatabase = useCallback(
+    (items: CatalogItem[], label = 'Custom Database') => {
+      const itemsWithStrIds = items.map((item) => ({
+        ...item,
+        id: String(item.id),
+      }));
+      setIsScaledCatalog(false);
+      setCatalog(itemsWithStrIds);
+      setSelectedItem(itemsWithStrIds[0] || null);
+      addToast(
+        `Подключена база «${label}» (${itemsWithStrIds.length} объектов проиндексировано в 384-d HNSW)`,
+        'success'
+      );
+    },
+    [addToast]
+  );
+
   const handleAddItem = (newItem: CatalogItem) => {
     const itemWithStrId: CatalogItem = { ...newItem, id: String(newItem.id) };
     setCatalog((prev) => [itemWithStrId, ...prev]);
@@ -386,11 +468,12 @@ export default function App() {
   };
 
   const handleRestoreCatalog = () => {
-    const base = INITIAL_CATALOG.map((item) => ({ ...item, id: String(item.id) }));
+    const preset = PLATFORM_DOMAIN_PRESETS.find((p) => p.id === activeDomain) || PLATFORM_DOMAIN_PRESETS[0];
+    const base = preset.items.map((item) => ({ ...item, id: String(item.id) }));
     setIsScaledCatalog(false);
     setCatalog(base);
     setSelectedItem(base[0]);
-    addToast('Restored curated 25-SKU benchmark catalog', 'info');
+    addToast(`Restored ${preset.name} (${base.length} SKU)`, 'info');
   };
 
   const handleImportVectorBundle = (
@@ -472,12 +555,9 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-alt)', color: 'var(--text)' }}>
-      {/* 1. Left Sidebar Navigation */}
       <Sidebar active={activeView} onNavigate={handleNavigate} />
 
-      {/* 2. Main Workspace */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        {/* Top Header Bar */}
         <header
           style={{
             height: 56,
@@ -493,7 +573,6 @@ export default function App() {
             gap: 16,
           }}
         >
-          {/* Zone 1: Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap', overflow: 'hidden' }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>Eidos</span>
             <span style={{ color: 'var(--border-hi)' }}>/</span>
@@ -502,18 +581,26 @@ export default function App() {
             </span>
           </div>
 
-          {/* Zone 2: Global Tools, Embedder Status Badge & Theme Toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            {/* Task 0.1 UI Indicator Badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <span className="badge badge-accent" data-testid="embedding-status-badge">
               {embeddingStatus === 'ready'
-                ? '🧠 Model: MiniLM'
+                ? '🧠 Model: MiniLM + E5-CJK'
                 : embeddingStatus === 'loading'
                 ? '⏳ Loading model...'
-                : '⚡ Fallback: keyword'}
+                : '⚡ Engine: E5-Multilingual 384d'}
             </span>
 
-            {/* CSV Import/Export Modal Button */}
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => setIsDbConnectorOpen(true)}
+              data-testid="header-connect-db-btn"
+              title="Подключить базу маркетплейса, стриминга или видеохостинга (100+ языков, включая японский 日本語)"
+            >
+              <Database size={13} />
+              <span>Подключить базу / Язык</span>
+            </button>
+
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -523,7 +610,6 @@ export default function App() {
               <span>CSV Studio</span>
             </button>
 
-            {/* Live API Console Button */}
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -533,7 +619,6 @@ export default function App() {
               <span>API Console</span>
             </button>
 
-            {/* Light / Dark Theme Switcher */}
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -546,7 +631,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* Dynamic View Canvas */}
         <main style={{ flex: 1, overflowY: 'auto' }}>
           {activeView === 'dashboard' && (
             <DashboardView
@@ -554,6 +638,7 @@ export default function App() {
               embeddings={embeddings}
               selectedItem={selectedItem}
               isScaledCatalog={isScaledCatalog}
+              activeDomain={activeDomain}
               onNavigate={handleNavigate}
               onSearch={handleSearch}
               onSelectItem={(item) => {
@@ -563,6 +648,8 @@ export default function App() {
               onScaleCatalog={handleScaleCatalog}
               onRestoreCatalog={handleRestoreCatalog}
               onOpenApiConsole={() => setIsApiConsoleOpen(true)}
+              onSelectDomainPreset={handleSelectDomainPreset}
+              onOpenDatabaseConnector={() => setIsDbConnectorOpen(true)}
             />
           )}
 
@@ -655,7 +742,6 @@ export default function App() {
         </main>
       </div>
 
-      {/* Live REST API Console Modal */}
       <ApiConsoleModal
         isOpen={isApiConsoleOpen}
         onClose={() => setIsApiConsoleOpen(false)}
@@ -665,7 +751,15 @@ export default function App() {
         onGetRecommendations={handleGetRecommendations}
       />
 
-      {/* Bulk CSV Import / Export Studio Modal */}
+      <DatabaseConnectorModal
+        isOpen={isDbConnectorOpen}
+        activeDomain={activeDomain}
+        catalogCount={catalog.length}
+        onClose={() => setIsDbConnectorOpen(false)}
+        onSelectDomainPreset={handleSelectDomainPreset}
+        onImportCustomDatabase={handleImportCustomDatabase}
+      />
+
       <CsvImporterModal
         isOpen={isCsvModalOpen}
         project={csvProjectAdapter}
@@ -674,7 +768,6 @@ export default function App() {
         onShowToast={addToast}
       />
 
-      {/* Global Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

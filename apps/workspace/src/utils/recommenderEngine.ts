@@ -1,92 +1,145 @@
 import { CatalogItem, CatalogRecommendation, CatalogEdge } from '../types';
 import { HNSWIndex, BM25Index, HybridSearch } from '@eidos/core';
 
-/**
- * Semantic anchor categories tailored for E5 Multilingual and consumer domains
- */
+export type SupportedLanguage = 'ru' | 'en' | 'ja' | 'zh' | 'ko' | 'es' | 'de' | 'fr';
+
+export function detectTextLanguage(text: string): SupportedLanguage {
+  if (!text) return 'ru';
+  if (/[\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f]/.test(text)) {
+    return 'ja';
+  }
+  if (/[\uac00-\ud7af\u1100-\u11ff]/.test(text)) {
+    return 'ko';
+  }
+  if (/[\u4e00-\u9fff\u3400-\u4dbf]/.test(text)) {
+    if (/(動画|配信|実況|講座|解説|映画|音楽|宇宙|開発|料理|東京|京都)/.test(text)) {
+      return 'ja';
+    }
+    return 'zh';
+  }
+  if (/[а-яёіїєґ]/i.test(text)) {
+    return 'ru';
+  }
+  const lower = text.toLowerCase();
+  if (/[ñ¿¡]|(\b(película|juego|música|espacio|café|código|libro)\b)/.test(lower)) {
+    return 'es';
+  }
+  if (/[äöüß]|(\b(weltraum|kaffee|programmierung|spiel|musik|wissenschaft)\b)/.test(lower)) {
+    return 'de';
+  }
+  if (/[éèêàùç]|(\b(espace|musique|programmation|cinéma|café)\b)/.test(lower)) {
+    return 'fr';
+  }
+  return 'en';
+}
+
 const RECOMMENDER_ANCHORS: Array<{ name: string; words: string[] }> = [
   {
     name: 'cyberpunk_simulation_ai',
     words: [
-      'киберпанк', 'cyberpunk', '2077', 'матрица', 'симуляция', 'реальность', 'sci-fi',
-      'ии', 'будущее', 'импланты', 'виртуальность', 'неон', 'хакер', 'роботы', 'код'
+      'киберпанк', 'cyberpunk', '2077', 'матрица', 'matrix', 'симуляция', 'simulation', 'реальность', 'sci-fi',
+      'ии', 'ai', 'будущее', 'future', 'импланты', 'виртуальность', 'неон', 'neon', 'хакер', 'hacker', 'роботы', 'robots', 'код', 'neural',
+      'サイバーパンク', 'ナイトシティ', 'マトリックス', 'シミュレーション', '仮想現実', '人工知能', '未来', 'ネオン', 'ハッカー', 'ロボット', 'アンドロイド', '電脳',
+      '赛博朋克', '人工智能', '黑客帝国', '虚拟现实', '사이버펑크', '인공지능', 'ciberpunk', 'inteligencia'
     ],
   },
   {
-    name: 'coffee_appliances',
+    name: 'coffee_appliances_lifestyle',
     words: [
       'кофемашина', 'кофе', 'эспрессо', 'капучино', 'зерновой', 'напитки', 'бытовая',
-      'техника', 'латте', 'бариста', 'кофейный', 'варка', 'coffee', 'espresso'
+      'техника', 'латте', 'бариста', 'кофейный', 'варка', 'coffee', 'espresso', 'barista', 'cafe', 'vlog', 'morning', 'routine',
+      'コーヒー', 'エスプレッソ', 'カフェ', 'バリスタ', 'ラテ', '焙煎', '珈琲', '朝活', 'ルーティン', '暮らし', 'カフェ巡り', '抽出',
+      '咖啡', '浓缩咖啡', '拿铁', '커피', '에스프레소', '카페', 'kaffee'
     ],
   },
   {
     name: 'programming_education_code',
     words: [
       'python', 'питон', 'программирование', 'обучение', 'код', 'алгоритмы', 'разработка',
-      'backend', 'книга', 'учеба', 'компьютер', 'it', 'software', 'developer', 'rust', 'database', 'база'
+      'backend', 'книга', 'учеба', 'компьютер', 'it', 'software', 'developer', 'rust', 'database', 'база', 'coding', 'tutorial', 'webassembly', 'vector',
+      'プログラミング', '開発', 'コード', 'アルゴリズム', 'データベース', 'エンジニア', '講座', '入門', '解説', 'システム', 'ベクトル', '高速', '実装', '深層学習',
+      '编程', '数据库', '算法', '开发', '프로그래밍', '데이터베이스', '알고리즘', 'programación', 'programmierung'
     ],
   },
   {
     name: 'sci_fi_space_desert',
     words: [
-      'дюна', 'интерстеллар', 'космос', 'фантастика', 'пустыня', 'политика', 'планета',
-      'нолан', 'время', 'звезды', 'арракис', 'спайс', 'гравитация', 'space', 'черные', 'дыры'
+      'дюна', 'dune', 'интерстеллар', 'interstellar', 'космос', 'фантастика', 'пустыня', 'политика', 'планета',
+      'нолан', 'nolan', 'время', 'звезды', 'арракис', 'спайс', 'гравитация', 'space', 'черные', 'дыры', 'blackhole', 'cosmos', 'universe', 'astrophysics',
+      '宇宙', 'ブラックホール', 'インターステラー', 'デューン', '科学', 'ドキュメンタリー', '相対性理論', '銀河', '惑星', '星', '重力', '時間', '天文学', 'ノーラン',
+      '宇宙', '黑洞', '星际穿越', '太空', '科学', '우주', '블랙홀', '인터스텔라', 'espacio', 'weltraum'
     ],
   },
   {
-    name: 'fantasy_rpg_magic',
+    name: 'fantasy_rpg_magic_anime',
     words: [
       'witcher', 'ведьмак', 'гарри', 'поттер', 'фэнтези', 'rpg', 'магия', 'чудовища',
-      'геральт', 'властелин', 'колец', 'хоббит', 'хогвартс', 'заклинания', 'fantasy'
+      'геральт', 'властелин', 'колец', 'хоббит', 'хогвартс', 'заклинания', 'fantasy', 'magic', 'anime', 'dragon', 'lore',
+      'ファンタジー', '魔法', 'ウィッチャー', 'アニメ', '異世界', '冒険', '神話', 'メイキング', 'イラスト', '背景美術', '魔法陣', '魔王', '勇者', '物語',
+      '奇幻', '魔法', '动漫', '巫师', '판타지', '마법', '애니메이션', 'fantasía'
     ],
   },
   {
     name: 'computing_work_laptop',
     words: [
       'ноутбук', 'компьютер', 'probook', 'intel', 'ram', 'процессор', 'работа', 'экран',
-      'железо', 'память', 'клавиатура', 'дисплей', 'laptop', 'кресло', 'эргономика', 'офис'
+      'железо', 'память', 'клавиатура', 'дисплей', 'laptop', 'кресло', 'эргономика', 'офис', 'keyboard', 'workstation', 'monitor', 'desk',
+      'ノートpc', 'パソコン', 'キーボード', 'メカニカル', 'ガジェット', 'レビュー', 'デスクツアー', 'モニター', '自作pc', 'チェア', '作業環境', 'ディスプレイ',
+      '笔记本电脑', '机械键盘', '显示器', '노트북', '키보드', '데스크셋업'
     ],
   },
   {
     name: 'audio_music_sound',
     words: [
       'наушники', 'звук', 'музыка', 'soundmax', 'шумоподавление', 'bluetooth', 'аудио',
-      'бас', 'гарнитура', 'динамик', 'sound', 'headphones', 'винил'
+      'бас', 'гарнитура', 'динамик', 'sound', 'headphones', 'винил', 'music', 'lofi', 'bgm', 'ambient', 'asmr', 'synthwave',
+      '音楽', 'イヤホン', 'ヘッドホン', 'ノイズキャンセリング', '高音質', '作業用', '作業用bgm', '音響', 'オーディオ', 'チル', '深夜', '歌ってみた', 'サウンドトラック',
+      '音乐', '耳机', '降噪', '음악', '헤드폰', '노이즈캔슬링', 'música', 'musik'
     ],
   },
   {
     name: 'dystopia_politics_control',
     words: [
-      '1984', 'оруэлл', 'антиутопия', 'тоталитарное', 'общество', 'контроль', 'разум',
-      'партия', 'свобода', 'власть', 'надзор', 'государство'
+      '1984', 'оруэлл', 'orwell', 'антиутопия', 'dystopia', 'тоталитарное', 'общество', 'контроль', 'разум',
+      'партия', 'свобода', 'власть', 'надзор', 'государство', 'surveillance', 'history', 'philosophy',
+      'ディストピア', '監視社会', '歴史', '哲学', '社会', 'オーウェル', '思想', '自由', '権力', '考察',
+      '反乌托邦', '历史', '哲学', '디스토피아', '역사', '철학'
     ],
   },
   {
     name: 'cinema_dreams_mind',
     words: [
-      'начало', 'сны', 'сон', 'нолан', 'триллер', 'сознание', 'разум', 'погружение',
-      'подсознание', 'иллюзия', 'кино', 'фильм'
+      'начало', 'inception', 'сны', 'сон', 'dreams', 'нолан', 'триллер', 'thriller', 'сознание', 'разум', 'погружение',
+      'подсознание', 'иллюзия', 'кино', 'фильм', 'cinema', 'movie', 'director', 'documentary', '4k',
+      '映画', 'シネマ', 'インセプション', 'スリラー', '心理', '潜在意識', '夢', '監督', '名作', '考察動画', '予告編', '映像',
+      '电影', '盗梦空间', '纪录片', '영화', '다큐멘터리', '스릴러', 'película', 'cinéma'
     ],
   },
   {
     name: 'gaming_companion_adventure',
     words: [
-      'stray', 'кот', 'игра', 'приключения', 'роботы', 'город', 'кибергород', 'открытый',
-      'мир', 'монополия', 'настолка', 'экономика', 'стратегия', 'консоль', 'steam'
+      'stray', 'кот', 'cat', 'игра', 'game', 'приключения', 'adventure', 'роботы', 'город', 'кибергород', 'открытый',
+      'мир', 'монополия', 'настолка', 'экономика', 'стратегия', 'консоль', 'steam', 'gameplay', 'stream', 'esports',
+      'ゲーム', 'ゲーム実況', '実況', 'プレイ', '配信', 'ストレイ', '猫', '野良猫', '攻略', 'インディーゲーム', 'オープンワールド', 'eスポーツ', 'ボードゲーム',
+      '游戏', '游戏直播', '攻略', '猫咪', '게임', '게임방송', '고양이', 'videojuegos'
     ],
   },
   {
     name: 'mobile_display_gadgets',
     words: [
-      'смартфон', 'galaxy', 'ultra', 'amoled', 'камера', '5g', 'флагман', 'телефон',
-      'гаджет', 'экран', 'дисплей', 'часы', 'очки'
+      'смартфон', 'smartphone', 'galaxy', 'ultra', 'amoled', 'камера', 'camera', '5g', 'флагман', 'телефон',
+      'гаджет', 'экран', 'дисплей', 'часы', 'очки', 'photography', 'video', '8k',
+      'スマホ', 'スマートフォン', 'カメラ', '撮影', '写真', 'レンズ', '動画編集', '映像制作', 'フラッグシップ',
+      '智能手机', '相机', '摄影', '스마트폰', '카메라'
     ],
   },
   {
     name: 'sport_fitness_running',
     words: [
-      'кроссовки', 'runmax', 'бег', 'спорт', 'тренировки', 'амортизация', 'браслет',
-      'bandpro', 'пульс', 'шаги', 'фитнес', 'трекер', 'здоровье', 'кашемир', 'пальто', 'шелк'
+      'кроссовки', 'runmax', 'бег', 'running', 'спорт', 'sport', 'тренировки', 'workout', 'амортизация', 'браслет',
+      'bandpro', 'пульс', 'шаги', 'фитнес', 'fitness', 'трекер', 'здоровье', 'кашемир', 'пальто', 'шелк', 'marathon',
+      'ランニング', 'マラソン', '筋トレ', 'フィットネス', 'トレーニング', 'シューズ', 'スニーカー', 'スマートウォッチ', '健康', 'ヨガ', 'ストレッチ',
+      '跑步', '健身', '运动鞋', '马拉松', '러닝', '피트니스', '운동'
     ],
   },
 ];
@@ -100,14 +153,10 @@ function hashGram(str: string): number {
   return hash >>> 0;
 }
 
-/**
- * Unified 384-dimensional vector space matching Xenova/multilingual-e5-small and all-MiniLM-L6-v2
- */
 export const EMBEDDING_DIM = 384;
 
-/**
- * Dense 384-dimensional semantic vector matching E5 multilingual behavior
- */
+const CJK_CHAR_TEST = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af]/;
+
 export function computeTextEmbedding(text: string): Float32Array {
   const vec = new Float32Array(EMBEDDING_DIM);
   let clean = text.toLowerCase().trim();
@@ -120,9 +169,9 @@ export function computeTextEmbedding(text: string): Float32Array {
     clean = clean.replace(/^passage:\s*/, '');
   }
 
-  const words = clean.split(/[\s,_\-—"«»'().:;!?]+/);
+  const words = clean.split(/[\s,_\-—"«»'().:;!?、。「」『』【】・]+/).filter(Boolean);
+  const hasCjk = CJK_CHAR_TEST.test(clean);
 
-  // 1. Anchor projections distributed across first 96 dimensions (8 harmonics per anchor)
   for (let i = 0; i < RECOMMENDER_ANCHORS.length; i++) {
     const anchor = RECOMMENDER_ANCHORS[i];
     let score = 0;
@@ -143,6 +192,15 @@ export function computeTextEmbedding(text: string): Float32Array {
         }
       }
     }
+
+    if (hasCjk || words.length <= 3) {
+      for (const aw of anchor.words) {
+        if (aw.length >= 2 && clean.includes(aw)) {
+          score += 2.1;
+        }
+      }
+    }
+
     if (isQuery && score > 0) {
       score *= 1.25;
     }
@@ -152,23 +210,23 @@ export function computeTextEmbedding(text: string): Float32Array {
     }
   }
 
-  // 2. Character 3-gram, 4-gram, and 5-gram subword hashing across dimensions 96..351 (256 buckets)
   const padded = `^${clean}$`;
-  for (let len = 3; len <= 5; len++) {
+  const minGram = hasCjk ? 2 : 3;
+  for (let len = minGram; len <= 5; len++) {
     for (let i = 0; i <= padded.length - len; i++) {
       const gram = padded.slice(i, i + len);
       const h = hashGram(gram);
       const idx = 96 + (h % 256);
       const sign = (h & 0x100) ? 1 : -1;
-      vec[idx] += sign * (len === 3 ? 0.35 : len === 4 ? 0.45 : 0.3);
+      const weight = len === 2 ? 0.55 : len === 3 ? 0.35 : len === 4 ? 0.45 : 0.3;
+      vec[idx] += sign * weight;
     }
   }
 
-  // 3. Structural & morphological harmonics across dimensions 352..383
   vec[352] = Math.min(clean.length / 60, 1.0);
   let vowelCount = 0;
   for (const ch of clean) {
-    if ('аеёиоуыэюяaeiouy'.includes(ch)) vowelCount++;
+    if ('аеёиоуыэюяaeiouyあいうえおアイウエオ'.includes(ch)) vowelCount++;
   }
   vec[353] = vowelCount / Math.max(1, clean.length);
 
@@ -178,7 +236,6 @@ export function computeTextEmbedding(text: string): Float32Array {
     vec[targetIdx] += 0.18 * Math.cos((i + 1) * 0.35);
   }
 
-  // 4. L2 unit normalization
   let sumSq = 0;
   for (let i = 0; i < EMBEDDING_DIM; i++) {
     sumSq += vec[i] * vec[i];
@@ -239,9 +296,6 @@ export interface RecommendationXRay {
   sameCategory: boolean;
 }
 
-/**
- * Computes Shannon Category Entropy (in bits) of a list of items
- */
 export function computeCategoryEntropy(items: CatalogItem[]): {
   entropyBits: number;
   normalizedPercent: number;
@@ -272,15 +326,86 @@ export function computeCategoryEntropy(items: CatalogItem[]): {
   };
 }
 
-/**
- * Natural semantic explanation: "Почему мы это рекомендуем"
- */
 export function generateSemanticExplanation(
   target: CatalogItem,
-  recommended: CatalogItem
+  recommended: CatalogItem,
+  overrideLang?: SupportedLanguage
 ): string {
-  const tText = `${target.title} ${target.description} ${target.category}`.toLowerCase();
-  const rText = `${recommended.title} ${recommended.description} ${recommended.category}`.toLowerCase();
+  const combinedSample = `${recommended.title} ${recommended.description} ${target.title}`;
+  const lang = overrideLang || detectTextLanguage(combinedSample);
+
+  const tText = `${target.title} ${target.description} ${target.category} ${(target.tags || []).join(' ')}`.toLowerCase();
+  const rText = `${recommended.title} ${recommended.description} ${recommended.category} ${(recommended.tags || []).join(' ')}`.toLowerCase();
+
+  if (lang === 'ja') {
+    if (
+      /(宇宙|ブラックホール|インターステラー|科学|相対性理論|星|デューン)/.test(tText) &&
+      /(宇宙|ブラックホール|インターステラー|科学|相対性理論|星|時間|ノーラン)/.test(rText)
+    ) {
+      return '宇宙のスケール、相対性理論の時間軸、未知の科学探求という共通のテーマで強く共鳴しています。';
+    }
+    if (
+      /(サイバーパンク|シミュレーション|人工知能|ai|未来|ネオン|ロボット|ストレイ)/.test(tText) &&
+      /(サイバーパンク|シミュレーション|人工知能|ai|未来|ネオン|ロボット|ストレイ)/.test(rText)
+    ) {
+      return 'サイバーパンクの世界観、AIと近未来テクノロジー、仮想空間の美学において高い意味的親和性があります。';
+    }
+    if (
+      /(プログラミング|rust|python|データベース|開発|コード|アルゴリズム|pc|キーボード)/.test(tText) &&
+      /(プログラミング|rust|python|データベース|開発|コード|アルゴリズム|pc|キーボード)/.test(rText)
+    ) {
+      return '高速ソフトウェア開発・アルゴリズム設計・エンジニアの生産性向上という技術エコシステムで一致しています。';
+    }
+    if (
+      /(音楽|bgm|lofi|イヤホン|ヘッドホン|音響|カフェ|コーヒー|エスプレッソ)/.test(tText) &&
+      /(音楽|bgm|lofi|イヤホン|ヘッドホン|音響|カフェ|コーヒー|エスプレッソ)/.test(rText)
+    ) {
+      return '心地よい音響空間と集中・リラックスを高めるライフスタイル体験として高い親和性を持っています。';
+    }
+    if (target.category !== recommended.category) {
+      return `クロスカテゴリ推薦（${target.category} → ${recommended.category}）：384次元ベクトル空間での高い意味的類似度とMMR多様性ボーナス。`;
+    }
+    return `カテゴリ「${recommended.category}」内の384次元潜在意味空間における高精度なコンテンツ親和性マッチ。`;
+  }
+
+  if (lang === 'zh') {
+    if (target.category !== recommended.category) {
+      return `跨类别语义推荐（${target.category} → ${recommended.category}）：基于384维稠密向量余弦相似度与MMR多样性重排序。`;
+    }
+    return `在「${recommended.category}」类别的384维语义向量空间中具有极高的概念亲和力。`;
+  }
+
+  if (lang === 'ko') {
+    if (target.category !== recommended.category) {
+      return `교차 카테고리 추천 (${target.category} → ${recommended.category}): 384차원 벡터 유사도 및 MMR 다양성 보너스 기반.`;
+    }
+    return `'${recommended.category}' 카테고리의 384차원 잠재 의미 공간에서 높은 콘텐츠 친화도를 보입니다.`;
+  }
+
+  if (lang === 'en' || lang === 'es' || lang === 'de' || lang === 'fr') {
+    if (
+      /(space|interstellar|dune|cosmos|black hole|sci-fi|universe)/.test(tText) &&
+      /(space|interstellar|dune|cosmos|black hole|sci-fi|time|nolan)/.test(rText)
+    ) {
+      return 'Both works explore relativistic time, cosmic scale, and deep scientific discovery across the universe.';
+    }
+    if (
+      /(cyberpunk|matrix|simulation|ai|neural|neon|robot|stray)/.test(tText) &&
+      /(cyberpunk|matrix|simulation|ai|neural|neon|robot|stray)/.test(rText)
+    ) {
+      return 'Connected by cyberpunk aesthetics, artificial intelligence themes, and simulated reality concepts.';
+    }
+    if (
+      /(python|rust|code|database|programming|laptop|keyboard|developer)/.test(tText) &&
+      /(python|rust|code|database|programming|laptop|keyboard|developer)/.test(rText)
+    ) {
+      return 'Unified engineering ecosystem: high-performance developer infrastructure and core software algorithms.';
+    }
+    if (target.category !== recommended.category) {
+      return `Cross-category semantic discovery (${target.category} → ${recommended.category}) with high 384-d cosine affinity and MMR novelty bonus.`;
+    }
+    return `High semantic affinity in the 384-dimensional latent feature space within "${recommended.category}".`;
+  }
 
   if (
     (tText.includes('космос') || tText.includes('интерстеллар') || tText.includes('дюна')) &&
@@ -342,9 +467,6 @@ export function generateSemanticExplanation(
   return `Высокое семантическое сходство в 384-мерном пространстве латентных признаков категории «${recommended.category}».`;
 }
 
-/**
- * Computes embeddings for all catalog items using the active embedder or local 384-d E5 fallback
- */
 export async function computeCatalogEmbeddingsWithModel(
   catalog: CatalogItem[],
   customEmbedder: EmbedderPipeline | null,
@@ -393,9 +515,6 @@ export async function computeCatalogEmbeddingsWithModel(
   return map;
 }
 
-/**
- * Builds symmetric similarity matrix
- */
 export function buildCatalogSimilarityMatrix(
   catalog: CatalogItem[],
   embeddings: Map<string, Float32Array>
@@ -420,9 +539,6 @@ export function buildCatalogSimilarityMatrix(
   return matrix;
 }
 
-/**
- * Cached HNSW & BM25 Hybrid Index for sub-millisecond retrieval.
- */
 let cachedIndices: {
   catalogLength: number;
   firstId: string;
@@ -474,12 +590,6 @@ export function getOrBuildCatalogHNSWIndex(
   return getOrBuildCatalogIndices(catalog, embeddings, useQuantization).hnsw;
 }
 
-/**
- * Executes Hybrid Search (Dense HNSW + Sparse BM25) with adjustable alpha weighting.
- * alpha = 1.0 -> Pure Dense Semantic HNSW
- * alpha = 0.0 -> Pure Lexical BM25
- * 0 < alpha < 1 -> Convex combination + Reciprocal Rank Fusion
- */
 export function executeHybridCatalogSearch(
   query: string,
   queryVec: Float32Array,
@@ -494,7 +604,6 @@ export function executeHybridCatalogSearch(
   const { hnsw, bm25 } = getOrBuildCatalogIndices(catalog, embeddings);
   const catalogMap = new Map<string, CatalogItem>(catalog.map((c) => [String(c.id), c]));
 
-  // 1. Dense HNSW retrieval (or full scan when catalog < 100 to get exact dense scores for every item)
   const denseScores = new Map<string, number>();
   if (catalog.length >= 400) {
     const annHits = hnsw.search(queryVec, Math.min(catalog.length, Math.max(limit * 4, 60)), 64);
@@ -510,7 +619,6 @@ export function executeHybridCatalogSearch(
     }
   }
 
-  // 2. Sparse BM25 retrieval
   const bm25RawHits = bm25.search(trimmed, Math.max(limit * 4, 50));
   const bm25Scores = new Map<string, number>();
   let maxBm25 = 0;
@@ -522,11 +630,12 @@ export function executeHybridCatalogSearch(
     bm25Scores.set(String(h.id), normScore);
   }
 
-  // 3. Convex + RRF Fusion across candidate union
   const candidateIds = new Set<string>([
     ...denseScores.keys(),
     ...bm25Scores.keys(),
   ]);
+
+  const queryLang = detectTextLanguage(trimmed);
 
   const results: HybridSearchHit[] = [];
   for (const id of candidateIds) {
@@ -536,7 +645,6 @@ export function executeHybridCatalogSearch(
     const dScore = denseScores.get(id) ?? 0;
     const sScore = bm25Scores.get(id) ?? 0;
 
-    // If pure BM25 (alpha === 0), filter out items with 0 BM25 score
     if (alpha === 0 && sScore === 0) continue;
 
     const fusedScore = alpha * dScore + (1 - alpha) * sScore;
@@ -544,18 +652,47 @@ export function executeHybridCatalogSearch(
     if (sScore === 0 || alpha >= 0.99) source = 'dense';
     else if (dScore < 0.05 || alpha <= 0.01) source = 'sparse';
 
+    const itemLang = detectTextLanguage(`${item.title} ${item.description}`);
+    const activeLang = queryLang === 'ja' || itemLang === 'ja' ? 'ja' : queryLang === 'zh' || itemLang === 'zh' ? 'zh' : queryLang;
+
+    let whyRecommended: string;
+    if (activeLang === 'ja') {
+      whyRecommended =
+        source === 'hybrid'
+          ? `ハイブリッドRRF一致：384次元ベクトル ${(dScore * 100).toFixed(0)}% + BM25語彙 ${(sScore * 100).toFixed(0)}%`
+          : source === 'dense'
+          ? `384次元セマンティックベクトル一致 (${(dScore * 100).toFixed(0)}%)`
+          : `BM25 Okapi キーワード一致 (${(sScore * 100).toFixed(0)}%)`;
+    } else if (activeLang === 'zh') {
+      whyRecommended =
+        source === 'hybrid'
+          ? `混合RRF检索：384维稠密向量 ${(dScore * 100).toFixed(0)}% + BM25词汇 ${(sScore * 100).toFixed(0)}%`
+          : source === 'dense'
+          ? `384维语义向量匹配 (${(dScore * 100).toFixed(0)}%)`
+          : `BM25 Okapi 关键词匹配 (${(sScore * 100).toFixed(0)}%)`;
+    } else if (activeLang === 'en' || activeLang === 'es' || activeLang === 'de' || activeLang === 'fr') {
+      whyRecommended =
+        source === 'hybrid'
+          ? `Hybrid RRF Match: Dense ${(dScore * 100).toFixed(0)}% + BM25 ${(sScore * 100).toFixed(0)}%`
+          : source === 'dense'
+          ? `Semantic 384-d Vector Match (${(dScore * 100).toFixed(0)}%)`
+          : `Lexical BM25 Okapi Match (${(sScore * 100).toFixed(0)}%)`;
+    } else {
+      whyRecommended =
+        source === 'hybrid'
+          ? `Гибридный RRF матчинг: Dense ${(dScore * 100).toFixed(0)}% + BM25 ${(sScore * 100).toFixed(0)}%`
+          : source === 'dense'
+          ? `Семантический 384-d векторный матчинг (${(dScore * 100).toFixed(0)}%)`
+          : `Лексическое совпадение BM25 Okapi (${(sScore * 100).toFixed(0)}%)`;
+    }
+
     results.push({
       item,
       fusedScore,
       denseScore: dScore,
       bm25Score: sScore,
       source,
-      whyRecommended:
-        source === 'hybrid'
-          ? `Гибридный RRF матчинг: Dense ${(dScore * 100).toFixed(0)}% + BM25 ${(sScore * 100).toFixed(0)}%`
-          : source === 'dense'
-          ? `Семантический 384-d векторный матчинг (${(dScore * 100).toFixed(0)}%)`
-          : `Лексическое совпадение BM25 Okapi (${(sScore * 100).toFixed(0)}%)`,
+      whyRecommended,
     });
   }
 
@@ -563,10 +700,6 @@ export function executeHybridCatalogSearch(
   return results.slice(0, limit);
 }
 
-/**
- * Item-to-Item recommendations with rich explanations.
- * Automatically delegates to HNSW ANN graph retrieval for catalogs larger than 1,000 items.
- */
 export function getRecommendationsForItem(
   itemId: string | number,
   catalog: CatalogItem[],
@@ -615,10 +748,6 @@ export function getRecommendationsForItem(
   return recs;
 }
 
-/**
- * Semantic query search (query: prefix for E5).
- * Automatically delegates to HNSW logarithmic retrieval when catalog has 1000+ items.
- */
 export async function searchCatalogWithModel(
   query: string,
   catalog: CatalogItem[],
@@ -674,9 +803,6 @@ export async function searchCatalogWithModel(
   return scores.slice(0, limit);
 }
 
-/**
- * Simulates traditional keyword-matching search to contrast with Eidos AI
- */
 export function simulateKeywordSearch(
   query: string,
   catalog: CatalogItem[]
@@ -684,8 +810,8 @@ export function simulateKeywordSearch(
   if (!query.trim()) return [];
   const queryWords = query
     .toLowerCase()
-    .split(/[\s,_\-—"«»'().:;!?]+/)
-    .filter((w) => w.length >= 3);
+    .split(/[\s,_\-—"«»'().:;!?、。「」『』【】・]+/)
+    .filter((w) => w.length >= 2);
 
   const results: Array<{ item: CatalogItem; matchedWords: string[] }> = [];
 
@@ -701,9 +827,6 @@ export function simulateKeywordSearch(
   return results;
 }
 
-/**
- * Extracts top edges across catalog for map of meaning
- */
 export function extractTopCatalogEdges(
   catalog: CatalogItem[],
   matrix: Float32Array[],
@@ -734,9 +857,6 @@ export function extractTopCatalogEdges(
   return edges.slice(0, limit);
 }
 
-/**
- * Builds an in-memory HNSW approximate nearest neighbor index for the catalog.
- */
 export function buildCatalogHNSWIndex(
   catalog: CatalogItem[],
   embeddings: Map<string, Float32Array>,
@@ -760,9 +880,6 @@ export function buildCatalogHNSWIndex(
   return index;
 }
 
-/**
- * Searches top-K nearest items using the HNSW index in logarithmic time.
- */
 export function searchWithHNSWIndex(
   hnsw: HNSWIndex,
   queryVec: Float32Array,
@@ -788,9 +905,6 @@ export function searchWithHNSWIndex(
   return recs;
 }
 
-/**
- * Generates a synthetic catalog scaled to 1,000+ items with pre-computed 384-d embeddings
- */
 export function generateSyntheticScaledCatalog(targetCount = 1200): {
   catalog: CatalogItem[];
   embeddings: Map<string, Float32Array>;
@@ -854,9 +968,6 @@ export function generateSyntheticScaledCatalog(targetCount = 1200): {
   return { catalog, embeddings };
 }
 
-/**
- * Multi-query benchmark comparison: HNSW Phase 2 vs Linear Cosine Scan.
- */
 export function benchmarkHnswVsLinear(
   hnsw: HNSWIndex,
   catalog: CatalogItem[],
@@ -875,7 +986,6 @@ export function benchmarkHnswVsLinear(
   const sampleVectors = Array.from(embeddings.values());
   const numRuns = Math.max(1, iterations);
 
-  // 1. Time Linear Brute Force across numRuns queries
   const tLinearStart = performance.now();
   let linearTopK: { id: string; sim: number }[] = [];
   for (let r = 0; r < numRuns; r++) {
@@ -895,7 +1005,6 @@ export function benchmarkHnswVsLinear(
   const linearTotalMs = performance.now() - tLinearStart;
   const linearLatencyMs = Math.round((linearTotalMs / numRuns) * 1000) / 1000;
 
-  // 2. Time HNSW ANN Retrieval across numRuns queries
   const tHnswStart = performance.now();
   let hnswTopK: { id: string; score: number }[] = [];
   for (let r = 0; r < numRuns; r++) {
@@ -908,7 +1017,6 @@ export function benchmarkHnswVsLinear(
   const hnswTotalMs = performance.now() - tHnswStart;
   const hnswLatencyMs = Math.round((hnswTotalMs / numRuns) * 1000) / 1000;
 
-  // 3. Compute Recall@K overlap on first reference query
   const exactSet = new Set(linearTopK.map((r) => r.id));
   let hits = 0;
   for (const h of hnswTopK) {
