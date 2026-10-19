@@ -1,8 +1,8 @@
-# Product Hunt Launch Kit: EIDOS RecSys
+# Product Hunt Launch Kit: kostra44SIP RecSys
 
-**Product Name:** EIDOS  
+**Product Name:** kostra44SIP  
 **Tagline:** Semantic recommendation & hybrid vector search engine for developers  
-**Repository:** https://github.com/ppiiyo/eidos  
+**Repository:** https://github.com/ppiiyo/kostra44SIP  
 **Pricing:** 100% Free & Open Source (MIT)  
 
 ---
@@ -34,7 +34,7 @@ Open-source RecSys engine combining in-browser WASM embeddings, HNSW vector sear
 - 🎰 **Online Contextual Bandits:** Real-time LinUCB and Thompson Sampling algorithms to automatically explore emerging trends and maximize CTR.
 - 📊 **Built-In Statistical A/B Testing:** Automatic user bucketing and live two-proportion hypothesis Z-testing with conversion attribution.
 - 🐳 **Turnkey Docker Compose:** Microservice, Redis cache, Prometheus metrics (`/metrics`), and pre-configured Grafana dashboards in one command.
-- 🐍 **Zero-Dependency Python SDK:** Idiomatic `pip install eidos-client` for seamless integration into data science pipelines.
+- 🐍 **Zero-Dependency Python SDK:** Idiomatic `pip install kostra44sip-client` for seamless integration into data science pipelines.
 
 ---
 
@@ -42,7 +42,7 @@ Open-source RecSys engine combining in-browser WASM embeddings, HNSW vector sear
 
 > Hey Product Hunt! 👋
 > 
-> I'm excited to share **EIDOS** — an open-source semantic recommendation and search platform built for engineers who want modern AI recommendations without spinning up an enterprise data science cluster.
+> I'm excited to share **kostra44SIP** — an open-source semantic recommendation and search platform built for engineers who want modern AI recommendations without spinning up an enterprise data science cluster.
 > 
 > ### The Backstory
 > Building high-performing recommendations usually forces you into a dilemma:
@@ -56,12 +56,11 @@ Open-source RecSys engine combining in-browser WASM embeddings, HNSW vector sear
 > - **HNSW Phase 2:** Flat Int32Array neighbor tables and Binary Heap searchLayer for sub-millisecond ANN search.
 > - **BM25 Hybrid Fusion:** Best of both worlds — exact SKU/keyword matching + semantic understanding.
 > - **Explainability:** Real-time feature attribution explaining *why* an item was suggested.
-> - **Ready-to-Deploy:** Python SDK (`pip install eidos-client`), npm packages (`@eidos/core`, `@eidos/sdk`), and a 1-click Docker Compose stack with Prometheus & Grafana.
+> - **Ready-to-Deploy:** Python SDK (`pip install kostra44sip-client`), npm packages (`@kostra44sip/core`, `@kostra44sip/sdk`), and a 1-click Docker Compose stack with Prometheus & Grafana.
 > 
-> We're 100% open-source under MIT! Please check out the live demo, give it a spin, and let us know what features you'd like to see next.
+> We're 100% open-source under MIT! Give it a spin locally or via Docker, and let us know what features you'd like to see next.
 > 
-> 🔗 GitHub: https://github.com/ppiiyo/eidos  
-> 💻 Live Interactive Workspace: https://ais-dev-bcwwhgcnb7u65y7upx2x4y-206963034813.europe-west1.run.app
+> 🔗 GitHub: https://github.com/ppiiyo/kostra44SIP
 
 ---
 

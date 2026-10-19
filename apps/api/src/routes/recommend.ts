@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { calculateCategoryEntropy, calculateMMRScore, cosineSimilarity, SecurityGuardrails } from '@eidos/core';
+import { calculateCategoryEntropy, calculateMMRScore, cosineSimilarity, SecurityGuardrails } from '@kostra44sip/core';
 import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 

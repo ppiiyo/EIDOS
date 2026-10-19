@@ -1,6 +1,6 @@
-# EIDOS Benchmarks & Evaluation Methodology
+# kostra44SIP Benchmarks & Evaluation Methodology
 
-This document outlines the evaluation methodology, computational benchmarks, and retrieval quality metrics for the EIDOS Recommender system.
+This document outlines the evaluation methodology, computational benchmarks, and retrieval quality metrics for the kostra44SIP Recommender system.
 
 ---
 
@@ -51,14 +51,14 @@ Comparison of sentence transformer models evaluated for retrieval accuracy, memo
 
 Metrics calculated on a curated semantic validation set of 200 item pairs with human-labeled relatedness:
 
-| Metric | Random Baseline | Category / Popularity Baseline | EIDOS (Cosine + MMR) | Expected Impact in Production |
+| Metric | Random Baseline | Category / Popularity Baseline | kostra44SIP (Cosine + MMR) | Expected Impact in Production |
 | :--- | :--- | :--- | :--- | :--- |
 | **Hit Rate @ 5** | 4.8% | 38.2% | 82.4% | Significant reduction in zero-result states |
 | **MRR (Mean Reciprocal Rank)** | 0.031 | 0.245 | 0.612 | Higher concentration of relevant items at position #1 |
 | **Catalog Coverage** | 98.2% | 21.0% (cold items starved) | 88.5% | Eliminates cold-start item starvation |
 | **Category Diversity Entropy** | 2.91 | 0.42 (homogeneous) | 1.84 (balanced) | Prevents narrow recommendation bubbles |
 
-*Note on conversion claims:* Conversion and CTR gains depend strictly on merchant product catalog quality, traffic quality, and UI placement. EIDOS does not publish speculative CTR multipliers without verified A/B telemetry logs from a specific production environment.
+*Note on conversion claims:* Conversion and CTR gains depend strictly on merchant product catalog quality, traffic quality, and UI placement. kostra44SIP does not publish speculative CTR multipliers without verified A/B telemetry logs from a specific production environment.
 
 ---
 

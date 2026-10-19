@@ -1,6 +1,6 @@
-# Contributing to EIDOS
+# Contributing to kostra44SIP
 
-Thank you for your interest in contributing to EIDOS. We welcome contributions from developers, researchers, and technical writers.
+Thank you for your interest in contributing to kostra44SIP. We welcome contributions from developers, researchers, and technical writers.
 
 ---
 
@@ -14,8 +14,8 @@ All contributors and maintainers are expected to follow our [Code of Conduct](./
 
 1. Fork and clone the repository:
    ```bash
-   git clone https://github.com/ppiiyo/eidos.git
-   cd eidos
+   git clone https://github.com/ppiiyo/kostra44SIP.git
+   cd kostra44sip
    ```
 2. Install dependencies:
    ```bash

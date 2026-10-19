@@ -1,4 +1,4 @@
-# EIDOS Project Roadmap & Architectural Vision
+# kostra44SIP Project Roadmap & Architectural Vision
 
 ---
 
@@ -8,8 +8,8 @@
 - [x] Monorepo architecture with pnpm workspaces and Turborepo
 - [x] In-browser client-side ML embedding inference (Transformers.js / WASM)
 - [x] Fastify REST API microservice with constant-time Bearer token auth, rate limiting, and Zod validation
-- [x] Standalone mathematical core package (`@eidos/core`) with L2 cosine similarity & MMR
-- [x] Client SDK (`@eidos/sdk`) for isomorphic TypeScript and Node.js
+- [x] Standalone mathematical core package (`@kostra44sip/core`) with L2 cosine similarity & MMR
+- [x] Client SDK (`@kostra44sip/sdk`) for isomorphic TypeScript and Node.js
 - [x] Comprehensive documentation suite with benchmarks and integration guides
 
 ### Adaptive Intelligence Layer (AIL)

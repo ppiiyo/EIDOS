@@ -11,7 +11,7 @@ export class ConversationalCatalogAgent {
   private dialogueHistory: AgentDialogueMessage[] = [];
 
   constructor(
-    private systemPrompt: string = 'Ты — интеллектуальный EIDOS ассистент по подбору товаров и семантическому поиску.'
+    private systemPrompt: string = 'Ты — интеллектуальный kostra44SIP ассистент по подбору товаров и семантическому поиску.'
   ) {
     this.dialogueHistory.push({
       role: 'system',

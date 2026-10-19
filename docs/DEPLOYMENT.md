@@ -1,6 +1,6 @@
-# EIDOS Deployment Guide
+# kostra44SIP Deployment Guide
 
-This guide covers deploying EIDOS across development, containerized environments, and cloud infrastructure.
+This guide covers deploying kostra44SIP across development, containerized environments, and cloud infrastructure.
 
 ---
 
@@ -12,8 +12,8 @@ This guide covers deploying EIDOS across development, containerized environments
 
 ```bash
 # Clone the repository
-git clone https://github.com/ppiiyo/eidos.git
-cd eidos
+git clone https://github.com/ppiiyo/kostra44SIP.git
+cd kostra44sip
 
 # Install monorepo dependencies
 pnpm install
@@ -32,15 +32,15 @@ A lightweight production Dockerfile is included for container orchestration:
 
 ```bash
 # Build the API image
-docker build -t eidos-api -f apps/api/Dockerfile .
+docker build -t kostra44sip-api -f apps/api/Dockerfile .
 
 # Run the container with custom port and API key
 docker run -d \
   -p 8080:8080 \
   -e PORT=8080 \
-  -e EIDOS_API_KEY=your_production_secret_key \
-  --name eidos-service \
-  eidos-api
+  -e KOSTRA44SIP_API_KEY=your_production_secret_key \
+  --name kostra44sip-service \
+  kostra44sip-api
 ```
 
 ---
@@ -51,7 +51,7 @@ docker run -d \
 
 ```bash
 # Deploy landing & demo
-cd apps/demo
+cd apps/workspace
 vercel --prod
 ```
 
@@ -64,7 +64,7 @@ Create a `fly.toml` or link via Railway CLI:
 ```bash
 # Fly.io deployment
 fly launch --dockerfile apps/api/Dockerfile
-fly secrets set EIDOS_API_KEY=prod_sk_live_12345
+fly secrets set KOSTRA44SIP_API_KEY=prod_sk_live_12345
 fly deploy
 ```
 
@@ -76,7 +76,7 @@ fly deploy
 | :--- | :--- | :--- | :--- |
 | `PORT` | `8080` | No | Internal port for Fastify server |
 | `HOST` | `0.0.0.0` | No | Interface binding address |
-| `EIDOS_API_KEY` | None | Yes in production | Secret token required for Bearer authentication |
+| `KOSTRA44SIP_API_KEY` | None | Yes in production | Secret token required for Bearer authentication |
 | `RATE_LIMIT_MAX`| `1200` | No | Max requests permitted per IP per minute |
 | `VECTOR_STORE` | `memory` | No | Vector store adapter (`memory` or `qdrant`) |
 | `QDRANT_URL` | None | No | Connection string if using Qdrant |

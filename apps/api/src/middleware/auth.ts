@@ -16,7 +16,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const apiKeyHeader = (request.headers['x-api-key'] as string) || '';
   const authHeader = request.headers.authorization || '';
-  const configuredKey = process.env.EIDOS_API_KEY || 'test-key';
+  const configuredKey = process.env.KOSTRA44SIP_API_KEY || 'test-key';
 
   let token = '';
   if (apiKeyHeader) {
@@ -34,7 +34,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return;
   }
 
-  const validKeys = [configuredKey, 'eidos_dev_key', 'test-key'];
+  const validKeys = [configuredKey, 'kostra44sip_dev_key', 'test-key'];
   const isValid = validKeys.some((k) => timingSafeEqual(token, k));
 
   if (process.env.NODE_ENV !== 'test' && !isValid) {

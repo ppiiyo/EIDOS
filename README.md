@@ -1,21 +1,20 @@
-# EIDOS — High-Performance Semantic Vector Recommender
+# kostra44SIP — High-Performance Semantic Vector Recommender
 
 <div align="center">
 
-[![CI](https://github.com/ppiiyo/eidos/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiiyo/eidos/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/Coverage-%3E80%25-brightgreen.svg)](https://github.com/ppiiyo/eidos)
+[![CI](https://github.com/ppiiyo/kostra44SIP/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiiyo/kostra44SIP/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/Coverage-%3E80%25-brightgreen.svg)](https://github.com/ppiiyo/kostra44SIP)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![pnpm](https://img.shields.io/badge/pnpm-9.x-F69220?logo=pnpm&logoColor=white)](https://pnpm.io)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_EIDOS-2563EB?style=for-the-badge&logo=vercel)](https://eidos.dev)
 
 <br />
 
 **Real-Time Semantic Affinity Engine for Marketplaces, Digital Libraries & Streaming Platforms.**  
 Eliminates cold-start item starvation via 384-dimensional dense vector embeddings and Shannon entropy diversity re-ranking. Zero external cloud lock-in. 100% self-hostable.
 
-[Live Demo](https://eidos-demo.vercel.app) • [Quickstart Guide](./docs/QUICKSTART.md) • [REST API Reference](./docs/API.md) • [Architecture](./docs/ARCHITECTURE.md) • [Benchmarks](./docs/BENCHMARKS.md)
+[Quickstart Guide](./docs/QUICKSTART.md) • [REST API Reference](./docs/API.md) • [Architecture](./docs/ARCHITECTURE.md) • [Benchmarks](./docs/BENCHMARKS.md)
 
 </div>
 
@@ -27,7 +26,7 @@ Eliminates cold-start item starvation via 384-dimensional dense vector embedding
 <summary><b>English (Default)</b></summary>
 
 ### Overview
-EIDOS is an open-source, production-grade semantic recommendation and vector search engine. Rather than relying on historical transaction logs, user clicks, or brittle lexical keyword matching, EIDOS computes conceptual affinities in 384-dimensional vector space using transformer models (`all-MiniLM-L6-v2`).
+kostra44SIP is an open-source, production-grade semantic recommendation and vector search engine. Rather than relying on historical transaction logs, user clicks, or brittle lexical keyword matching, kostra44SIP computes conceptual affinities in 384-dimensional vector space using transformer models (`all-MiniLM-L6-v2`).
 
 * **Cold-Start Elimination:** New products, articles, or songs are instantly indexed and discoverable upon ingestion.
 * **HNSW ANN Scaling (1,000+ items):** Phase 2 Hierarchical Navigable Small World index with flat `Int32Array` friends and binary heap priority queues, scaling sub-millisecond retrieval on large-scale catalogs.
@@ -44,7 +43,7 @@ EIDOS is an open-source, production-grade semantic recommendation and vector sea
 <summary><b>Русский</b></summary>
 
 ### Обзор
-EIDOS — высокопроизводительный семантический рекомендательный движок и векторный поисковик с открытым исходным кодом для маркетплейсов, медиаплатформ и каталогов знаний. Вместо анализа истории кликов или подбора ключевых слов, EIDOS вычисляет концептуальное сходство объектов в 384-мерном векторном пространстве с помощью моделей-трансформеров (`all-MiniLM-L6-v2` / `multilingual-e5-small`).
+kostra44SIP — высокопроизводительный семантический рекомендательный движок и векторный поисковик с открытым исходным кодом для маркетплейсов, медиаплатформ и каталогов знаний. Вместо анализа истории кликов или подбора ключевых слов, kostra44SIP вычисляет концептуальное сходство объектов в 384-мерном векторном пространстве с помощью моделей-трансформеров (`all-MiniLM-L6-v2` / `multilingual-e5-small`).
 
 * **Ликвидация холодного старта:** Новые товары, статьи или треки мгновенно индексируются и выдаются в рекомендациях с первой секунды.
 * **Масштабирование HNSW (1,000+ товаров):** HNSW Phase 2 с плоскими `Int32Array` массивами связей и бинарной кучей в searchLayer, обеспечивающий субмиллисекундный поиск ближайших соседей на масштабных каталогах.
@@ -61,7 +60,7 @@ EIDOS — высокопроизводительный семантически�
 <summary><b>中文</b></summary>
 
 ### 概述
-EIDOS 是一款面向电子商务、流媒体和知识库的高性能开源语义推荐与搜索系统。与传统的协同过滤或关键字匹配不同，EIDOS 利用转换器模型（`all-MiniLM-L6-v2`）在 384 维密集向量空间中计算语义亲和力。
+kostra44SIP 是一款面向电子商务、流媒体和知识库的高性能开源语义推荐与搜索系统。与传统的协同过滤或关键字匹配不同，kostra44SIP 利用转换器模型（`all-MiniLM-L6-v2`）在 384 维密集向量空间中计算语义亲和力。
 
 * **彻底解决冷启动问题：** 新上架的商品、文章或媒体资源在录入瞬间即可通过向量索引被推荐。
 * **双运行模式：** 支持基于 WebAssembly（Transformers.js）的纯前端浏览器端推理，以及容器化的高性能 Fastify 后端服务。
@@ -75,7 +74,7 @@ EIDOS 是一款面向电子商务、流媒体和知识库的高性能开源语�
 ## Interactive Interface Preview
 
 ```text
-┌─────────────────────────────────────────────── EIDOS Semantic Workspace ───────────────────────────────────────────────┐
+┌─────────────────────────────────────────────── kostra44SIP Semantic Workspace ───────────────────────────────────────────────┐
 │                                                                                                                        │
 │  Product Catalog (100+ items)                 Semantic Affinity Matches (Top 5)               Semantic Topology Graph  │
 │  ┌──────────────────────────────────────┐     ┌───────────────────────────────────────┐       ┌──────────────────────┐ │
@@ -95,7 +94,7 @@ EIDOS 是一款面向电子商务、流媒体和知识库的高性能开源语�
 
 ```bash
 # 1. Clone repository and install dependencies
-git clone https://github.com/ppiiyo/eidos.git && cd eidos && pnpm install
+git clone https://github.com/ppiiyo/kostra44SIP.git && cd kostra44sip && pnpm install
 
 # 2. Run local development environment
 pnpm dev
@@ -169,7 +168,7 @@ Benchmarked on **AMD EPYC 7763** (2 vCPU, 4GB RAM, Linux x86_64, Node.js 20):
 
 ## Paradigm Comparison
 
-| Capability | Collaborative Filtering | Lexical Search (BM25 / Elasticsearch) | EIDOS Semantic Engine |
+| Capability | Collaborative Filtering | Lexical Search (BM25 / Elasticsearch) | kostra44SIP Semantic Engine |
 |:-----------|:------------------------|:--------------------------------------|:----------------------|
 | **Cold-Start Handling** | Fails (requires click history) | Partial (matches keywords only) | Instant (embeddings at creation) |
 | **Vocabulary Mismatch** | Not addressed | High failure on synonyms | Resolved in dense vector space |
@@ -186,7 +185,7 @@ Benchmarked on **AMD EPYC 7763** (2 vCPU, 4GB RAM, Linux x86_64, Node.js 20):
 .
 ├── apps/
 │   ├── api/             # Fastify REST microservice (port 8080)
-│   ├── demo/            # Vite + WebAssembly in-browser demo
+│   ├── workspace/       # Vite + WebAssembly RecSys workspace
 │   └── landing/         # Next.js 14 documentation & showcase
 ├── packages/
 │   ├── core/            # Vector math, Cosine, MMR, Shannon entropy
@@ -205,7 +204,7 @@ Benchmarked on **AMD EPYC 7763** (2 vCPU, 4GB RAM, Linux x86_64, Node.js 20):
 ### 1. TypeScript Core Library
 
 ```typescript
-import { cosineSimilarity, normalizeVector, calculateMMRScore } from '@eidos/core';
+import { cosineSimilarity, normalizeVector, calculateMMRScore } from '@kostra44sip/core';
 
 // Compute affinity between two 384-dimensional embeddings
 const vecA = normalizeVector(new Float32Array([0.1, 0.4, 0.85]));
@@ -221,11 +220,11 @@ const mmr = calculateMMRScore(similarity, 0.45, 0.7);
 ### 2. Client SDK Integration
 
 ```typescript
-import { EidosClient } from '@eidos/sdk';
+import { KostraClient } from '@kostra44sip/sdk';
 
-const client = new EidosClient({
+const client = new KostraClient({
   baseUrl: 'http://localhost:8080',
-  apiKey: process.env.EIDOS_API_KEY,
+  apiKey: process.env.KOSTRA44SIP_API_KEY,
   timeoutMs: 3000,
 });
 
@@ -252,14 +251,14 @@ curl -X POST http://localhost:8080/v1/recommend \
   }'
 ```
 
-### 4. Python SDK Integration (`eidos-sdk`)
+### 4. Python SDK Integration (`kostra44sip-sdk`)
 
 Designed for ML engineers and data scientists:
 
 ```python
-from eidos import EidosClient
+from kostra44sip import KostraClient
 
-client = EidosClient(base_url="http://localhost:8080", api_key="your_api_key")
+client = KostraClient(base_url="http://localhost:8080", api_key="your_api_key")
 
 # 1. Query hybrid recommendations
 recs = client.recommend(item_id="prod-001", limit=5, diversity_factor=0.7)
@@ -277,7 +276,7 @@ hits = client.search(
 
 ### 5. Hybrid Search: BM25 Lexical + HNSW Dense Vectors
 
-EIDOS exposes a production hybrid retrieval pipeline combining the exact keyword precision of BM25 with the conceptual semantic depth of 384-dimensional dense vectors:
+kostra44SIP exposes a production hybrid retrieval pipeline combining the exact keyword precision of BM25 with the conceptual semantic depth of 384-dimensional dense vectors:
 
 $$\text{Score}(q, d) = \alpha \cdot \text{DenseCosine}(q, d) + (1 - \alpha) \cdot \text{BM25}(q, d)$$
 
@@ -295,15 +294,15 @@ curl -X POST http://localhost:8080/v1/search \
 
 ### 6. Catalog Export & Zero-Inference Vector Batch Ingestion
 
-EIDOS allows serializing catalogs along with pre-computed vector embeddings to eliminate inference cold-starts during deployment or catalog re-indexing:
+kostra44SIP allows serializing catalogs along with pre-computed vector embeddings to eliminate inference cold-starts during deployment or catalog re-indexing:
 
-* **Export with Embeddings:** One-click JSON download (`eidos-vectors-bundle-v1`) packaging product attributes and 384-d normalized vectors.
+* **Export with Embeddings:** One-click JSON download (`kostra44sip-vectors-bundle-v1`) packaging product attributes and 384-d normalized vectors.
 * **Batch Ingestion:** Upload pre-computed vectors directly to bypass transformer forward-passes entirely (**0ms inference latency**), ready for sub-millisecond retrieval.
 
 ```json
 {
   "version": "3.0.0",
-  "format": "eidos-vectors-bundle-v1",
+  "format": "kostra44sip-vectors-bundle-v1",
   "totalItems": 1200,
   "embeddingDimension": 384,
   "items": [
@@ -327,7 +326,7 @@ Built-in interactive analytics dashboard powered by Recharts:
 
 ### 8. HNSW Phase 2 Scaling for Catalogs Larger Than 1,000 Items
 
-To deliver sub-millisecond retrieval for catalogs exceeding 1,000 items, EIDOS implements **Phase 2 HNSW**:
+To deliver sub-millisecond retrieval for catalogs exceeding 1,000 items, kostra44SIP implements **Phase 2 HNSW**:
 
 * **Flat `Int32Array` Graph Neighbors:** Replaces JavaScript object pointers with contiguous flat integer arrays (`friendsInt32`), reducing garbage collection spikes and CPU cache misses.
 * **Binary Heap Priority Queue:** $O(\log N)$ priority queue operations in `searchLayer` replacing $O(N)$ linear scans.
@@ -337,7 +336,7 @@ To deliver sub-millisecond retrieval for catalogs exceeding 1,000 items, EIDOS i
 | Method | 1,200 Items Latency | Recall@10 | Memory Overhead | Complexity |
 |:-------|:-------------------|:----------|:----------------|:-----------|
 | **Linear Cosine Scan** | 3.20 ms | 100% | None | $O(N \cdot d)$ |
-| **EIDOS HNSW Phase 2** | **0.38 ms (8.4x speedup)** | **95.2%** | ~1.4 MB | $O(\log N \cdot d)$ |
+| **kostra44SIP HNSW Phase 2** | **0.38 ms (8.4x speedup)** | **95.2%** | ~1.4 MB | $O(\log N \cdot d)$ |
 
 ---
 
@@ -355,7 +354,7 @@ To deliver sub-millisecond retrieval for catalogs exceeding 1,000 items, EIDOS i
 
 ## Adaptive Intelligence Layer (AIL)
 
-Опциональный слой поверх EIDOS Core. Включается через `AIL_ENABLED=true`.
+Опциональный слой поверх kostra44SIP Core. Включается через `AIL_ENABLED=true`.
 
 ### Что делает
 
@@ -468,7 +467,7 @@ pnpm test:unit --filter=adaptive
 
 ## 🪐 3D WebGL Vector Universe & Visual Engine
 
-EIDOS includes an enterprise-grade 3D vector space visualizer powered by Three.js:
+kostra44SIP includes an enterprise-grade 3D vector space visualizer powered by Three.js:
 
 * **3D Celestial Hypersphere:** Real-time projection of 384-dimensional dense embeddings onto a celestial sphere with ambient particle fog and glowing halos.
 * **HNSW Multi-Layer Stack ($L_0, L_1, L_2$):** Visual elevation hierarchy showing how navigable small-world graph search traverses from sparse highway layers to dense local base layers.
@@ -507,9 +506,9 @@ docker run -d \
   -p 8080:8080 \
   -e PORT=8080 \
   -e HOST=0.0.0.0 \
-  -e EIDOS_API_KEY=your_secret_production_key_min_32_chars \
-  --name eidos-service \
-  ghcr.io/ppiiyo/eidos-api:latest
+  -e KOSTRA44SIP_API_KEY=your_secret_production_key_min_32_chars \
+  --name kostra44sip-service \
+  ghcr.io/ppiiyo/kostra44sip-api:latest
 ```
 
 Verify health check:
@@ -519,25 +518,25 @@ curl http://localhost:8080/v1/health
 
 ### 2. Full Observability Stack with Docker Compose
 
-Run EIDOS together with Redis cache, Prometheus metrics, and Jaeger distributed tracing:
+Run kostra44SIP together with Redis cache, Prometheus metrics, and Jaeger distributed tracing:
 
 ```bash
 # Start all microservices in the background
 docker compose up -d
 
 # Check cluster logs
-docker compose logs -f eidos-api
+docker compose logs -f kostra44sip-api
 ```
 
 Services exposed:
-- **EIDOS API Server**: `http://localhost:8080` (OpenAPI Swagger UI at `/docs`, Prometheus metrics at `/metrics`)
+- **kostra44SIP API Server**: `http://localhost:8080` (OpenAPI Swagger UI at `/docs`, Prometheus metrics at `/metrics`)
 - **Prometheus Metrics**: `http://localhost:9090`
 - **Jaeger Traces UI**: `http://localhost:16686`
 
 ### 3. Build Container Image from Source
 
 ```bash
-docker build -t ghcr.io/ppiiyo/eidos-api:latest -f apps/api/Dockerfile .
+docker build -t ghcr.io/ppiiyo/kostra44sip-api:latest -f apps/api/Dockerfile .
 ```
 
 ---
@@ -573,4 +572,4 @@ pnpm test
 
 ## License
 
-EIDOS is licensed under the [MIT License](./LICENSE).
+kostra44SIP is licensed under the [MIT License](./LICENSE).

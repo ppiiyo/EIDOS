@@ -3,11 +3,11 @@ import React from 'react';
 export function FAQ() {
   const faqs = [
     {
-      q: 'How does EIDOS handle the cold-start problem for new items?',
-      a: 'Unlike collaborative filtering that requires purchase history, EIDOS generates dense vector embeddings immediately upon catalog ingestion. As soon as a product is saved, it is fully discoverable via semantic similarity and natural language search.',
+      q: 'How does kostra44SIP handle the cold-start problem for new items?',
+      a: 'Unlike collaborative filtering that requires purchase history, kostra44SIP generates dense vector embeddings immediately upon catalog ingestion. As soon as a product is saved, it is fully discoverable via semantic similarity and natural language search.',
     },
     {
-      q: 'Can EIDOS run entirely on the client without a backend server?',
+      q: 'Can kostra44SIP run entirely on the client without a backend server?',
       a: 'Yes. The demo application uses Transformers.js to execute all-MiniLM-L6-v2 directly inside the browser using WebAssembly and WebGL. Models are cached in the browser IndexedDB, eliminating repeated downloads.',
     },
     {
@@ -16,7 +16,7 @@ export function FAQ() {
     },
     {
       q: 'What are the hardware requirements for the REST API?',
-      a: 'For catalogs under 25,000 items, a single container with 1 vCPU and 1GB RAM is sufficient to maintain sub-25ms response times. For enterprise catalogs exceeding 1,000,000 items, EIDOS interfaces with Qdrant or Milvus HNSW clusters.',
+      a: 'For catalogs under 25,000 items, a single container with 1 vCPU and 1GB RAM is sufficient to maintain sub-25ms response times. For enterprise catalogs exceeding 1,000,000 items, kostra44SIP interfaces with Qdrant or Milvus HNSW clusters.',
     },
   ];
 

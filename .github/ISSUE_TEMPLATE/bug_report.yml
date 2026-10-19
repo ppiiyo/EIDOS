@@ -1,12 +1,12 @@
 name: 🐛 Bug Report
-description: Report a reproducible issue or unexpected behavior in EIDOS
+description: Report a reproducible issue or unexpected behavior in kostra44SIP
 title: '[Bug]: '
 labels: ['bug', 'triage']
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting an issue! Please verify you are running the latest version of EIDOS before filing.
+        Thank you for reporting an issue! Please verify you are running the latest version of kostra44SIP before filing.
   - type: textarea
     id: description
     attributes:
@@ -38,10 +38,10 @@ body:
     attributes:
       label: Affected Component
       options:
-        - Core Engine (@eidos/core)
-        - Fastify API Microservice (@eidos/api)
-        - Client SDK (@eidos/sdk)
-        - WebAssembly In-Browser Demo
+        - Core Engine (@kostra44sip/core)
+        - Fastify API Microservice (@kostra44sip/api)
+        - Client SDK (@kostra44sip/sdk)
+        - Web Workspace (@kostra44sip/workspace)
         - Adaptive Intelligence Layer (AIL)
     validations:
       required: true

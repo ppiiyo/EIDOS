@@ -1,4 +1,4 @@
-export interface EidosClientConfig {
+export interface KostraClientConfig {
   baseUrl: string;
   apiKey: string;
   timeoutMs?: number;

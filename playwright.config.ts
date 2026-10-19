@@ -11,12 +11,6 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npx vite apps/demo --port 5173 --host 127.0.0.1',
-      url: 'http://127.0.0.1:5173',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120000,
-    },
-    {
       command: 'npx vite --port 4173 --host 127.0.0.1',
       url: 'http://127.0.0.1:4173',
       reuseExistingServer: !process.env.CI,
@@ -24,11 +18,6 @@ export default defineConfig({
     },
   ],
   projects: [
-    {
-      name: 'demo-chromium',
-      testMatch: /demo\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5173' },
-    },
     {
       name: 'workspace-chromium',
       testMatch: /full-pipeline\.spec\.ts/,

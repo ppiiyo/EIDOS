@@ -1,13 +1,13 @@
-# EIDOS Python SDK
+# kostra44SIP Python SDK
 
-Official Python Client for the **EIDOS Semantic Recommendation Engine & Hybrid Vector Search** (`v3.0.0`).
+Official Python Client for the **kostra44SIP Semantic Recommendation Engine & Hybrid Vector Search** (`v3.0.0`).
 
 Zero external dependencies required (uses standard library out of the box).
 
 ## Installation
 
 ```bash
-pip install eidos-client
+pip install kostra44sip-client
 ```
 
 Or install locally from the monorepo:
@@ -20,10 +20,10 @@ pip install -e .
 ## Quick Start
 
 ```python
-from eidos import EidosClient
+from kostra44sip import KostraClient
 
 # Initialize client
-client = EidosClient(
+client = KostraClient(
     base_url="http://localhost:8080",
     api_key="your_production_api_key"
 )

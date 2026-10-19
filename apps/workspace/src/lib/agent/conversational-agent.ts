@@ -1,5 +1,5 @@
 /**
- * Rule-based Conversational Agent поверх @eidos/core.
+ * Rule-based Conversational Agent поверх @kostra44sip/core.
  * Без LLM. Использует реальный векторный поиск и векторный сдвиг.
  */
 import { CatalogItem } from '../../types';

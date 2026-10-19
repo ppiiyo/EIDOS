@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'EIDOS Dashboards'
+  - name: 'kostra44SIP Dashboards'
     orgId: 1
-    folder: 'EIDOS Production'
+    folder: 'kostra44SIP Production'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10

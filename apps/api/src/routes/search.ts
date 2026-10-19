@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { SecurityGuardrails } from '@eidos/core';
+import { SecurityGuardrails } from '@kostra44sip/core';
 import { authenticate } from '../middleware/auth';
 import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';

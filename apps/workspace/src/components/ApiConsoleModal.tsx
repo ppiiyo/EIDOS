@@ -83,7 +83,7 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
         ].slice(0, limit),
         metadata: {
           vector_dimensions: 64,
-          engine: 'EIDOS Semantic Core v3.2',
+          engine: 'kostra44SIP Semantic Core v3.2',
         },
       };
       setResponseOutput(JSON.stringify(res, null, 2));
@@ -119,7 +119,7 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
         ].slice(0, limit),
         metadata: {
           query_prefix: 'query: ',
-          engine: 'EIDOS Semantic Core v3.2',
+          engine: 'kostra44SIP Semantic Core v3.2',
         },
       };
       setResponseOutput(JSON.stringify(res, null, 2));
@@ -130,8 +130,8 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
   const getCodeSnippet = () => {
     if (selectedEndpoint === 'recommend') {
       if (langTab === 'curl') {
-        return `curl -X POST https://api.eidos.ai/v1/recommend \\
-  -H "Authorization: Bearer eidos_live_sk_8921f9" \\
+        return `curl -X POST https://api.kostra44sip.ai/v1/recommend \\
+  -H "Authorization: Bearer kostra44sip_live_sk_8921f9" \\
   -H "Content-Type: application/json" \\
   -d '{
     "item": "${selectedItemName}",
@@ -139,10 +139,10 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
   }'`;
       }
       if (langTab === 'js') {
-        return `const response = await fetch("https://api.eidos.ai/v1/recommend", {
+        return `const response = await fetch("https://api.kostra44sip.ai/v1/recommend", {
   method: "POST",
   headers: {
-    "Authorization": "Bearer eidos_live_sk_8921f9",
+    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
@@ -155,9 +155,9 @@ console.log(data.recommendations);`;
       }
       return `import requests
 
-url = "https://api.eidos.ai/v1/recommend"
+url = "https://api.kostra44sip.ai/v1/recommend"
 headers = {
-    "Authorization": "Bearer eidos_live_sk_8921f9",
+    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
     "Content-Type": "application/json"
 }
 payload = {
@@ -169,8 +169,8 @@ response = requests.post(url, json=payload, headers=headers)
 print(response.json())`;
     } else {
       if (langTab === 'curl') {
-        return `curl -X POST https://api.eidos.ai/v1/search \\
-  -H "Authorization: Bearer eidos_live_sk_8921f9" \\
+        return `curl -X POST https://api.kostra44sip.ai/v1/search \\
+  -H "Authorization: Bearer kostra44sip_live_sk_8921f9" \\
   -H "Content-Type: application/json" \\
   -d '{
     "query": "${searchQuery}",
@@ -178,10 +178,10 @@ print(response.json())`;
   }'`;
       }
       if (langTab === 'js') {
-        return `const response = await fetch("https://api.eidos.ai/v1/search", {
+        return `const response = await fetch("https://api.kostra44sip.ai/v1/search", {
   method: "POST",
   headers: {
-    "Authorization": "Bearer eidos_live_sk_8921f9",
+    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
@@ -194,9 +194,9 @@ console.log(data.matched_results);`;
       }
       return `import requests
 
-url = "https://api.eidos.ai/v1/search"
+url = "https://api.kostra44sip.ai/v1/search"
 headers = {
-    "Authorization": "Bearer eidos_live_sk_8921f9",
+    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
     "Content-Type": "application/json"
 }
 payload = {
@@ -226,7 +226,7 @@ print(response.json())`;
             </div>
             <div>
               <div className="font-extrabold text-sm text-[#e8e8f0] mono">
-                EIDOS REST API Console & Playground
+                kostra44SIP REST API Console & Playground
               </div>
               <div className="text-[11px] text-[#8a8aa3]">
                 «Рекомендательный API на основе смысла. Подключите за 5 минут».
@@ -381,7 +381,7 @@ print(response.json())`;
           <pre className="p-4 bg-[#0a0a10] border border-[#1e1e35] rounded-xl text-xs mono text-[#3ee89a] overflow-x-auto max-h-[220px] leading-relaxed">
             <code>
               {responseOutput ||
-                `// Нажмите «▶ Отправить запрос (Send)» выше для выполнения боевого REST-вызова\n{\n  "status": "ready",\n  "endpoint": "https://api.eidos.ai/v1/${selectedEndpoint}",\n  "message": "Waiting for request trigger..."\n}`}
+                `// Нажмите «▶ Отправить запрос (Send)» выше для выполнения боевого REST-вызова\n{\n  "status": "ready",\n  "endpoint": "https://api.kostra44sip.ai/v1/${selectedEndpoint}",\n  "message": "Waiting for request trigger..."\n}`}
             </code>
           </pre>
         </div>

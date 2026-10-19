@@ -5,7 +5,7 @@ import {
   WriteAheadLog,
   BM25Index,
   HybridSearch,
-} from '@eidos/core';
+} from '@kostra44sip/core';
 import { StoredItem } from '../types';
 
 export interface VectorStoreOptions {

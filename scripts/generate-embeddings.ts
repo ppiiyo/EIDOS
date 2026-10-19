@@ -83,14 +83,10 @@ async function main() {
   }
 
   fs.writeFileSync(catalogPath, JSON.stringify(items, null, 2), 'utf-8');
-  const demoPublicPath = path.resolve(process.cwd(), 'apps/demo/public/data/catalog.json');
-  if (fs.existsSync(path.dirname(demoPublicPath))) {
-    fs.writeFileSync(demoPublicPath, JSON.stringify(items, null, 2), 'utf-8');
-  }
 
   const duration = Date.now() - startTime;
   console.log(`Generated embeddings for ${updatedCount} items in ${duration}ms.`);
-  console.log(`Saved updated catalog to ${catalogPath} and ${demoPublicPath}`);
+  console.log(`Saved updated catalog to ${catalogPath}`);
 }
 
 main().catch(console.error);

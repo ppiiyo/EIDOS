@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete monorepo architecture powered by pnpm workspaces and Turborepo.
 - In-browser client-side ML embedding generation via `@xenova/transformers` (all-MiniLM-L6-v2 ONNX Web).
 - Production Fastify REST API (`apps/api`) with `/v1/recommend`, `/v1/search`, `/v1/catalog`, and `/v1/health`.
-- Mathematical foundation package (`@eidos/core`) including SIMD-ready cosine similarity, Shannon entropy, and MMR re-ranking.
-- Official client SDK (`@eidos/sdk`) for Node.js and TypeScript.
+- Mathematical foundation package (`@kostra44sip/core`) including SIMD-ready cosine similarity, Shannon entropy, and MMR re-ranking.
+- Official client SDK (`@kostra44sip/sdk`) for Node.js and TypeScript.
 - Comprehensive documentation suite with genuine reproducible benchmarks, RFC-standard API references, and architecture guides.
 - Automated CI workflow with type checking, linting, and unit tests.
 

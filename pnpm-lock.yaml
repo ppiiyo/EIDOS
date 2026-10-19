@@ -93,7 +93,7 @@ importers:
 
   apps/api:
     dependencies:
-      '@eidos/core':
+      '@kostra44sip/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@fastify/cors':
@@ -130,22 +130,6 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.3)(lightningcss@1.32.0)
-
-  apps/demo:
-    dependencies:
-      '@eidos/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@xenova/transformers':
-        specifier: ^2.17.2
-        version: 2.17.2
-    devDependencies:
-      typescript:
-        specifier: ~5.8.2
-        version: 5.8.3
-      vite:
-        specifier: ^6.2.3
-        version: 6.4.3(@types/node@22.20.3)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.13)(yaml@2.9.1)
 
   apps/landing:
     dependencies:
@@ -195,10 +179,10 @@ importers:
 
   apps/workspace:
     dependencies:
-      '@eidos/core':
+      '@kostra44sip/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@eidos/sdk':
+      '@kostra44sip/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       lucide-react:

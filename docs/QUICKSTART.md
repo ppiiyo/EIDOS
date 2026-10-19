@@ -1,6 +1,6 @@
-# EIDOS Quickstart Guide (5 Minutes)
+# kostra44SIP Quickstart Guide (5 Minutes)
 
-Get up and running with the EIDOS Semantic Vector Engine in under 5 minutes.
+Get up and running with the kostra44SIP Semantic Vector Engine in under 5 minutes.
 
 ---
 
@@ -10,13 +10,13 @@ Install the core TypeScript library in your project:
 
 ```bash
 # Using pnpm
-pnpm add @eidos/core
+pnpm add @kostra44sip/core
 
 # Using npm
-npm install @eidos/core
+npm install @kostra44sip/core
 
 # Using yarn
-yarn add @eidos/core
+yarn add @kostra44sip/core
 ```
 
 ---
@@ -24,7 +24,7 @@ yarn add @eidos/core
 ## 2. Basic Usage: Cosine Similarity & Normalization
 
 ```typescript
-import { cosineSimilarity, normalizeVector, calculateMMRScore } from '@eidos/core';
+import { cosineSimilarity, normalizeVector, calculateMMRScore } from '@kostra44sip/core';
 
 // 1. Define two embedding vectors (e.g. from an embedding model)
 const rawA = new Float32Array([0.25, 0.55, 0.78, 0.12]);
@@ -54,14 +54,14 @@ Clone the monorepo and start the browser workspace:
 
 ```bash
 # Clone the repository
-git clone https://github.com/ppiiyo/eidos.git
-cd eidos
+git clone https://github.com/ppiiyo/kostra44SIP.git
+cd kostra44sip
 
 # Install monorepo dependencies
 pnpm install
 
 # Launch Vite interactive demo
-pnpm --filter @eidos/demo dev
+pnpm --filter @kostra44sip/workspace dev
 ```
 
 Open `http://localhost:5173` in your browser to inspect real-time semantic graph topology and in-browser embeddings via WebAssembly.
@@ -70,10 +70,10 @@ Open `http://localhost:5173` in your browser to inspect real-time semantic graph
 
 ## 4. One-Liner Docker Deployment for the REST API
 
-Launch a self-contained EIDOS Fastify REST API instance:
+Launch a self-contained kostra44SIP Fastify REST API instance:
 
 ```bash
-docker run -d -p 8080:8080 -e EIDOS_API_KEY=test-key --name eidos-api ghcr.io/ppiiyo/eidos-api:latest
+docker run -d -p 8080:8080 -e KOSTRA44SIP_API_KEY=test-key --name kostra44sip-api ghcr.io/ppiiyo/kostra44sip-api:latest
 ```
 
 Verify service readiness:

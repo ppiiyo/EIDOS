@@ -35,7 +35,7 @@ const PRESET_FEEDS = [
     id: 'ecommerce_yml',
     title: 'Яндекс.Маркет (YML/XML фид)',
     category: 'E-commerce & Электроника',
-    url: 'https://cdn.eidos-engine.ai/feeds/sample_yandex_market.yml',
+    url: 'https://cdn.kostra44sip-engine.ai/feeds/sample_yandex_market.yml',
     itemsCount: 8,
     sample: [
       {
@@ -200,7 +200,7 @@ export const FeedImporterModal: React.FC<FeedImporterModalProps> = ({
   embeddings,
 }) => {
   const [activeTab, setActiveTab] = useState<'url' | 'presets' | 'raw' | 'vectors'>('presets');
-  const [feedUrl, setFeedUrl] = useState<string>('https://cdn.eidos-engine.ai/feeds/sample_yandex_market.yml');
+  const [feedUrl, setFeedUrl] = useState<string>('https://cdn.kostra44sip-engine.ai/feeds/sample_yandex_market.yml');
   const [rawText, setRawText] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [previewItems, setPreviewItems] = useState<CatalogItem[]>(PRESET_FEEDS[0].sample);

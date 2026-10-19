@@ -10,7 +10,7 @@ export class EnterpriseRBAC {
     // Seed default tenants for open-core and enterprise tiers
     this.registerTenant({
       tenantId: 'community-default',
-      name: 'EIDOS Community Edition',
+      name: 'kostra44SIP Community Edition',
       plan: 'community',
       apiKeyHash: 'hash-community-free',
       allowedScopes: ['read:recommend', 'search:catalog'],

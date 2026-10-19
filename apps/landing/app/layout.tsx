@@ -11,8 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'EIDOS — Semantic Recommender Engine',
-    template: '%s | EIDOS',
+    default: 'kostra44SIP — Semantic Recommender Engine',
+    template: '%s | kostra44SIP',
   },
   description: 'High-performance semantic recommendation and vector search engine for marketplaces, digital libraries & streaming platforms. Eliminates cold-start item starvation via 384-dimensional dense vector embeddings.',
   keywords: [
@@ -25,32 +25,32 @@ export const metadata: Metadata = {
     'WASM',
     'in-browser',
   ],
-  authors: [{ name: 'EIDOS Team' }],
-  creator: 'EIDOS Team',
-  publisher: 'EIDOS',
-  metadataBase: new URL('https://eidos.dev'),
+  authors: [{ name: 'kostra44SIP Team' }],
+  creator: 'kostra44SIP Team',
+  publisher: 'kostra44SIP',
+  metadataBase: new URL('https://kostra44sip.dev'),
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://eidos.dev',
-    siteName: 'EIDOS',
-    title: 'EIDOS — Real-Time Semantic Affinity Engine',
+    url: 'https://kostra44sip.dev',
+    siteName: 'kostra44SIP',
+    title: 'kostra44SIP — Real-Time Semantic Affinity Engine',
     description: 'Eliminates cold-start item starvation via 384-dimensional dense vector embeddings and Shannon entropy diversity re-ranking.',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'EIDOS — Semantic Recommender Engine',
+        alt: 'kostra44SIP — Semantic Recommender Engine',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'EIDOS — Semantic Recommender Engine',
+    title: 'kostra44SIP — Semantic Recommender Engine',
     description: 'High-performance semantic recommendation and vector search engine.',
     images: ['/og-image.png'],
-    creator: '@eidos_dev',
+    creator: '@kostra44sip_dev',
   },
   robots: {
     index: true,
@@ -64,7 +64,7 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: 'https://eidos.dev',
+    canonical: 'https://kostra44sip.dev',
   },
 };
 

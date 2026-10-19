@@ -55,7 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ active, onNavigate }) => (
         <path d="M6 12L18 6M6 12L18 18" stroke="#111827" strokeWidth="1.5"/>
       </svg>
       <span style={{ fontWeight: 700, fontSize: '0.9375rem', letterSpacing: '-.01em', color: '#111827' }}>
-        EIDOS
+        kostra44SIP
       </span>
       <span style={{
         marginLeft: 'auto',

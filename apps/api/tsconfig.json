@@ -8,7 +8,7 @@
     "esModuleInterop": true,
     "outDir": "./dist",
     "paths": {
-      "@eidos/core": ["../../packages/core/src/index.ts"]
+      "@kostra44sip/core": ["../../packages/core/src/index.ts"]
     }
   },
   "include": ["src"]

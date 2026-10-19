@@ -1,6 +1,6 @@
 import {
   CatalogItemInput,
-  EidosClientConfig,
+  KostraClientConfig,
   IngestResponse,
   RecommendationRequest,
   RecommendationResponse,
@@ -9,19 +9,19 @@ import {
 } from './types';
 
 /**
- * Official EIDOS Client for interacting with the EIDOS REST API.
+ * Official kostra44SIP Client for interacting with the kostra44SIP REST API.
  */
-export class EidosClient {
+export class KostraClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly timeoutMs: number;
 
-  constructor(config: EidosClientConfig) {
+  constructor(config: KostraClientConfig) {
     if (!config.baseUrl) {
-      throw new Error('EIDOS SDK error: baseUrl is required');
+      throw new Error('kostra44SIP SDK error: baseUrl is required');
     }
     if (!config.apiKey) {
-      throw new Error('EIDOS SDK error: apiKey is required');
+      throw new Error('kostra44SIP SDK error: apiKey is required');
     }
 
     this.baseUrl = config.baseUrl.replace(/\/+$/, '');
@@ -44,7 +44,7 @@ export class EidosClient {
   }
 
   /**
-   * Batch uploads items to the EIDOS semantic vector store.
+   * Batch uploads items to the kostra44SIP semantic vector store.
    */
   async ingestCatalog(items: CatalogItemInput[]): Promise<IngestResponse> {
     return this.post<IngestResponse>('/v1/catalog', { items });
@@ -69,7 +69,7 @@ export class EidosClient {
       });
 
       if (!response.ok) {
-        throw new Error(`EIDOS Health check failed: HTTP ${response.status}`);
+        throw new Error(`kostra44SIP Health check failed: HTTP ${response.status}`);
       }
 
       return (await response.json()) as { status: string; version: string; itemsCount: number };
@@ -103,7 +103,7 @@ export class EidosClient {
         } catch {
           // ignore parsing error
         }
-        throw new Error(`EIDOS API Error: ${errorMessage}`);
+        throw new Error(`kostra44SIP API Error: ${errorMessage}`);
       }
 
       return (await response.json()) as T;

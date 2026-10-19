@@ -47,14 +47,14 @@ export function Hero() {
         className="mt-10 flex flex-wrap justify-center gap-4"
       >
         <a
-          href="/demo"
+          href="/docs/QUICKSTART.md"
           className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition-colors shadow-lg shadow-cyan-500/20"
         >
-          Explore Live Demo
+          Quickstart Guide
           <ArrowRight className="w-4 h-4" />
         </a>
         <a
-          href="https://github.com/ppiiyo/eidos"
+          href="https://github.com/ppiiyo/kostra44SIP"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-medium text-sm transition-colors"
@@ -84,8 +84,8 @@ export function Hero() {
           </div>
         </div>
         <pre className="text-slate-300 leading-relaxed overflow-x-auto">
-          <code>{`$ curl -X POST https://api.eidos.dev/v1/recommend \\
-  -H "Authorization: Bearer eidos_live_sk94829a8f" \\
+          <code>{`$ curl -X POST https://api.kostra44sip.dev/v1/recommend \\
+  -H "Authorization: Bearer kostra44sip_live_sk94829a8f" \\
   -d '{"itemId": "prod-402", "limit": 2, "diversityFactor": 0.75}'
 
 {

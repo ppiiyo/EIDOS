@@ -27,7 +27,7 @@ import {
   exportConceptsToCsv,
   CsvExportOptions,
   ParsedCsvRow,
-} from '@eidos/core';
+} from '@kostra44sip/core';
 
 export type CsvModalTab = 'upload' | 'paste' | 'templates' | 'export';
 
@@ -233,10 +233,10 @@ export const CsvImporterModal: React.FC<CsvImporterModalProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `eidos_template_${domain}.csv`;
+    a.download = `kostra44sip_template_${domain}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    onShowToast(`Шаблон eidos_template_${domain}.csv скачан`, 'info');
+    onShowToast(`Шаблон kostra44sip_template_${domain}.csv скачан`, 'info');
   };
 
   const handleLoadSample = (domain: 'tech' | 'retail' | 'finance') => {
@@ -278,7 +278,7 @@ export const CsvImporterModal: React.FC<CsvImporterModalProps> = ({
       .toLowerCase()
       .replace(/[^a-z0-9а-яё]/gi, '_')
       .replace(/_+/g, '_');
-    const filename = `eidos_${cleanProjectName}_${dateStr}.${ext}`;
+    const filename = `kostra44sip_${cleanProjectName}_${dateStr}.${ext}`;
 
     const mime =
       exportDelimiter === '\t'

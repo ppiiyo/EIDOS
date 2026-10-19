@@ -12,7 +12,7 @@ function generateRandomVector(dim: number): Float32Array {
 
 function runBenchmarks() {
   console.log('===============================================================');
-  console.log(' EIDOS Production Vector Engine Benchmarks');
+  console.log(' kostra44SIP Production Vector Engine Benchmarks');
   console.log('===============================================================\n');
 
   const DIM = 384;

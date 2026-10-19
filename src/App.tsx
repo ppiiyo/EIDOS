@@ -27,9 +27,9 @@ import { ConversationalAgent } from './lib/agent/conversational-agent';
 import { trackEvent } from './lib/analytics/tracker';
 import { Sun, Moon, Terminal, FileSpreadsheet } from 'lucide-react';
 
-const STORAGE_CATALOG_KEY = 'eidos_catalog_v3';
-const STORAGE_VIEW_KEY = 'eidos_active_view_v3';
-const STORAGE_THEME_KEY = 'eidos_theme_v3';
+const STORAGE_CATALOG_KEY = 'kostra44sip_catalog_v3';
+const STORAGE_VIEW_KEY = 'kostra44sip_active_view_v3';
+const STORAGE_THEME_KEY = 'kostra44sip_theme_v3';
 
 // Task 0.1: Singleton @xenova/transformers initialization (Xenova/all-MiniLM-L6-v2)
 let embedderPromise: Promise<FeatureExtractionPipeline> | null = null;
@@ -411,8 +411,8 @@ export default function App() {
 
   const csvProjectAdapter = useMemo<Project>(
     () => ({
-      id: 'eidos-catalog-project',
-      name: 'EIDOS Semantic Catalog',
+      id: 'kostra44sip-catalog-project',
+      name: 'kostra44SIP Semantic Catalog',
       updatedAt: Date.now(),
       concepts: catalog.map((c) => ({
         id: String(c.id),
@@ -466,7 +466,7 @@ export default function App() {
       case 'launchkit':
         return 'Deployment & Production Checklist';
       default:
-        return 'EIDOS Studio';
+        return 'kostra44SIP Studio';
     }
   };
 
@@ -495,7 +495,7 @@ export default function App() {
         >
           {/* Zone 1: Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-            <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>EIDOS</span>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>kostra44SIP</span>
             <span style={{ color: 'var(--border-hi)' }}>/</span>
             <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {getViewTitle(activeView)}

@@ -162,7 +162,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <h1 className="page-title" style={{ margin: 0, fontSize: '1.375rem' }}>
-              EIDOS Semantic Engine v3.0
+              kostra44SIP Semantic Engine v3.0
             </h1>
             <span className="badge badge-success" style={{ gap: 5 }}>
               <ShieldCheck size={13} />

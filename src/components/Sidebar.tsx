@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ active, onNavigate }) => (
           color: 'var(--text)',
         }}
       >
-        EIDOS Studio
+        kostra44SIP Studio
       </span>
       <span
         className="mono"

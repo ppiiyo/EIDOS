@@ -8,7 +8,7 @@ describe('CLIPEmbedder (Multimodal v3.5.0)', () => {
 
     const start = performance.now();
     const textVec = await clip.embedText('красные кроссовки для бега');
-    const imgVec = await clip.embedImage('https://cdn.eidos.dev/products/red-sneakers-runmax.jpg');
+    const imgVec = await clip.embedImage('https://cdn.kostra44sip.dev/products/red-sneakers-runmax.jpg');
     const elapsedMs = performance.now() - start;
 
     expect(textVec.length).toBeGreaterThanOrEqual(384);
@@ -18,19 +18,19 @@ describe('CLIPEmbedder (Multimodal v3.5.0)', () => {
     const visualCatalog = [
       {
         id: 'sku-laptop',
-        imageUrl: 'https://cdn.eidos.dev/products/silver-laptop-probook.jpg',
+        imageUrl: 'https://cdn.kostra44sip.dev/products/silver-laptop-probook.jpg',
         title: 'Ноутбук ProBook Ultra',
         tags: ['laptop', 'silver'],
       },
       {
         id: 'sku-sneakers',
-        imageUrl: 'https://cdn.eidos.dev/products/red-running-sneakers.jpg',
+        imageUrl: 'https://cdn.kostra44sip.dev/products/red-running-sneakers.jpg',
         title: 'Красные беговые кроссовки RunMax',
         tags: ['red', 'sneakers', 'кроссовки'],
       },
       {
         id: 'sku-coffee',
-        imageUrl: 'https://cdn.eidos.dev/products/black-espresso-machine.jpg',
+        imageUrl: 'https://cdn.kostra44sip.dev/products/black-espresso-machine.jpg',
         title: 'Кофемашина Barista Pro',
         tags: ['coffee', 'espresso'],
       },

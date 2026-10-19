@@ -22,8 +22,8 @@ import { ConversationalAgent } from './lib/agent/conversational-agent';
 import { trackEvent } from './lib/analytics/tracker';
 import { Cpu, CheckCircle2 } from 'lucide-react';
 
-const STORAGE_CATALOG_KEY = 'eidos_catalog_v3';
-const STORAGE_VIEW_KEY = 'eidos_active_view_v3';
+const STORAGE_CATALOG_KEY = 'kostra44sip_catalog_v3';
+const STORAGE_VIEW_KEY = 'kostra44sip_active_view_v3';
 
 export default function App() {
   // 1. Catalog State with unified string IDs
@@ -341,7 +341,7 @@ export default function App() {
       case 'launchkit':
         return 'Launch Kit';
       default:
-        return 'EIDOS RecSys';
+        return 'kostra44SIP RecSys';
     }
   };
 
@@ -369,7 +369,7 @@ export default function App() {
         >
           {/* Breadcrumb / Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)' }}>EIDOS</span>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)' }}>kostra44SIP</span>
             <span style={{ color: 'var(--border-hi)' }}>/</span>
             <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text)' }}>
               {getViewTitle(activeView)}

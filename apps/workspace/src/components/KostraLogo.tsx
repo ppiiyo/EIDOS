@@ -1,13 +1,13 @@
 import React from 'react';
 
-interface EidosLogoProps {
+interface KostraLogoProps {
   className?: string;
   variant?: 'monochrome' | 'accent' | 'inverted';
   size?: 'sm' | 'md' | 'lg';
   showText?: boolean;
 }
 
-export const EidosLogo: React.FC<EidosLogoProps> = ({
+export const KostraLogo: React.FC<KostraLogoProps> = ({
   className = '',
   variant = 'accent',
   size = 'md',
@@ -20,7 +20,7 @@ export const EidosLogo: React.FC<EidosLogoProps> = ({
   };
 
   const height = heights[size];
-  const width = showText ? (height * 120) / 32 : (height * 32) / 32;
+  const width = showText ? (height * 185) / 32 : (height * 32) / 32;
 
   const markColor =
     variant === 'accent'
@@ -39,7 +39,7 @@ export const EidosLogo: React.FC<EidosLogoProps> = ({
       <svg
         width={width}
         height={height}
-        viewBox={showText ? '0 0 120 32' : '0 0 32 32'}
+        viewBox={showText ? '0 0 185 32' : '0 0 32 32'}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="transition-transform group-hover:scale-[1.02]"
@@ -61,15 +61,15 @@ export const EidosLogo: React.FC<EidosLogoProps> = ({
         {/* Crisp Monospace/Inter Wordmark */}
         {showText && (
           <text
-            x="38"
-            y="22.5"
+            x="36"
+            y="22"
             fontFamily="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
             fontWeight="700"
-            fontSize="18"
-            letterSpacing="0.06em"
+            fontSize="17"
+            letterSpacing="0.03em"
             fill={textColor}
           >
-            EIDOS
+            kostra44SIP
           </text>
         )}
       </svg>

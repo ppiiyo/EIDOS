@@ -1,19 +1,19 @@
-# EIDOS Python SDK (`eidos-sdk`)
+# kostra44SIP Python SDK (`kostra44sip-sdk`)
 
-Official Python client for the **EIDOS** Semantic Recommender & Hybrid Vector Search Engine.
+Official Python client for the **kostra44SIP** Semantic Recommender & Hybrid Vector Search Engine.
 
 ## Installation
 
 ```bash
-pip install eidos-sdk
+pip install kostra44sip-sdk
 ```
 
 ## Quick Start
 
 ```python
-from eidos import EidosClient
+from kostra44sip import KostraClient
 
-with EidosClient(base_url="http://localhost:8080", api_key="your-api-key") as client:
+with KostraClient(base_url="http://localhost:8080", api_key="your-api-key") as client:
     # 1. Get MMR-diversified item recommendations
     recs = client.recommend(
         item_id="prod-001",

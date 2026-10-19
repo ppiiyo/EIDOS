@@ -7,7 +7,7 @@ import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 let sdkInstance: NodeSDK | null = null;
 
 /**
- * Initializes OpenTelemetry distributed tracing for EIDOS API.
+ * Initializes OpenTelemetry distributed tracing for kostra44SIP API.
  * Configures OTLP exporter for Jaeger, Zipkin, or Grafana Tempo.
  */
 export function initTracing(): NodeSDK | null {
@@ -17,7 +17,7 @@ export function initTracing(): NodeSDK | null {
 
   try {
     const attrs = {
-      [SemanticResourceAttributes.SERVICE_NAME]: 'eidos-api',
+      [SemanticResourceAttributes.SERVICE_NAME]: 'kostra44sip-api',
       [SemanticResourceAttributes.SERVICE_VERSION]: '3.5.0',
       environment: process.env.NODE_ENV || 'development',
     };

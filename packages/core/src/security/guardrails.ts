@@ -1,5 +1,5 @@
 /**
- * EIDOS Enterprise Security Guardrails & Vector Safety Engine.
+ * kostra44SIP Enterprise Security Guardrails & Vector Safety Engine.
  * Protects against:
  * 1. Prompt Injection & Malicious Jailbreak attempts in conversational queries
  * 2. Cross-Site Scripting (XSS) and Script Injection in catalog search

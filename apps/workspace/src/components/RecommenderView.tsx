@@ -468,7 +468,7 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
                   {currentBrand.name}
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20 font-medium">
-                  EIDOS Engine Active
+                  kostra44SIP Engine Active
                 </span>
               </div>
               <div className="text-xs text-[#A3A3A3] mt-0.5">{currentBrand.tagline}</div>
@@ -1122,7 +1122,7 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-xl font-extrabold text-[#e8e8f0] mono">
-                  Интерактивное сравнение: Обычный поиск VS Движок EIDOS
+                  Интерактивное сравнение: Обычный поиск VS Движок kostra44SIP
                 </h3>
                 <p className="text-sm text-[#8a8aa3] mt-1">
                   Попробуйте один и тот же запрос в двух парадигмах: слепой поиск по буквам против понимания смысла.
@@ -1196,13 +1196,13 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
                 </div>
               </div>
 
-              {/* Right Column: EIDOS AI (Semantic Vector-based) */}
+              {/* Right Column: kostra44SIP AI (Semantic Vector-based) */}
               <div className="p-5 rounded-xl bg-[#141424] border border-[#00f0ff]/30 flex flex-col gap-3">
                 <div className="flex items-center justify-between border-b border-[#00f0ff]/20 pb-3">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 size={18} className="text-[#00f0ff]" />
                     <span className="font-bold text-sm text-[#00f0ff] mono">
-                      EIDOS AI (Семантический поиск по смыслу)
+                      kostra44SIP AI (Семантический поиск по смыслу)
                     </span>
                   </div>
                   <span className="text-[11px] mono text-[#3ee89a]">E5 Vector Engine</span>
@@ -1251,7 +1251,7 @@ export const RecommenderView: React.FC<RecommenderViewProps> = ({
               <div>
                 <h3 className="text-xl font-extrabold text-[#e8e8f0] mono flex items-center gap-2">
                   <Cpu size={20} className="text-[#3ee89a]" />
-                  <span>Архитектура ядра EIDOS (Under The Hood)</span>
+                  <span>Архитектура ядра kostra44SIP (Under The Hood)</span>
                 </h3>
                 <p className="text-xs text-[#8a8aa3] mt-0.5">
                   Эмбеддинги E5 Multilingual, косинусная матрица сходства и топологический граф связей.

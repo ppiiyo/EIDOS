@@ -1,5 +1,5 @@
 {
-  "name": "@eidos/core",
+  "name": "@kostra44sip/core",
   "version": "1.0.0",
   "description": "High-performance vector similarity, graph clustering, HNSW ANN indexing, and entropy algorithms for recommendation systems.",
   "main": "./src/index.ts",
@@ -23,11 +23,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ppiiyo/eidos.git",
+    "url": "https://github.com/ppiiyo/kostra44SIP.git",
     "directory": "packages/core"
   },
   "keywords": [
-    "eidos",
+    "kostra44sip",
     "embeddings",
     "vector-search",
     "recommender",
@@ -35,6 +35,6 @@
     "hnsw",
     "graph-clustering"
   ],
-  "author": "EIDOS Open Source Contributors",
+  "author": "kostra44SIP Open Source Contributors",
   "license": "MIT"
 }

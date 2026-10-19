@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="eidos-client",
+    name="kostra44sip-client",
     version="2.1.0",
-    description="Python client SDK for EIDOS Semantic Recommendation Engine",
-    author="EIDOS Engineering Team",
+    description="Python client SDK for kostra44SIP Semantic Recommendation Engine",
+    author="kostra44SIP Engineering Team",
     packages=find_packages(),
     python_requires=">=3.8",
     install_requires=[

@@ -43,7 +43,7 @@ export const LaunchKitView: React.FC = () => {
   );
 
   const CHECKLIST_ITEMS = [
-    { id: 'env',      label: 'Set EIDOS_API_KEY (min 32 characters)' },
+    { id: 'env',      label: 'Set KOSTRA44SIP_API_KEY (min 32 characters)' },
     { id: 'port',     label: 'Configure PORT and HOST environment variables' },
     { id: 'cors',     label: 'Review CORS origins for production domain' },
     { id: 'rate',     label: 'Set rate limiting thresholds' },
@@ -59,7 +59,7 @@ export const LaunchKitView: React.FC = () => {
     <div className="page">
       <div style={{ marginBottom:24 }}>
         <h1 className="page-title">Launch Kit</h1>
-        <p className="page-sub">Everything you need to deploy EIDOS to production</p>
+        <p className="page-sub">Everything you need to deploy kostra44SIP to production</p>
       </div>
 
       {/* Табы */}
@@ -83,10 +83,10 @@ export const LaunchKitView: React.FC = () => {
       {tab === 'quickstart' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {[
-            { step:'1', title:'Clone and install', code:`git clone https://github.com/ppiiyo/eidos.git\ncd eidos\npnpm install` },
+            { step:'1', title:'Clone and install', code:`git clone https://github.com/ppiiyo/kostra44SIP.git\ncd kostra44sip\npnpm install` },
             { step:'2', title:'Start development server', code:`pnpm dev` },
             { step:'3', title:'Build for production', code:`pnpm build` },
-            { step:'4', title:'Run API server', code:`cd apps/api\nEIDOS_API_KEY=your-secret-key node dist/server.js` },
+            { step:'4', title:'Run API server', code:`cd apps/api\nKOSTRA44SIP_API_KEY=your-secret-key node dist/server.js` },
           ].map(({ step, title, code }) => (
             <div key={step}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
@@ -115,7 +115,7 @@ HOST=0.0.0.0
 NODE_ENV=production
 
 # Authentication (min 32 characters)
-EIDOS_API_KEY=your-production-api-key-here
+KOSTRA44SIP_API_KEY=your-production-api-key-here
 
 # Adaptive Intelligence Layer (optional)
 AIL_ENABLED=true
@@ -141,15 +141,15 @@ LOG_LEVEL=info`}/>
           <div>
             <h2 style={{ fontSize:'0.9375rem', fontWeight:600, marginBottom:8 }}>Build and run</h2>
             <CodeBlock id="docker-run" code={`# Build image
-docker build -t eidos-api ./apps/api
+docker build -t kostra44sip-api ./apps/api
 
 # Run container
 docker run -d \\
-  --name eidos \\
+  --name kostra44sip \\
   -p 8080:8080 \\
   -e NODE_ENV=production \\
-  -e EIDOS_API_KEY=your-secret-key \\
-  eidos-api`}/>
+  -e KOSTRA44SIP_API_KEY=your-secret-key \\
+  kostra44sip-api`}/>
           </div>
           <div>
             <h2 style={{ fontSize:'0.9375rem', fontWeight:600, marginBottom:8 }}>Health check</h2>

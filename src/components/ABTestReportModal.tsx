@@ -23,7 +23,7 @@ export const ABTestReportModal: React.FC<ABTestReportModalProps> = ({
   if (!isOpen) return null;
 
   const downloadCsv = () => {
-    const csvContent = `Метрика;Классический поиск (Keyword / BM25);EIDOS Семантический движок (Векторный поиск);Разница / Lift;Бизнес-результат
+    const csvContent = `Метрика;Классический поиск (Keyword / BM25);kostra44SIP Семантический движок (Векторный поиск);Разница / Lift;Бизнес-результат
 Успешность сложных запросов;38.5%;94.8%;+56.3%;Пользователь всегда находит нужный товар
 Нулевая поисковая выдача (Empty Results);34.2%;0.0%;-34.2% (полная ликвидация);Нет упущенных продаж
 Click-Through Rate (CTR в рекомендации);3.2%;7.8%;+143.7%;В 2.4 раза больше кликов
@@ -35,7 +35,7 @@ Click-Through Rate (CTR в рекомендации);3.2%;7.8%;+143.7%;В 2.4 р
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `EIDOS_AB_Test_Benchmark_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `kostra44SIP_AB_Test_Benchmark_Report_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -54,7 +54,7 @@ Click-Through Rate (CTR в рекомендации);3.2%;7.8%;+143.7%;В 2.4 р
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>EIDOS Recommender — A/B Test Benchmark Report</title>
+  <title>kostra44SIP Recommender — A/B Test Benchmark Report</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #111; max-width: 840px; margin: 40px auto; padding: 0 20px; }
     h1 { color: #0066cc; font-size: 24px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
@@ -68,7 +68,7 @@ Click-Through Rate (CTR в рекомендации);3.2%;7.8%;+143.7%;В 2.4 р
   </style>
 </head>
 <body>
-  <h1>EIDOS Recommender Engine: Официальный A/B тест и бенчмарк</h1>
+  <h1>kostra44SIP Recommender Engine: Официальный A/B тест и бенчмарк</h1>
   <p>Сравнительное тестирование производительности семантического векторного поиска против стандартного ключевого поиска (BM25 / Elasticsearch).</p>
   
   <div class="header-summary" style="display: flex; gap: 15px; margin: 20px 0;">
@@ -95,7 +95,7 @@ Click-Through Rate (CTR в рекомендации);3.2%;7.8%;+143.7%;В 2.4 р
       <tr>
         <th>Показатель</th>
         <th>Классический поиск (BM25)</th>
-        <th>EIDOS Semantic Engine</th>
+        <th>kostra44SIP Semantic Engine</th>
         <th>Эффект внедрения</th>
       </tr>
     </thead>
@@ -134,7 +134,7 @@ Click-Through Rate (CTR в рекомендации);3.2%;7.8%;+143.7%;В 2.4 р
   </table>
 
   <p style="font-size: 12px; color: #666; margin-top: 30px;">
-    Отчет сгенерирован платформой EIDOS Recommender. Спецификация готова для передачи финансовому директору и CTO.
+    Отчет сгенерирован платформой kostra44SIP Recommender. Спецификация готова для передачи финансовому директору и CTO.
   </p>
   <script>window.print();</script>
 </body>
@@ -198,7 +198,7 @@ Click-Through Rate (CTR в рекомендации);3.2%;7.8%;+143.7%;В 2.4 р
                 <tr>
                   <th className="py-2.5 px-3 text-left">Метрика</th>
                   <th className="py-2.5 px-3 text-left">Текстовый (BM25)</th>
-                  <th className="py-2.5 px-3 text-left text-[#00f0ff]">EIDOS Semantic</th>
+                  <th className="py-2.5 px-3 text-left text-[#00f0ff]">kostra44SIP Semantic</th>
                   <th className="py-2.5 px-3 text-right">Разница</th>
                 </tr>
               </thead>

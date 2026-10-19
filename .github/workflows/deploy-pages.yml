@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   deploy-pages:
-    name: Build & Deploy Live Demo
+    name: Build & Deploy Landing Page
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

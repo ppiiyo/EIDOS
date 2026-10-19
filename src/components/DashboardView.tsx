@@ -131,7 +131,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       >
         <div>
           <h1 className="page-title" style={{ margin: 0, fontSize: '1.375rem' }}>
-            EIDOS Semantic Vector Workbench
+            kostra44SIP Semantic Vector Workbench
           </h1>
           <p className="page-sub" style={{ margin: '4px 0 0' }}>
             384-dimensional dense embeddings · HNSW Phase 2 (Int32 + BinaryHeap) · BM25 Hybrid RRF · Adaptive Intelligence Layer

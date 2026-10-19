@@ -15,8 +15,8 @@ export interface AnalyticsEvent {
   timestamp: number;
 }
 
-const STORAGE_KEY = 'eidos_analytics_events';
-const USER_ID_KEY = 'eidos_session_user_id';
+const STORAGE_KEY = 'kostra44sip_analytics_events';
+const USER_ID_KEY = 'kostra44sip_session_user_id';
 const MAX_EVENTS = 5000;
 
 export function getSessionUserId(): string {

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Project, StatusKind, ActiveTab } from '../types';
 import { useStorage } from '../context/StorageContext';
-import { EidosLogo } from './EidosLogo';
+import { KostraLogo } from './KostraLogo';
 import { MemoryMonitor } from './MemoryMonitor';
 
 interface HeaderProps {
@@ -62,9 +62,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div
             onClick={() => onChangeTab('landing')}
             className="flex items-center gap-3 cursor-pointer group select-none"
-            title="EIDOS Home"
+            title="kostra44SIP Home"
           >
-            <EidosLogo variant="inverted" size="md" />
+            <KostraLogo variant="inverted" size="md" />
             <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#1F1F24] text-[#A3A3A3] border border-[#2E2E33]">
               v2.1.0 prod
             </span>
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* GitHub Link */}
           <a
-            href="https://github.com/ppiiyo/eidos"
+            href="https://github.com/ppiiyo/kostra44SIP"
             target="_blank"
             rel="noreferrer"
             className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs text-[#A3A3A3] hover:text-[#F5F5F5] hover:bg-[#141418] transition-colors"

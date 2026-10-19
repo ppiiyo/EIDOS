@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Full EIDOS Pipeline', () => {
+test.describe('Full kostra44SIP Pipeline', () => {
   test('ingest → search → recommend → feedback', async ({ page }) => {
     // 1. Open workspace
     await page.goto('/');
-    await expect(page.locator('h1').first()).toContainText('EIDOS');
+    await expect(page.locator('h1').first()).toContainText('kostra44SIP');
 
     // 2. Navigate to Catalog
     await page.locator('aside button:has-text("Catalog")').first().click();
