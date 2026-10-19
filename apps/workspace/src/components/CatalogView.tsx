@@ -115,7 +115,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {/* Table */}
       <div className="card" style={{ overflow: 'hidden' }}>
-        <table className="table">
+        <table className="table" data-testid="catalog-table">
           <thead>
             <tr>
               <th style={{ width: 60 }}>ID</th>

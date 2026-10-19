@@ -46,18 +46,18 @@ export const AnalyticsView: React.FC = () => {
       {/* Метрики */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:12, marginBottom:24 }}>
         {[
-          { label:'Searches',        value: summary.searches,        icon: Search },
+          { label:'Searches',        value: summary.searches,        icon: Search, testId: 'search-count' },
           { label:'Recommendations', value: summary.recommendations, icon: Lightbulb },
           { label:'Item Views',      value: summary.itemViews,       icon: BarChart3 },
           { label:'Clicks',          value: summary.itemClicks,      icon: MousePointer },
           { label:'Purchases',       value: summary.purchases,       icon: ShoppingCart },
-        ].map(({ label, value, icon: Icon }) => (
+        ].map(({ label, value, icon: Icon, testId }) => (
           <div key={label} className="card" style={{ padding:'16px 20px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
               <span style={{ fontSize:'0.75rem', color:'var(--text-sec)' }}>{label}</span>
               <Icon size={15} color="var(--text-mut)"/>
             </div>
-            <div style={{ fontSize:'1.5rem', fontWeight:700 }}>{value.toLocaleString()}</div>
+            <div data-testid={testId} style={{ fontSize:'1.5rem', fontWeight:700 }}>{value.toLocaleString()}</div>
           </div>
         ))}
       </div>

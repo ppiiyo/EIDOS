@@ -35,7 +35,18 @@ export async function feedbackRoutes(fastify: FastifyInstance): Promise<void> {
     const ail = AILManager.getInstance();
 
     // 1. Register with Online FeedbackLoop
-    ail.feedbackLoop.register(event);
+    ail.feedbackLoop.register({
+      userId: event.userId,
+      itemId: event.itemId,
+      eventType: event.eventType,
+      timestamp: event.timestamp,
+      context: event.context
+        ? {
+            ...event.context,
+            timestamp: event.context.timestamp ?? event.timestamp,
+          }
+        : undefined,
+    });
 
     // 2. Update popularity in MetadataStore
     let delta = 0;
@@ -64,7 +75,7 @@ export async function feedbackRoutes(fastify: FastifyInstance): Promise<void> {
     if (meta) {
       ail.ranker.updateStatistics({
         popularity: meta.popularity,
-        freshness: meta.freshness,
+        freshness: ail.metadataStore.getFreshness(event.itemId),
       });
     }
 

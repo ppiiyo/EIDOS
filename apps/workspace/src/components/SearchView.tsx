@@ -64,6 +64,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSearch, onSelectItem }
           <div style={{ position: 'relative', flex: 1 }}>
             <Search size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-sec)' }} />
             <input
+              data-testid="search-input"
               className="input"
               style={{ paddingLeft: 40, height: 42, fontSize: '0.9375rem' }}
               value={query}
@@ -112,6 +113,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSearch, onSelectItem }
             {results.map((item) => (
               <div
                 key={item.id}
+                data-testid="search-result"
                 className="card"
                 onClick={() => {
                   trackEvent({ type: 'item_click', itemId: item.id, category: item.category });

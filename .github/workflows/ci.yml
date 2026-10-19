@@ -29,8 +29,8 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+      - name: Install Workspace Dependencies
+        run: pnpm install -r --no-frozen-lockfile
 
       - name: TypeScript Verification
         run: pnpm run lint
@@ -56,8 +56,8 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
 
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+      - name: Install Workspace Dependencies
+        run: pnpm install -r --no-frozen-lockfile
 
       - name: Run Test Suite & Enforce Coverage Gate (>80%)
         if: matrix.node-version == 20
@@ -94,27 +94,21 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
-
-      - name: Cache Next.js build cache
+      - name: Cache Turborepo & Next.js Build Artifacts
         uses: actions/cache@v4
         with:
           path: |
-            apps/landing/.next/cache
             .turbo
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('apps/landing/**/*.{js,jsx,ts,tsx}') }}
+            apps/landing/.next/cache
+          key: ${{ runner.os }}-turbo-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('packages/**/src/**', 'apps/**/src/**', 'apps/landing/app/**') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-
+            ${{ runner.os }}-turbo-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-turbo-
 
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
+      - name: Install & Verify All Workspace Dependencies
+        run: |
+          pnpm install -r --no-frozen-lockfile
+          pnpm --filter @eidos/workspace list --depth 0
 
       - name: Build Monorepo with Turbo
         run: pnpm turbo run build
@@ -141,12 +135,11 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+      - name: Install Workspace Dependencies
+        run: pnpm install -r --no-frozen-lockfile
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
 
       - name: Run Full E2E Pipeline
         run: pnpm test:e2e
-

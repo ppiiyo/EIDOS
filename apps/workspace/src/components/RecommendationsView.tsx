@@ -58,6 +58,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
               Seed Item (Target Anchor)
             </label>
             <select
+              data-testid="item-select"
               className="input"
               value={selectedItemId}
               onChange={(e) => {
@@ -149,6 +150,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                 {recs.map(({ item, sim, whyRecommended }, idx) => (
                   <div
                     key={item.id}
+                    data-testid="recommendation-card"
                     className="card"
                     onClick={() => {
                       trackEvent({ type: 'item_click', itemId: item.id, category: item.category });

@@ -127,7 +127,7 @@ export async function buildApp() {
         fastify.log.info(`Restored HNSW binary snapshot from ${sPath} (${vectorStore.count()} items)`);
         break;
       } catch (err) {
-        fastify.log.warn(`Failed to restore HNSW snapshot from ${sPath}:`, err);
+        fastify.log.warn({ err }, `Failed to restore HNSW snapshot from ${sPath}`);
       }
     }
   }
@@ -151,7 +151,7 @@ export async function buildApp() {
         fastify.log.info(`Pre-loaded ${vectorStore.count()} catalog items from ${p}`);
         break;
       } catch (err) {
-        fastify.log.warn(`Could not parse seed file at ${p}:`, err);
+        fastify.log.warn({ err }, `Could not parse seed file at ${p}`);
       }
     }
   }
@@ -184,7 +184,7 @@ export async function buildApp() {
       category: 'Electronics',
       tags: ['typing', 'hardware'],
       price: 189.0,
-      embedding: v1,
+      embedding: Array.from(v1),
       normalizedVector: v1,
     });
     vectorStore.upsert({
@@ -194,7 +194,7 @@ export async function buildApp() {
       category: 'Electronics',
       tags: ['accessories', 'typing'],
       price: 34.0,
-      embedding: v2,
+      embedding: Array.from(v2),
       normalizedVector: v2,
     });
     Metrics.vectorStoreSize.set(vectorStore.count());
@@ -234,7 +234,7 @@ export async function buildApp() {
         process.exit(0);
       }
     } catch (err) {
-      fastify.log.error('Error during graceful shutdown:', err);
+      fastify.log.error({ err }, 'Error during graceful shutdown');
       if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
         process.exit(1);
       }
@@ -245,11 +245,11 @@ export async function buildApp() {
     process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.once('SIGINT', () => gracefulShutdown('SIGINT'));
     process.once('uncaughtException', (err) => {
-      fastify.log.error('Uncaught exception:', err);
+      fastify.log.error({ err }, 'Uncaught exception');
       gracefulShutdown('uncaughtException');
     });
     process.once('unhandledRejection', (reason) => {
-      fastify.log.error('Unhandled rejection:', reason);
+      fastify.log.error({ err: reason }, 'Unhandled rejection');
       gracefulShutdown('unhandledRejection');
     });
   }

@@ -45,7 +45,7 @@ const NAV_GROUPS: Array<{
       { id: 'catalog', label: 'Catalog & Bundles', icon: Package },
       { id: 'abtest', label: 'A/B Testing Engine', icon: Split },
       { id: 'conversational', label: 'Vector NLU Agent', icon: MessageSquare },
-      { id: 'analytics', label: 'Trends & Telemetry', icon: BarChart3 },
+      { id: 'analytics', label: 'Analytics & Trends', icon: BarChart3 },
       { id: 'launchkit', label: 'Deployment & Docs', icon: Rocket },
     ],
   },
