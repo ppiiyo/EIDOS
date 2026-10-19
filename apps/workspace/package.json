@@ -12,7 +12,7 @@
   "dependencies": {
     "@eidos/core": "workspace:*",
     "@eidos/sdk": "workspace:*",
-    "lucide-react": "^0.546.0",
+    "lucide-react": "^1.58.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "three": "^0.186.1"
