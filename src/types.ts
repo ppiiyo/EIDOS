@@ -85,7 +85,7 @@ export interface CatalogItem {
   title: string;
   description: string;
   category: string;
-  price?: string;
+  price?: number | string;
   rating?: number;
   reviews?: number;
   badge?: string;

@@ -163,7 +163,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
           ...c,
           id: String(c.id),
           tags: c.tags || [],
-          price: c.price ? parseInt(c.price.replace(/[^\d]/g, ''), 10) : undefined,
+          price: c.price !== undefined ? parseInt(String(c.price).replace(/[^\d]/g, ''), 10) : undefined,
         })),
         resolveEmb
       );

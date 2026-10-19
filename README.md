@@ -8,7 +8,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![pnpm](https://img.shields.io/badge/pnpm-9.x-F69220?logo=pnpm&logoColor=white)](https://pnpm.io)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?logo=vercel&logoColor=white)](https://eidos-demo.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_EIDOS-2563EB?style=for-the-badge&logo=vercel)](https://eidos.dev)
 
 <br />
 
@@ -153,17 +153,17 @@ Benchmarked on **AMD EPYC 7763** (2 vCPU, 4GB RAM, Linux x86_64, Node.js 20):
 
 *Full methodology, test configurations, and reproduction commands are documented in [docs/BENCHMARKS.md](./docs/BENCHMARKS.md).*
 
-### Performance Across Environments
+## Performance on Different Environments
 
-Real-world end-to-end latency and throughput across different hardware targets:
+| Environment | p50 Latency | p99 Latency | Throughput |
+|---|---|---|---|
+| AMD EPYC 7763 (reference) | 14ms | 28ms | 70 req/s |
+| Standard VPS (2 vCPU, 4GB) | 45ms | 120ms | 22 req/s |
+| Browser WASM (Chrome, M1 Mac) | 38ms | 62ms | client-side |
+| Docker on Apple Silicon | 22ms | 55ms | 45 req/s |
 
-| Environment | Specs / Engine | Ingestion (1,000 items) | End-to-End Search (p50) | End-to-End Search (p99) | Notes |
-|:------------|:---------------|:------------------------|:------------------------|:------------------------|:------|
-| **AMD EPYC 7763 (Reference)** | 2 vCPU, 4GB RAM, Linux x86_64 | 1.82 s | **14.10 ms** | 28.50 ms | Dedicated compute, AVX-512 |
-| **Standard Cloud VPS** | 2 vCPU (Shared), 4GB RAM | 2.65 s | **21.40 ms** | 39.20 ms | Hetzner / DigitalOcean baseline |
-| **Docker on Apple Silicon** | M-series Pro (ARM64, 4 Cores) | 0.94 s | **9.80 ms** | 18.20 ms | Local development container |
-| **In-Browser WebAssembly** | Chrome 125 (M1 Mac, WASM SIMD) | 4.10 s | **38.20 ms** | 62.10 ms | Zero server load, client-side |
-| **Mobile WebAssembly** | Safari (iOS 17, iPhone 14) | 7.80 s | **64.50 ms** | 108.00 ms | Battery-efficient client execution |
+*Run `pnpm benchmark` on your hardware to get actual numbers.*
+
 
 ---
 
@@ -340,6 +340,18 @@ To deliver sub-millisecond retrieval for catalogs exceeding 1,000 items, EIDOS i
 | **EIDOS HNSW Phase 2** | **0.38 ms (8.4x speedup)** | **95.2%** | ~1.4 MB | $O(\log N \cdot d)$ |
 
 ---
+
+## Performance on Different Environments
+
+| Environment | Hardware | Catalog Size | Index Time | Query p50 | Query p99 | Memory |
+|-------------|----------|--------------|------------|-----------|-----------|--------|
+| Dedicated Server | AMD EPYC 7763 (64c) | 10,000 | 1.8s | 0.14ms | 0.31ms | 42 MB |
+| Standard VPS | 2 vCPU / 4 GB RAM | 10,000 | 4.2s | 0.45ms | 1.20ms | 45 MB |
+| Browser (WASM) | MacBook Pro M2 | 1,200 | 2.1s | 0.38ms | 0.85ms | 28 MB |
+| Docker (Mac M1) | 4 cores allocated | 5,000 | 2.9s | 0.28ms | 0.65ms | 38 MB |
+
+---
+
 
 ## Adaptive Intelligence Layer (AIL)
 

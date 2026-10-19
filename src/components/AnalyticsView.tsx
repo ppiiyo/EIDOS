@@ -70,18 +70,22 @@ export const AnalyticsView: React.FC = () => {
         }}
       >
         {[
-          { label: 'Session Searches', value: summary.searches, icon: Search },
+          { label: 'Searches', value: summary.searches, icon: Search, testId: 'search-count' },
           { label: 'MMR Recommendations', value: summary.recommendations, icon: Lightbulb },
           { label: 'Item Impressions', value: summary.itemViews, icon: BarChart3 },
           { label: 'Item Clicks', value: summary.itemClicks, icon: MousePointer },
           { label: 'Session Conversions', value: summary.purchases, icon: ShoppingCart },
-        ].map(({ label, value, icon: Icon }) => (
+        ].map(({ label, value, icon: Icon, testId }) => (
           <div key={label} className="card" style={{ padding: '16px 20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 500 }}>{label}</span>
               <Icon size={15} color="var(--accent)" />
             </div>
-            <div className="mono" style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>
+            <div
+              className="mono"
+              data-testid={testId}
+              style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}
+            >
               {value.toLocaleString()}
             </div>
           </div>

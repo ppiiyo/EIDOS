@@ -103,6 +103,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
               Target Seed Anchor Item
             </label>
             <select
+              data-testid="item-select"
               className="input"
               value={String(activeSeed?.id || '')}
               onChange={(e) => {
@@ -139,6 +140,16 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => activeSeed && computeRecs(activeSeed, diversity, limit)}
+              disabled={isLoading}
+              style={{ height: 38 }}
+            >
+              <Lightbulb size={14} />
+              <span>Get Recommendations</span>
+            </button>
             <button
               type="button"
               className="btn btn-secondary"
@@ -193,6 +204,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                 return (
                   <div
                     key={item.id}
+                    data-testid="recommendation-card"
                     className="card"
                     style={{ padding: 16 }}
                   >

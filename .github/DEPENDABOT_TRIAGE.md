@@ -1,37 +1,29 @@
-# Dependabot PR Triage Record (15 PRs)
+# Dependabot PR Triage Record (v3.5 Production Hardening)
 
-This document tracks the automated dependency updates triaged for **EIDOS v3.0**.
+This document records the automated dependency triage executed for **EIDOS v3.5**.
 
-## 1. Merged Minor & Patch Updates (14 PRs)
+## 1. Closed Major Upgrades (Deferred to v4.0.0)
 
-| Package | Type | Status | Rationale |
-|:---|:---|:---|:---|
-| `react` & `react-dom` | Dependency | ✅ Merged (^19.3.0) | Stable React 19 production runtime verified with Vite |
-| `@types/react` & `@types/react-dom` | DevDependency | ✅ Merged (^19.0.0) | Aligned type declarations for React 19 APIs |
-| `vitest` & `@vitest/coverage-v8` | DevDependency | ✅ Merged (^2.1.9) | 149/149 test suite passes green |
-| `tsx` | DevDependency | ✅ Merged (^4.21.0) | Script runner for benchmarking and embedding generation |
-| `turbo` | DevDependency | ✅ Merged (^2.4.0) | Monorepo cache and workspace execution engine |
-| `typescript` | DevDependency | ✅ Merged (~5.8.2) | Typechecker zero error baseline maintained |
-| `@playwright/test` | DevDependency | ✅ Merged (^1.63.0) | E2E test harness dependencies |
-| `@fastify/cors` | Fastify Plugin | ✅ Merged (^9.0.1) | Security hardening and cross-origin resource sharing |
-| `@fastify/rate-limit` | Fastify Plugin | ✅ Merged (^9.1.0) | API rate limiting protection |
-| `@fastify/swagger` & `@fastify/swagger-ui` | Documentation | ✅ Merged (^8.14.0 / ^3.0.0) | OpenAPI spec endpoint generation |
-| `@opentelemetry/*` suite | Telemetry | ✅ Merged (v0.223.0 / v1.43.0) | Distributed trace instrumentation |
-| `prom-client` | Metrics | ✅ Merged (^15.1.3) | Prometheus metrics endpoint exporter |
-| `three` & `@types/three` | WebGL Engine | ✅ Merged (^0.186.1) | 3D hypersphere vector visualizer |
-| `lucide-react` | Icons | ✅ Merged (^0.546.0) | UI icon asset bundle |
+### Closed PRs: `#14` (TypeScript 5.8 → 7.0.2) & `#15` (Tailwind 3.4 → 4.3.3)
+
+- **Action**: Closed with `@dependabot ignore this major version`
+- **Closing Comment**:
+  > `"Major upgrades scheduled for v4.0.0 to avoid breaking changes in v3.x series."`
+- **Technical Rationale**:
+  - `#14` (`typescript` 5.8 → 7.0.2): Major compiler jump deferred to v4.0.0 to preserve deterministic build stability across monorepo packages (`@eidos/core`, `@eidos/sdk`, `@eidos/api`, `@eidos/landing`).
+  - `#15` (`tailwindcss` 3.4 → 4.3.3 in `@eidos/landing`): Next.js 14.1.3 App Router relies on Tailwind v3 PostCSS directives (`@tailwind base/components/utilities`). Migrating to v4 is scheduled alongside Next.js 15 in v4.0.0.
 
 ---
 
-## 2. Deferred Updates (1 PR) — Defer to Issue
+## 2. Batch-Merged Safe PRs (`#1`, `#2`, `#3`, `#4`, `#5`)
 
-### ⚠️ Issue #15: Defer Tailwind CSS v4 in `@eidos/landing`
-- **Target Package**: `tailwindcss` in `apps/landing/package.json`
-- **Current Version**: `^3.4.1`
-- **Proposed Version**: `^4.3.0`
-- **Decision**: **DEFERRED**
-- **Technical Context**:
-  `apps/landing` runs on **Next.js 14.1.3** with `postcss` and `autoprefixer`. Tailwind CSS v4 introduces a new engine without `@tailwind` directives in PostCSS and requires `@tailwindcss/postcss` with Next.js 15+.
-  Upgrading prematurely breaks `@apply` rules and custom animation utilities in `apps/landing`.
-- **Action Plan**:
-  Keep `apps/landing` on Tailwind `^3.4.1` until `@eidos/landing` Next.js framework migration milestone is scheduled. Root workspace web app uses `@tailwindcss/vite` 4 cleanly.
+| PR | Package / Action | Type | Status |
+|:---|:---|:---|:---|
+| `#1` | `actions/checkout`, `actions/cache`, `actions/setup-node` | GitHub Actions | ✅ Merged in batch |
+| `#2` | `pnpm/action-setup`, `actions/deploy-pages` | GitHub Actions | ✅ Merged in batch |
+| `#3` | `vitest`, `@vitest/coverage-v8`, `@playwright/test` | DevDependency (minor/patch) | ✅ Merged in batch |
+| `#4` | `fastify`, `@fastify/cors`, `@fastify/rate-limit` | Runtime Dependency (patch) | ✅ Merged in batch |
+| `#5` | `three`, `lucide-react`, `recharts` | UI Dependency (minor/patch) | ✅ Merged in batch |
+
+- **Open PR Count**: `0` (≤ 5 target met)
+- **Grouping Policy**: Configured in `.github/dependabot.yml` (`minor-and-patch` + `github-actions`).

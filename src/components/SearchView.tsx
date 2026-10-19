@@ -96,6 +96,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
           <div style={{ position: 'relative', flex: 1 }}>
             <Search size={16} style={{ position: 'absolute', left: 14, top: 13, color: 'var(--text-sec)' }} />
             <input
+              data-testid="search-input"
               className="input"
               style={{ paddingLeft: 40, height: 42, fontSize: '0.9375rem' }}
               value={query}
@@ -207,6 +208,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               {hybridHits.map((hit, idx) => (
                 <div
                   key={hit.item.id}
+                  data-testid="search-result"
                   className="card"
                   style={{ padding: 16 }}
                 >

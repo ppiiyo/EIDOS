@@ -1,6 +1,6 @@
 {
-  "summary": "Comprehensive architectural and UX implementation plan for upgrading EIDOS into a unified, dual-theme Semantic Recommender & Vector Search Workbench with 384-d HNSW/BM25 hybrid search, 3D WebGL vector universe, Adaptive Intelligence Lab (MIND capsules, LinUCB bandits, Vector Steering), side-by-side search comparison, batch vector import/export, and interactive REST API console.",
-  "updatedAt": "2026-10-19T07:08:33.691564561Z",
+  "summary": "План реализации технического задания EIDOS Production Hardening v3.5: подключение реального трансформера @xenova/transformers (all-MiniLM-L6-v2) в UI с индикатором статуса, группировка Dependabot PR, E2E Playwright пайплайн, Python SDK (eidos-sdk на httpx + pydantic), экспорт статики для деплоя демо, таблица мультисредовых бенчмарков в README и мультимодальный CLIP-эмбеддер в @eidos/core.",
+  "updatedAt": "2026-10-19T07:50:43.319850248Z",
   "requestFeedback": true,
   "userFacing": true
 }

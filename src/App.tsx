@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
 import { CatalogItem, CatalogRecommendation, HybridSearchHit, ToastItem, Project } from './types';
 import { INITIAL_CATALOG } from './data/catalog';
 import {
   computeTextEmbedding,
   cosineSimilarity,
   generateSemanticExplanation,
-  computeCatalogEmbeddingsWithModel,
   executeHybridCatalogSearch,
   generateSyntheticScaledCatalog,
 } from './utils/recommenderEngine';
@@ -25,11 +25,44 @@ import { CsvImporterModal } from './components/CsvImporterModal';
 import { ToastContainer } from './components/ToastContainer';
 import { ConversationalAgent } from './lib/agent/conversational-agent';
 import { trackEvent } from './lib/analytics/tracker';
-import { Cpu, CheckCircle2, Sun, Moon, Terminal, FileSpreadsheet } from 'lucide-react';
+import { Sun, Moon, Terminal, FileSpreadsheet } from 'lucide-react';
 
 const STORAGE_CATALOG_KEY = 'eidos_catalog_v3';
 const STORAGE_VIEW_KEY = 'eidos_active_view_v3';
 const STORAGE_THEME_KEY = 'eidos_theme_v3';
+
+// Task 0.1: Singleton @xenova/transformers initialization (Xenova/all-MiniLM-L6-v2)
+let embedderPromise: Promise<FeatureExtractionPipeline> | null = null;
+let embedderFailed = false;
+function getEmbedder(): Promise<FeatureExtractionPipeline> {
+  if (embedderFailed) {
+    return Promise.reject(new Error('Embedder fallback active'));
+  }
+  if (!embedderPromise) {
+    const loadPromise = pipeline(
+      'feature-extraction',
+      'Xenova/all-MiniLM-L6-v2',
+      { quantized: true }
+    );
+    const timeoutPromise = new Promise<FeatureExtractionPipeline>((_, reject) =>
+      setTimeout(() => {
+        embedderFailed = true;
+        reject(new Error('Model network timeout'));
+      }, 2500)
+    );
+    embedderPromise = Promise.race([loadPromise, timeoutPromise]).catch((err) => {
+      embedderFailed = true;
+      throw err;
+    });
+  }
+  return embedderPromise;
+}
+
+export async function computeRealEmbedding(text: string): Promise<Float32Array> {
+  const embedder = await getEmbedder();
+  const output = await embedder(text, { pooling: 'mean', normalize: true });
+  return new Float32Array(output.data as ArrayLike<number>);
+}
 
 export default function App() {
   // 0. Dual Theme State (Light Clean Studio vs Dark Engineering Console)
@@ -52,7 +85,7 @@ export default function App() {
     }
   }, [theme]);
 
-  // 1. Catalog State with unified string IDs
+  // 1. Catalog State with unified string IDs (Task 1.3)
   const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_CATALOG_KEY);
@@ -136,101 +169,69 @@ export default function App() {
   const [isApiConsoleOpen, setIsApiConsoleOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
 
-  // 4. Dense 384-dimensional Embeddings Map
-  const [customEmbedder, setCustomEmbedder] = useState<any>(null);
-  const [embeddingMode, setEmbeddingMode] = useState<'model' | 'fallback'>('fallback');
-  const [embeddingProgress, setEmbeddingProgress] = useState(1);
-  const [isComputingEmbeddings, setIsComputingEmbeddings] = useState(false);
-  const [catalogEmbeddings, setCatalogEmbeddings] = useState<Map<string, Float32Array>>(() => {
+  // 4. Task 0.1: Real Transformer Embeddings Map (Xenova/all-MiniLM-L6-v2) with instant 384-d seed & fallback
+  const [embeddings, setEmbeddings] = useState<Map<string, Float32Array>>(() => {
     const map = new Map<string, Float32Array>();
     for (const item of catalog) {
-      const textToEmbed = `passage: ${item.title} ${item.description} ${item.category} ${item.tags?.join(' ') || ''}`;
-      map.set(String(item.id), computeTextEmbedding(textToEmbed));
+      map.set(String(item.id), computeTextEmbedding(`${item.title} ${item.description}`));
     }
     return map;
   });
+  const [embeddingStatus, setEmbeddingStatus] = useState<'loading' | 'ready' | 'fallback'>('loading');
 
-  // Automatically load browser-based Transformers.js pipeline (multilingual-e5-small)
   useEffect(() => {
+    if (isScaledCatalog) return;
     let cancelled = false;
-    async function loadEmbedder() {
-      if (typeof window !== 'undefined' && (window as any).Transformers) {
+    setEmbeddingStatus('loading');
+
+    (async () => {
+      const map = new Map<string, Float32Array>();
+      let usedModel = false;
+
+      for (let i = 0; i < catalog.length; i++) {
+        if (cancelled) return;
+        const item = catalog[i];
         try {
-          const pipeline = await (window as any).Transformers.pipeline(
-            'feature-extraction',
-            'Xenova/multilingual-e5-small'
-          );
-          if (!cancelled && pipeline) {
-            setCustomEmbedder(() => pipeline);
-            setEmbeddingMode('model');
+          const vec = await computeRealEmbedding(`${item.title} ${item.description}`);
+          map.set(String(item.id), vec);
+          usedModel = true;
+          if (i % 5 === 0) {
+            if (!cancelled) {
+              setEmbeddings(new Map(map));
+            }
+            await new Promise((r) => setTimeout(r, 0)); // yield
           }
-        } catch (err) {
-          console.warn('Transformers.js network load fallback:', err);
+        } catch {
+          // fallback на computeTextEmbedding (384d)
+          map.set(String(item.id), computeTextEmbedding(`${item.title} ${item.description}`));
         }
       }
-    }
-    loadEmbedder();
+
+      if (!cancelled) {
+        setEmbeddings(map);
+        setEmbeddingStatus(usedModel ? 'ready' : 'fallback');
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  // Recompute embeddings when catalog or customEmbedder changes (skip when synthetic 1,200 scale is active)
-  useEffect(() => {
-    if (isScaledCatalog) return;
-    let isCancelled = false;
-    setIsComputingEmbeddings(true);
-
-    computeCatalogEmbeddingsWithModel(
-      catalog,
-      customEmbedder,
-      customEmbedder ? 'e5-small' : 'built-in',
-      (current, total) => {
-        if (!isCancelled) {
-          setEmbeddingProgress(current / total);
-        }
-      }
-    )
-      .then((newEmbeddings) => {
-        if (!isCancelled) {
-          setCatalogEmbeddings(newEmbeddings);
-          setEmbeddingMode(customEmbedder ? 'model' : 'fallback');
-          setIsComputingEmbeddings(false);
-          setEmbeddingProgress(1);
-        }
-      })
-      .catch(() => {
-        if (!isCancelled) {
-          setIsComputingEmbeddings(false);
-          setEmbeddingProgress(1);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [catalog, customEmbedder, isScaledCatalog]);
+  }, [catalog, isScaledCatalog]);
 
   // 5. Real Hybrid Search (Dense HNSW + Sparse BM25)
   const computeQueryVector = useCallback(
     async (query: string): Promise<Float32Array> => {
       const trimmed = query.trim();
-      if (customEmbedder) {
+      if (embeddingStatus === 'ready') {
         try {
-          const output = await customEmbedder(`query: ${trimmed}`, {
-            pooling: 'mean',
-            normalize: true,
-          });
-          return output.data instanceof Float32Array
-            ? output.data
-            : new Float32Array(output.data);
+          return await computeRealEmbedding(trimmed);
         } catch {
           return computeTextEmbedding(`query: ${trimmed}`);
         }
       }
       return computeTextEmbedding(`query: ${trimmed}`);
     },
-    [customEmbedder]
+    [embeddingStatus]
   );
 
   const handleHybridSearch = useCallback(
@@ -242,12 +243,12 @@ export default function App() {
         trimmed,
         queryVec,
         catalog,
-        catalogEmbeddings,
+        embeddings,
         alpha,
         limit
       );
     },
-    [catalog, catalogEmbeddings, computeQueryVector]
+    [catalog, embeddings, computeQueryVector]
   );
 
   const handleSearch = useCallback(
@@ -265,7 +266,7 @@ export default function App() {
       diversity = 0.35,
       limit = 6
     ): Promise<CatalogRecommendation[]> => {
-      const targetVec = catalogEmbeddings.get(String(targetItem.id));
+      const targetVec = embeddings.get(String(targetItem.id));
       if (!targetVec) return [];
 
       const candidates = catalog.filter((c) => String(c.id) !== String(targetItem.id));
@@ -273,7 +274,7 @@ export default function App() {
 
       const candSims = new Map<string, number>();
       for (const c of candidates) {
-        const cVec = catalogEmbeddings.get(String(c.id));
+        const cVec = embeddings.get(String(c.id));
         if (cVec) {
           candSims.set(String(c.id), cosineSimilarity(targetVec, cVec));
         }
@@ -292,10 +293,10 @@ export default function App() {
 
           let maxSimToSelected = 0;
           if (selected.length > 0) {
-            const candVec = catalogEmbeddings.get(String(cand.id));
+            const candVec = embeddings.get(String(cand.id));
             if (candVec) {
               for (const sel of selected) {
-                const selVec = catalogEmbeddings.get(String(sel.id));
+                const selVec = embeddings.get(String(sel.id));
                 if (selVec) {
                   const s = cosineSimilarity(candVec, selVec);
                   if (s > maxSimToSelected) maxSimToSelected = s;
@@ -325,7 +326,7 @@ export default function App() {
         whyRecommended: generateSemanticExplanation(targetItem, item),
       }));
     },
-    [catalog, catalogEmbeddings]
+    [catalog, embeddings]
   );
 
   // 7. Conversational Agent Instance
@@ -355,9 +356,9 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // 9. Catalog & Scale Actions
+  // 9. Catalog & Scale Actions (Task 1.3: string IDs)
   const handleAddItem = (newItem: CatalogItem) => {
-    const itemWithStrId = { ...newItem, id: String(newItem.id) };
+    const itemWithStrId: CatalogItem = { ...newItem, id: String(newItem.id) };
     setCatalog((prev) => [itemWithStrId, ...prev]);
     setSelectedItem(itemWithStrId);
     trackEvent({ type: 'item_view', itemId: itemWithStrId.id, category: itemWithStrId.category });
@@ -365,7 +366,7 @@ export default function App() {
   };
 
   const handleDeleteItem = (id: string) => {
-    setCatalog((prev) => prev.filter((item) => String(item.id) !== String(id)));
+    setCatalog((c) => c.filter((item) => item.id !== id));
     addToast('SKU removed from catalog', 'info');
   };
 
@@ -380,7 +381,7 @@ export default function App() {
     }
     setIsScaledCatalog(true);
     setCatalog(combinedCatalog);
-    setCatalogEmbeddings(combinedEmbeddings);
+    setEmbeddings(combinedEmbeddings);
     addToast(`Scaled corpus to ${combinedCatalog.length.toLocaleString()} SKU with 384-d HNSW index`, 'success');
   };
 
@@ -397,9 +398,9 @@ export default function App() {
     importedEmbeddings: Map<string, Float32Array>
   ) => {
     setIsScaledCatalog(false);
-    setCatalog(items);
+    setCatalog(items.map((item) => ({ ...item, id: String(item.id) })));
     if (importedEmbeddings.size > 0) {
-      setCatalogEmbeddings(importedEmbeddings);
+      setEmbeddings(importedEmbeddings);
     }
     if (items[0]) setSelectedItem(items[0]);
     addToast(
@@ -501,57 +502,16 @@ export default function App() {
             </span>
           </div>
 
-          {/* Zone 2: Global Tools, Embedder Switch & Theme Toggle */}
+          {/* Zone 2: Global Tools, Embedder Status Badge & Theme Toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            {/* Embedder Mode Switch */}
-            <button
-              type="button"
-              className="btn btn-sm"
-              style={{
-                border: '1px solid var(--border)',
-                background: embeddingMode === 'model' ? 'var(--success-bg)' : 'var(--bg-alt)',
-                color: embeddingMode === 'model' ? 'var(--success)' : 'var(--text-sec)',
-              }}
-              title={
-                embeddingMode === 'model'
-                  ? 'Transformers.js Xenova/multilingual-e5-small (384d) active'
-                  : 'Deterministic 384-d semantic anchor + n-gram embedder active. Click to load ONNX E5 weights.'
-              }
-              onClick={() => {
-                if (embeddingMode === 'model') {
-                  setCustomEmbedder(null);
-                  setEmbeddingMode('fallback');
-                  addToast('Switched to Deterministic 384-d Embedder', 'info');
-                } else if (typeof window !== 'undefined' && (window as any).Transformers) {
-                  addToast('Loading Multilingual E5 Small (384d) weights...', 'info');
-                  (window as any).Transformers.pipeline('feature-extraction', 'Xenova/multilingual-e5-small')
-                    .then((pipe: any) => {
-                      setCustomEmbedder(() => pipe);
-                      setEmbeddingMode('model');
-                      addToast('Loaded E5-Small (384d) ONNX Model', 'success');
-                    })
-                    .catch(() => {
-                      addToast('Using Deterministic 384-d Embedder (offline mode)', 'info');
-                    });
-                } else {
-                  addToast('Deterministic 384-d Embedder active', 'info');
-                }
-              }}
-            >
-              {isComputingEmbeddings ? (
-                <span className="mono">Indexing {(embeddingProgress * 100).toFixed(0)}%</span>
-              ) : embeddingMode === 'model' ? (
-                <>
-                  <CheckCircle2 size={13} />
-                  <span className="mono">E5-Small · 384d</span>
-                </>
-              ) : (
-                <>
-                  <Cpu size={13} />
-                  <span className="mono">Deterministic · 384d</span>
-                </>
-              )}
-            </button>
+            {/* Task 0.1 UI Indicator Badge */}
+            <span className="badge badge-accent" data-testid="embedding-status-badge">
+              {embeddingStatus === 'ready'
+                ? '🧠 Model: MiniLM'
+                : embeddingStatus === 'loading'
+                ? '⏳ Loading model...'
+                : '⚡ Fallback: keyword'}
+            </span>
 
             {/* CSV Import/Export Modal Button */}
             <button
@@ -591,7 +551,7 @@ export default function App() {
           {activeView === 'dashboard' && (
             <DashboardView
               catalog={catalog}
-              embeddings={catalogEmbeddings}
+              embeddings={embeddings}
               selectedItem={selectedItem}
               isScaledCatalog={isScaledCatalog}
               onNavigate={handleNavigate}
@@ -637,7 +597,7 @@ export default function App() {
           {activeView === 'vectorspace' && (
             <VectorSpaceView
               catalog={catalog}
-              embeddings={catalogEmbeddings}
+              embeddings={embeddings}
               selectedItem={selectedItem}
               onSelectItem={(item) => setSelectedItem(item)}
               onInspectRecommendations={(item) => {
@@ -651,7 +611,7 @@ export default function App() {
             <div className="page">
               <AdaptivePanel
                 catalog={catalog.slice(0, 100)}
-                embeddings={catalogEmbeddings}
+                embeddings={embeddings}
                 selectedItem={selectedItem || catalog[0]}
                 onSelectItem={(item) => setSelectedItem(item)}
               />
@@ -661,7 +621,7 @@ export default function App() {
           {activeView === 'catalog' && (
             <CatalogView
               catalog={catalog}
-              embeddings={catalogEmbeddings}
+              embeddings={embeddings}
               onAddItem={handleAddItem}
               onDeleteItem={handleDeleteItem}
               onSelectItem={(item) => {

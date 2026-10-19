@@ -55,3 +55,6 @@ export class MultimodalEmbedder {
     return scored.slice(0, k);
   }
 }
+
+export { CLIPEmbedder } from './multimodal/clip-embedder';
+

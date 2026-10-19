@@ -302,7 +302,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
       {/* High-Density Data Table */}
       <div className="card" style={{ overflowX: 'auto' }}>
-        <table className="table">
+        <table className="table" data-testid="catalog-table">
           <thead>
             <tr>
               <th style={{ width: 72 }}>ID</th>
