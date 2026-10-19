@@ -100,6 +100,15 @@ export interface CatalogRecommendation {
   whyRecommended?: string;
 }
 
+export interface HybridSearchHit {
+  item: CatalogItem;
+  fusedScore: number;
+  denseScore: number;
+  bm25Score: number;
+  source: 'hybrid' | 'dense' | 'sparse';
+  whyRecommended: string;
+}
+
 export interface CatalogEdge {
   fromId: string;
   toId: string;

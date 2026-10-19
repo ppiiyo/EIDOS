@@ -1,29 +1,57 @@
-import React, { useState } from 'react';
-import { Package, Search, Plus, Trash2, Tag } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import {
+  Search,
+  Plus,
+  Trash2,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  Boxes,
+  Lightbulb,
+} from 'lucide-react';
 import { CatalogItem } from '../types';
 import { trackEvent } from '../lib/analytics/tracker';
+import {
+  exportCatalogWithEmbeddings,
+  parseCatalogWithEmbeddings,
+} from '../utils/catalogExportImport';
 
 interface CatalogViewProps {
   catalog: CatalogItem[];
+  embeddings: Map<string, Float32Array>;
   onAddItem: (item: CatalogItem) => void;
   onDeleteItem: (id: string) => void;
   onSelectItem?: (item: CatalogItem) => void;
+  onInspectIn3D?: (item: CatalogItem) => void;
+  onImportVectorBundle?: (items: CatalogItem[], embeddings: Map<string, Float32Array>) => void;
+  onOpenCsvModal?: () => void;
 }
 
 export const CatalogView: React.FC<CatalogViewProps> = ({
   catalog,
+  embeddings,
   onAddItem,
   onDeleteItem,
   onSelectItem,
+  onInspectIn3D,
+  onImportVectorBundle,
+  onOpenCsvModal,
 }) => {
   const [filter, setFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  const [newCat, setNewCat] = useState('Товары');
-  const [newPrice, setNewPrice] = useState('1 990 ₽');
+  const [newCat, setNewCat] = useState('Электроника');
+  const [newPrice, setNewPrice] = useState('4 990 ₽');
+  const jsonInputRef = useRef<HTMLInputElement>(null);
+
+  const categories = Array.from(new Set(catalog.map((c) => c.category))).sort();
 
   const filtered = catalog.filter((item) => {
+    if (categoryFilter !== 'all' && item.category !== categoryFilter) {
+      return false;
+    }
     const q = filter.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -56,118 +84,329 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     setNewDesc('');
   };
 
+  const handleJsonBundleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const raw = String(ev.target?.result || '');
+        const parsed = parseCatalogWithEmbeddings(raw);
+        onImportVectorBundle?.(parsed.items, parsed.embeddings);
+      } catch {
+        // invalid json ignored safely
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  };
+
   return (
     <div className="page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      {/* Header & Action Bar */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 16,
+          marginBottom: 20,
+        }}
+      >
         <div>
-          <h1 className="page-title">Catalog Inventory</h1>
+          <h1 className="page-title">Catalog & 0ms Vector Bundle Manager</h1>
           <p className="page-sub">
-            Managed semantic products and vector embeddings ({catalog.length} items)
+            Managed SKU corpus ({catalog.length.toLocaleString()} items · {embeddings.size.toLocaleString()} × 384-d L2 vectors)
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-          <Plus size={15} /> Add Item
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            ref={jsonInputRef}
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={handleJsonBundleUpload}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => exportCatalogWithEmbeddings(catalog, embeddings)}
+            title="Export catalog with pre-computed 384-d vectors as JSON bundle"
+          >
+            <Download size={14} />
+            <span>Export 384-d JSON Bundle</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => jsonInputRef.current?.click()}
+            title="Import pre-computed JSON vector bundle with 0ms inference latency"
+          >
+            <Upload size={14} />
+            <span>Import JSON Bundle (0ms)</span>
+          </button>
+
+          {onOpenCsvModal && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onOpenCsvModal}
+            >
+              <FileSpreadsheet size={14} />
+              <span>CSV Import / Export</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => setShowAddModal((v) => !v)}
+          >
+            <Plus size={14} />
+            <span>Add SKU</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filter bar */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
-          <Search size={14} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-sec)' }} />
+      {/* Filter & Category Bar */}
+      <div
+        className="card"
+        style={{
+          padding: 14,
+          marginBottom: 18,
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div style={{ position: 'relative', flex: 1, minWidth: 240, maxWidth: 380 }}>
+          <Search
+            size={14}
+            style={{ position: 'absolute', left: 12, top: 11, color: 'var(--text-sec)' }}
+          />
           <input
             className="input"
             style={{ paddingLeft: 34 }}
-            placeholder="Filter catalog items..."
+            placeholder="Filter by title, description, or category..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('all')}
+            className="btn btn-sm"
+            style={{
+              background: categoryFilter === 'all' ? 'var(--accent)' : 'var(--bg-alt)',
+              color: categoryFilter === 'all' ? '#FFFFFF' : 'var(--text-sec)',
+              borderColor: 'var(--border)',
+            }}
+          >
+            All ({catalog.length})
+          </button>
+          {categories.slice(0, 6).map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategoryFilter(cat)}
+              className="btn btn-sm"
+              style={{
+                background: categoryFilter === cat ? 'var(--accent)' : 'var(--bg-alt)',
+                color: categoryFilter === cat ? '#FFFFFF' : 'var(--text-sec)',
+                borderColor: 'var(--border)',
+              }}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Add Modal */}
+      {/* Add SKU Inline Form */}
       {showAddModal && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>Add New Item</h2>
-          <form onSubmit={handleAdd} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>
+            Add New SKU (Auto-Vectorized to 384d)
+          </h2>
+          <form
+            onSubmit={handleAdd}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}
+          >
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>Title</label>
-              <input className="input" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required placeholder="e.g. Mechanical Keyboard" />
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                Title
+              </label>
+              <input
+                className="input"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                required
+                placeholder="e.g. Mechanical Keyboard Keychron Q1"
+              />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>Category</label>
-              <input className="input" value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="e.g. Electronics" />
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                Category
+              </label>
+              <input
+                className="input"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+                placeholder="e.g. Электроника"
+              />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>Price</label>
-              <input className="input" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="e.g. 4 990 ₽" />
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                Price
+              </label>
+              <input
+                className="input"
+                value={newPrice}
+                onChange={(e) => setNewPrice(e.target.value)}
+                placeholder="e.g. 14 990 ₽"
+              />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>Description</label>
-              <input className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Semantic description for vector indexing" />
+              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
+                Semantic Description
+              </label>
+              <input
+                className="input"
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                placeholder="Detailed attributes for 384-d vector indexing"
+              />
             </div>
-            <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8, marginTop: 8 }}>
-              <button type="submit" className="btn btn-primary btn-sm">Save</button>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowAddModal(false)}>Cancel</button>
+            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, marginTop: 6 }}>
+              <button type="submit" className="btn btn-primary btn-sm">
+                Save & Compute 384-d Vector
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowAddModal(false)}
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Table */}
-      <div className="card" style={{ overflow: 'hidden' }}>
+      {/* High-Density Data Table */}
+      <div className="card" style={{ overflowX: 'auto' }}>
         <table className="table">
           <thead>
             <tr>
-              <th style={{ width: 60 }}>ID</th>
-              <th>Item Title</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Description</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
+              <th style={{ width: 72 }}>ID</th>
+              <th>Item Title & Category</th>
+              <th style={{ width: 120 }}>Price</th>
+              <th>Semantic Description</th>
+              <th style={{ width: 110 }}>Vector Norm</th>
+              <th style={{ textAlign: 'right', width: 170 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((item) => (
-              <tr
-                key={item.id}
-                onClick={() => {
-                  trackEvent({ type: 'item_click', itemId: item.id, category: item.category });
-                  onSelectItem?.(item);
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-sec)', fontSize: '0.8125rem' }}>
-                  #{item.id}
-                </td>
-                <td style={{ fontWeight: 600 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>{item.icon || '📦'}</span>
-                    <span>{item.title}</span>
-                  </div>
-                </td>
-                <td>
-                  <span className="badge badge-neutral">{item.category}</span>
-                </td>
-                <td style={{ fontWeight: 600, color: 'var(--text)' }}>
-                  {item.price || '—'}
-                </td>
-                <td style={{ color: 'var(--text-sec)', fontSize: '0.8125rem', maxWidth: 380, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {item.description}
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteItem(item.id);
+            {filtered.slice(0, 150).map((item) => {
+              const vec = embeddings.get(String(item.id));
+              return (
+                <tr
+                  key={item.id}
+                  onClick={() => {
+                    trackEvent({ type: 'item_click', itemId: item.id, category: item.category });
+                    onSelectItem?.(item);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <td className="mono" style={{ color: 'var(--text-sec)', fontSize: '0.75rem' }}>
+                    #{item.id}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: '1.15rem' }}>{item.icon || '📦'}</span>
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--text)' }}>{item.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>
+                          <span>{item.category}</span>
+                          {item.rating && (
+                            <>
+                              <span> · </span>
+                              <span className="mono">★ {item.rating.toFixed(1)}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="mono" style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.8125rem' }}>
+                    {item.price || '—'}
+                  </td>
+                  <td
+                    style={{
+                      color: 'var(--text-sec)',
+                      fontSize: '0.8125rem',
+                      maxWidth: 360,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
-                    title="Delete item"
                   >
-                    <Trash2 size={13} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                    {item.description}
+                  </td>
+                  <td className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)' }}>
+                    {vec ? `${vec.length}d · L2=1.0` : 'Pending'}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {onInspectIn3D && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onInspectIn3D(item);
+                          }}
+                          title="Locate in 3D Vector Space"
+                        >
+                          <Boxes size={12} />
+                        </button>
+                      )}
+                      {onSelectItem && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectItem(item);
+                          }}
+                          title="Inspect MMR Recommendations"
+                        >
+                          <Lightbulb size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteItem(item.id);
+                        }}
+                        title="Delete SKU"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

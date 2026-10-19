@@ -1,0 +1,6 @@
+{
+  "summary": "Comprehensive architectural and UX implementation plan for upgrading EIDOS into a unified, dual-theme Semantic Recommender & Vector Search Workbench with 384-d HNSW/BM25 hybrid search, 3D WebGL vector universe, Adaptive Intelligence Lab (MIND capsules, LinUCB bandits, Vector Steering), side-by-side search comparison, batch vector import/export, and interactive REST API console.",
+  "updatedAt": "2026-10-19T07:08:33.691564561Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

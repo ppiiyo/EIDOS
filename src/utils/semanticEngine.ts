@@ -130,14 +130,14 @@ function hashString(str: string): number {
   return hash >>> 0;
 }
 
-const VECTOR_DIM = 64;
+const VECTOR_DIM = 384;
 
 export function generateSemanticEmbedding(text: string): Float32Array {
   const vec = new Float32Array(VECTOR_DIM);
   const normalized = text.toLowerCase().trim();
   const words = normalized.split(/[\s,_\-—]+/);
 
-  // 1. Anchor similarities (first 16 dimensions)
+  // 1. Anchor similarities distributed across first 96 dimensions (6 harmonics per anchor)
   for (let i = 0; i < SEMANTIC_ANCHORS.length; i++) {
     const anchor = SEMANTIC_ANCHORS[i];
     let score = 0;
@@ -146,7 +146,6 @@ export function generateSemanticEmbedding(text: string): Float32Array {
       if (anchor.words.includes(w)) {
         score += 1.0;
       } else {
-        // partial stem match
         for (const aw of anchor.words) {
           if (w.length >= 4 && aw.length >= 4) {
             const prefixLen = Math.min(4, Math.min(w.length, aw.length));
@@ -158,34 +157,37 @@ export function generateSemanticEmbedding(text: string): Float32Array {
         }
       }
     }
-    vec[i] = score;
+    const baseIdx = i * 6;
+    for (let h = 0; h < 6; h++) {
+      vec[baseIdx + h] = score * Math.cos(h * 0.4 + i * 0.15);
+    }
   }
 
-  // 2. Character 3-grams & 4-grams hashing for morphological robustness (dimensions 16..47)
+  // 2. Character 3-grams, 4-grams & 5-grams hashing for morphological robustness (dimensions 96..351)
   const padded = `^${normalized}$`;
-  for (let len = 3; len <= 4; len++) {
+  for (let len = 3; len <= 5; len++) {
     for (let i = 0; i <= padded.length - len; i++) {
       const gram = padded.slice(i, i + len);
       const h = hashString(gram);
-      const idx = 16 + (h % 32);
+      const idx = 96 + (h % 256);
       const sign = (h & 0x80) ? 1 : -1;
       vec[idx] += sign * 0.35;
     }
   }
 
-  // 3. Length, vowels & character rhythm distribution (dimensions 48..63)
+  // 3. Length, vowels & character rhythm distribution (dimensions 352..383)
   const lenNorm = Math.min(normalized.length / 25, 1.0);
-  vec[48] += lenNorm;
-  
+  vec[352] += lenNorm;
+
   let vowelCount = 0;
   for (const ch of normalized) {
     if ('аеёиоуыэюяaeiouy'.includes(ch)) vowelCount++;
   }
-  vec[49] += vowelCount / Math.max(1, normalized.length);
+  vec[353] += vowelCount / Math.max(1, normalized.length);
 
   for (let i = 0; i < normalized.length; i++) {
     const chCode = normalized.charCodeAt(i);
-    const targetIdx = 50 + (chCode % 14);
+    const targetIdx = 354 + (chCode % 30);
     vec[targetIdx] += 0.2 * Math.sin((i + 1) * 0.7);
   }
 
