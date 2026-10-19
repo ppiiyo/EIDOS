@@ -1,5 +1,5 @@
 /**
- * kostra44SIP Semantic Engine
+ * Eidos Semantic Engine
  * Provides fast, deterministic, high-dimensional semantic embeddings
  * with semantic category projections and subword hashing.
  */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cosineSimilarity, normalizeVector } from '@kostra44sip/core';
+import { cosineSimilarity, normalizeVector } from '@eidos/core';
 
 describe('Vector Mathematics & Similarity', () => {
   it('calculates identical vector similarity as 1.0', () => {

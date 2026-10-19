@@ -93,7 +93,7 @@ importers:
 
   apps/api:
     dependencies:
-      '@kostra44sip/core':
+      '@eidos/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@fastify/cors':
@@ -179,10 +179,10 @@ importers:
 
   apps/workspace:
     dependencies:
-      '@kostra44sip/core':
+      '@eidos/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@kostra44sip/sdk':
+      '@eidos/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       lucide-react:

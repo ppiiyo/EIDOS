@@ -1,9 +1,9 @@
 import unittest
-from kostra44sip import KostraClient, RecommendationItem, SearchResponse, KostraException
+from eidos import EidosClient, RecommendationItem, SearchResponse, EidosException
 
-class TestKostraClient(unittest.TestCase):
+class TestEidosClient(unittest.TestCase):
     def test_client_initialization(self):
-        client = KostraClient(base_url="http://localhost:8080", api_key="test-key")
+        client = EidosClient(base_url="http://localhost:8080", api_key="test-key")
         self.assertEqual(client.base_url, "http://localhost:8080")
         self.assertEqual(client.api_key, "test-key")
 

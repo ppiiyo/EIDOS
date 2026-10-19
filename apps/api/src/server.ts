@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Metrics } from '@kostra44sip/core';
+import { Metrics } from '@eidos/core';
 import { ServerEmbedder } from './services/embedder';
 import { VectorStore } from './services/vector-store';
 import { registerOpenAPI } from './openapi';
@@ -267,12 +267,12 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
           server.log.error(err);
           process.exit(1);
         }
-        server.log.info(`kostra44SIP REST API active at ${address}`);
+        server.log.info(`Eidos REST API active at ${address}`);
         server.log.info(`OpenAPI docs available at ${address}/docs`);
       });
     })
     .catch((err) => {
-      console.error('Failed to start kostra44SIP REST API server:', err);
+      console.error('Failed to start Eidos REST API server:', err);
       process.exit(1);
     });
 }

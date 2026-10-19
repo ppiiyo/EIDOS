@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kostra44sip-client"
+name = "eidos-client"
 version = "3.0.0"
-description = "Official Python client SDK for kostra44SIP Semantic Recommendation & Vector Search Engine"
+description = "Official Python client SDK for Eidos Semantic Recommendation & Vector Search Engine"
 readme = "README.md"
-authors = [{ name = "kostra44SIP Engineering Team" }]
+authors = [{ name = "Eidos Engineering Team" }]
 license = { text = "MIT" }
 requires-python = ">=3.8"
-keywords = ["recsys", "recommendations", "vector-search", "embeddings", "hnsw", "bm25", "kostra44sip"]
+keywords = ["recsys", "recommendations", "vector-search", "embeddings", "hnsw", "bm25", "eidos"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -23,6 +23,6 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ppiiyo/kostra44SIP"
-Repository = "https://github.com/ppiiyo/kostra44SIP.git"
-Documentation = "https://github.com/ppiiyo/kostra44SIP#readme"
+Homepage = "https://github.com/ppiiyo/Eidos"
+Repository = "https://github.com/ppiiyo/Eidos.git"
+Documentation = "https://github.com/ppiiyo/Eidos#readme"

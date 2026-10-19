@@ -3,13 +3,13 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kostra44sip-sdk"
+name = "eidos-sdk"
 version = "0.1.0"
-description = "Python client for kostra44SIP semantic recommender engine"
+description = "Python client for Eidos semantic recommender engine"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "kostra44SIP Team" }]
+authors = [{ name = "Eidos Team" }]
 dependencies = [
     "httpx>=0.27.0",
     "pydantic>=2.0.0",
@@ -20,4 +20,4 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["kostra44sip*"]
+include = ["eidos*"]

@@ -36,11 +36,11 @@ export function Problem() {
           </ul>
         </div>
 
-        {/* The kostra44SIP Solution */}
+        {/* The Eidos Solution */}
         <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/10 p-6">
           <div className="flex items-center gap-3 mb-4 text-cyan-400 font-semibold">
             <CheckCircle2 className="w-5 h-5" />
-            <h3>The kostra44SIP Semantic Representation</h3>
+            <h3>The Eidos Semantic Representation</h3>
           </div>
           <ul className="space-y-3 text-sm text-slate-300">
             <li className="flex items-start gap-2">

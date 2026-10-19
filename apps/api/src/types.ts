@@ -1,7 +1,7 @@
 export interface FastifyEnv {
   PORT?: string;
   HOST?: string;
-  KOSTRA44SIP_API_KEY?: string;
+  EIDOS_API_KEY?: string;
   NODE_ENV?: string;
 }
 

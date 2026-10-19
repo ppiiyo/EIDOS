@@ -188,11 +188,11 @@ export const SearchView: React.FC<SearchViewProps> = ({
           gap: 20,
         }}
       >
-        {/* Column 1: kostra44SIP Hybrid Search */}
+        {/* Column 1: Eidos Hybrid Search */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)' }}>
-              kostra44SIP Hybrid Retrieval ({hybridHits.length} hits)
+              Eidos Hybrid Retrieval ({hybridHits.length} hits)
             </div>
             <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
               {latencyMs} ms · α={alpha.toFixed(2)}
@@ -327,7 +327,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   0 results — Vocabulary Mismatch Failure
                 </div>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 6 }}>
-                  Traditional keyword search failed because exact query tokens did not literally appear in product titles, whereas kostra44SIP Hybrid Search retrieved {hybridHits.length} conceptually relevant items.
+                  Traditional keyword search failed because exact query tokens did not literally appear in product titles, whereas Eidos Hybrid Search retrieved {hybridHits.length} conceptually relevant items.
                 </p>
               </div>
             ) : (

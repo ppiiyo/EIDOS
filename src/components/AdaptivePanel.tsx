@@ -14,7 +14,7 @@ import {
   ScalarQuantizer,
   VectorSteering,
   SteeringModifier,
-} from '@kostra44sip/core';
+} from '@eidos/core';
 import {
   Sliders,
   Sparkles,

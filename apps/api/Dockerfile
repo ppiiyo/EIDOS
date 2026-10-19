@@ -1,4 +1,4 @@
-# Multi-stage production Dockerfile for kostra44SIP Fastify REST API
+# Multi-stage production Dockerfile for Eidos Fastify REST API
 FROM node:20-slim AS builder
 
 WORKDIR /app
@@ -11,8 +11,8 @@ COPY packages/sdk ./packages/sdk
 COPY apps/api ./apps/api
 
 RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install --no-frozen-lockfile; fi
-RUN pnpm --filter @kostra44sip/core build || true
-RUN pnpm --filter @kostra44sip/api build
+RUN pnpm --filter @eidos/core build || true
+RUN pnpm --filter @eidos/api build
 
 FROM node:20-slim AS runner
 

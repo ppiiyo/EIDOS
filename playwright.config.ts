@@ -8,20 +8,21 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173',
     trace: 'on-first-retry',
+    headless: true,
   },
-  webServer: [
-    {
-      command: 'npx vite --port 4173 --host 127.0.0.1',
-      url: 'http://127.0.0.1:4173',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120000,
-    },
-  ],
   projects: [
     {
-      name: 'workspace-chromium',
+      name: 'chromium',
       testMatch: /full-pipeline\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4173' },
+    },
+  ],
+  webServer: [
+    {
+      command: 'pnpm --filter @eidos/workspace dev --port 4173 --host 127.0.0.1',
+      url: 'http://127.0.0.1:4173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 60000,
     },
   ],
 });

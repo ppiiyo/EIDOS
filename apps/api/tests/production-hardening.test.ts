@@ -34,7 +34,7 @@ describe('Production Hardening API Integration Tests', () => {
     expect(jsonRes.statusCode).toBe(200);
     const spec = JSON.parse(jsonRes.body);
     expect(spec.openapi).toMatch(/^3\./);
-    expect(spec.info.title).toContain('kostra44SIP API');
+    expect(spec.info.title).toContain('Eidos API');
 
     // Prometheus /metrics endpoint
     const metricsRes = await app.inject({
@@ -43,8 +43,8 @@ describe('Production Hardening API Integration Tests', () => {
     });
     expect(metricsRes.statusCode).toBe(200);
     expect(metricsRes.headers['content-type']).toContain('text/plain');
-    expect(metricsRes.body).toContain('kostra44sip_requests_total');
-    expect(metricsRes.body).toContain('kostra44sip_vector_store_size');
+    expect(metricsRes.body).toContain('eidos_requests_total');
+    expect(metricsRes.body).toContain('eidos_vector_store_size');
 
     await app.close();
   });

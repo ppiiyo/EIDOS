@@ -7,7 +7,7 @@ import {
   ContextSignals,
   FeedbackLoop,
   CandidateFusion,
-} from '@kostra44sip/core';
+} from '@eidos/core';
 
 export class AILManager {
   private static instance: AILManager | null = null;

@@ -2,7 +2,7 @@ import { PresetDomain } from '../types';
 
 export const PRESET_DOMAINS: Record<string, PresetDomain> = {
   catalog: {
-    name: 'Каталог kostra44SIP (Товары & Технологии)',
+    name: 'Каталог Eidos (Товары & Технологии)',
     icon: '⚡',
     description: 'Семантическое поле каталога: гаджеты, софт, медиа и книги',
     concepts: [

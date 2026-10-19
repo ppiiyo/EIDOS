@@ -70,9 +70,9 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
-        '@kostra44sip/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
-        '@kostra44sip/sdk': path.resolve(__dirname, 'packages/sdk/src/index.ts'),
-        '@kostra44sip/workspace': path.resolve(__dirname, 'apps/workspace/src'),
+        '@eidos/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
+        '@eidos/sdk': path.resolve(__dirname, 'packages/sdk/src/index.ts'),
+        '@eidos/workspace': path.resolve(__dirname, 'apps/workspace/src'),
       },
     },
     server: {

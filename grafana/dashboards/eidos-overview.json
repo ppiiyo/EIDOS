@@ -43,7 +43,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(kostra44sip_requests_total[1m])) by (endpoint)",
+          "expr": "sum(rate(eidos_requests_total[1m])) by (endpoint)",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
@@ -67,17 +67,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(kostra44sip_request_duration_seconds_bucket[1m])) by (le, endpoint))",
+          "expr": "histogram_quantile(0.99, sum(rate(eidos_request_duration_seconds_bucket[1m])) by (le, endpoint))",
           "legendFormat": "p99 {{endpoint}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(kostra44sip_request_duration_seconds_bucket[1m])) by (le, endpoint))",
+          "expr": "histogram_quantile(0.95, sum(rate(eidos_request_duration_seconds_bucket[1m])) by (le, endpoint))",
           "legendFormat": "p95 {{endpoint}}",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.50, sum(rate(kostra44sip_request_duration_seconds_bucket[1m])) by (le, endpoint))",
+          "expr": "histogram_quantile(0.50, sum(rate(eidos_request_duration_seconds_bucket[1m])) by (le, endpoint))",
           "legendFormat": "p50 {{endpoint}}",
           "refId": "C"
         }
@@ -117,7 +117,7 @@
       },
       "targets": [
         {
-          "expr": "kostra44sip_vector_store_size",
+          "expr": "eidos_vector_store_size",
           "legendFormat": "Indexed Vectors",
           "refId": "A"
         }
@@ -157,7 +157,7 @@
       },
       "targets": [
         {
-          "expr": "rate(kostra44sip_cache_hits_total[1m]) / (rate(kostra44sip_cache_hits_total[1m]) + rate(kostra44sip_cache_misses_total[1m]))",
+          "expr": "rate(eidos_cache_hits_total[1m]) / (rate(eidos_cache_hits_total[1m]) + rate(eidos_cache_misses_total[1m]))",
           "legendFormat": "Cache Hit Ratio",
           "refId": "A"
         }
@@ -188,7 +188,7 @@
       },
       "targets": [
         {
-          "expr": "kostra44sip_recommendation_entropy",
+          "expr": "eidos_recommendation_entropy",
           "legendFormat": "Shannon Diversity Entropy",
           "refId": "A"
         }
@@ -212,7 +212,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(kostra44sip_errors_total[1m])) by (error_type, endpoint)",
+          "expr": "sum(rate(eidos_errors_total[1m])) by (error_type, endpoint)",
           "legendFormat": "{{error_type}} ({{endpoint}})",
           "refId": "A"
         }
@@ -224,7 +224,7 @@
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["kostra44sip", "recsys", "vector-search", "hnsw"],
+  "tags": ["eidos", "recsys", "vector-search", "hnsw"],
   "time": {
     "from": "now-15m",
     "to": "now"
@@ -233,7 +233,7 @@
     "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
   },
   "timezone": "browser",
-  "title": "kostra44SIP Production Semantic RecSys",
-  "uid": "kostra44sip-recsys-overview",
+  "title": "Eidos Production Semantic RecSys",
+  "uid": "eidos-recsys-overview",
   "version": 1
 }

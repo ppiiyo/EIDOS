@@ -33,13 +33,13 @@ describe('CLIPEmbedder (Task 2.2 Multimodal Support)', () => {
     const catalogImages = [
       {
         id: 'sku-sneakers',
-        imageUrl: 'https://cdn.kostra44sip.dev/images/red-sneakers-runmax.png',
+        imageUrl: 'https://cdn.eidos.dev/images/red-sneakers-runmax.png',
         title: 'RunMax Crimson Sneakers',
         tags: ['red', 'sneaker', 'running'],
       },
       {
         id: 'sku-coffee',
-        imageUrl: 'https://cdn.kostra44sip.dev/images/espresso-barista.png',
+        imageUrl: 'https://cdn.eidos.dev/images/espresso-barista.png',
         title: 'Specialty Espresso Machine',
         tags: ['coffee', 'espresso'],
       },

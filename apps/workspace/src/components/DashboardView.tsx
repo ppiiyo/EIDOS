@@ -7,126 +7,97 @@ import {
   MessageSquare,
   BarChart3,
   Rocket,
-  Zap,
   Activity,
-  Cpu,
-  Layers,
   ArrowRight,
-  TrendingUp,
-  ShieldCheck,
   Play,
   CheckCircle2,
+  Boxes,
+  Sliders,
+  Layers,
+  Database,
+  RotateCcw,
+  Terminal,
 } from 'lucide-react';
-import { CatalogItem } from '../types';
+import { CatalogItem, HybridSearchHit } from '../types';
 import { ViewId } from './Sidebar';
-import { MemoryMonitor } from './MemoryMonitor';
 import { getEvents } from '../lib/analytics/tracker';
 import { listExperiments } from '../lib/ab-testing/engine';
-import { cosineSimilarity } from '../utils/recommenderEngine';
+import {
+  getOrBuildCatalogHNSWIndex,
+  benchmarkHnswVsLinear,
+  computeCategoryEntropy,
+} from '../utils/recommenderEngine';
 
 interface DashboardViewProps {
   catalog: CatalogItem[];
   embeddings: Map<string, Float32Array>;
+  selectedItem: CatalogItem | null;
+  isScaledCatalog: boolean;
   onNavigate: (view: ViewId) => void;
   onSearch: (query: string) => Promise<CatalogItem[]>;
-  onSelectItem?: (item: CatalogItem) => void;
+  onSelectItem: (item: CatalogItem) => void;
+  onScaleCatalog: (targetCount: number) => void;
+  onRestoreCatalog: () => void;
+  onOpenApiConsole: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   catalog,
   embeddings,
+  selectedItem,
+  isScaledCatalog,
   onNavigate,
   onSearch,
   onSelectItem,
+  onScaleCatalog,
+  onRestoreCatalog,
+  onOpenApiConsole,
 }) => {
   const [quickQuery, setQuickQuery] = useState('');
   const [quickResults, setQuickResults] = useState<CatalogItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Load testing state for HNSW / Vector performance under load
-  const [isStressTesting, setIsStressTesting] = useState(false);
-  const [stressMetrics, setStressMetrics] = useState<{
-    queriesRun: number;
-    totalMs: number;
-    avgMs: number;
-    p99Ms: number;
-    qps: number;
+  // Real HNSW Phase 2 vs Linear Brute-Force Benchmark state
+  const [isBenchmarking, setIsBenchmarking] = useState(false);
+  const [benchmarkMetrics, setBenchmarkMetrics] = useState<{
+    hnswLatencyMs: number;
+    linearLatencyMs: number;
+    speedup: string;
+    totalItems: number;
+    recallTopK: number;
+    qpsHnsw: number;
   } | null>(null);
 
-  // Real data from storage & trackers
   const stats = useMemo(() => {
     const events = getEvents();
     const experiments = listExperiments();
     const searches = events.filter((e) => e.type === 'search').length;
     const recs = events.filter((e) => e.type === 'recommendation').length;
-    const views = events.filter((e) => e.type === 'item_view').length;
-    const purchases = events.filter((e) => e.type === 'purchase').length;
+    const entropy = computeCategoryEntropy(catalog);
 
     return {
       itemsCount: catalog.length,
       embeddingsCount: embeddings.size,
-      totalEvents: events.length,
       searches,
       recs,
-      views,
-      purchases,
+      entropyBits: entropy.entropyBits,
+      uniqueCategories: entropy.uniqueCategories,
       activeExperiments: experiments.filter((e) => e.status === 'running').length,
     };
-  }, [catalog.length, embeddings.size]);
+  }, [catalog, embeddings.size]);
 
-  // Run real in-memory vector similarity stress test to benchmark HNSW search under load
-  const runLoadTest = async () => {
-    setIsStressTesting(true);
-    setStressMetrics(null);
-
-    // Run asynchronously to allow UI to show state
+  // Execute authentic HNSW Phase 2 graph search vs Linear scan benchmark
+  const runAuthenticHnswBenchmark = () => {
+    setIsBenchmarking(true);
     setTimeout(() => {
-      const itemsList = Array.from(embeddings.values());
-      if (itemsList.length === 0) {
-        setIsStressTesting(false);
-        return;
-      }
-
-      const totalQueries = 250;
-      const latencies: number[] = [];
-      const startTime = performance.now();
-
-      for (let q = 0; q < totalQueries; q++) {
-        const qStart = performance.now();
-        // Pick random query vector or synthesize one
-        const randIdx = Math.floor(Math.random() * itemsList.length);
-        const queryVec = itemsList[randIdx];
-
-        // Perform dot-product across all indexed vectors
-        let topSim = -1;
-        let bestItemIdx = -1;
-        for (let i = 0; i < itemsList.length; i++) {
-          const sim = cosineSimilarity(queryVec, itemsList[i]);
-          if (sim > topSim) {
-            topSim = sim;
-            bestItemIdx = i;
-          }
-        }
-        const qEnd = performance.now();
-        latencies.push(qEnd - qStart);
-      }
-
-      const totalDuration = performance.now() - startTime;
-      latencies.sort((a, b) => a - b);
-      const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
-      const avg = totalDuration / totalQueries;
-      const qps = Math.round((totalQueries / (totalDuration / 1000)));
-
-      setStressMetrics({
-        queriesRun: totalQueries,
-        totalMs: Math.round(totalDuration * 10) / 10,
-        avgMs: Math.round(avg * 100) / 100,
-        p99Ms: Math.round(p99 * 100) / 100,
-        qps,
-      });
-
-      setIsStressTesting(false);
-    }, 50);
+      const hnsw = getOrBuildCatalogHNSWIndex(catalog, embeddings);
+      const firstVec =
+        embeddings.get(String(selectedItem?.id || catalog[0]?.id || '1')) ||
+        new Float32Array(384).fill(0.05);
+      const result = benchmarkHnswVsLinear(hnsw, catalog, embeddings, firstVec, 10, 150);
+      setBenchmarkMetrics(result);
+      setIsBenchmarking(false);
+    }, 40);
   };
 
   const handleQuickSearch = async (e: React.FormEvent) => {
@@ -144,289 +115,384 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   return (
-    <div className="page" style={{ maxWidth: 1120 }}>
-      {/* Top Header Card */}
+    <div className="page">
+      {/* Top Executive Overview Header */}
       <div
         className="card"
         style={{
-          padding: '24px 28px',
-          marginBottom: 24,
+          padding: '22px 24px',
+          marginBottom: 20,
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 16,
-          background: '#fff',
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <h1 className="page-title" style={{ margin: 0, fontSize: '1.375rem' }}>
-              kostra44SIP Semantic Engine v3.0
-            </h1>
-            <span className="badge badge-success" style={{ gap: 5 }}>
-              <ShieldCheck size={13} />
-              Production Ready
-            </span>
-          </div>
-          <p className="page-sub" style={{ margin: 0 }}>
-            Real-time vector search, MMR affinity recommendations, and statistical A/B engine.
+          <h1 className="page-title" style={{ margin: 0, fontSize: '1.375rem' }}>
+            Eidos Semantic Vector Workbench
+          </h1>
+          <p className="page-sub" style={{ margin: '4px 0 0' }}>
+            384-dimensional dense embeddings · HNSW Phase 2 (Int32 + BinaryHeap) · BM25 Hybrid RRF · Adaptive Intelligence Layer
           </p>
         </div>
 
-        {/* Real-time Memory Monitor Widget */}
-        <div
-          style={{
-            padding: '10px 14px',
-            background: 'var(--bg-alt)',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <MemoryMonitor />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {!isScaledCatalog ? (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => onScaleCatalog(1200)}
+              title="Generate 1,200+ synthetic items with 384-d vectors to benchmark HNSW logarithmic scaling"
+            >
+              <Database size={14} />
+              <span>Scale Catalog to 1,200 SKU (0ms)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onRestoreCatalog}
+            >
+              <RotateCcw size={14} />
+              <span>Restore Curated Catalog (25 SKU)</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={onOpenApiConsole}
+          >
+            <Terminal size={14} />
+            <span>Open Live REST API Console</span>
+          </button>
         </div>
       </div>
 
-      {/* KPI Metrics Grid */}
+      {/* KPI Metrics Row (4 columns with tabular numerals) */}
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 14,
-          marginBottom: 24,
+          marginBottom: 22,
         }}
       >
         <div className="card" style={{ padding: '16px 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              Indexed Catalog
+              Indexed Corpus & Vectors
             </span>
-            <Package size={16} color="var(--accent)" />
+            <Package size={15} color="var(--accent)" />
           </div>
-          <div style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
-            {stats.itemsCount}
+          <div className="mono" style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
+            {stats.itemsCount.toLocaleString()} SKU
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            {stats.embeddingsCount} dense 384-d vectors active
+            <span className="mono">{stats.embeddingsCount.toLocaleString()}</span> × 384-d L2 vectors active
           </div>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              Search Queries
+              Catalog Taxonomy Entropy
             </span>
-            <Search size={16} color="var(--success)" />
+            <Layers size={15} color="var(--success)" />
           </div>
-          <div style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
-            {stats.searches}
+          <div className="mono" style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
+            H = {stats.entropyBits.toFixed(2)} bits
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            Real queries tracked in session
+            Across <span className="mono">{stats.uniqueCategories}</span> semantic categories
           </div>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              Recommendations
+              Session Search & Recs
             </span>
-            <Lightbulb size={16} color="var(--warning)" />
+            <Search size={15} color="var(--warning)" />
           </div>
-          <div style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
-            {stats.recs}
+          <div className="mono" style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
+            {stats.searches + stats.recs} ops
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            MMR diversity balanced calculations
+            <span className="mono">{stats.searches}</span> hybrid queries · <span className="mono">{stats.recs}</span> MMR runs
           </div>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              A/B Experiments
+              Active A/B Experiments
             </span>
-            <Split size={16} color="#7C3AED" />
+            <Split size={15} color="var(--accent)" />
           </div>
-          <div style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
-            {stats.activeExperiments}
+          <div className="mono" style={{ fontSize: '1.625rem', fontWeight: 700, color: 'var(--text)' }}>
+            {stats.activeExperiments} running
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            Deterministic FNV-1a hash routing
+            Deterministic FNV-1a bucket routing
           </div>
         </div>
       </div>
 
-      {/* Main Grid: HNSW Performance Benchmark & Quick Search */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, marginBottom: 24 }}>
-        {/* HNSW Performance & Heap Monitor Under Load */}
-        <div className="card" style={{ padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-            <div>
-              <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
-                HNSW Vector Engine & Heap Benchmark
-              </h2>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 2 }}>
-                Simulate real query workloads to verify sub-5ms latency and monitor heap stability
-              </p>
+      {/* Main Split: Authentic HNSW Phase 2 vs Linear Benchmark & Instant Hybrid Search */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+          gap: 20,
+          marginBottom: 24,
+        }}
+      >
+        {/* Left: Real HNSW Phase 2 vs Linear Scan Benchmark */}
+        <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
+                  HNSW Phase 2 vs. Linear Brute-Force Benchmark
+                </h2>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 2 }}>
+                  Executes 150 real 384-d queries against both the Int32 HNSW graph and full linear cosine scan
+                </p>
+              </div>
+              <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>
+                O(log N) ANN
+              </span>
             </div>
-            <span className="badge badge-accent">Cosine Dot-Product</span>
-          </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 10,
-              padding: 12,
-              background: 'var(--bg-alt)',
-              borderRadius: 6,
-              marginBottom: 16,
-              fontSize: '0.75rem',
-            }}
-          >
-            <div>
-              <div style={{ color: 'var(--text-sec)' }}>Topology</div>
-              <div style={{ fontWeight: 600, marginTop: 2 }}>M=16, ef=64</div>
-            </div>
-            <div>
-              <div style={{ color: 'var(--text-sec)' }}>Precision</div>
-              <div style={{ fontWeight: 600, marginTop: 2 }}>FP32 (Dense)</div>
-            </div>
-            <div>
-              <div style={{ color: 'var(--text-sec)' }}>Memory Mode</div>
-              <div style={{ fontWeight: 600, marginTop: 2 }}>In-Memory Zero-Copy</div>
-            </div>
-          </div>
-
-          {stressMetrics && (
             <div
               style={{
-                padding: '12px 14px',
-                background: 'var(--success-bg)',
-                border: '1px solid #A7F3D0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: 10,
+                padding: 12,
+                background: 'var(--bg-alt)',
                 borderRadius: 6,
-                marginBottom: 16,
-                fontSize: '0.8125rem',
+                border: '1px solid var(--border)',
+                marginBottom: 14,
+                fontSize: '0.75rem',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--success)', marginBottom: 6 }}>
-                <CheckCircle2 size={15} />
-                <span>Stress test complete: {stressMetrics.queriesRun} queries executed</span>
+              <div>
+                <div style={{ color: 'var(--text-sec)' }}>Graph Topology</div>
+                <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>M=16 · M0=32 · ef=48</div>
               </div>
-              <div style={{ display: 'flex', gap: 16, color: '#065F46', flexWrap: 'wrap' }}>
-                <div>Avg Latency: <strong>{stressMetrics.avgMs} ms</strong></div>
-                <div>P99 Latency: <strong>{stressMetrics.p99Ms} ms</strong></div>
-                <div>Throughput: <strong>{stressMetrics.qps.toLocaleString()} QPS</strong></div>
+              <div>
+                <div style={{ color: 'var(--text-sec)' }}>Neighbor Storage</div>
+                <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>Flat Int32Array</div>
+              </div>
+              <div>
+                <div style={{ color: 'var(--text-sec)' }}>Active Corpus</div>
+                <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>{catalog.length} items (384d)</div>
               </div>
             </div>
-          )}
 
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={runLoadTest}
-            disabled={isStressTesting}
-            style={{ width: '100%', justifyContent: 'center' }}
-          >
-            {isStressTesting ? (
-              <>
-                <Activity size={14} className="animate-spin" />
-                Executing 250 vector searches...
-              </>
-            ) : (
-              <>
-                <Play size={14} />
-                Run HNSW Load Test (250 queries)
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Live Vector Search Test-Drive */}
-        <div className="card" style={{ padding: 20 }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-            Instant Vector Search Preview
-          </h2>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginBottom: 14 }}>
-            Test semantic matching directly against the loaded catalog
-          </p>
-
-          <form onSubmit={handleQuickSearch} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <input
-              type="text"
-              className="input"
-              placeholder="e.g. кофеварка эспрессо, sci-fi космос, python..."
-              value={quickQuery}
-              onChange={(e) => setQuickQuery(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary" disabled={isSearching || !quickQuery.trim()}>
-              {isSearching ? '...' : <Search size={15} />}
-            </button>
-          </form>
-
-          {quickResults.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {quickResults.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => onSelectItem?.(item)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border)',
-                    background: '#fff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1, paddingRight: 8 }}>
-                    <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text)' }}>
-                      {item.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-sec)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {item.category} • {item.price || '—'}
-                    </div>
+            {benchmarkMetrics && (
+              <div
+                style={{
+                  padding: '12px 14px',
+                  background: 'var(--success-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  marginBottom: 14,
+                  fontSize: '0.8125rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--success)' }}>
+                    <CheckCircle2 size={15} />
+                    <span>Verified on {benchmarkMetrics.totalItems.toLocaleString()} items (150 queries)</span>
                   </div>
-                  <span className="badge badge-accent" style={{ flexShrink: 0 }}>
-                    Match
+                  <span className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>
+                    {benchmarkMetrics.speedup} Speedup
                   </span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div
-              style={{
-                padding: '24px 12px',
-                textAlign: 'center',
-                color: 'var(--text-mut)',
-                fontSize: '0.8125rem',
-                border: '1px dashed var(--border)',
-                borderRadius: 6,
-              }}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-sec)' }}>HNSW p50</div>
+                    <div className="mono" style={{ fontWeight: 700 }}>{benchmarkMetrics.hnswLatencyMs} ms</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-sec)' }}>Linear Scan</div>
+                    <div className="mono" style={{ fontWeight: 700 }}>{benchmarkMetrics.linearLatencyMs} ms</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-sec)' }}>Recall@10</div>
+                    <div className="mono" style={{ fontWeight: 700 }}>{benchmarkMetrics.recallTopK}%</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-sec)' }}>Throughput</div>
+                    <div className="mono" style={{ fontWeight: 700 }}>{benchmarkMetrics.qpsHnsw.toLocaleString()} QPS</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={runAuthenticHnswBenchmark}
+              disabled={isBenchmarking}
+              style={{ flex: 1 }}
             >
-              Enter a query above or click a preset below to see vector similarity results
+              {isBenchmarking ? (
+                <>
+                  <Activity size={14} className="animate-spin" />
+                  <span>Benchmarking HNSW vs Linear...</span>
+                </>
+              ) : (
+                <>
+                  <Play size={14} />
+                  <span>Run HNSW vs Linear Benchmark</span>
+                </>
+              )}
+            </button>
+            {!isScaledCatalog && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  onScaleCatalog(1200);
+                }}
+              >
+                <span>Test on 1,200 SKU</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Instant Hybrid Vector Search Test-Drive */}
+        <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
+                  Instant Hybrid Vector Search Preview
+                </h2>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)' }}>
+                  Click any result to set it as the active seed anchor across 3D Space and Recommendations
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('search')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent)',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Full Search Lab →
+              </button>
             </div>
-          )}
+
+            <form onSubmit={handleQuickSearch} style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input
+                type="text"
+                className="input"
+                placeholder="Try 'интерстеллар космос', 'векторная база rust', 'кофе эспрессо'..."
+                value={quickQuery}
+                onChange={(e) => setQuickQuery(e.target.value)}
+              />
+              <button type="submit" className="btn btn-primary" disabled={isSearching || !quickQuery.trim()}>
+                {isSearching ? '...' : <Search size={15} />}
+              </button>
+            </form>
+
+            {quickResults.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {quickResults.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      onSelectItem(item);
+                      onNavigate('recommendations');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1, paddingRight: 8 }}>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text)' }}>
+                        {item.icon} {item.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--text-sec)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {item.category} · {item.price || '—'}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
+                      Inspect →
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '20px 12px',
+                  textAlign: 'center',
+                  color: 'var(--text-mut)',
+                  fontSize: '0.8125rem',
+                  border: '1px dashed var(--border)',
+                  borderRadius: 6,
+                }}
+              >
+                Enter a conceptual query above or test one of the quick presets below:
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+                  {['космос и черные дыры', 'киберпанк симуляция', 'быстрая база данных rust'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={async () => {
+                        setQuickQuery(preset);
+                        setIsSearching(true);
+                        const res = await onSearch(preset);
+                        setQuickResults(res.slice(0, 4));
+                        setIsSearching(false);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Navigation Quick Access Cards */}
+      {/* Studio Architecture Modules Grid */}
       <div>
         <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
-          Modules & Tools
+          Studio Workbench Modules
         </h2>
         <div
           style={{
@@ -437,46 +503,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         >
           {[
             {
-              id: 'catalog' as ViewId,
-              title: 'Catalog',
-              desc: 'Add, view, and inspect items & categories',
-              icon: Package,
+              id: 'vectorspace' as ViewId,
+              title: '3D Vector Space & 2D Graph',
+              desc: 'WebGL 384-d hypersphere, HNSW L0–L2 layers, INT8 lattice, and 2D force topology',
+              icon: Boxes,
+            },
+            {
+              id: 'adaptive' as ViewId,
+              title: 'Adaptive Intelligence Lab (AIL)',
+              desc: '7-factor ranker, MIND multi-interest capsules, LinUCB bandits, and vector steering',
+              icon: Sliders,
             },
             {
               id: 'search' as ViewId,
-              title: 'Semantic Search',
-              desc: 'Multilingual vector search with similarity scores',
+              title: 'Hybrid Search & Side-by-Side',
+              desc: 'BM25 + Dense HNSW fusion with convex α control vs. legacy keyword search',
               icon: Search,
             },
             {
               id: 'recommendations' as ViewId,
-              title: 'Recommendations',
-              desc: 'Item-to-item similarity with MMR diversity balancing',
+              title: 'MMR Recommendations & X-Ray',
+              desc: 'Maximal Marginal Relevance diversity re-ranking with Shannon entropy and factor bars',
               icon: Lightbulb,
             },
             {
+              id: 'catalog' as ViewId,
+              title: 'Catalog & 0ms Vector Bundles',
+              desc: 'Manage SKU inventory, export 384-d JSON bundles, and batch-ingest CSV/JSON',
+              icon: Package,
+            },
+            {
+              id: 'analytics' as ViewId,
+              title: 'Recharts Trends & Telemetry',
+              desc: 'Temporal query volume streams, semantic topic clusters, and live CTR conversion',
+              icon: BarChart3,
+            },
+            {
               id: 'abtest' as ViewId,
-              title: 'A/B Testing',
-              desc: 'Statistical engine with Z-scores and significance tests',
+              title: 'Statistical A/B Engine',
+              desc: 'Two-tailed Z-test significance evaluation across ranking strategies',
               icon: Split,
             },
             {
               id: 'conversational' as ViewId,
-              title: 'Conversational',
-              desc: 'Rule-based shopping agent with vector shifts',
+              title: 'Conversational Vector Agent',
+              desc: 'Natural language shopping assistant with intent extraction and latent space shifts',
               icon: MessageSquare,
-            },
-            {
-              id: 'analytics' as ViewId,
-              title: 'Analytics',
-              desc: 'Real session event metrics, CTR, and top queries',
-              icon: BarChart3,
-            },
-            {
-              id: 'launchkit' as ViewId,
-              title: 'Launch Kit',
-              desc: 'Deployment scripts, Docker, and environment checklists',
-              icon: Rocket,
             },
           ].map(({ id, title, desc, icon: Icon }) => (
             <div
@@ -486,7 +558,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               style={{
                 padding: 16,
                 cursor: 'pointer',
-                transition: 'border-color .15s, transform .1s',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
@@ -495,9 +566,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <Icon size={16} color="var(--accent)" />
-                  <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{title}</span>
+                  <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text)' }}>{title}</span>
                 </div>
-                <p style={{ fontSize: '0.75rem', color: 'var(--text-sec)', margin: 0, lineHeight: 1.4 }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-sec)', margin: 0, lineHeight: 1.45 }}>
                   {desc}
                 </p>
               </div>
@@ -508,7 +579,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   gap: 4,
                   fontSize: '0.75rem',
                   color: 'var(--accent)',
-                  fontWeight: 500,
+                  fontWeight: 600,
                   marginTop: 12,
                 }}
               >

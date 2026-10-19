@@ -1,7 +1,7 @@
 import React from 'react';
 import { Project, Edge, Cluster, GraphMetrics, Insight } from '../types';
 import { FileJson, FileText, Table, Image, Copy, Printer, FileSpreadsheet } from 'lucide-react';
-import { exportConceptsToCsv } from '@kostra44sip/core';
+import { exportConceptsToCsv } from '@eidos/core';
 
 interface ExportViewProps {
   project: Project;
@@ -82,7 +82,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
     };
 
     downloadFile(
-      `kostra44sip-${project.name.toLowerCase().replace(/\s+/g, '_')}-${getTimestamp()}.json`,
+      `eidos-${project.name.toLowerCase().replace(/\s+/g, '_')}-${getTimestamp()}.json`,
       JSON.stringify(data, null, 2),
       'application/json'
     );
@@ -94,7 +94,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
       return;
     }
     const L: string[] = [];
-    L.push(`# kostra44SIP — ${project.name}`);
+    L.push(`# Eidos — ${project.name}`);
     L.push(`*Семантический отчет и картирование смыслового поля · ${new Date().toLocaleString('ru-RU')}*\n`);
 
     L.push(`## 1. Системные метрики графа\n`);
@@ -127,10 +127,10 @@ export const ExportView: React.FC<ExportViewProps> = ({
       L.push(`*Метрика (${ins.metricLabel}): ${ins.metric < 1 ? (ins.metric * 100).toFixed(0) + '%' : ins.metric.toFixed(2)}*\n`);
     });
 
-    L.push(`---\n*Сформировано на платформе kostra44SIP Semantic Ideation*`);
+    L.push(`---\n*Сформировано на платформе Eidos Semantic Ideation*`);
 
     downloadFile(
-      `kostra44sip-${project.name.toLowerCase().replace(/\s+/g, '_')}-${getTimestamp()}.md`,
+      `eidos-${project.name.toLowerCase().replace(/\s+/g, '_')}-${getTimestamp()}.md`,
       L.join('\n'),
       'text/markdown'
     );
@@ -147,7 +147,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
     }
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
     downloadFile(
-      `kostra44sip-edges-${getTimestamp()}.csv`,
+      `eidos-edges-${getTimestamp()}.csv`,
       csv,
       'text/csv;charset=utf-8;'
     );
@@ -160,7 +160,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
     }
     const csv = exportConceptsToCsv(project.concepts);
     downloadFile(
-      `kostra44sip-concepts-${project.name.toLowerCase().replace(/\s+/g, '_')}-${getTimestamp()}.csv`,
+      `eidos-concepts-${project.name.toLowerCase().replace(/\s+/g, '_')}-${getTimestamp()}.csv`,
       csv,
       'text/csv;charset=utf-8;'
     );
@@ -175,7 +175,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
     const url = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url;
-    a.download = `kostra44sip-graph-${getTimestamp()}.png`;
+    a.download = `eidos-graph-${getTimestamp()}.png`;
     a.click();
     onShowToast('Снимок графа сохранен', 'success');
   };

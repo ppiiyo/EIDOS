@@ -57,7 +57,7 @@ export const PitchModal: React.FC<PitchModalProps> = ({
           </div>
           <div className="p-3 bg-[#111120] border border-[#00f0ff]/30 rounded-lg">
             <div className="text-[#00f0ff] font-bold mb-1 flex items-center gap-1">
-              <CheckCircle2 size={12} /> kostra44SIP AI (по смыслу):
+              <CheckCircle2 size={12} /> Eidos AI (по смыслу):
             </div>
             <div className="text-[#8a8aa3]">«космос и время» →</div>
             <div className="text-[#3ee89a] font-semibold mt-1">Интерстеллар (96%) ✓</div>
@@ -70,11 +70,11 @@ export const PitchModal: React.FC<PitchModalProps> = ({
     {
       stepNumber: 2,
       duration: '30 сек',
-      title: '2. Решение: Движок kostra44SIP понимает смысл',
+      title: '2. Решение: Движок Eidos понимает смысл',
       tag: 'Технология',
       tagColor: 'text-[#00f0ff] bg-[#00f0ff]/10 border-[#00f0ff]/30',
       pitchText:
-        '«А теперь наш движок. Вводим "хочу что-то про космос и время". Мгновенно получаем "Интерстеллар", "Дюна", "Матрица". Потому что kostra44SIP понимает смысл, семантическую близость и ассоциации аудитории, а не просто совпадение букв».',
+        '«А теперь наш движок. Вводим "хочу что-то про космос и время". Мгновенно получаем "Интерстеллар", "Дюна", "Матрица". Потому что Eidos понимает смысл, семантическую близость и ассоциации аудитории, а не просто совпадение букв».',
       actionTitle: 'Проверить в живом каталоге:',
       actionButtonText: '🚀 Ввести "космос и время"',
       onAction: () => {
@@ -130,7 +130,7 @@ export const PitchModal: React.FC<PitchModalProps> = ({
       tag: 'Деньги и ROI',
       tagColor: 'text-[#3ee89a] bg-[#3ee89a]/10 border-[#3ee89a]/30',
       pitchText:
-        '«Мы не продаем абстрактные эмбеддинги. Мы продаем рост продаж. Внедрение семантического движка kostra44SIP увеличивает CTR рекомендаций на 30%, конверсию в покупку на 20%, а среднее время клиента на платформе — на 40%».',
+        '«Мы не продаем абстрактные эмбеддинги. Мы продаем рост продаж. Внедрение семантического движка Eidos увеличивает CTR рекомендаций на 30%, конверсию в покупку на 20%, а среднее время клиента на платформе — на 40%».',
       actionTitle: 'Посмотреть метрики:',
       actionButtonText: '📈 Перейти в калькулятор ROI',
       onAction: () => {
@@ -190,7 +190,7 @@ export const PitchModal: React.FC<PitchModalProps> = ({
                 Интерактивный сценарий питча инвестору
               </div>
               <div className="text-[11px] text-[#8a8aa3]">
-                2-минутная демонстрация ценности продукта kostra44SIP
+                2-минутная демонстрация ценности продукта Eidos
               </div>
             </div>
           </div>

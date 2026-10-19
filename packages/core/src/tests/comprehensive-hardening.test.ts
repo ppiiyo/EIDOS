@@ -73,14 +73,14 @@ describe('COMPREHENSIVE FIX: Production Hardening Tasks', () => {
     Metrics.errorsTotal.inc({ error_type: 'Validation', endpoint: '/v1/search' });
 
     const rendered = await Metrics.getMetrics();
-    expect(rendered).toContain('kostra44sip_requests_total');
-    expect(rendered).toContain('kostra44sip_request_duration_seconds');
-    expect(rendered).toContain('kostra44sip_vector_store_size 42');
-    expect(rendered).toContain('kostra44sip_search_latency_seconds');
-    expect(rendered).toContain('kostra44sip_embedding_latency_seconds');
-    expect(rendered).toContain('kostra44sip_embeddings_generated_total');
-    expect(rendered).toContain('kostra44sip_cache_hits_total');
-    expect(rendered).toContain('kostra44sip_cache_misses_total');
-    expect(rendered).toContain('kostra44sip_errors_total');
+    expect(rendered).toContain('eidos_requests_total');
+    expect(rendered).toContain('eidos_request_duration_seconds');
+    expect(rendered).toContain('eidos_vector_store_size 42');
+    expect(rendered).toContain('eidos_search_latency_seconds');
+    expect(rendered).toContain('eidos_embedding_latency_seconds');
+    expect(rendered).toContain('eidos_embeddings_generated_total');
+    expect(rendered).toContain('eidos_cache_hits_total');
+    expect(rendered).toContain('eidos_cache_misses_total');
+    expect(rendered).toContain('eidos_errors_total');
   });
 });

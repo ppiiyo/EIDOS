@@ -1,6 +1,6 @@
 # Dependabot PR Triage Record (v3.5 Production Hardening)
 
-This document records the automated dependency triage executed for **kostra44SIP v3.5**.
+This document records the automated dependency triage executed for **Eidos v3.5**.
 
 ## 1. Closed Major Upgrades (Deferred to v4.0.0)
 
@@ -10,8 +10,8 @@ This document records the automated dependency triage executed for **kostra44SIP
 - **Closing Comment**:
   > `"Major upgrades scheduled for v4.0.0 to avoid breaking changes in v3.x series."`
 - **Technical Rationale**:
-  - `#14` (`typescript` 5.8 → 7.0.2): Major compiler jump deferred to v4.0.0 to preserve deterministic build stability across monorepo packages (`@kostra44sip/core`, `@kostra44sip/sdk`, `@kostra44sip/api`, `@kostra44sip/landing`).
-  - `#15` (`tailwindcss` 3.4 → 4.3.3 in `@kostra44sip/landing`): Next.js 14.1.3 App Router relies on Tailwind v3 PostCSS directives (`@tailwind base/components/utilities`). Migrating to v4 is scheduled alongside Next.js 15 in v4.0.0.
+  - `#14` (`typescript` 5.8 → 7.0.2): Major compiler jump deferred to v4.0.0 to preserve deterministic build stability across monorepo packages (`@eidos/core`, `@eidos/sdk`, `@eidos/api`, `@eidos/landing`).
+  - `#15` (`tailwindcss` 3.4 → 4.3.3 in `@eidos/landing`): Next.js 14.1.3 App Router relies on Tailwind v3 PostCSS directives (`@tailwind base/components/utilities`). Migrating to v4 is scheduled alongside Next.js 15 in v4.0.0.
 
 ---
 

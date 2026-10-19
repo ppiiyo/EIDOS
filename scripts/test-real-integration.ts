@@ -11,7 +11,7 @@ import {
 } from '../packages/core/src/index';
 
 console.log('================================================================');
-console.log(' kostra44SIP — Enterprise Production Integration Test Suite');
+console.log(' Eidos — Enterprise Production Integration Test Suite');
 console.log(' Real-World Product Simulation & Algorithmic Verification');
 console.log('================================================================\n');
 

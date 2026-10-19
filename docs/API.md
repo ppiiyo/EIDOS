@@ -1,4 +1,4 @@
-# kostra44SIP Recommender API Documentation
+# Eidos Recommender API Documentation
 
 Version: `v1`  
 Protocol: `HTTPS`  
@@ -47,7 +47,7 @@ Checks service status, current version, and indexed item counts.
 #### Example Request
 
 ```bash
-curl -X GET "https://api.kostra44sip.dev/v1/health"
+curl -X GET "https://api.eidos.dev/v1/health"
 ```
 
 #### Response (`200 OK`)
@@ -85,8 +85,8 @@ Retrieves semantically proximate items given a source item identifier. Employs c
 #### Example Request
 
 ```bash
-curl -X POST "https://api.kostra44sip.dev/v1/recommend" \
-  -H "Authorization: Bearer kostra44sip_live_sk94829a8f" \
+curl -X POST "https://api.eidos.dev/v1/recommend" \
+  -H "Authorization: Bearer eidos_live_sk94829a8f" \
   -H "Content-Type: application/json" \
   -d '{
     "itemId": "prod-402",
@@ -156,8 +156,8 @@ Performs direct vector inference on arbitrary natural language queries to discov
 #### Example Request
 
 ```bash
-curl -X POST "https://api.kostra44sip.dev/v1/search" \
-  -H "Authorization: Bearer kostra44sip_live_sk94829a8f" \
+curl -X POST "https://api.eidos.dev/v1/search" \
+  -H "Authorization: Bearer eidos_live_sk94829a8f" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "something to reduce eye strain when working late hours",
@@ -262,8 +262,8 @@ Standard HTTP error format adheres to RFC 7807 problem details:
 ```python
 import requests
 
-API_KEY = "kostra44sip_live_sk94829a8f"
-BASE_URL = "https://api.kostra44sip.dev"
+API_KEY = "eidos_live_sk94829a8f"
+BASE_URL = "https://api.eidos.dev"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
@@ -283,14 +283,14 @@ for item in recommendations:
     print(f"[{item['score']:.2f}] {item['title']} - ${item.get('price', 0)}")
 ```
 
-### Node.js / TypeScript (with `@kostra44sip/sdk`)
+### Node.js / TypeScript (with `@eidos/sdk`)
 
 ```typescript
-import { KostraClient } from '@kostra44sip/sdk';
+import { EidosClient } from '@eidos/sdk';
 
-const client = new KostraClient({
-  baseUrl: 'https://api.kostra44sip.dev',
-  apiKey: process.env.KOSTRA44SIP_API_KEY!,
+const client = new EidosClient({
+  baseUrl: 'https://api.eidos.dev',
+  apiKey: process.env.EIDOS_API_KEY!,
 });
 
 async function main() {
@@ -335,8 +335,8 @@ func main() {
 		DiversityFactor: 0.7,
 	})
 
-	req, _ := http.NewRequest("POST", "https://api.kostra44sip.dev/v1/recommend", bytes.NewBuffer(reqBody))
-	req.Header.Set("Authorization", "Bearer kostra44sip_live_sk94829a8f")
+	req, _ := http.NewRequest("POST", "https://api.eidos.dev/v1/recommend", bytes.NewBuffer(reqBody))
+	req.Header.Set("Authorization", "Bearer eidos_live_sk94829a8f")
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}

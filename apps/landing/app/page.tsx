@@ -2,7 +2,6 @@ import React from 'react';
 import { Hero } from '../components/Hero';
 import { Problem } from '../components/Problem';
 import { HowItWorks } from '../components/HowItWorks';
-import { InteractiveDemo } from '../components/InteractiveDemo';
 import { Metrics } from '../components/Metrics';
 import { Pricing } from '../components/Pricing';
 import { FAQ } from '../components/FAQ';
@@ -14,7 +13,6 @@ export default function LandingPage() {
       <Hero />
       <Problem />
       <HowItWorks />
-      <InteractiveDemo />
       <Metrics />
       <Pricing />
       <FAQ />

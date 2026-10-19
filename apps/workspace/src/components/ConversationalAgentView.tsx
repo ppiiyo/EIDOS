@@ -32,7 +32,7 @@ import {
   CatalogSyncConnector,
   WebGPUAccelerator,
   DistributedHNSWCluster,
-} from '@kostra44sip/core';
+} from '@eidos/core';
 import { computeTextEmbedding } from '../utils/recommenderEngine';
 import { SecurityGuardrails, SecurityScanResult } from '../utils/securityGuardrails';
 
@@ -76,7 +76,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
       id: 'welcome',
       role: 'assistant',
       content:
-        'Здравствуйте! Я интеллектуальный диалоговый агент kostra44SIP v3.0. В отличие от примитивного текстового поиска, я перевожу ваши пожелания в 384-мерные дельта-векторы и смещаю область поиска в каталоге. Опишите своими словами, что вам нужно («тихий белый ноутбук до 90 000 руб», «кроссовки для вечернего бега без ярких цветов»). Все входящие запросы проходят валидацию kostra44SIP Security Guardrails.',
+        'Здравствуйте! Я интеллектуальный диалоговый агент Eidos v3.0. В отличие от примитивного текстового поиска, я перевожу ваши пожелания в 384-мерные дельта-векторы и смещаю область поиска в каталоге. Опишите своими словами, что вам нужно («тихий белый ноутбук до 90 000 руб», «кроссовки для вечернего бега без ярких цветов»). Все входящие запросы проходят валидацию Eidos Security Guardrails.',
       timestamp: Date.now(),
     },
   ]);
@@ -114,18 +114,18 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
       auditLogger.logEvent({
         tenantId: selectedTenant,
         action: 'search',
-        actor: 'client-session@kostra44sip.io',
+        actor: 'client-session@eidos.io',
         status: 'denied',
       });
       onShowToast(
-        `🛡️ Защита kostra44SIP: Обнаружена угроза инъекции (${scan.threatsDetected.join(', ')}). Запрос нейтрализован.`,
+        `🛡️ Защита Eidos: Обнаружена угроза инъекции (${scan.threatsDetected.join(', ')}). Запрос нейтрализован.`,
         'error'
       );
     } else {
       auditLogger.logEvent({
         tenantId: selectedTenant,
         action: 'search',
-        actor: 'client-session@kostra44sip.io',
+        actor: 'client-session@eidos.io',
         status: 'success',
       });
     }
@@ -163,7 +163,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
           ...c,
           id: String(c.id),
           tags: c.tags || [],
-          price: c.price ? parseInt(c.price.replace(/[^\d]/g, ''), 10) : undefined,
+          price: c.price !== undefined ? parseInt(String(c.price).replace(/[^\d]/g, ''), 10) : undefined,
         })),
         resolveEmb
       );
@@ -174,7 +174,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
 
       let finalContent = reply.content;
       if (!scan.isSafe) {
-        finalContent = `[🛡️ Безопасность kostra44SIP: Запрос содержал потенциально опасные конструкции. Они были обезврежены перед отправкой в семантический движок]\n\n${reply.content}`;
+        finalContent = `[🛡️ Безопасность Eidos: Запрос содержал потенциально опасные конструкции. Они были обезврежены перед отправкой в семантический движок]\n\n${reply.content}`;
       }
 
       setMessages((prev) => [
@@ -315,7 +315,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
                     }`}
                   >
                     <div className="flex items-center gap-2 text-[10px] font-mono text-[#64748b]">
-                      <span>{msg.role === 'user' ? '👤 ВЫ' : '🤖 kostra44SIP CONVERSATIONAL AGENT'}</span>
+                      <span>{msg.role === 'user' ? '👤 ВЫ' : '🤖 Eidos CONVERSATIONAL AGENT'}</span>
                       <span>•</span>
                       <span>{new Date(msg.timestamp).toLocaleTimeString()}</span>
                       {msg.securityFlag && (
@@ -457,7 +457,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
                     <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
-                      kostra44SIP Security Sentinel
+                      Eidos Security Sentinel
                     </span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
@@ -541,7 +541,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
                     <span>Песочница Проверки Защиты (Security Injection Attack Simulation)</span>
                   </h3>
                   <p className="text-xs text-[#94a3b8] mt-0.5">
-                    Нажмите на любой пример атаки, чтобы проверить работу kostra44SIP Guardrails в реальном времени:
+                    Нажмите на любой пример атаки, чтобы проверить работу Eidos Guardrails в реальном времени:
                   </p>
                 </div>
               </div>
@@ -623,10 +623,10 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
                 <div>
                   <h3 className="font-mono text-sm font-bold text-white flex items-center gap-2">
                     <Terminal className="w-4 h-4 text-amber-400" />
-                    <span>Боевые Промпты Рекомендательной Системы kostra44SIP</span>
+                    <span>Боевые Промпты Рекомендательной Системы Eidos</span>
                   </h3>
                   <p className="text-xs text-[#94a3b8] mt-0.5">
-                    Точные системные инструкции, с помощью которых kostra44SIP превращает человеческий язык в векторные дельта-модификаторы и понятные объяснения:
+                    Точные системные инструкции, с помощью которых Eidos превращает человеческий язык в векторные дельта-модификаторы и понятные объяснения:
                   </p>
                 </div>
                 {onOpenPromptInspector && (
@@ -797,14 +797,14 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
                     </span>
                     <span className="text-xs font-mono text-[#64748b]">Лицензия: Apache 2.0 / BSL</span>
                   </div>
-                  <h3 className="text-xl font-bold font-mono text-white">kostra44SIP Community Edition</h3>
+                  <h3 className="text-xl font-bold font-mono text-white">Eidos Community Edition</h3>
                   <p className="text-xs text-[#94a3b8] leading-relaxed">
                     Бесплатное открытое ядро для разработчиков и стартапов. Максимальный вирусный охват, GitHub Stars и доверие сообщества.
                   </p>
                   <ul className="flex flex-col gap-2 text-xs font-mono text-[#cbd5e1] mt-2">
                     <li className="flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                      <span>Полный доступ к математическому ядру @kostra44sip/core</span>
+                      <span>Полный доступ к математическому ядру @eidos/core</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
@@ -840,7 +840,7 @@ export const ConversationalAgentView: React.FC<ConversationalAgentViewProps> = (
                     </span>
                     <span className="text-xs font-mono text-emerald-400 font-bold">SLA 99.99%</span>
                   </div>
-                  <h3 className="text-xl font-bold font-mono text-white">kostra44SIP Enterprise & Cloud</h3>
+                  <h3 className="text-xl font-bold font-mono text-white">Eidos Enterprise & Cloud</h3>
                   <p className="text-xs text-[#94a3b8] leading-relaxed">
                     Платное решение для крупного ритейла, маркетплейсов и медиахолдингов с высокими требованиями к безопасности и масштабированию.
                   </p>

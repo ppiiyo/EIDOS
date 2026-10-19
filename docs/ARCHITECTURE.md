@@ -1,6 +1,6 @@
-# kostra44SIP Architecture Specification
+# Eidos Architecture Specification
 
-kostra44SIP is a modular semantic recommendation engine engineered to compute content affinity via vector representations rather than static collaborative filtering or keyword matches.
+Eidos is a modular semantic recommendation engine engineered to compute content affinity via vector representations rather than static collaborative filtering or keyword matches.
 
 ---
 
@@ -64,7 +64,7 @@ kostra44SIP is a modular semantic recommendation engine engineered to compute co
 * **Production Scale (100,000 to 10M items):** Qdrant / Milvus HNSW (Hierarchical Navigable Small World) index with scalar quantization and cosine distance metric.
 
 ### 4. Diversity Balancing (`packages/core`)
-Standard cosine similarity suffers from semantic collapse (recommending five nearly identical phone cases). kostra44SIP implements a Maximum Marginal Relevance (MMR) heuristic:
+Standard cosine similarity suffers from semantic collapse (recommending five nearly identical phone cases). Eidos implements a Maximum Marginal Relevance (MMR) heuristic:
 
 $$\text{MMR}(d_i) = \lambda \cdot \text{Sim}(q, d_i) - (1 - \lambda) \cdot \max_{d_j \in S} \text{Sim}(d_i, d_j)$$
 
@@ -98,4 +98,4 @@ where $\lambda \in [0, 1]$ allows businesses to tune the balance between direct 
 
 1. **No Data Retention by Default:** Search queries and recommendation prompts do not leave customer perimeter when self-hosted or run client-side.
 2. **Deterministic Inputs:** All vector mathematical calculations are side-effect free and idempotent.
-3. **No External Cloud Dependencies:** kostra44SIP operates fully standalone without Firebase, external telemetry, or unvetted analytics cookies.
+3. **No External Cloud Dependencies:** Eidos operates fully standalone without Firebase, external telemetry, or unvetted analytics cookies.

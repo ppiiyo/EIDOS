@@ -1,37 +1,39 @@
-import React, { useState } from 'react';
-import { Lightbulb, ArrowRight, Layers, Sliders } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Lightbulb, Boxes, Sliders, Layers } from 'lucide-react';
 import { CatalogItem, CatalogRecommendation } from '../types';
+import { computeCategoryEntropy } from '../utils/recommenderEngine';
 import { trackEvent } from '../lib/analytics/tracker';
 
 interface RecommendationsViewProps {
   catalog: CatalogItem[];
-  onGetRecommendations: (item: CatalogItem, diversity: number) => Promise<CatalogRecommendation[]>;
-  onSelectItem?: (item: CatalogItem) => void;
+  selectedItem: CatalogItem | null;
+  onSelectSeedItem: (item: CatalogItem) => void;
+  onGetRecommendations: (item: CatalogItem, diversity: number, limit?: number) => Promise<CatalogRecommendation[]>;
+  onInspectIn3D: (item: CatalogItem) => void;
 }
 
 export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
   catalog,
+  selectedItem,
+  onSelectSeedItem,
   onGetRecommendations,
-  onSelectItem,
+  onInspectIn3D,
 }) => {
-  const [selectedItemId, setSelectedItemId] = useState<string>(String(catalog[0]?.id || '1'));
-  const [diversity, setDiversity] = useState<number>(0.3);
+  const activeSeed = selectedItem || catalog[0];
+  const [diversity, setDiversity] = useState<number>(0.35);
+  const [limit, setLimit] = useState<number>(6);
   const [recs, setRecs] = useState<CatalogRecommendation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasRun, setHasRun] = useState(false);
 
-  const selectedItem = catalog.find((c) => c.id === selectedItemId) || catalog[0];
-
-  const handleCompute = async () => {
-    if (!selectedItem) return;
+  const computeRecs = async (target: CatalogItem, div: number, lim: number) => {
+    if (!target) return;
     setIsLoading(true);
-    setHasRun(true);
-    trackEvent({ type: 'recommendation', itemId: selectedItem.id, category: selectedItem.category });
+    trackEvent({ type: 'recommendation', itemId: target.id, category: target.category });
 
     try {
-      const res = await onGetRecommendations(selectedItem, diversity);
+      const res = await onGetRecommendations(target, div, lim);
       setRecs(res);
-      res.forEach(r => {
+      res.forEach((r) => {
         trackEvent({ type: 'item_view', itemId: r.item.id, category: r.item.category });
       });
     } catch {
@@ -41,33 +43,76 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
     }
   };
 
+  // Automatically recompute whenever activeSeed, diversity, or limit changes
+  useEffect(() => {
+    if (activeSeed) {
+      computeRecs(activeSeed, diversity, limit);
+    }
+  }, [activeSeed?.id, diversity, limit, catalog.length]);
+
+  const entropyStats = useMemo(() => {
+    return computeCategoryEntropy(recs.map((r) => r.item));
+  }, [recs]);
+
   return (
     <div className="page">
-      <div style={{ marginBottom: 24 }}>
-        <h1 className="page-title">Recommendations Engine</h1>
-        <p className="page-sub">
-          Vector affinity recommendations with Maximal Marginal Relevance (MMR) diversity balancing
-        </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
+        <div>
+          <h1 className="page-title">MMR Recommendations & Explainable X-Ray</h1>
+          <p className="page-sub">
+            Maximal Marginal Relevance diversity re-ranking with Shannon Category Entropy verification
+          </p>
+        </div>
+
+        {/* Live Shannon Entropy Verification Indicator */}
+        <div
+          className="card"
+          style={{
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            fontSize: '0.75rem',
+          }}
+        >
+          <Layers size={15} color="var(--success)" />
+          <div>
+            <span style={{ color: 'var(--text-sec)' }}>Shannon Diversity Entropy: </span>
+            <strong className="mono" style={{ color: 'var(--success)' }}>
+              H = {entropyStats.entropyBits.toFixed(2)} bits
+            </strong>
+            <span style={{ color: 'var(--text-mut)', marginLeft: 8 }}>
+              ({entropyStats.uniqueCategories} categories across {recs.length} items)
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Control panel */}
-      <div className="card" style={{ padding: 20, marginBottom: 24 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 16, alignItems: 'flex-end' }}>
+      {/* Control Bar */}
+      <div className="card" style={{ padding: 20, marginBottom: 22 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 18,
+            alignItems: 'flex-end',
+          }}
+        >
           <div>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 6 }}>
-              Seed Item (Target Anchor)
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              Target Seed Anchor Item
             </label>
             <select
               data-testid="item-select"
               className="input"
-              value={selectedItemId}
+              value={String(activeSeed?.id || '')}
               onChange={(e) => {
-                setSelectedItemId(e.target.value);
-                setHasRun(false);
+                const found = catalog.find((c) => String(c.id) === e.target.value);
+                if (found) onSelectSeedItem(found);
               }}
             >
-              {catalog.map((item) => (
-                <option key={item.id} value={item.id}>
+              {catalog.slice(0, 200).map((item) => (
+                <option key={item.id} value={String(item.id)}>
                   {item.title} ({item.category}) — {item.price}
                 </option>
               ))}
@@ -76,17 +121,17 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500 }}>
-                MMR Diversity Factor:
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
+                MMR Diversity Factor (λ):
               </label>
-              <span style={{ fontSize: '0.8125rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--accent)' }}>
-                {(diversity * 100).toFixed(0)}%
+              <span className="mono" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent)' }}>
+                λ = {diversity.toFixed(2)} ({(diversity * 100).toFixed(0)}% novelty)
               </span>
             </div>
             <input
               type="range"
               min={0}
-              max={1}
+              max={0.9}
               step={0.05}
               value={diversity}
               onChange={(e) => setDiversity(parseFloat(e.target.value))}
@@ -94,124 +139,190 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
             />
           </div>
 
-          <button
-            className="btn btn-primary"
-            onClick={handleCompute}
-            disabled={isLoading || !selectedItem}
-            style={{ height: 38 }}
-          >
-            {isLoading ? 'Computing...' : 'Get Recommendations'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => activeSeed && computeRecs(activeSeed, diversity, limit)}
+              disabled={isLoading}
+              style={{ height: 38 }}
+            >
+              <Lightbulb size={14} />
+              <span>Get Recommendations</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => activeSeed && onInspectIn3D(activeSeed)}
+              style={{ height: 38, flex: 1 }}
+            >
+              <Boxes size={14} />
+              <span>View Anchor in 3D Space</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Recommendations Results */}
-      {selectedItem && (
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20 }}>
-          {/* Seed Card */}
-          <div className="card" style={{ padding: 20, height: 'fit-content' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-sec)', letterSpacing: '.05em' }}>
-              Reference Anchor
-            </span>
-            <div style={{ fontSize: '2rem', marginTop: 12, marginBottom: 8 }}>{selectedItem.icon || '📦'}</div>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text)' }}>{selectedItem.title}</h2>
-            <div style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', margin: '4px 0 12px' }}>{selectedItem.category}</div>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', lineHeight: 1.5 }}>
-              {selectedItem.description}
-            </p>
-            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)', fontWeight: 700, fontSize: '1rem' }}>
-              {selectedItem.price}
+      {/* Split Layout: Reference Anchor Card + X-Ray Recommendations */}
+      {activeSeed && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: 20,
+            alignItems: 'flex-start',
+          }}
+        >
+          {/* Left: Reference Anchor Card */}
+          <div className="card" style={{ padding: 20, maxWidth: 380 }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)' }}>
+              Active Seed Anchor · ID #{activeSeed.id}
             </div>
+            <div style={{ fontSize: '2.25rem', marginTop: 10, marginBottom: 8 }}>{activeSeed.icon || '📦'}</div>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text)' }}>{activeSeed.title}</h2>
+            <div style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', margin: '4px 0 12px' }}>
+              {activeSeed.category} · <span className="mono">{activeSeed.price || '—'}</span>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', lineHeight: 1.55 }}>
+              {activeSeed.description}
+            </p>
+            {activeSeed.tags && activeSeed.tags.length > 0 && (
+              <div style={{ marginTop: 12, fontSize: '0.75rem', color: 'var(--text-mut)' }}>
+                Tags: <span className="mono">{activeSeed.tags.join(' · ')}</span>
+              </div>
+            )}
           </div>
 
-          {/* Results List */}
-          <div>
-            {!hasRun && (
-              <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-sec)' }}>
-                <Lightbulb size={24} style={{ margin: '0 auto 8px', color: 'var(--text-mut)' }} />
-                <p style={{ fontWeight: 500 }}>Select a product and click "Get Recommendations"</p>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-mut)', marginTop: 4 }}>
-                  The engine will calculate pairwise cosine affinity and MMR diversity re-ranking.
-                </p>
-              </div>
-            )}
+          {/* Right: Recommended Items with Factor Decomposition X-Ray */}
+          <div style={{ gridColumn: 'span 2', minWidth: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {recs.map(({ item, sim, whyRecommended }, idx) => {
+                const isCrossCategory = item.category !== activeSeed.category;
+                const noveltyScore = isCrossCategory ? Math.min(1, 0.65 + diversity * 0.35) : Math.max(0.2, 1 - diversity);
+                const mmrComposite = (1 - diversity) * sim + diversity * noveltyScore;
 
-            {hasRun && recs.length === 0 && !isLoading && (
-              <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-sec)' }}>
-                No recommendations found for this item with the current diversity threshold.
-              </div>
-            )}
-
-            {recs.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-                  Top {recs.length} recommended items ranked by semantic affinity:
-                </div>
-                {recs.map(({ item, sim, whyRecommended }, idx) => (
+                return (
                   <div
                     key={item.id}
                     data-testid="recommendation-card"
                     className="card"
-                    onClick={() => {
-                      trackEvent({ type: 'item_click', itemId: item.id, category: item.category });
-                      onSelectItem?.(item);
-                    }}
-                    style={{
-                      padding: 16,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                    }}
+                    style={{ padding: 16 }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        background: '#F3F4F6',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        color: 'var(--text-sec)',
-                      }}>
-                        {idx + 1}
-                      </span>
-                      <div style={{ fontSize: '1.5rem' }}>{item.icon || '📦'}</div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.9375rem' }}>{item.title}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>{item.category}</div>
-                        {whyRecommended && (
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-mut)', marginTop: 4 }}>
-                            {whyRecommended}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <span
+                          className="mono"
+                          style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 6,
+                            background: 'var(--bg-alt)',
+                            border: '1px solid var(--border)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: 'var(--text-sec)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {idx + 1}
+                        </span>
+                        <div style={{ fontSize: '1.5rem', lineHeight: 1 }}>{item.icon || '📦'}</div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text)' }}>
+                            {item.title}
                           </div>
-                        )}
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 2 }}>
+                            <span>{item.category}</span>
+                            <span> · </span>
+                            <span className="mono">{item.price || '—'}</span>
+                            {isCrossCategory && (
+                              <>
+                                <span> · </span>
+                                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Cross-Category Discovery</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div className="mono" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--success)' }}>
+                          {(sim * 100).toFixed(1)}% cosine
+                        </div>
+                        <div className="mono" style={{ fontSize: '0.6875rem', color: 'var(--text-sec)' }}>
+                          MMR score: {(mmrComposite * 100).toFixed(1)}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '0.8125rem',
-                        fontWeight: 600,
-                        color: 'var(--success)',
-                        background: 'var(--success-bg)',
-                        padding: '2px 8px',
-                        borderRadius: 999,
-                      }}>
-                        {(sim * 100).toFixed(0)}% affinity
+
+                    {whyRecommended && (
+                      <div style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 8 }}>
+                        {whyRecommended}
                       </div>
-                      <div style={{ fontSize: '0.9375rem', fontWeight: 700, marginTop: 4 }}>
-                        {item.price}
+                    )}
+
+                    {/* X-Ray Score Breakdown Bars */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 12,
+                        padding: '8px 12px',
+                        background: 'var(--bg-alt)',
+                        borderRadius: 6,
+                        marginTop: 10,
+                        fontSize: '0.6875rem',
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text-sec)' }}>384-d Semantic Affinity</span>
+                          <span className="mono" style={{ fontWeight: 600 }}>{(sim * 100).toFixed(1)}%</span>
+                        </div>
+                        <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, sim * 100)}%`, height: '100%', background: 'var(--accent)' }} />
+                        </div>
                       </div>
+
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text-sec)' }}>MMR Diversity & Novelty Contribution</span>
+                          <span className="mono" style={{ fontWeight: 600 }}>{(noveltyScore * 100).toFixed(0)}%</span>
+                        </div>
+                        <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, noveltyScore * 100)}%`, height: '100%', background: 'var(--success)' }} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => onInspectIn3D(item)}
+                      >
+                        <Boxes size={12} />
+                        <span>Locate in 3D Space</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          trackEvent({ type: 'item_click', itemId: item.id, category: item.category });
+                          onSelectSeedItem(item);
+                        }}
+                      >
+                        <Lightbulb size={12} />
+                        <span>Use as Seed Anchor</span>
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

@@ -2,8 +2,8 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'kostra44sip-api'
+  - job_name: 'eidos-api'
     static_configs:
-      - targets: ['kostra44sip-api:8080']
+      - targets: ['eidos-api:8080']
     metrics_path: '/metrics'
     scrape_interval: 5s

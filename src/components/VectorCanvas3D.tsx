@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { CatalogItem } from '../types';
-import { cosineSimilarity } from '@kostra44sip/core';
+import { cosineSimilarity } from '@eidos/core';
 import {
   RotateCcw,
   Sparkles,

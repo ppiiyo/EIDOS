@@ -19,7 +19,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { CatalogItem, ActiveTab } from '../types';
-import { KostraLogo } from './KostraLogo';
+import { EidosLogo } from './EidosLogo';
 
 interface PresentationLandingViewProps {
   catalog: CatalogItem[];
@@ -51,11 +51,11 @@ export const PresentationLandingView: React.FC<PresentationLandingViewProps> = (
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  const sampleTypeScriptCode = `import { KostraClient } from '@kostra44sip/sdk';
+  const sampleTypeScriptCode = `import { EidosClient } from '@eidos/sdk';
 
-const client = new KostraClient({
+const client = new EidosClient({
   baseUrl: 'http://localhost:8080',
-  apiKey: process.env.KOSTRA44SIP_API_KEY,
+  apiKey: process.env.EIDOS_API_KEY,
 });
 
 // Retrieve semantic recommendations with MMR diversity
@@ -80,8 +80,8 @@ console.log('Top affinity items:', recommendations);`;
   -p 8080:8080 \\
   -e NODE_ENV=production \\
   -v $(pwd)/data:/app/data \\
-  --name kostra44sip-api \\
-  ghcr.io/ppiiyo/kostra44sip-api:latest`;
+  --name eidos-api \\
+  ghcr.io/ppiiyo/eidos-api:latest`;
 
   const features = [
     {
@@ -173,7 +173,7 @@ console.log('Top affinity items:', recommendations);`;
               <ArrowRight size={15} />
             </button>
             <a
-              href="https://github.com/ppiiyo/kostra44SIP"
+              href="https://github.com/ppiiyo/Eidos"
               target="_blank"
               rel="noreferrer"
               className="w-full sm:w-auto px-7 py-3 border border-[#E5E5E5] hover:bg-[#F5F5F5] text-[#0A0A0A] rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"
@@ -440,7 +440,7 @@ console.log('Top affinity items:', recommendations);`;
                       Quickstart Guide
                     </h3>
                     <p className="text-sm text-[#525252] mt-1">
-                      Run the containerized kostra44SIP recommendation microservice locally with Docker.
+                      Run the containerized Eidos recommendation microservice locally with Docker.
                     </p>
                   </div>
 
@@ -547,7 +547,7 @@ console.log('Top affinity items:', recommendations);`;
                     HNSW & Mathematical Design
                   </h3>
                   <p>
-                    kostra44SIP implements a multi-layer Hierarchical Navigable Small World (HNSW) graph
+                    Eidos implements a multi-layer Hierarchical Navigable Small World (HNSW) graph
                     with logarithmic search complexity <code>O(log N)</code>.
                   </p>
                   <ul className="list-disc pl-5 space-y-2 text-xs text-[#262626]">
@@ -692,12 +692,12 @@ console.log('Top affinity items:', recommendations);`;
       <footer className="border-t border-[#E5E5E5] py-12 px-6 bg-white text-xs text-[#737373]">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <KostraLogo variant="monochrome" size="sm" />
+            <EidosLogo variant="monochrome" size="sm" />
             <span>— Production Semantic RecSys Platform</span>
           </div>
           <div className="flex items-center gap-6">
             <a
-              href="https://github.com/ppiiyo/kostra44SIP"
+              href="https://github.com/ppiiyo/Eidos"
               target="_blank"
               rel="noreferrer"
               className="hover:text-[#0A0A0A] transition-colors"

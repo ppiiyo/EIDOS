@@ -1,5 +1,5 @@
 import httpx
-from kostra44sip import KostraClient, Recommendation
+from eidos import EidosClient, Recommendation
 
 
 def test_recommend_and_search():
@@ -33,7 +33,7 @@ def test_recommend_and_search():
             )
         return httpx.Response(404)
 
-    with KostraClient(base_url="http://localhost:8080", api_key="test-key") as client:
+    with EidosClient(base_url="http://localhost:8080", api_key="test-key") as client:
         client.client = httpx.Client(
             base_url="http://localhost:8080",
             transport=httpx.MockTransport(handler),

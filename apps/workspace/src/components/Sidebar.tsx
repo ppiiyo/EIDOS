@@ -4,6 +4,8 @@ import {
   Package,
   Search,
   Lightbulb,
+  Boxes,
+  Sliders,
   Split,
   MessageSquare,
   BarChart3,
@@ -13,23 +15,40 @@ import { MemoryMonitor } from './MemoryMonitor';
 
 export type ViewId =
   | 'dashboard'
-  | 'catalog'
   | 'search'
   | 'recommendations'
+  | 'vectorspace'
+  | 'adaptive'
+  | 'catalog'
   | 'abtest'
   | 'conversational'
   | 'analytics'
   | 'launchkit';
 
-const NAV: { id: ViewId; label: string; icon: React.FC<any> }[] = [
-  { id: 'dashboard',      label: 'Dashboard',       icon: LayoutDashboard },
-  { id: 'catalog',        label: 'Catalog',         icon: Package },
-  { id: 'search',         label: 'Search',          icon: Search },
-  { id: 'recommendations',label: 'Recommendations', icon: Lightbulb },
-  { id: 'abtest',         label: 'A/B Testing',     icon: Split },
-  { id: 'conversational', label: 'Conversational',  icon: MessageSquare },
-  { id: 'analytics',      label: 'Analytics',       icon: BarChart3 },
-  { id: 'launchkit',      label: 'Launch Kit',      icon: Rocket },
+const NAV_GROUPS: Array<{
+  section: string;
+  items: { id: ViewId; label: string; icon: React.FC<any> }[];
+}> = [
+  {
+    section: 'Core Vector Engine',
+    items: [
+      { id: 'dashboard', label: 'Overview & Benchmark', icon: LayoutDashboard },
+      { id: 'search', label: 'Hybrid Search (BM25+HNSW)', icon: Search },
+      { id: 'recommendations', label: 'MMR Recommendations', icon: Lightbulb },
+      { id: 'vectorspace', label: '3D Space & 2D Graph', icon: Boxes },
+      { id: 'adaptive', label: 'Adaptive Lab (AIL)', icon: Sliders },
+    ],
+  },
+  {
+    section: 'Data & Experiments',
+    items: [
+      { id: 'catalog', label: 'Catalog & Bundles', icon: Package },
+      { id: 'abtest', label: 'A/B Testing Engine', icon: Split },
+      { id: 'conversational', label: 'Vector NLU Agent', icon: MessageSquare },
+      { id: 'analytics', label: 'Analytics & Trends', icon: BarChart3 },
+      { id: 'launchkit', label: 'Deployment & Docs', icon: Rocket },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -38,69 +57,115 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ active, onNavigate }) => (
-  <aside style={{
-    width: 230, minHeight: '100vh',
-    background: '#fff', borderRight: '1px solid var(--border)',
-    display: 'flex', flexDirection: 'column', flexShrink: 0,
-  }}>
-    {/* Логотип */}
-    <div style={{
-      padding: '20px 16px', borderBottom: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', gap: 8,
-    }}>
+  <aside
+    style={{
+      width: 248,
+      minHeight: '100vh',
+      background: 'var(--surface)',
+      borderRight: '1px solid var(--border)',
+      display: 'flex',
+      flexDirection: 'column',
+      flexShrink: 0,
+    }}
+  >
+    {/* Brand Zone */}
+    <div
+      style={{
+        height: 56,
+        padding: '0 18px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+      }}
+    >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <circle cx="6" cy="12" r="2.5" fill="#111827"/>
-        <circle cx="18" cy="6"  r="2.5" fill="#111827"/>
-        <circle cx="18" cy="18" r="2.5" fill="#111827"/>
-        <path d="M6 12L18 6M6 12L18 18" stroke="#111827" strokeWidth="1.5"/>
+        <circle cx="6" cy="12" r="2.5" fill="var(--accent)" />
+        <circle cx="18" cy="6" r="2.5" fill="var(--text)" />
+        <circle cx="18" cy="18" r="2.5" fill="var(--text)" />
+        <path d="M6 12L18 6M6 12L18 18" stroke="var(--text)" strokeWidth="1.6" />
       </svg>
-      <span style={{ fontWeight: 700, fontSize: '0.9375rem', letterSpacing: '-.01em', color: '#111827' }}>
-        kostra44SIP
+      <span
+        style={{
+          fontWeight: 700,
+          fontSize: '0.95rem',
+          letterSpacing: '-0.02em',
+          color: 'var(--text)',
+        }}
+      >
+        Eidos Studio
       </span>
-      <span style={{
-        marginLeft: 'auto',
-        fontSize: '0.6875rem',
-        fontWeight: 600,
-        color: 'var(--accent)',
-        background: 'var(--accent-bg)',
-        padding: '2px 6px',
-        borderRadius: 4,
-      }}>
-        v3.0
+      <span
+        className="mono"
+        style={{
+          marginLeft: 'auto',
+          fontSize: '0.6875rem',
+          fontWeight: 600,
+          color: 'var(--text-sec)',
+        }}
+      >
+        384d
       </span>
     </div>
 
-    {/* Навигация */}
-    <nav style={{ padding: '12px 8px', flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {NAV.map(({ id, label, icon: Icon }) => {
-        const isActive = active === id;
-        return (
-          <button
-            key={id}
-            onClick={() => onNavigate(id)}
+    {/* Navigation Groups */}
+    <nav style={{ padding: '14px 10px', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {NAV_GROUPS.map((group) => (
+        <div key={group.section}>
+          <div
             style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              width: '100%', padding: '8px 12px',
-              fontSize: '0.875rem', fontWeight: isActive ? 600 : 400,
-              color: isActive ? '#111827' : '#6B7280',
-              background: isActive ? '#F3F4F6' : 'transparent',
-              border: 'none', borderRadius: 6, cursor: 'pointer',
-              textAlign: 'left', transition: 'background .12s, color .12s',
+              padding: '0 10px 6px',
+              fontSize: '0.6875rem',
+              fontWeight: 600,
+              color: 'var(--text-mut)',
+              letterSpacing: '0.02em',
             }}
           >
-            <Icon size={16} strokeWidth={isActive ? 2.2 : 1.8} />
-            <span>{label}</span>
-          </button>
-        );
-      })}
+            {group.section}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {group.items.map(({ id, label, icon: Icon }) => {
+              const isActive = active === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => onNavigate(id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '0.8125rem',
+                    fontWeight: isActive ? 600 : 500,
+                    color: isActive ? 'var(--accent)' : 'var(--text-sec)',
+                    background: isActive ? 'var(--accent-bg)' : 'transparent',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background-color 0.12s, color 0.12s',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
 
-    {/* Real-time Memory Monitor and System Specs */}
-    <div style={{
-      padding: '12px 16px',
-      borderTop: '1px solid var(--border)',
-      background: 'var(--bg-alt)',
-    }}>
+    {/* Real-time V8 Heap Monitor */}
+    <div
+      style={{
+        padding: '12px 16px',
+        borderTop: '1px solid var(--border)',
+        background: 'var(--bg-alt)',
+      }}
+    >
       <MemoryMonitor />
     </div>
   </aside>

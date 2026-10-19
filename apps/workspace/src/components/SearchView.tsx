@@ -1,153 +1,362 @@
-import React, { useState } from 'react';
-import { Search, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Sliders, Columns, Boxes, Lightbulb, AlertCircle } from 'lucide-react';
 import { CatalogItem } from '../types';
+import { HybridSearchHit, simulateKeywordSearch } from '../utils/recommenderEngine';
 import { trackEvent } from '../lib/analytics/tracker';
 
 interface SearchViewProps {
-  onSearch: (query: string) => Promise<CatalogItem[]>;
-  onSelectItem?: (item: CatalogItem) => void;
+  catalog: CatalogItem[];
+  onHybridSearch: (query: string, alpha: number, limit?: number) => Promise<HybridSearchHit[]>;
+  onSelectItem: (item: CatalogItem) => void;
+  onInspectIn3D: (item: CatalogItem) => void;
 }
 
-export const SearchView: React.FC<SearchViewProps> = ({ onSearch, onSelectItem }) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<CatalogItem[]>([]);
+export const SearchView: React.FC<SearchViewProps> = ({
+  catalog,
+  onHybridSearch,
+  onSelectItem,
+  onInspectIn3D,
+}) => {
+  const [query, setQuery] = useState('релятивистское время и космос');
+  const [alpha, setAlpha] = useState<number>(0.7);
+  const [compareMode, setCompareMode] = useState<boolean>(true);
+  const [hybridHits, setHybridHits] = useState<HybridSearchHit[]>([]);
+  const [keywordHits, setKeywordHits] = useState<Array<{ item: CatalogItem; matchedWords: string[] }>>([]);
+  const [latencyMs, setLatencyMs] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
 
   const sampleQueries = [
-    'космос и время',
-    'киберпанк и симуляция',
-    'программирование python',
-    'кофемашина эспрессо',
+    { label: 'релятивистское время и космос', note: 'Vocabulary mismatch test (finds Interstellar & Dune)' },
+    { label: 'симуляция реальности и нейросети', note: 'Conceptual match (finds Matrix & Cyberpunk)' },
+    { label: 'быстрая аналитическая база данных rust', note: 'Hybrid B2B DevTools & Vector DB' },
+    { label: 'утренний эспрессо и уют в офисе', note: 'Cross-category lifestyle intent' },
   ];
 
-  const handleSearch = async (targetQuery?: string) => {
+  const runSearch = async (targetQuery?: string, targetAlpha?: number) => {
     const q = (targetQuery ?? query).trim();
+    const a = targetAlpha ?? alpha;
     if (!q) return;
 
-    if (targetQuery) setQuery(targetQuery);
+    if (targetQuery !== undefined) setQuery(targetQuery);
     setIsLoading(true);
-    setHasSearched(true);
     trackEvent({ type: 'search', query: q });
 
+    const t0 = performance.now();
     try {
-      const res = await onSearch(q);
-      setResults(res);
-      res.forEach(item => {
-        trackEvent({ type: 'item_view', itemId: item.id, category: item.category });
+      const hits = await onHybridSearch(q, a, 8);
+      const kw = simulateKeywordSearch(q, catalog);
+      setHybridHits(hits);
+      setKeywordHits(kw);
+      setLatencyMs(Math.round((performance.now() - t0) * 100) / 100);
+      hits.slice(0, 4).forEach((h) => {
+        trackEvent({ type: 'item_view', itemId: h.item.id, category: h.item.category });
       });
     } catch {
-      setResults([]);
+      setHybridHits([]);
+      setKeywordHits([]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    runSearch(query, alpha);
+  }, [alpha, catalog.length]);
+
   return (
-    <div className="page" style={{ maxWidth: 840 }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 className="page-title">Semantic Search</h1>
-        <p className="page-sub">
-          Vector dot-product semantic matching over all MiniLM / E5 multilingual embeddings
-        </p>
+    <div className="page">
+      {/* Header */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
+        <div>
+          <h1 className="page-title">Hybrid Search Lab (Dense HNSW + Sparse BM25)</h1>
+          <p className="page-sub">
+            Convex combination Score(q, d) = α · DenseCosine(q, d) + (1 − α) · BM25(q, d) with Side-by-Side Legacy Keyword comparison
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setCompareMode((v) => !v)}
+          className={compareMode ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+        >
+          <Columns size={14} />
+          <span>{compareMode ? 'Side-by-Side Comparison: ON' : 'Side-by-Side Comparison: OFF'}</span>
+        </button>
       </div>
 
-      {/* Search Input Box */}
-      <div className="card" style={{ padding: 16, marginBottom: 20 }}>
+      {/* Search Bar & Hybrid Alpha Controls */}
+      <div className="card" style={{ padding: 20, marginBottom: 20 }}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            handleSearch();
+            runSearch();
           }}
-          style={{ display: 'flex', gap: 10 }}
+          style={{ display: 'flex', gap: 10, marginBottom: 16 }}
         >
           <div style={{ position: 'relative', flex: 1 }}>
-            <Search size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-sec)' }} />
+            <Search size={16} style={{ position: 'absolute', left: 14, top: 13, color: 'var(--text-sec)' }} />
             <input
               data-testid="search-input"
               className="input"
               style={{ paddingLeft: 40, height: 42, fontSize: '0.9375rem' }}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search concepts or products (e.g. 'интерстеллар нолан' or 'быстрый ноутбук')..."
+              placeholder="Enter natural language intent or technical keywords..."
             />
           </div>
           <button type="submit" className="btn btn-primary" disabled={isLoading || !query.trim()} style={{ height: 42 }}>
-            {isLoading ? 'Searching...' : 'Search'}
+            {isLoading ? 'Searching...' : 'Execute Hybrid Search'}
           </button>
         </form>
 
+        {/* Hybrid Mode & Alpha Slider */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            paddingTop: 14,
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-sec)' }}>Mode Preset:</span>
+            {[
+              { label: 'Pure BM25 (α=0.0)', val: 0.0 },
+              { label: 'Balanced Hybrid (α=0.5)', val: 0.5 },
+              { label: 'Semantic Heavy (α=0.7)', val: 0.7 },
+              { label: 'Pure 384-d Vector (α=1.0)', val: 1.0 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setAlpha(preset.val)}
+                className="btn btn-sm"
+                style={{
+                  background: Math.abs(alpha - preset.val) < 0.02 ? 'var(--accent)' : 'var(--bg-alt)',
+                  color: Math.abs(alpha - preset.val) < 0.02 ? '#FFFFFF' : 'var(--text-sec)',
+                  borderColor: 'var(--border)',
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 260 }}>
+            <Sliders size={14} style={{ color: 'var(--text-sec)' }} />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>α Weight:</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={alpha}
+              onChange={(e) => setAlpha(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: 'var(--accent)' }}
+            />
+            <span className="mono" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent)' }}>
+              {alpha.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        {/* Sample Queries */}
         <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>Sample queries:</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>Test queries:</span>
           {sampleQueries.map((sq) => (
             <button
-              key={sq}
+              key={sq.label}
               type="button"
-              onClick={() => handleSearch(sq)}
-              className="badge badge-neutral"
-              style={{ cursor: 'pointer', border: 'none', background: '#F3F4F6' }}
+              onClick={() => runSearch(sq.label)}
+              className="btn btn-secondary btn-sm"
+              title={sq.note}
             >
-              {sq}
+              {sq.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Results */}
-      <div>
-        {hasSearched && results.length === 0 && !isLoading && (
-          <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-sec)' }}>
-            <AlertCircle size={24} style={{ margin: '0 auto 8px', color: 'var(--text-mut)' }} />
-            <p style={{ fontWeight: 500 }}>No semantic matches found</p>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-mut)', marginTop: 4 }}>
-              Try broadening your query or selecting another catalog category.
-            </p>
-          </div>
-        )}
-
-        {results.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginBottom: 2 }}>
-              Found {results.length} semantic results:
+      {/* Results Area: Side-by-Side or Single Column */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: compareMode ? 'repeat(auto-fit, minmax(380px, 1fr))' : '1fr',
+          gap: 20,
+        }}
+      >
+        {/* Column 1: Eidos Hybrid Search */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)' }}>
+              Eidos Hybrid Retrieval ({hybridHits.length} hits)
             </div>
-            {results.map((item) => (
-              <div
-                key={item.id}
-                data-testid="search-result"
-                className="card"
-                onClick={() => {
-                  trackEvent({ type: 'item_click', itemId: item.id, category: item.category });
-                  onSelectItem?.(item);
-                }}
-                style={{
-                  padding: 16,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  cursor: 'pointer',
-                  transition: 'border-color .15s',
-                }}
-              >
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ fontSize: '1.5rem', lineHeight: 1 }}>{item.icon || '📦'}</div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text)' }}>
-                      {item.title}
+            <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
+              {latencyMs} ms · α={alpha.toFixed(2)}
+            </span>
+          </div>
+
+          {hybridHits.length === 0 ? (
+            <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-sec)' }}>
+              No matches found for this threshold.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {hybridHits.map((hit, idx) => (
+                <div
+                  key={hit.item.id}
+                  data-testid="search-result"
+                  className="card"
+                  style={{ padding: 16 }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-mut)', fontWeight: 700, marginTop: 2 }}>
+                        #{idx + 1}
+                      </span>
+                      <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>{hit.item.icon || '📦'}</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text)' }}>
+                          {hit.item.title}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 2 }}>
+                          <span>{hit.item.category}</span>
+                          <span> · </span>
+                          <span className="mono">{hit.item.price || '—'}</span>
+                          <span> · </span>
+                          <span className="mono" style={{ color: 'var(--accent)' }}>
+                            {hit.source.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 3 }}>
-                      {item.description}
+
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div className="mono" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--success)' }}>
+                        {(hit.fusedScore * 100).toFixed(1)}%
+                      </div>
+                      <div className="mono" style={{ fontSize: '0.6875rem', color: 'var(--text-sec)' }}>
+                        D:{(hit.denseScore * 100).toFixed(0)}% · B:{(hit.bm25Score * 100).toFixed(0)}%
+                      </div>
                     </div>
-                    <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span className="badge badge-neutral">{item.category}</span>
-                      {item.badge && <span className="badge badge-accent">{item.badge}</span>}
+                  </div>
+
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', margin: '8px 0' }}>
+                    {hit.item.description}
+                  </p>
+
+                  {/* Score Decomposition Bar */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 10,
+                      padding: '8px 10px',
+                      background: 'var(--bg-alt)',
+                      borderRadius: 6,
+                      fontSize: '0.6875rem',
+                      marginBottom: 10,
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ color: 'var(--text-sec)' }}>Dense 384-d Cosine</span>
+                        <span className="mono" style={{ fontWeight: 600 }}>{(hit.denseScore * 100).toFixed(1)}%</span>
+                      </div>
+                      <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(100, hit.denseScore * 100)}%`, height: '100%', background: 'var(--accent)' }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ color: 'var(--text-sec)' }}>BM25 Lexical Match</span>
+                        <span className="mono" style={{ fontWeight: 600 }}>{(hit.bm25Score * 100).toFixed(1)}%</span>
+                      </div>
+                      <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.min(100, hit.bm25Score * 100)}%`, height: '100%', background: 'var(--success)' }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-mut)' }}>{hit.whyRecommended}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => onInspectIn3D(hit.item)}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <Boxes size={12} />
+                        <span>3D Node</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSelectItem(hit.item)}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <Lightbulb size={12} />
+                        <span>MMR Recs</span>
+                      </button>
                     </div>
                   </div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--text)' }}>
-                  {item.price}
-                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Column 2: Legacy Exact Keyword Search (for Comparison) */}
+        {compareMode && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-sec)' }}>
+                Legacy Exact Keyword Search ({keywordHits.length} hits)
               </div>
-            ))}
+              <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600 }}>
+                Substring token matching only
+              </span>
+            </div>
+
+            {keywordHits.length === 0 ? (
+              <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-sec)' }}>
+                <AlertCircle size={22} style={{ margin: '0 auto 8px', color: 'var(--warning)' }} />
+                <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                  0 results — Vocabulary Mismatch Failure
+                </div>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 6 }}>
+                  Traditional keyword search failed because exact query tokens did not literally appear in product titles, whereas Eidos Hybrid Search retrieved {hybridHits.length} conceptually relevant items.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {keywordHits.slice(0, 8).map(({ item, matchedWords }, idx) => (
+                  <div key={item.id} className="card" style={{ padding: 16, opacity: 0.9 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text)' }}>
+                          #{idx + 1} · {item.icon} {item.title}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 2 }}>
+                          {item.category} · {item.price || '—'}
+                        </div>
+                      </div>
+                      <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600 }}>
+                        {matchedWords.length} word match
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 8 }}>
+                      {item.description}
+                    </p>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-mut)', marginTop: 6 }}>
+                      Matched tokens: <span className="mono">{matchedWords.join(', ')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

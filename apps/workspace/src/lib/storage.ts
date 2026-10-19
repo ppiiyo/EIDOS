@@ -1,5 +1,5 @@
 /**
- * Self-Hosted Local Persistence Provider for kostra44SIP
+ * Self-Hosted Local Persistence Provider for Eidos
  * 100% self-contained in-memory & localStorage store.
  * Zero external cloud lock-in.
  */
@@ -15,7 +15,7 @@ export interface LocalUser {
 let currentUser: LocalUser | null = {
   uid: 'local-operator',
   displayName: 'Self-Hosted Operator',
-  email: 'operator@kostra44sip.local',
+  email: 'operator@eidos.local',
 };
 
 type AuthListener = (user: LocalUser | null) => void;
@@ -40,7 +40,7 @@ export const loginWithGoogle = async (): Promise<LocalUser> => {
   currentUser = {
     uid: 'local-operator',
     displayName: 'Self-Hosted Operator',
-    email: 'operator@kostra44sip.local',
+    email: 'operator@eidos.local',
   };
   authListeners.forEach((cb) => cb(currentUser));
   return currentUser;
@@ -58,7 +58,7 @@ export const testFirestoreConnection = async (): Promise<boolean> => {
 export const syncProjectsToCloud = async (userId: string, projects: Project[]): Promise<void> => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(`kostra44sip_projects_${userId}`, JSON.stringify(projects));
+      localStorage.setItem(`eidos_projects_${userId}`, JSON.stringify(projects));
     }
   } catch (err) {
     console.warn('Local storage write warning:', err);
@@ -68,7 +68,7 @@ export const syncProjectsToCloud = async (userId: string, projects: Project[]): 
 export const fetchProjectsFromCloud = async (userId: string): Promise<Project[]> => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const data = localStorage.getItem(`kostra44sip_projects_${userId}`);
+      const data = localStorage.getItem(`eidos_projects_${userId}`);
       if (data) return JSON.parse(data);
     }
   } catch (err) {
@@ -80,7 +80,7 @@ export const fetchProjectsFromCloud = async (userId: string): Promise<Project[]>
 export const syncCatalogToCloud = async (userId: string, items: CatalogItem[]): Promise<void> => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(`kostra44sip_catalog_${userId}`, JSON.stringify(items));
+      localStorage.setItem(`eidos_catalog_${userId}`, JSON.stringify(items));
     }
   } catch (err) {
     console.warn('Local storage write warning:', err);
@@ -90,7 +90,7 @@ export const syncCatalogToCloud = async (userId: string, items: CatalogItem[]): 
 export const fetchCatalogFromCloud = async (userId: string): Promise<CatalogItem[]> => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const data = localStorage.getItem(`kostra44sip_catalog_${userId}`);
+      const data = localStorage.getItem(`eidos_catalog_${userId}`);
       if (data) return JSON.parse(data);
     }
   } catch (err) {

@@ -5,7 +5,7 @@ import {
   BanditExplorer,
   Metrics,
   WriteAheadLog,
-} from '@kostra44sip/core';
+} from '@eidos/core';
 import { ServerEmbedder } from '../src/services/embedder';
 import { VectorStore } from '../src/services/vector-store';
 import { buildApp } from '../src/server';
@@ -179,8 +179,8 @@ describe('Production Readiness: 10 Critical Bug Fixes', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/plain');
-    expect(res.body).toContain('kostra44sip_requests_total');
-    expect(res.body).toContain('kostra44sip_request_duration_seconds');
-    expect(res.body).toContain('kostra44sip_cache_hit_rate');
+    expect(res.body).toContain('eidos_requests_total');
+    expect(res.body).toContain('eidos_request_duration_seconds');
+    expect(res.body).toContain('eidos_cache_hit_rate');
   });
 });

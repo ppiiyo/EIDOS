@@ -17,8 +17,8 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./*"],
-      "@kostra44sip/core": ["./packages/core/src/index.ts"],
-      "@kostra44sip/sdk": ["./packages/sdk/src/index.ts"]
+      "@eidos/core": ["./packages/core/src/index.ts"],
+      "@eidos/sdk": ["./packages/sdk/src/index.ts"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true

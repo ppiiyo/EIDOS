@@ -65,7 +65,7 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
         const payload = {
           status: 'ok',
           code: 200,
-          engine: 'kostra44SIP Hybrid Core (HNSW Phase 2 + MMR)',
+          engine: 'Eidos Hybrid Core (HNSW Phase 2 + MMR)',
           execution_time_ms: duration,
           vector_dimensions: 384,
           seed_anchor: {
@@ -93,7 +93,7 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
         const payload = {
           status: 'ok',
           code: 200,
-          engine: 'kostra44SIP Hybrid Retrieval (Dense HNSW + Sparse BM25)',
+          engine: 'Eidos Hybrid Retrieval (Dense HNSW + Sparse BM25)',
           execution_time_ms: duration,
           vector_dimensions: 384,
           query: searchQuery,
@@ -121,8 +121,8 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
     const itemTitle = currentItem?.title || 'Item';
     if (selectedEndpoint === 'recommend') {
       if (langTab === 'curl') {
-        return `curl -X POST https://api.kostra44sip.dev/v1/recommend \\
-  -H "Authorization: Bearer kostra44sip_live_sk_384d" \\
+        return `curl -X POST https://api.eidos.dev/v1/recommend \\
+  -H "Authorization: Bearer eidos_live_sk_384d" \\
   -H "Content-Type: application/json" \\
   -d '{
     "item_id": "${currentItem?.id}",
@@ -132,10 +132,10 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
   }'`;
       }
       if (langTab === 'js') {
-        return `const response = await fetch("https://api.kostra44sip.dev/v1/recommend", {
+        return `const response = await fetch("https://api.eidos.dev/v1/recommend", {
   method: "POST",
   headers: {
-    "Authorization": "Bearer kostra44sip_live_sk_384d",
+    "Authorization": "Bearer eidos_live_sk_384d",
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
@@ -149,8 +149,8 @@ const { recommendations } = await response.json();`;
       return `import requests
 
 response = requests.post(
-    "https://api.kostra44sip.dev/v1/recommend",
-    headers={"Authorization": "Bearer kostra44sip_live_sk_384d"},
+    "https://api.eidos.dev/v1/recommend",
+    headers={"Authorization": "Bearer eidos_live_sk_384d"},
     json={
         "item_id": "${currentItem?.id}",
         "mmr_diversity": ${diversity},
@@ -160,8 +160,8 @@ response = requests.post(
 print(response.json())`;
     } else {
       if (langTab === 'curl') {
-        return `curl -X POST https://api.kostra44sip.dev/v1/search/hybrid \\
-  -H "Authorization: Bearer kostra44sip_live_sk_384d" \\
+        return `curl -X POST https://api.eidos.dev/v1/search/hybrid \\
+  -H "Authorization: Bearer eidos_live_sk_384d" \\
   -H "Content-Type: application/json" \\
   -d '{
     "query": "${searchQuery}",
@@ -170,10 +170,10 @@ print(response.json())`;
   }'`;
       }
       if (langTab === 'js') {
-        return `const response = await fetch("https://api.kostra44sip.dev/v1/search/hybrid", {
+        return `const response = await fetch("https://api.eidos.dev/v1/search/hybrid", {
   method: "POST",
   headers: {
-    "Authorization": "Bearer kostra44sip_live_sk_384d",
+    "Authorization": "Bearer eidos_live_sk_384d",
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
@@ -187,8 +187,8 @@ const { hits } = await response.json();`;
       return `import requests
 
 response = requests.post(
-    "https://api.kostra44sip.dev/v1/search/hybrid",
-    headers={"Authorization": "Bearer kostra44sip_live_sk_384d"},
+    "https://api.eidos.dev/v1/search/hybrid",
+    headers={"Authorization": "Bearer eidos_live_sk_384d"},
     json={
         "query": "${searchQuery}",
         "alpha": ${alpha},

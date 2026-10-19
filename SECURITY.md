@@ -11,11 +11,11 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability within kostra44SIP, please do NOT open a public GitHub issue.
+If you discover a security vulnerability within Eidos, please do NOT open a public GitHub issue.
 
 Please submit your vulnerability report privately by emailing:
 
-**`security@kostra44sip.dev`**
+**`security@eidos.dev`**
 
 Include:
 1. Steps to reproduce the issue (including sample payloads or headers).

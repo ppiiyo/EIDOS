@@ -1,6 +1,6 @@
 {
-  "summary": "План исправления падения сборки @eidos/workspace в CI (pnpm turbo run build): добавление входного HTML-модуля index.html, конфигурации Vite vite.config.ts и синхронизация зависимостей для успешной продакшн-сборки монорепозитория.",
-  "updatedAt": "2026-10-19T08:13:43.215628377Z",
+  "summary": "План удаления Live Demo (из интерфейса, отдельного пакета, воркфлоу и лендинга) и полного возврата фирменного нейминга Eidos (@eidos/*, CLI eidos, Eidos Engine) во всем монорепозитории.",
+  "updatedAt": "2026-10-19T22:09:18.522984271Z",
   "requestFeedback": true,
   "userFacing": true
 }

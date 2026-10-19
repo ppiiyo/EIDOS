@@ -1,31 +1,32 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Full kostra44SIP Pipeline', () => {
-  test('ingest → search → recommend → feedback', async ({ page }) => {
-    // 1. Open workspace
+test.describe('Eidos Full Pipeline E2E', () => {
+  test('user searches -> views recommendations -> likes item -> sees updated analytics', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('h1').first()).toContainText('kostra44SIP');
 
-    // 2. Navigate to Catalog
-    await page.locator('aside button:has-text("Catalog")').first().click();
-    await expect(page.locator('[data-testid="catalog-table"]')).toBeVisible();
+    // 1. Navigate to Hybrid Search view
+    await page.locator('aside button:has-text("Hybrid Search")').first().click();
 
-    // 3. Search
-    await page.locator('aside button:has-text("Search")').first().click();
-    await page.fill('[data-testid="search-input"]', 'mechanical keyboard');
-    await page.locator('form button[type="submit"]').first().click();
+    // 2. Search for an item
+    const searchInput = page.locator('[data-testid="search-input"]');
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill('camera');
+    await searchInput.press('Enter');
 
+    // Wait for results
     const results = page.locator('[data-testid="search-result"]');
-    await expect(results.first()).toBeVisible();
-    await expect(results).toHaveCount(await results.count());
+    await expect(results.first()).toBeVisible({ timeout: 10000 });
+    expect(await results.count()).toBeGreaterThan(0);
 
-    // 4. Get recommendations for first result
-    await page.locator('aside button:has-text("Recommendations")').first().click();
-    await page.selectOption('[data-testid="item-select"]', { index: 1 });
-    await page.locator('button:has-text("Get Recommendations")').first().click();
+    // 3. Click first result to open MMR Recommendations
+    await results.first().click();
+    const recPanel = page.locator('[data-testid="recommendations-panel"]');
+    await expect(recPanel).toBeVisible();
 
-    const recommendations = page.locator('[data-testid="recommendation-card"]');
-    await expect(recommendations.first()).toBeVisible();
+    // 4. Like a recommendation
+    const likeButton = page.locator('[data-testid="like-button"]').first();
+    await expect(likeButton).toBeVisible();
+    await likeButton.click();
 
     // 5. Verify analytics tracked the events
     await page.locator('aside button:has-text("Analytics")').first().click();

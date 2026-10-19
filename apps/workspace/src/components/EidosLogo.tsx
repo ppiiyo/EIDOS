@@ -1,13 +1,13 @@
 import React from 'react';
 
-interface KostraLogoProps {
+interface EidosLogoProps {
   className?: string;
   variant?: 'monochrome' | 'accent' | 'inverted';
   size?: 'sm' | 'md' | 'lg';
   showText?: boolean;
 }
 
-export const KostraLogo: React.FC<KostraLogoProps> = ({
+export const EidosLogo: React.FC<EidosLogoProps> = ({
   className = '',
   variant = 'accent',
   size = 'md',
@@ -20,11 +20,11 @@ export const KostraLogo: React.FC<KostraLogoProps> = ({
   };
 
   const height = heights[size];
-  const width = showText ? (height * 185) / 32 : (height * 32) / 32;
+  const width = showText ? (height * 120) / 32 : (height * 32) / 32;
 
   const markColor =
     variant === 'accent'
-      ? '#2563EB' // Stripe/Linear Blue Accent
+      ? '#2563EB'
       : variant === 'inverted'
       ? '#FFFFFF'
       : '#0A0A0A';
@@ -39,12 +39,11 @@ export const KostraLogo: React.FC<KostraLogoProps> = ({
       <svg
         width={width}
         height={height}
-        viewBox={showText ? '0 0 185 32' : '0 0 32 32'}
+        viewBox={showText ? '0 0 120 32' : '0 0 32 32'}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="transition-transform group-hover:scale-[1.02]"
       >
-        {/* Geometric Vector Mark: 3 nodes connected in 2D/3D simplex */}
         <g strokeLinecap="round" strokeLinejoin="round">
           <circle cx="8" cy="16" r="3.2" fill={markColor} />
           <circle cx="24" cy="8" r="3.2" fill={markColor} />
@@ -58,18 +57,17 @@ export const KostraLogo: React.FC<KostraLogoProps> = ({
           />
         </g>
 
-        {/* Crisp Monospace/Inter Wordmark */}
         {showText && (
           <text
             x="36"
             y="22"
-            fontFamily="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            fontFamily="'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
             fontWeight="700"
-            fontSize="17"
-            letterSpacing="0.03em"
+            fontSize="18"
+            letterSpacing="0.02em"
             fill={textColor}
           >
-            kostra44SIP
+            Eidos
           </text>
         )}
       </svg>

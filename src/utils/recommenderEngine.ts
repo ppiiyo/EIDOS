@@ -1,5 +1,5 @@
 import { CatalogItem, CatalogRecommendation, CatalogEdge } from '../types';
-import { HNSWIndex, BM25Index, HybridSearch } from '@kostra44sip/core';
+import { HNSWIndex, BM25Index, HybridSearch } from '@eidos/core';
 
 /**
  * Semantic anchor categories tailored for E5 Multilingual and consumer domains
@@ -675,7 +675,7 @@ export async function searchCatalogWithModel(
 }
 
 /**
- * Simulates traditional keyword-matching search to contrast with kostra44SIP AI
+ * Simulates traditional keyword-matching search to contrast with Eidos AI
  */
 export function simulateKeywordSearch(
   query: string,

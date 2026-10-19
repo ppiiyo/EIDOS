@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { Candidate, cosineSimilarity } from '@kostra44sip/core';
+import { Candidate, cosineSimilarity } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { AILManager } from '../services/ail';

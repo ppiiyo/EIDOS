@@ -2,7 +2,7 @@ import { CatalogItem } from '../types';
 
 export interface ExportedCatalogBundle {
   version: string;
-  format: 'kostra44sip-vectors-bundle-v1';
+  format: 'eidos-vectors-bundle-v1';
   exportedAt: string;
   totalItems: number;
   embeddingDimension: number;
@@ -16,7 +16,7 @@ export interface ExportedCatalogBundle {
 export function exportCatalogWithEmbeddings(
   catalog: CatalogItem[],
   embeddings: Map<string, Float32Array>,
-  filename = 'kostra44sip-catalog-vectors-export.json'
+  filename = 'eidos-catalog-vectors-export.json'
 ): void {
   let sampleDim = 384;
   const itemsWithVectors = catalog.map((item) => {
@@ -32,7 +32,7 @@ export function exportCatalogWithEmbeddings(
 
   const bundle: ExportedCatalogBundle = {
     version: '3.0.0',
-    format: 'kostra44sip-vectors-bundle-v1',
+    format: 'eidos-vectors-bundle-v1',
     exportedAt: new Date().toISOString(),
     totalItems: itemsWithVectors.length,
     embeddingDimension: sampleDim,

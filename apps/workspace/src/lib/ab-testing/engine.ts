@@ -56,7 +56,7 @@ function normCDF(x: number): number {
 }
 
 // ── Хранилище ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'kostra44sip_ab_experiments';
+const STORAGE_KEY = 'eidos_ab_experiments';
 
 function loadExperiments(): Experiment[] {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'); }

@@ -85,7 +85,7 @@ export interface CatalogItem {
   title: string;
   description: string;
   category: string;
-  price?: string;
+  price?: number | string;
   rating?: number;
   reviews?: number;
   badge?: string;
@@ -98,6 +98,15 @@ export interface CatalogRecommendation {
   item: CatalogItem;
   sim: number;
   whyRecommended?: string;
+}
+
+export interface HybridSearchHit {
+  item: CatalogItem;
+  fusedScore: number;
+  denseScore: number;
+  bm25Score: number;
+  source: 'hybrid' | 'dense' | 'sparse';
+  whyRecommended: string;
 }
 
 export interface CatalogEdge {

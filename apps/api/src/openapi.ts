@@ -10,12 +10,12 @@ export async function registerOpenAPI(fastify: FastifyInstance): Promise<void> {
   await fastify.register(fastifySwagger, {
     openapi: {
       info: {
-        title: 'kostra44SIP API',
+        title: 'Eidos API',
         description: 'Production Semantic Recommendation & Approximate Nearest Neighbor Retrieval Engine',
         version: '2.1.0',
         contact: {
-          name: 'kostra44SIP Engineering Team',
-          url: 'https://github.com/ppiiyo/kostra44SIP',
+          name: 'Eidos Engineering Team',
+          url: 'https://github.com/ppiiyo/Eidos',
         },
       },
       servers: [

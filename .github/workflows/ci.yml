@@ -108,7 +108,7 @@ jobs:
       - name: Install & Verify All Workspace Dependencies
         run: |
           pnpm install -r --no-frozen-lockfile
-          pnpm --filter @kostra44sip/workspace list --depth 0
+          pnpm --filter @eidos/workspace list --depth 0
 
       - name: Build Monorepo with Turbo
         run: pnpm turbo run build

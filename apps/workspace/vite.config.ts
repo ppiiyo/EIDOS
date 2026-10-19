@@ -12,8 +12,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      '@kostra44sip/core': path.resolve(__dirname, '../../packages/core/src/index.ts'),
-      '@kostra44sip/sdk': path.resolve(__dirname, '../../packages/sdk/src/index.ts'),
+      '@eidos/core': path.resolve(__dirname, '../../packages/core/src/index.ts'),
+      '@eidos/sdk': path.resolve(__dirname, '../../packages/sdk/src/index.ts'),
     },
   },
   build: {

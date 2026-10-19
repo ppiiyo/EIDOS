@@ -1,7 +1,7 @@
 {
-  "name": "@kostra44sip/sdk",
+  "name": "@eidos/sdk",
   "version": "1.0.0",
-  "description": "Official TypeScript and JavaScript client SDK for kostra44SIP Semantic Recommender API",
+  "description": "Official TypeScript and JavaScript client SDK for Eidos Semantic Recommender API",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
   "types": "./src/index.ts",
@@ -22,16 +22,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ppiiyo/kostra44SIP.git",
+    "url": "https://github.com/ppiiyo/Eidos.git",
     "directory": "packages/sdk"
   },
   "keywords": [
-    "kostra44sip",
+    "eidos",
     "sdk",
     "recommender",
     "api-client",
     "vector-search"
   ],
-  "author": "kostra44SIP Open Source Contributors",
+  "author": "Eidos Open Source Contributors",
   "license": "MIT"
 }

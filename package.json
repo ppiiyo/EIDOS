@@ -1,8 +1,8 @@
 {
-  "name": "kostra44sip",
+  "name": "eidos",
   "version": "1.0.0",
   "private": true,
-  "description": "kostra44SIP — Production Semantic Recommender & Ideation Engine",
+  "description": "Eidos — Production Semantic Recommender & Ideation Engine",
   "workspaces": [
     "apps/*",
     "packages/*"

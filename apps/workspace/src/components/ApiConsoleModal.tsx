@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Code2,
   Copy,
@@ -7,204 +7,194 @@ import {
   Terminal,
   X,
   Server,
-  Zap,
 } from 'lucide-react';
-import { CatalogItem } from '../types';
+import { CatalogItem, CatalogRecommendation, HybridSearchHit } from '../types';
 
 interface ApiConsoleModalProps {
   isOpen: boolean;
   onClose: () => void;
   catalog: CatalogItem[];
+  selectedItem?: CatalogItem | null;
+  onHybridSearch?: (query: string, alpha: number, limit?: number) => Promise<HybridSearchHit[]>;
+  onGetRecommendations?: (item: CatalogItem, diversity: number, limit?: number) => Promise<CatalogRecommendation[]>;
 }
 
 export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
   isOpen,
   onClose,
   catalog,
+  selectedItem,
+  onHybridSearch,
+  onGetRecommendations,
 }) => {
   const [selectedEndpoint, setSelectedEndpoint] = useState<'recommend' | 'search'>('recommend');
-  const [selectedItemName, setSelectedItemName] = useState('Cyberpunk 2077');
-  const [searchQuery, setSearchQuery] = useState('космос и время');
-  const [limit, setLimit] = useState(3);
+  const [selectedItemId, setSelectedItemId] = useState<string>(
+    String(selectedItem?.id || catalog[0]?.id || '1')
+  );
+  const [searchQuery, setSearchQuery] = useState('релятивистское время и космос');
+  const [alpha, setAlpha] = useState(0.7);
+  const [diversity, setDiversity] = useState(0.35);
+  const [limit, setLimit] = useState(4);
   const [langTab, setLangTab] = useState<'curl' | 'js' | 'python'>('curl');
   const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [responseOutput, setResponseOutput] = useState<string | null>(null);
-  const [latency, setLatency] = useState<number>(3.8);
+  const [latency, setLatency] = useState<number>(1.2);
+
+  useEffect(() => {
+    if (selectedItem) {
+      setSelectedItemId(String(selectedItem.id));
+    }
+  }, [selectedItem]);
 
   if (!isOpen) return null;
 
+  const currentItem =
+    catalog.find((c) => String(c.id) === String(selectedItemId)) || catalog[0];
+
   const handleSendRequest = async () => {
     setIsLoading(true);
-    const start = performance.now();
-    await new Promise((r) => setTimeout(r, 220));
-    const duration = +(performance.now() - start).toFixed(1);
-    setLatency(duration);
+    const t0 = performance.now();
 
-    if (selectedEndpoint === 'recommend') {
-      const res = {
-        status: 'success',
-        code: 200,
-        model: 'e5-multilingual-small',
-        execution_time_ms: duration,
-        query_item: selectedItemName,
-        recommendations: [
-          {
-            id: 2,
-            title: 'Матрица',
-            category: 'Фильмы',
-            similarity_score: 0.894,
-            confidence: 'high',
-            semantic_overlap: [
-              'симуляция реальности',
-              'киберпанк',
-              'искусственный интеллект',
-            ],
-            why: 'Связаны эстетикой киберпанка, вопросами искусственного интеллекта и концепцией иллюзорности привычной реальности.',
+    try {
+      if (selectedEndpoint === 'recommend' && currentItem && onGetRecommendations) {
+        const recs = await onGetRecommendations(currentItem, diversity, limit);
+        const duration = +(performance.now() - t0).toFixed(2);
+        setLatency(duration);
+
+        const payload = {
+          status: 'ok',
+          code: 200,
+          engine: 'Eidos Hybrid Core (HNSW Phase 2 + MMR)',
+          execution_time_ms: duration,
+          vector_dimensions: 384,
+          seed_anchor: {
+            id: currentItem.id,
+            title: currentItem.title,
+            category: currentItem.category,
           },
-          {
-            id: 3,
-            title: 'Дюна',
-            category: 'Книги',
-            similarity_score: 0.762,
-            confidence: 'medium',
-            semantic_overlap: ['научная фантастика', 'будущее человечества'],
-            why: 'Масштабные фантастические вселенные с глубоким социальным подтекстом.',
-          },
-          {
-            id: 13,
-            title: 'Игра "Stray"',
-            category: 'Игры',
-            similarity_score: 0.718,
-            confidence: 'medium',
-            semantic_overlap: ['кибергород', 'роботы', 'неон'],
-            why: 'Атмосфера ретрофутуризма и неонового кибергорода.',
-          },
-        ].slice(0, limit),
-        metadata: {
-          vector_dimensions: 64,
-          engine: 'kostra44SIP Semantic Core v3.2',
-        },
-      };
-      setResponseOutput(JSON.stringify(res, null, 2));
-    } else {
-      const res = {
-        status: 'success',
-        code: 200,
-        model: 'e5-multilingual-small',
-        execution_time_ms: duration,
-        natural_query: searchQuery,
-        matched_results: [
-          {
-            id: 7,
-            title: 'Фильм "Интерстеллар"',
-            category: 'Фильмы',
-            semantic_score: 0.961,
-            why: 'Прямое семантическое соответствие концепциям релятивистского времени и астрофизики черных дыр.',
-          },
-          {
-            id: 3,
-            title: 'Дюна',
-            category: 'Книги',
-            semantic_score: 0.912,
-            why: 'Космическая сага о межзвездных путешествиях и временных пророчествах.',
-          },
-          {
-            id: 12,
-            title: 'Фильм "Начало"',
-            category: 'Фильмы',
-            semantic_score: 0.835,
-            why: 'Искривление восприятия времени на разных уровнях снов.',
-          },
-        ].slice(0, limit),
-        metadata: {
-          query_prefix: 'query: ',
-          engine: 'kostra44SIP Semantic Core v3.2',
-        },
-      };
-      setResponseOutput(JSON.stringify(res, null, 2));
+          mmr_lambda: diversity,
+          recommendations: recs.map((r, idx) => ({
+            rank: idx + 1,
+            id: r.item.id,
+            title: r.item.title,
+            category: r.item.category,
+            price: r.item.price,
+            cosine_similarity: +r.sim.toFixed(4),
+            explanation: r.whyRecommended,
+          })),
+        };
+        setResponseOutput(JSON.stringify(payload, null, 2));
+      } else if (selectedEndpoint === 'search' && onHybridSearch) {
+        const hits = await onHybridSearch(searchQuery, alpha, limit);
+        const duration = +(performance.now() - t0).toFixed(2);
+        setLatency(duration);
+
+        const payload = {
+          status: 'ok',
+          code: 200,
+          engine: 'Eidos Hybrid Retrieval (Dense HNSW + Sparse BM25)',
+          execution_time_ms: duration,
+          vector_dimensions: 384,
+          query: searchQuery,
+          alpha_weight: alpha,
+          hits: hits.map((h, idx) => ({
+            rank: idx + 1,
+            id: h.item.id,
+            title: h.item.title,
+            category: h.item.category,
+            fused_score: +h.fusedScore.toFixed(4),
+            dense_cosine: +h.denseScore.toFixed(4),
+            bm25_lexical: +h.bm25Score.toFixed(4),
+            retrieval_source: h.source,
+            explanation: h.whyRecommended,
+          })),
+        };
+        setResponseOutput(JSON.stringify(payload, null, 2));
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const getCodeSnippet = () => {
+    const itemTitle = currentItem?.title || 'Item';
     if (selectedEndpoint === 'recommend') {
       if (langTab === 'curl') {
-        return `curl -X POST https://api.kostra44sip.ai/v1/recommend \\
-  -H "Authorization: Bearer kostra44sip_live_sk_8921f9" \\
+        return `curl -X POST https://api.eidos.dev/v1/recommend \\
+  -H "Authorization: Bearer eidos_live_sk_384d" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "item": "${selectedItemName}",
+    "item_id": "${currentItem?.id}",
+    "item_title": "${itemTitle}",
+    "mmr_diversity": ${diversity},
     "limit": ${limit}
   }'`;
       }
       if (langTab === 'js') {
-        return `const response = await fetch("https://api.kostra44sip.ai/v1/recommend", {
+        return `const response = await fetch("https://api.eidos.dev/v1/recommend", {
   method: "POST",
   headers: {
-    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
+    "Authorization": "Bearer eidos_live_sk_384d",
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
-    item: "${selectedItemName}",
+    item_id: "${currentItem?.id}",
+    mmr_diversity: ${diversity},
     limit: ${limit}
   })
 });
-const data = await response.json();
-console.log(data.recommendations);`;
+const { recommendations } = await response.json();`;
       }
       return `import requests
 
-url = "https://api.kostra44sip.ai/v1/recommend"
-headers = {
-    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
-    "Content-Type": "application/json"
-}
-payload = {
-    "item": "${selectedItemName}",
-    "limit": ${limit}
-}
-
-response = requests.post(url, json=payload, headers=headers)
+response = requests.post(
+    "https://api.eidos.dev/v1/recommend",
+    headers={"Authorization": "Bearer eidos_live_sk_384d"},
+    json={
+        "item_id": "${currentItem?.id}",
+        "mmr_diversity": ${diversity},
+        "limit": ${limit}
+    }
+)
 print(response.json())`;
     } else {
       if (langTab === 'curl') {
-        return `curl -X POST https://api.kostra44sip.ai/v1/search \\
-  -H "Authorization: Bearer kostra44sip_live_sk_8921f9" \\
+        return `curl -X POST https://api.eidos.dev/v1/search/hybrid \\
+  -H "Authorization: Bearer eidos_live_sk_384d" \\
   -H "Content-Type: application/json" \\
   -d '{
     "query": "${searchQuery}",
+    "alpha": ${alpha},
     "limit": ${limit}
   }'`;
       }
       if (langTab === 'js') {
-        return `const response = await fetch("https://api.kostra44sip.ai/v1/search", {
+        return `const response = await fetch("https://api.eidos.dev/v1/search/hybrid", {
   method: "POST",
   headers: {
-    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
+    "Authorization": "Bearer eidos_live_sk_384d",
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
     query: "${searchQuery}",
+    alpha: ${alpha},
     limit: ${limit}
   })
 });
-const data = await response.json();
-console.log(data.matched_results);`;
+const { hits } = await response.json();`;
       }
       return `import requests
 
-url = "https://api.kostra44sip.ai/v1/search"
-headers = {
-    "Authorization": "Bearer kostra44sip_live_sk_8921f9",
-    "Content-Type": "application/json"
-}
-payload = {
-    "query": "${searchQuery}",
-    "limit": ${limit}
-}
-
-response = requests.post(url, json=payload, headers=headers)
+response = requests.post(
+    "https://api.eidos.dev/v1/search/hybrid",
+    headers={"Authorization": "Bearer eidos_live_sk_384d"},
+    json={
+        "query": "${searchQuery}",
+        "alpha": ${alpha},
+        "limit": ${limit}
+    }
+)
 print(response.json())`;
     }
   };
@@ -216,172 +206,295 @@ print(response.json())`;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#0e0e18] border border-[#1e1e35] rounded-2xl max-w-[850px] w-full p-6 shadow-[0_0_60px_rgba(0,0,0,0.8)] flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        background: 'rgba(15, 23, 42, 0.72)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        className="card"
+        style={{
+          width: '100%',
+          maxWidth: 880,
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          padding: 24,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.35)',
+        }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#1e1e35] pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00f0ff] to-[#3ee89a] flex items-center justify-center text-black font-bold text-sm shadow-[0_0_15px_rgba(0,240,255,0.4)]">
-              <Code2 size={16} />
-            </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid var(--border)',
+            paddingBottom: 14,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Code2 size={20} color="var(--accent)" />
             <div>
-              <div className="font-extrabold text-sm text-[#e8e8f0] mono">
-                kostra44SIP REST API Console & Playground
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text)' }}>
+                Live REST API Console (In-Browser 384-d Execution)
               </div>
-              <div className="text-[11px] text-[#8a8aa3]">
-                «Рекомендательный API на основе смысла. Подключите за 5 минут».
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>
+                Executes real queries against the active {catalog.length.toLocaleString()}-item HNSW + BM25 index
               </div>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8a8aa3] hover:text-[#e8e8f0] hover:bg-[#141424] transition-colors cursor-pointer"
+            className="btn btn-secondary btn-sm"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
 
         {/* Endpoint Selector Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-[#141424] border border-[#1e1e35] rounded-xl">
-          <div className="flex items-center gap-2">
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: 10,
+            background: 'var(--bg-alt)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
+              type="button"
               onClick={() => setSelectedEndpoint('recommend')}
-              className={`px-3 py-1.5 rounded-lg text-xs mono font-bold transition-all cursor-pointer ${
-                selectedEndpoint === 'recommend'
-                  ? 'bg-[#00f0ff] text-black shadow-[0_0_12px_rgba(0,240,255,0.3)]'
-                  : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
-              }`}
+              className="btn btn-sm mono"
+              style={{
+                background: selectedEndpoint === 'recommend' ? 'var(--accent)' : 'transparent',
+                color: selectedEndpoint === 'recommend' ? '#FFFFFF' : 'var(--text-sec)',
+              }}
             >
               POST /v1/recommend
             </button>
             <button
+              type="button"
               onClick={() => setSelectedEndpoint('search')}
-              className={`px-3 py-1.5 rounded-lg text-xs mono font-bold transition-all cursor-pointer ${
-                selectedEndpoint === 'search'
-                  ? 'bg-[#00f0ff] text-black shadow-[0_0_12px_rgba(0,240,255,0.3)]'
-                  : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
-              }`}
+              className="btn btn-sm mono"
+              style={{
+                background: selectedEndpoint === 'search' ? 'var(--accent)' : 'transparent',
+                color: selectedEndpoint === 'search' ? '#FFFFFF' : 'var(--text-sec)',
+              }}
             >
-              POST /v1/search
+              POST /v1/search/hybrid
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs mono text-[#8a8aa3]">
-            <Server size={12} className="text-[#3ee89a]" />
-            <span>Статус:</span>
-            <span className="text-[#3ee89a] font-bold">200 OK (Latency: {latency}ms)</span>
+          <div className="mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: 'var(--success)' }}>
+            <Server size={13} />
+            <span>200 OK · {latency} ms</span>
           </div>
         </div>
 
-        {/* Interactive Query Builder */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-[#141424] border border-[#1e1e35] rounded-xl flex flex-col gap-3">
-            <span className="text-xs mono uppercase text-[#8a8aa3] font-bold">
-              Параметры запроса (Request Body):
-            </span>
+        {/* Interactive Request Builder + Snippet */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--bg-alt)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-sec)' }}>
+              Request Payload Parameters
+            </div>
 
             {selectedEndpoint === 'recommend' ? (
-              <div>
-                <label className="text-[11px] mono text-[#8a8aa3] block mb-1">
-                  Целевой товар (item):
-                </label>
-                <select
-                  value={selectedItemName}
-                  onChange={(e) => setSelectedItemName(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0e0e18] border border-[#1e1e35] rounded-lg text-xs text-[#e8e8f0] focus:outline-none focus:border-[#00f0ff] cursor-pointer"
-                >
-                  {catalog.map((i) => (
-                    <option key={i.id} value={i.title}>
-                      {i.title} ({i.category})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-sec)', display: 'block', marginBottom: 4 }}>
+                    Target Seed Item:
+                  </label>
+                  <select
+                    className="input"
+                    value={selectedItemId}
+                    onChange={(e) => setSelectedItemId(e.target.value)}
+                  >
+                    {catalog.slice(0, 150).map((i) => (
+                      <option key={i.id} value={String(i.id)}>
+                        {i.title} ({i.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-sec)', display: 'block', marginBottom: 4 }}>
+                    MMR Diversity (λ = {diversity.toFixed(2)}):
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={0.9}
+                    step={0.05}
+                    value={diversity}
+                    onChange={(e) => setDiversity(parseFloat(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--accent)' }}
+                  />
+                </div>
+              </>
             ) : (
-              <div>
-                <label className="text-[11px] mono text-[#8a8aa3] block mb-1">
-                  Естественный запрос (query):
-                </label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="космос и время / киберпанк / кофе..."
-                  className="w-full px-3 py-2 bg-[#0e0e18] border border-[#1e1e35] rounded-lg text-xs text-[#e8e8f0] focus:outline-none focus:border-[#00f0ff]"
-                />
-              </div>
+              <>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-sec)', display: 'block', marginBottom: 4 }}>
+                    Natural Language Query:
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-sec)', display: 'block', marginBottom: 4 }}>
+                    Hybrid Balance (α = {alpha.toFixed(2)}):
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={alpha}
+                    onChange={(e) => setAlpha(parseFloat(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--accent)' }}
+                  />
+                </div>
+              </>
             )}
 
             <div>
-              <label className="text-[11px] mono text-[#8a8aa3] block mb-1">
-                Лимит рекомендаций (limit): {limit}
+              <label style={{ fontSize: '0.75rem', color: 'var(--text-sec)', display: 'block', marginBottom: 4 }}>
+                Top-K Limit ({limit}):
               </label>
               <input
                 type="range"
                 min={1}
-                max={6}
+                max={8}
                 value={limit}
                 onChange={(e) => setLimit(parseInt(e.target.value, 10))}
-                className="w-full h-1 bg-[#0e0e18] rounded appearance-none cursor-pointer accent-[#00f0ff]"
+                style={{ width: '100%', accentColor: 'var(--accent)' }}
               />
             </div>
 
             <button
+              type="button"
               onClick={handleSendRequest}
               disabled={isLoading}
-              className="mt-2 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-gradient-to-r from-[#00f0ff] to-[#3ee89a] text-black font-bold text-xs mono shadow-[0_0_15px_rgba(0,240,255,0.3)] hover:opacity-90 transition-all cursor-pointer"
+              className="btn btn-primary"
+              style={{ marginTop: 4 }}
             >
-              <Play size={13} fill="black" />
-              <span>{isLoading ? 'Выполнение запроса...' : '▶ Отправить запрос (Send)'}</span>
+              <Play size={13} />
+              <span>{isLoading ? 'Executing...' : 'Send Live Request'}</span>
             </button>
           </div>
 
-          {/* Code Snippet Box */}
-          <div className="p-4 bg-[#141424] border border-[#1e1e35] rounded-xl flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
+          {/* Code Snippet */}
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--bg-alt)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 4 }}>
                 {(['curl', 'js', 'python'] as const).map((tab) => (
                   <button
                     key={tab}
+                    type="button"
                     onClick={() => setLangTab(tab)}
-                    className={`px-2 py-1 rounded text-[11px] mono uppercase cursor-pointer ${
-                      langTab === tab
-                        ? 'bg-[#1e1e35] text-[#00f0ff] font-bold'
-                        : 'text-[#8a8aa3] hover:text-[#e8e8f0]'
-                    }`}
+                    className="btn btn-sm mono"
+                    style={{
+                      background: langTab === tab ? 'var(--accent)' : 'transparent',
+                      color: langTab === tab ? '#FFFFFF' : 'var(--text-sec)',
+                    }}
                   >
-                    {tab}
+                    {tab.toUpperCase()}
                   </button>
                 ))}
               </div>
-              <button
-                onClick={copyCode}
-                className="flex items-center gap-1 text-[11px] mono text-[#8a8aa3] hover:text-[#00f0ff] cursor-pointer"
-              >
-                {isCopied ? <Check size={12} className="text-[#3ee89a]" /> : <Copy size={12} />}
-                <span>{isCopied ? 'Скопировано' : 'Копировать'}</span>
+              <button type="button" onClick={copyCode} className="btn btn-secondary btn-sm">
+                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                <span>{isCopied ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
 
-            <pre className="p-3 bg-[#0a0a10] border border-[#1e1e35] rounded-lg text-[11px] mono text-[#e8e8f0] overflow-x-auto max-h-[160px] leading-relaxed">
+            <pre
+              className="mono"
+              style={{
+                padding: 12,
+                background: '#0B0F19',
+                color: '#E2E8F0',
+                borderRadius: 6,
+                fontSize: '0.75rem',
+                overflowX: 'auto',
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
               <code>{getCodeSnippet()}</code>
             </pre>
           </div>
         </div>
 
-        {/* Live Response Output */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-xs mono text-[#8a8aa3]">
-            <span className="flex items-center gap-1.5">
-              <Terminal size={13} className="text-[#00f0ff]" /> Ответ сервера (Response Body):
+        {/* Response Output */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-sec)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Terminal size={13} color="var(--accent)" />
+              <span>JSON Response Payload</span>
             </span>
-            <span className="text-[11px] text-[#3ee89a]">HTTP/2 200 OK</span>
+            <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)' }}>
+              HTTP/2 200 OK
+            </span>
           </div>
-
-          <pre className="p-4 bg-[#0a0a10] border border-[#1e1e35] rounded-xl text-xs mono text-[#3ee89a] overflow-x-auto max-h-[220px] leading-relaxed">
+          <pre
+            className="mono"
+            style={{
+              padding: 14,
+              background: '#0B0F19',
+              color: '#10B981',
+              borderRadius: 8,
+              fontSize: '0.75rem',
+              overflowX: 'auto',
+              maxHeight: 240,
+              margin: 0,
+              lineHeight: 1.5,
+            }}
+          >
             <code>
               {responseOutput ||
-                `// Нажмите «▶ Отправить запрос (Send)» выше для выполнения боевого REST-вызова\n{\n  "status": "ready",\n  "endpoint": "https://api.kostra44sip.ai/v1/${selectedEndpoint}",\n  "message": "Waiting for request trigger..."\n}`}
+                `{\n  "status": "ready",\n  "endpoint": "/v1/${selectedEndpoint}",\n  "note": "Click 'Send Live Request' to execute against the live 384-d catalog"\n}`}
             </code>
           </pre>
         </div>

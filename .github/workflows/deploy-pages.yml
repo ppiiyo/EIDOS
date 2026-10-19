@@ -16,13 +16,12 @@ concurrency:
 
 jobs:
   deploy-pages:
-    name: Build & Deploy Landing Page
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup pnpm
@@ -37,22 +36,22 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile=false
 
-      - name: Build Monorepo & Static Export
-        run: pnpm turbo run build
+      - name: Build Core, SDK & Landing
+        run: |
+          pnpm --filter @eidos/core build
+          pnpm --filter @eidos/sdk build
+          pnpm --filter @eidos/landing build
 
-      - name: Setup Pages
+      - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload Pages Artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          name: github-pages
-          path: apps/landing/out
+          path: './apps/landing/out'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
-        with:
-          artifact_name: github-pages
+        uses: actions/deploy-pages@v4

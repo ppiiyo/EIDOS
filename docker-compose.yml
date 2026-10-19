@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   api:
-    image: ghcr.io/ppiiyo/kostra44sip-api:latest
-    container_name: kostra44sip-api
+    image: ghcr.io/ppiiyo/eidos-api:latest
+    container_name: eidos-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -12,12 +12,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8080
-      - KOSTRA44SIP_API_KEY=${KOSTRA44SIP_API_KEY:-dev-key-min-32-chars}
+      - EIDOS_API_KEY=${EIDOS_API_KEY:-dev-key-min-32-chars}
       - AIL_ENABLED=true
       - REDIS_URL=redis://redis:6379
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     volumes:
-      - kostra44sip-data:/app/data
+      - eidos-data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/health || exit 1"]
       interval: 10s
@@ -82,7 +82,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  kostra44sip-data:
+  eidos-data:
   redis-data:
   prometheus-data:
   grafana-data:
