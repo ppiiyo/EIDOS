@@ -12,9 +12,11 @@
   "dependencies": {
     "@eidos/core": "workspace:*",
     "@eidos/sdk": "workspace:*",
+    "@xenova/transformers": "^2.17.2",
     "lucide-react": "^0.546.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "recharts": "^2.15.1",
     "three": "^0.186.1"
   },
   "devDependencies": {

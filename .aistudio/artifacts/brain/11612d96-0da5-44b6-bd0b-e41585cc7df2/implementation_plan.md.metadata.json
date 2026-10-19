@@ -1,6 +1,6 @@
 {
-  "summary": "План реализации технического задания EIDOS Production Hardening v3.5: подключение реального трансформера @xenova/transformers (all-MiniLM-L6-v2) в UI с индикатором статуса, группировка Dependabot PR, E2E Playwright пайплайн, Python SDK (eidos-sdk на httpx + pydantic), экспорт статики для деплоя демо, таблица мультисредовых бенчмарков в README и мультимодальный CLIP-эмбеддер в @eidos/core.",
-  "updatedAt": "2026-10-19T07:50:43.319850248Z",
+  "summary": "План исправления падения сборки @eidos/workspace в CI (pnpm turbo run build): добавление входного HTML-модуля index.html, конфигурации Vite vite.config.ts и синхронизация зависимостей для успешной продакшн-сборки монорепозитория.",
+  "updatedAt": "2026-10-19T08:13:43.215628377Z",
   "requestFeedback": true,
   "userFacing": true
 }
