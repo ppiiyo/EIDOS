@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: 9
 
@@ -36,13 +36,21 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
+        run: pnpm install -r --no-frozen-lockfile
 
-      - name: Build Core, SDK & Eidos Studio
+      - name: Build Core, SDK & Verify Workspace Constraints
         run: |
           pnpm --filter @eidos/core build
           pnpm --filter @eidos/sdk build
+          pnpm run lint
+          npx vitest run tests/unit/architecture-constraints.test.ts
+
+      - name: Build Eidos Workspace SPA for GitHub Pages
+        env:
+          VITE_BASE_PATH: ./
+        run: |
           pnpm run build
+          cp dist/index.html dist/404.html
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

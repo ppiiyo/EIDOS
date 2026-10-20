@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "lint": "tsc --noEmit",
     "start": "node dist/server.js",
-    "test": "vitest run"
+    "test": "vitest run --config ../../vitest.config.ts apps/api/tests"
   },
   "dependencies": {
     "@eidos/core": "workspace:*",

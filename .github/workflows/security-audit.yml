@@ -8,6 +8,7 @@ on:
   schedule:
     # Run every Sunday at 02:00 UTC
     - cron: '0 2 * * 0'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,23 +25,39 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: javascript-typescript
+          languages: javascript-typescript, python
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
-  dependency-audit:
-    name: Dependency Vulnerability Audit
+  security-and-guardrails-verification:
+    name: Dependency Audit & Security Guardrails Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'pnpm'
 
-      - name: Audit Dependencies
+      - name: Install Workspace Dependencies
+        run: pnpm install -r --no-frozen-lockfile
+
+      - name: Build Core & SDK Packages
         run: |
-          npm audit --audit-level=high || true
+          pnpm --filter @eidos/core build
+          pnpm --filter @eidos/sdk build
+
+      - name: Execute Security Guardrails, API Hardening & Invariant Suite
+        run: pnpm run security:check
+
+      - name: Audit Production Dependencies (Critical Vulnerability Gate)
+        run: pnpm audit --prod --audit-level=critical

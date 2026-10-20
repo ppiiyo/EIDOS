@@ -10,8 +10,9 @@ COPY packages/core ./packages/core
 COPY packages/sdk ./packages/sdk
 COPY apps/api ./apps/api
 
-RUN if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install --no-frozen-lockfile; fi
-RUN pnpm --filter @eidos/core build || true
+RUN pnpm install --no-frozen-lockfile
+RUN pnpm --filter @eidos/core build
+RUN pnpm --filter @eidos/sdk build
 RUN pnpm --filter @eidos/api build
 
 FROM node:20-slim AS runner
@@ -26,6 +27,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=builder /app/packages/core ./packages/core
+COPY --from=builder /app/packages/sdk ./packages/sdk
 COPY --from=builder /app/apps/api ./apps/api
 COPY --from=builder /app/node_modules ./node_modules
 

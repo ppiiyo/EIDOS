@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 const ROOT_DIR = path.resolve(__dirname, '../..');
 const WORKSPACE_SRC = path.resolve(ROOT_DIR, 'apps/workspace/src');
 const CORE_SRC = path.resolve(ROOT_DIR, 'packages/core/src');
+const WORKFLOWS_DIR = path.resolve(ROOT_DIR, '.github/workflows');
 
 function collectFiles(dir: string, exts: string[]): string[] {
   const results: string[] = [];
@@ -68,6 +69,34 @@ describe('Phase 5: Architectural Constraints & Quality Invariants', () => {
       const content = fs.readFileSync(file, 'utf-8');
       expect(content).not.toContain('RECOMMENDER_ANCHORS');
       expect(content).not.toMatch(/localStorage\.(setItem|getItem)\(['"`]eidos_catalog/);
+    }
+  });
+
+  it('verifies GitHub Actions workflows and Dockerfile contain no || true stubs or stale paths', () => {
+    const workflowFiles = collectFiles(WORKFLOWS_DIR, ['.yml', '.yaml']);
+    expect(workflowFiles.length).toBe(5);
+
+    for (const wf of workflowFiles) {
+      const content = fs.readFileSync(wf, 'utf-8');
+      expect(content).not.toContain('|| true');
+      expect(content).not.toContain("'src/**'");
+      expect(content).toContain('pnpm/action-setup@v4');
+    }
+
+    const dockerfile = fs.readFileSync(path.resolve(ROOT_DIR, 'apps/api/Dockerfile'), 'utf-8');
+    expect(dockerfile).not.toContain('|| true');
+
+    const pkgPaths = [
+      'packages/core/package.json',
+      'packages/sdk/package.json',
+      'apps/api/package.json',
+      'apps/workspace/package.json',
+    ];
+    for (const rel of pkgPaths) {
+      const pkg = JSON.parse(fs.readFileSync(path.resolve(ROOT_DIR, rel), 'utf-8'));
+      expect(typeof pkg.scripts?.build).toBe('string');
+      expect(typeof pkg.scripts?.lint).toBe('string');
+      expect(typeof pkg.scripts?.test).toBe('string');
     }
   });
 });

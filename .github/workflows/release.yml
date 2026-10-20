@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,7 +12,7 @@ permissions:
 
 jobs:
   publish-release:
-    name: Build & Publish Release
+    name: Build, Verify & Publish Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -20,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: 9
 
@@ -29,21 +30,30 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install Dependencies
         run: pnpm install -r --no-frozen-lockfile
-
-      - name: Verify Types and Tests
-        run: |
-          pnpm run lint
-          pnpm test
 
       - name: Build Monorepo Artifacts
         run: |
           pnpm turbo run build
           pnpm run build
 
+      - name: Verify Types, Tests & Benchmarks
+        run: |
+          pnpm run lint
+          pnpm test
+          pnpm run benchmark
+
+      - name: Pack Release Tarballs
+        run: |
+          mkdir -p release-artifacts
+          pnpm --filter @eidos/core pack --pack-destination release-artifacts
+          pnpm --filter @eidos/sdk pack --pack-destination release-artifacts
+
       - name: Publish Packages to npm
+        if: env.NODE_AUTH_TOKEN != ''
         run: |
           pnpm publish --filter @eidos/core --access public --no-git-checks
           pnpm publish --filter @eidos/sdk --access public --no-git-checks
@@ -55,17 +65,23 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build & Publish Python SDK (eidos-sdk) to PyPI
+      - name: Build & Test Python SDK (eidos-sdk)
         working-directory: packages/python-sdk
         run: |
-          pip install build twine pytest httpx pydantic
-          pytest
+          python -m pip install --upgrade pip build twine
+          pip install -e ".[dev]"
+          pytest -v
           python -m build
+          cp dist/* ../../release-artifacts/
+
+      - name: Publish Python SDK to PyPI
+        if: env.TWINE_PASSWORD != ''
+        working-directory: packages/python-sdk
+        run: |
           twine upload dist/* --non-interactive --skip-existing
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -82,12 +98,13 @@ jobs:
         with:
           context: .
           file: apps/api/Dockerfile
-          push: true
+          push: ${{ github.event_name == 'push' }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/eidos-api:latest
             ghcr.io/${{ github.repository_owner }}/eidos-api:${{ github.ref_name }}
 
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -95,5 +112,8 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+          files: |
+            release-artifacts/*
+            benchmark-results.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

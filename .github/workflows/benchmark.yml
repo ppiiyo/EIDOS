@@ -6,18 +6,21 @@ on:
   pull_request:
     paths:
       - 'packages/core/**'
+      - 'apps/workspace/src/**'
       - 'scripts/benchmark.ts'
+      - '.github/workflows/benchmark.yml'
+  workflow_dispatch:
 
 jobs:
   benchmark:
-    name: Vector Latency Benchmark
+    name: Vector & Hybrid Search Latency Benchmark
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: 9
 
@@ -28,7 +31,14 @@ jobs:
           cache: 'pnpm'
 
       - name: Install Dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install -r --no-frozen-lockfile
 
-      - name: Execute Vector Engine Benchmarks
+      - name: Execute Vector Engine Benchmarks & Regression Gates
         run: pnpm run benchmark
+
+      - name: Upload Benchmark JSON Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+          retention-days: 30

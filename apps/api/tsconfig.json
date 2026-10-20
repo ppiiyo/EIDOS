@@ -6,9 +6,10 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "rootDir": "./src",
     "outDir": "./dist",
     "paths": {
-      "@eidos/core": ["../../packages/core/src/index.ts"]
+      "@eidos/core": ["../../packages/core/dist/index.d.ts"]
     }
   },
   "include": ["src"]

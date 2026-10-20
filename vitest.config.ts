@@ -13,8 +13,28 @@ export default defineConfig({
     environment: 'node',
     include: [
       'packages/**/tests/**/*.test.ts',
+      'apps/api/tests/**/*.test.ts',
       'tests/unit/**/*.test.ts',
       'tests/integration/**/*.test.ts',
     ],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
+      include: [
+        'packages/core/src/**/*.ts',
+        'packages/sdk/src/**/*.ts',
+      ],
+      exclude: [
+        '**/tests/**',
+        '**/*.test.ts',
+        '**/types.ts',
+        '**/index.ts',
+      ],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        statements: 80,
+      },
+    },
   },
 });
