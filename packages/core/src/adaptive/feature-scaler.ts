@@ -113,8 +113,8 @@ export class StreamingQuantileScaler {
       return 0.5;
     }
 
-    // 1. Cold Start Fallback (< 5 samples)
-    if (this.count < 5) {
+    // 1. Cold Start Fallback (< 5 samples or < windowSize when windowSize < 5)
+    if (this.count < Math.min(5, this.windowSize)) {
       const span = this.defaultMax - this.defaultMin;
       if (span <= 1e-9) return 0.5;
       const normalized = (value - this.defaultMin) / span;
