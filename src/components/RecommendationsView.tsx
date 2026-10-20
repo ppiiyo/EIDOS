@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Layers,
   Filter,
+  ThumbsUp,
 } from 'lucide-react';
 import {
   CatalogItem,
@@ -55,6 +56,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
   // Enterprise Merchandising & Business Rules State
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [excludedIds, setExcludedIds] = useState<string[]>([]);
+  const [likedIds, setLikedIds] = useState<string[]>([]);
   const [boostCategory, setBoostCategory] = useState<string>('none');
   const [boostFactor, setBoostFactor] = useState<number>(1.35);
   const [crossCategoryOnly, setCrossCategoryOnly] = useState<boolean>(false);
@@ -111,6 +113,18 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
     setPinnedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]
     );
+  };
+
+  const toggleLike = (item: CatalogItem) => {
+    const id = String(item.id);
+    setLikedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    trackEvent({
+      type: 'item_click',
+      itemId: id,
+      category: item.category,
+    });
   };
 
   const excludeSku = (id: string) => {
@@ -439,7 +453,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
 
         {/* Right: Active Seed Banner & MMR Top-K Recommendations */}
         {activeSeed && (
-          <div>
+          <div data-testid="recommendations-panel">
             {/* Active Seed Card */}
             <div
               className="card"
@@ -492,6 +506,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                     : (1 - diversityLambda) * rec.sim + diversityLambda * noveltyBonusVal;
                 const mmrTotalPct = Math.min(100, Math.max(5, mmrScoreVal * 100));
                 const isPinned = Boolean(rec.isPinned || pinnedIds.includes(String(rec.item.id)));
+                const isLiked = likedIds.includes(String(rec.item.id));
 
                 return (
                   <div
@@ -628,6 +643,16 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                         {rec.whyRecommended}
                       </span>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          data-testid="like-button"
+                          className={isLiked ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                          onClick={() => toggleLike(rec.item)}
+                          title="Positive relevance feedback (logs click telemetry)"
+                        >
+                          <ThumbsUp size={12} />
+                          <span>{isLiked ? 'Liked' : 'Like'}</span>
+                        </button>
                         <button
                           type="button"
                           className={isPinned ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}

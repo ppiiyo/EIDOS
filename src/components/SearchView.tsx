@@ -296,7 +296,8 @@ export const SearchView: React.FC<SearchViewProps> = ({
                   key={hit.item.id}
                   data-testid="search-result"
                   className="card"
-                  style={{ padding: 16 }}
+                  onClick={() => onSelectItem(hit.item)}
+                  style={{ padding: 16, cursor: 'pointer' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                     <div style={{ display: 'flex', gap: 10 }}>
@@ -372,7 +373,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button
                         type="button"
-                        onClick={() => onInspectIn3D(hit.item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onInspectIn3D(hit.item);
+                        }}
                         className="btn btn-secondary btn-sm"
                       >
                         <Boxes size={12} />
@@ -380,7 +384,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onSelectItem(hit.item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectItem(hit.item);
+                        }}
                         className="btn btn-secondary btn-sm"
                       >
                         <Lightbulb size={12} />
