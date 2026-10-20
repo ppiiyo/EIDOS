@@ -1,16 +1,16 @@
 {
-  "timestamp": "2026-10-20T13:49:29.658Z",
+  "timestamp": "2026-10-20T14:24:48.516Z",
   "dimension": 384,
   "corpusSize": 1000,
   "metrics": {
-    "cosineDotProductUs": 2.3889,
-    "indexBuildMs": 2094.02,
-    "linearScanMs": 2.3641,
-    "hnswSearchMs": 0.9817,
-    "hybridRrfSearchMs": 2.2422,
+    "cosineDotProductUs": 3.7454,
+    "indexBuildMs": 3129.84,
+    "linearScanMs": 3.432,
+    "hnswSearchMs": 1.3859,
+    "hybridRrfSearchMs": 3.6707,
     "sq8Fidelity": 0.99999,
     "sq8CompressionRatio": 4,
-    "shannonEntropyUs": 0.9644,
-    "mmrScoreUs": 0.3056
+    "shannonEntropyUs": 1.3693,
+    "mmrScoreUs": 0.4175
   }
 }
