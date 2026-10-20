@@ -19,7 +19,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'pnpm --filter @eidos/workspace dev --port 4173 --host 127.0.0.1',
+      command: 'npx vite --port 4173 --host 127.0.0.1',
       url: 'http://127.0.0.1:4173',
       reuseExistingServer: !process.env.CI,
       timeout: 60000,

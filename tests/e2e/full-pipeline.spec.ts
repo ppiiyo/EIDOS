@@ -5,7 +5,7 @@ test.describe('Eidos Full Pipeline E2E', () => {
     await page.goto('/');
 
     // 1. Navigate to Hybrid Search view
-    await page.locator('aside button:has-text("Hybrid Search")').first().click();
+    await page.locator('[data-testid="nav-search"]').first().click();
 
     // 2. Search for an item
     const searchInput = page.locator('[data-testid="search-input"]');
@@ -29,7 +29,7 @@ test.describe('Eidos Full Pipeline E2E', () => {
     await likeButton.click();
 
     // 5. Verify analytics tracked the events
-    await page.locator('aside button:has-text("Analytics")').first().click();
+    await page.locator('[data-testid="nav-analytics"]').first().click();
     await expect(page.locator('text=Searches').first()).toBeVisible();
     await expect(page.locator('[data-testid="search-count"]')).not.toHaveText('0');
   });

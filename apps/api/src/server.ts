@@ -93,10 +93,8 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Prometheus /metrics endpoint
   fastify.get('/metrics', async (_request, reply) => {
-    reply.header('content-type', 'text/plain; version=0.0.4; charset=utf-8');
-    return typeof (Metrics as any).exportPrometheus === 'function'
-      ? (Metrics as any).exportPrometheus()
-      : Metrics.registry.metrics();
+    reply.header('content-type', Metrics.getContentType());
+    return await Metrics.getMetrics();
   });
 
   // Register modular v1 routes

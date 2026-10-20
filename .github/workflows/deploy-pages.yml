@@ -38,11 +38,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile=false
 
-      - name: Build Core, SDK & Landing
+      - name: Build Core, SDK & Eidos Studio
         run: |
           pnpm --filter @eidos/core build
           pnpm --filter @eidos/sdk build
-          pnpm --filter @eidos/landing build
+          pnpm run build
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -50,7 +50,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './apps/landing/out'
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment

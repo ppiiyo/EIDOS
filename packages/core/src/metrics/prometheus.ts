@@ -231,7 +231,7 @@ export class MetricsRegistry {
 }
 
 export class Metrics {
-  private static registry = new MetricsRegistry();
+  public static readonly registry = new MetricsRegistry();
   private static initialized = false;
 
   // 1. Request metrics

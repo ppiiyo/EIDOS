@@ -94,13 +94,12 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Cache Turborepo & Next.js Build Artifacts
+      - name: Cache Turborepo Build Artifacts
         uses: actions/cache@v4
         with:
           path: |
             .turbo
-            apps/landing/.next/cache
-          key: ${{ runner.os }}-turbo-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('packages/**/src/**', 'apps/**/src/**', 'apps/landing/app/**') }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('packages/**/src/**', 'apps/**/src/**', 'src/**') }}
           restore-keys: |
             ${{ runner.os }}-turbo-${{ hashFiles('**/pnpm-lock.yaml') }}-
             ${{ runner.os }}-turbo-
@@ -108,7 +107,7 @@ jobs:
       - name: Install & Verify All Workspace Dependencies
         run: |
           pnpm install -r --no-frozen-lockfile
-          pnpm --filter @eidos/workspace list --depth 0
+          pnpm --filter @eidos/core list --depth 0
 
       - name: Build Monorepo with Turbo
         run: pnpm turbo run build
