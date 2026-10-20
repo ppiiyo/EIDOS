@@ -33,6 +33,7 @@ import {
   PlatformDomainId,
   PlatformDomainPreset,
 } from '../data/domainDatabases';
+import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 interface DashboardViewProps {
   catalog: CatalogItem[];
@@ -40,6 +41,7 @@ interface DashboardViewProps {
   selectedItem: CatalogItem | null;
   isScaledCatalog: boolean;
   activeDomain?: PlatformDomainId;
+  uiLang?: UiLanguage;
   onNavigate: (view: ViewId) => void;
   onSearch: (query: string) => Promise<CatalogItem[]>;
   onSelectItem: (item: CatalogItem) => void;
@@ -56,6 +58,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   selectedItem,
   isScaledCatalog,
   activeDomain = 'marketplace',
+  uiLang = 'ru',
   onNavigate,
   onSearch,
   onSelectItem,
@@ -65,6 +68,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectDomainPreset,
   onOpenDatabaseConnector,
 }) => {
+  const t = UI_TRANSLATIONS[uiLang].dashboard;
+
   const [quickQuery, setQuickQuery] = useState('');
   const [quickResults, setQuickResults] = useState<CatalogItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -170,10 +175,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       >
         <div>
           <h1 className="page-title" style={{ margin: 0, fontSize: '1.375rem' }}>
-            Eidos Semantic Vector Workbench
+            {t.title}
           </h1>
           <p className="page-sub" style={{ margin: '4px 0 0' }}>
-            384-dimensional dense embeddings · HNSW Phase 2 (Int32 + BinaryHeap) · Universal Multilingual & CJK (100+ languages)
+            {t.subtitle}
           </p>
         </div>
 
@@ -186,7 +191,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               data-testid="open-db-connector-btn"
             >
               <Globe size={14} />
-              <span>Подключить свою базу / Язык</span>
+              <span>{t.connectDbBtn}</span>
             </button>
           )}
 
@@ -198,7 +203,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               title="Generate 1,200+ synthetic items with 384-d vectors to benchmark HNSW logarithmic scaling"
             >
               <Database size={14} />
-              <span>Scale Catalog to 1,200 SKU (0ms)</span>
+              <span>{t.scaleBtn}</span>
             </button>
           ) : (
             <button
@@ -207,7 +212,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={onRestoreCatalog}
             >
               <RotateCcw size={14} />
-              <span>Restore Curated Catalog</span>
+              <span>{t.restoreBtn}</span>
             </button>
           )}
 
@@ -217,7 +222,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={onOpenApiConsole}
           >
             <Terminal size={14} />
-            <span>Open Live REST API Console</span>
+            <span>{t.openApiBtn}</span>
           </button>
         </div>
       </div>
@@ -239,13 +244,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Globe size={15} color="var(--accent)" />
             <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text)' }}>
-              Тип площадки и язык базы:
+              {t.platformDomainLabel}
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {PLATFORM_DOMAIN_PRESETS.map((preset) => {
-              const active = !isScaledCatalog && activeDomain === preset.id;
+              const active = activeDomain === preset.id;
               return (
                 <button
                   key={preset.id}
@@ -277,7 +282,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              Indexed Corpus & Vectors
+              {t.kpiCorpusTitle}
             </span>
             <Package size={15} color="var(--accent)" />
           </div>
@@ -285,14 +290,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {stats.itemsCount.toLocaleString()} SKU
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            <span className="mono">{stats.embeddingsCount.toLocaleString()}</span> × 384-d L2 vectors ({dominantLang.toUpperCase()})
+            <span className="mono">{stats.embeddingsCount.toLocaleString()}</span> × 384-d L2 ({dominantLang.toUpperCase()})
           </div>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              Catalog Taxonomy Entropy
+              {t.kpiEntropyTitle}
             </span>
             <Layers size={15} color="var(--success)" />
           </div>
@@ -300,14 +305,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             H = {stats.entropyBits.toFixed(2)} bits
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            Across <span className="mono">{stats.uniqueCategories}</span> semantic categories
+            {t.kpiEntropySub} <span className="mono">{stats.uniqueCategories}</span>
           </div>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              Session Search & Recs
+              {t.kpiOpsTitle}
             </span>
             <Search size={15} color="var(--warning)" />
           </div>
@@ -315,14 +320,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {stats.searches + stats.recs} ops
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            <span className="mono">{stats.searches}</span> hybrid queries · <span className="mono">{stats.recs}</span> MMR runs
+            <span className="mono">{stats.searches}</span> / <span className="mono">{stats.recs}</span> {t.kpiOpsSub}
           </div>
         </div>
 
         <div className="card" style={{ padding: '16px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>
-              Active A/B Experiments
+              {t.kpiAbTitle}
             </span>
             <Split size={15} color="var(--accent)" />
           </div>
@@ -330,7 +335,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {stats.activeExperiments} running
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
-            Deterministic FNV-1a bucket routing
+            {t.kpiAbSub}
           </div>
         </div>
       </div>
@@ -350,10 +355,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
                 <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
-                  HNSW Phase 2 vs. Linear Brute-Force Benchmark
+                  {t.benchTitle}
                 </h2>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 2 }}>
-                  Executes 150 real 384-d queries against both the Int32 HNSW graph and full linear cosine scan
+                  {t.benchSub}
                 </p>
               </div>
               <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>
@@ -375,15 +380,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
             >
               <div>
-                <div style={{ color: 'var(--text-sec)' }}>Graph Topology</div>
+                <div style={{ color: 'var(--text-sec)' }}>{t.benchTopology}</div>
                 <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>M=16 · M0=32 · ef=48</div>
               </div>
               <div>
-                <div style={{ color: 'var(--text-sec)' }}>Neighbor Storage</div>
+                <div style={{ color: 'var(--text-sec)' }}>{t.benchStorage}</div>
                 <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>Flat Int32Array</div>
               </div>
               <div>
-                <div style={{ color: 'var(--text-sec)' }}>Active Corpus</div>
+                <div style={{ color: 'var(--text-sec)' }}>{t.benchActiveCorpus}</div>
                 <div className="mono" style={{ fontWeight: 600, marginTop: 2 }}>{catalog.length} items (384d)</div>
               </div>
             </div>
@@ -402,7 +407,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--success)' }}>
                     <CheckCircle2 size={15} />
-                    <span>Verified on {benchmarkMetrics.totalItems.toLocaleString()} items (150 queries)</span>
+                    <span>
+                      {t.benchVerified} {benchmarkMetrics.totalItems.toLocaleString()} SKU (150 queries)
+                    </span>
                   </div>
                   <span className="mono" style={{ fontWeight: 700, color: 'var(--success)' }}>
                     {benchmarkMetrics.speedup} Speedup
@@ -441,12 +448,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {isBenchmarking ? (
                 <>
                   <Activity size={14} className="animate-spin" />
-                  <span>Benchmarking HNSW vs Linear...</span>
+                  <span>{t.benchRunningBtn}</span>
                 </>
               ) : (
                 <>
                   <Play size={14} />
-                  <span>Run HNSW vs Linear Benchmark</span>
+                  <span>{t.benchRunBtn}</span>
                 </>
               )}
             </button>
@@ -458,7 +465,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onScaleCatalog(1200);
                 }}
               >
-                <span>Test on 1,200 SKU</span>
+                <span>{t.benchTest1200}</span>
               </button>
             )}
           </div>
@@ -470,10 +477,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
                 <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-                  Instant Hybrid Vector Search Preview ({dominantLang.toUpperCase()})
+                  {t.quickSearchTitle} ({dominantLang.toUpperCase()})
                 </h2>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)' }}>
-                  Click any result to set it as the active seed anchor across 3D Space and Recommendations
+                  {t.quickSearchSub}
                 </p>
               </div>
               <button
@@ -488,7 +495,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   cursor: 'pointer',
                 }}
               >
-                Full Search Lab →
+                {t.quickSearchLabLink}
               </button>
             </div>
 
@@ -496,7 +503,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <input
                 type="text"
                 className="input"
-                placeholder="Search in Русский, English, 日本語, 中文..."
+                placeholder={t.quickSearchPlaceholder}
                 value={quickQuery}
                 onChange={(e) => setQuickQuery(e.target.value)}
               />
@@ -542,7 +549,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                     </div>
                     <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
-                      Inspect →
+                      {t.inspectBtn}
                     </span>
                   </div>
                 ))}
@@ -558,7 +565,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   borderRadius: 6,
                 }}
               >
-                Enter a conceptual query above or test one of the quick presets below:
+                {t.quickSearchEmptyHint}
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', marginTop: 10 }}>
                   {quickPresets.map((preset) => (
                     <button
@@ -586,7 +593,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Studio Architecture Modules Grid */}
       <div>
         <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
-          Studio Workbench Modules
+          {t.modulesTitle}
         </h2>
         <div
           style={{
@@ -598,50 +605,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {[
             {
               id: 'vectorspace' as ViewId,
-              title: '3D Vector Space & 2D Graph',
-              desc: 'WebGL 384-d hypersphere, HNSW L0–L2 layers, INT8 lattice, and 2D force topology',
+              title: t.modules.vectorspace.title,
+              desc: t.modules.vectorspace.desc,
               icon: Boxes,
             },
             {
               id: 'adaptive' as ViewId,
-              title: 'Adaptive Intelligence Lab (AIL)',
-              desc: '7-factor ranker, MIND multi-interest capsules, LinUCB bandits, and vector steering',
+              title: t.modules.adaptive.title,
+              desc: t.modules.adaptive.desc,
               icon: Sliders,
             },
             {
               id: 'search' as ViewId,
-              title: 'Hybrid Search & Side-by-Side',
-              desc: 'BM25 (CJK + Unicode) + Dense HNSW fusion with convex α control vs. legacy keyword search',
+              title: t.modules.search.title,
+              desc: t.modules.search.desc,
               icon: Search,
             },
             {
               id: 'recommendations' as ViewId,
-              title: 'MMR Recommendations & X-Ray',
-              desc: 'Maximal Marginal Relevance diversity re-ranking with native-language explanations (100+ languages)',
+              title: t.modules.recommendations.title,
+              desc: t.modules.recommendations.desc,
               icon: Lightbulb,
             },
             {
               id: 'catalog' as ViewId,
-              title: 'Catalog & 0ms Vector Bundles',
-              desc: 'Manage SKU inventory, export 384-d JSON bundles, and batch-ingest CSV/JSON',
+              title: t.modules.catalog.title,
+              desc: t.modules.catalog.desc,
               icon: Package,
             },
             {
               id: 'analytics' as ViewId,
-              title: 'Recharts Trends & Telemetry',
-              desc: 'Temporal query volume streams, semantic topic clusters, and live CTR conversion',
+              title: t.modules.analytics.title,
+              desc: t.modules.analytics.desc,
               icon: BarChart3,
             },
             {
               id: 'abtest' as ViewId,
-              title: 'Statistical A/B Engine',
-              desc: 'Two-tailed Z-test significance evaluation across ranking strategies',
+              title: t.modules.abtest.title,
+              desc: t.modules.abtest.desc,
               icon: Split,
             },
             {
               id: 'conversational' as ViewId,
-              title: 'Conversational Vector Agent',
-              desc: 'Natural language shopping assistant with intent extraction and latent space shifts',
+              title: t.modules.conversational.title,
+              desc: t.modules.conversational.desc,
               icon: MessageSquare,
             },
           ].map(({ id, title, desc, icon: Icon }) => (
@@ -677,7 +684,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   marginTop: 12,
                 }}
               >
-                <span>Open module</span>
+                <span>{t.openModule}</span>
                 <ArrowRight size={12} />
               </div>
             </div>

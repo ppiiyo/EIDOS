@@ -1,5 +1,9 @@
 import { CatalogItem, CatalogRecommendation, CatalogEdge } from '../types';
 import { HNSWIndex, BM25Index, HybridSearch } from '@eidos/core';
+import { INITIAL_CATALOG } from '../data/catalog';
+
+export { INITIAL_CATALOG };
+export const DEFAULT_CATALOG = INITIAL_CATALOG;
 
 export type SupportedLanguage = 'ru' | 'en' | 'ja' | 'zh' | 'ko' | 'es' | 'de' | 'fr';
 
@@ -1016,58 +1020,68 @@ export function searchWithHNSWIndex(
 }
 
 /**
- * Generates a synthetic catalog scaled to 1,000+ items with pre-computed 384-d embeddings
+ * Generates a synthetic catalog scaled to 1,000+ items with pre-computed 384-d embeddings,
+ * preserving the active domain preset (Marketplace RU, Streaming EN, Japanese Video Hosting JP, or Custom DB).
  */
-export function generateSyntheticScaledCatalog(targetCount = 1200): {
+export function generateSyntheticScaledCatalog(
+  targetCount = 1200,
+  baseCatalog: CatalogItem[] = INITIAL_CATALOG,
+  baseEmbeddings?: Map<string, Float32Array>
+): {
   catalog: CatalogItem[];
   embeddings: Map<string, Float32Array>;
 } {
-  const categories = [
-    { name: 'Электроника', icon: '⚡', tags: ['gadgets', 'hardware', 'usb', 'screen', 'tech'] },
-    { name: 'B2B SaaS & DevTools', icon: '🚀', tags: ['database', 'cloud', 'rust', 'api', 'dev'] },
-    { name: 'Книги & IT-литература', icon: '📚', tags: ['python', 'algorithms', 'code', 'study'] },
-    { name: 'Фильмы & Киношедевры', icon: '🎬', tags: ['cinema', 'sci-fi', 'space', 'director'] },
-    { name: 'Fashion & Luxury', icon: '🧥', tags: ['cashmere', 'silk', 'luxury', 'apparel'] },
-    { name: 'Кофе & Бариста', icon: '☕', tags: ['espresso', 'coffee', 'brewing', 'roast'] },
-    { name: 'Гейминг & Консоли', icon: '🎮', tags: ['gaming', 'steam', 'controller', 'rgb'] },
-  ];
-
+  const sourceCatalog = baseCatalog && baseCatalog.length > 0 ? baseCatalog : INITIAL_CATALOG;
   const modifiers = [
     'Ultra Pro', 'Max Elite', 'Series X', 'Edition Prime', 'Smart v2',
     'Custom Edition', 'Studio Line', 'Quantum Core', 'Turbo Drive', 'Hyper Compact'
   ];
 
-  const catalog: CatalogItem[] = [];
+  const catalog: CatalogItem[] = [...sourceCatalog];
   const embeddings = new Map<string, Float32Array>();
 
-  for (let i = 1; i <= targetCount; i++) {
-    const cat = categories[i % categories.length];
+  // Copy or compute base embeddings first
+  for (const item of sourceCatalog) {
+    const existing = baseEmbeddings?.get(String(item.id));
+    if (existing) {
+      embeddings.set(String(item.id), existing);
+    } else {
+      embeddings.set(
+        String(item.id),
+        computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+      );
+    }
+  }
+
+  for (let i = sourceCatalog.length + 1; i <= targetCount; i++) {
+    const base = sourceCatalog[i % sourceCatalog.length];
     const mod = modifiers[i % modifiers.length];
     const id = `scale_${i}`;
-    const title = `${cat.name.split(' ')[0]} ${mod} #${i}`;
-    const description = `Масштабируемый компонент каталога ${cat.name} для нагрузочного стресс-тестирования HNSW индексации на ${targetCount}+ элементах.`;
-    const price = `${((i * 47) % 89000 + 1990).toLocaleString('ru-RU')} ₽`;
+    const title = `${base.title} · ${mod} #${i}`;
+    const description = `${base.description} (${mod} · Node #${i})`;
 
     const item: CatalogItem = {
       id,
       title,
       description,
-      category: cat.name,
-      tags: [...cat.tags, `id_${i}`],
-      icon: cat.icon,
-      price,
-      rating: 4.5 + ((i % 5) * 0.1),
+      category: base.category,
+      tags: [...(base.tags || []), `node_${i}`],
+      icon: base.icon || '📦',
+      price: base.price || `${((i * 47) % 89000 + 1990).toLocaleString('ru-RU')} ₽`,
+      rating: Number((4.5 + ((i % 5) * 0.1)).toFixed(1)),
       reviews: (i * 13) % 900 + 12,
-      badge: '1000+ HNSW Scale',
+      badge: '1200+ HNSW Scale',
       custom: true,
     };
     catalog.push(item);
 
+    const baseVec = embeddings.get(String(base.id));
     const vec = new Float32Array(384);
-    const catSeed = (i % categories.length) + 1;
     let sumSq = 0;
     for (let d = 0; d < 384; d++) {
-      const val = Math.sin(d * 0.1 + catSeed * 1.7) * 0.8 + Math.cos(d * 0.05 + (i % 20) * 0.3) * 0.3;
+      const baseComponent = baseVec ? baseVec[d] * 0.88 : Math.sin(d * 0.1 + (i % 7) * 1.7) * 0.8;
+      const jitter = Math.cos(d * 0.13 + i * 0.37) * 0.12;
+      const val = baseComponent + jitter;
       vec[d] = val;
       sumSq += val * val;
     }
@@ -1079,6 +1093,86 @@ export function generateSyntheticScaledCatalog(targetCount = 1200): {
   }
 
   return { catalog, embeddings };
+}
+
+/**
+ * Computes real-time Information Retrieval (IR) evaluation metrics for a recommendation list:
+ * - NDCG@K (Normalized Discounted Cumulative Gain against ideal semantic order)
+ * - Recall@K (Cluster coverage of relevant items in the catalog)
+ * - MRR (Mean Reciprocal Rank of first high-confidence semantic match)
+ * - Intra-list category Shannon entropy (bits)
+ */
+export function computeRankingEvaluationMetrics(
+  seedItem: CatalogItem | null,
+  recommendations: CatalogRecommendation[],
+  catalog: CatalogItem[],
+  embeddings: Map<string, Float32Array>
+): {
+  ndcgAtK: number;
+  recallAtK: number;
+  mrr: number;
+  diversityBits: number;
+} {
+  if (!seedItem || recommendations.length === 0) {
+    return { ndcgAtK: 0, recallAtK: 0, mrr: 0, diversityBits: 0 };
+  }
+
+  const k = recommendations.length;
+  const seedVec = embeddings.get(String(seedItem.id));
+
+  // Compute ideal cosine similarities across the entire catalog for IDCG@K and Recall@K
+  const allSims: number[] = [];
+  let totalRelevantInCluster = 0;
+  for (const item of catalog) {
+    if (String(item.id) === String(seedItem.id)) continue;
+    let sim = 0;
+    const vec = embeddings.get(String(item.id));
+    if (seedVec && vec) {
+      sim = Math.max(0, cosineSimilarity(seedVec, vec));
+    }
+    allSims.push(sim);
+    if (item.category === seedItem.category || sim >= 0.48) {
+      totalRelevantInCluster++;
+    }
+  }
+  allSims.sort((a, b) => b - a);
+
+  // DCG@K and IDCG@K
+  let dcg = 0;
+  let idcg = 0;
+  let relevantRetrieved = 0;
+  let firstHighRelRank = 0;
+
+  for (let i = 0; i < k; i++) {
+    const rec = recommendations[i];
+    const rel = Math.max(0, rec.sim);
+    const gain = Math.pow(2, rel) - 1;
+    dcg += gain / Math.log2(i + 2);
+
+    const idealRel = allSims[i] ?? 0;
+    const idealGain = Math.pow(2, idealRel) - 1;
+    idcg += idealGain / Math.log2(i + 2);
+
+    if (rec.item.category === seedItem.category || rec.sim >= 0.45) {
+      relevantRetrieved++;
+    }
+    if (firstHighRelRank === 0 && (rec.sim >= 0.50 || rec.item.category === seedItem.category)) {
+      firstHighRelRank = i + 1;
+    }
+  }
+
+  const ndcgAtK = idcg > 0 ? Math.min(1, dcg / idcg) : 1;
+  const denomRecall = Math.max(1, Math.min(k, totalRelevantInCluster));
+  const recallAtK = Math.min(1, relevantRetrieved / denomRecall);
+  const mrr = firstHighRelRank > 0 ? 1 / firstHighRelRank : recommendations[0]?.sim >= 0.3 ? 0.5 : 0;
+  const diversityBits = computeCategoryEntropy(recommendations.map((r) => r.item)).entropyBits;
+
+  return {
+    ndcgAtK: Number(ndcgAtK.toFixed(3)),
+    recallAtK: Number(recallAtK.toFixed(3)),
+    mrr: Number(mrr.toFixed(3)),
+    diversityBits: Number(diversityBits.toFixed(2)),
+  };
 }
 
 /**

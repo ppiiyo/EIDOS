@@ -1,6 +1,6 @@
 {
-  "summary": "План удаления Live Demo (из интерфейса, отдельного пакета, воркфлоу и лендинга) и полного возврата фирменного нейминга Eidos (@eidos/*, CLI eidos, Eidos Engine) во всем монорепозитории.",
-  "updatedAt": "2026-10-19T22:09:18.522984271Z",
+  "summary": "Комплексный план глубокой ревизии Eidos Engine: зачистка всех дубликатов (apps/workspace, apps/landing, bun.lock, 12 неиспользуемых компонентов и утилит), исправление багов состояния и расчётов MMR X-Ray, полная локализация интерфейса студии (RU / EN / JA), внедрение бизнес-правил мерчандайзинга (Boost/Pin/Exclude), метрик качества (NDCG@K, Recall@K, MRR) и защиты API/импорта через SecurityGuardrails.",
+  "updatedAt": "2026-10-19T22:58:22.819089526Z",
   "requestFeedback": true,
   "userFacing": true
 }

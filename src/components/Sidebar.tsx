@@ -4,169 +4,135 @@ import {
   Package,
   Search,
   Lightbulb,
-  Boxes,
-  Sliders,
   Split,
   MessageSquare,
   BarChart3,
-  Rocket,
+  Boxes,
+  Sliders,
+  Terminal,
 } from 'lucide-react';
-import { MemoryMonitor } from './MemoryMonitor';
+import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 export type ViewId =
   | 'dashboard'
-  | 'search'
-  | 'recommendations'
   | 'vectorspace'
   | 'adaptive'
+  | 'search'
+  | 'recommendations'
   | 'catalog'
-  | 'abtest'
-  | 'conversational'
   | 'analytics'
-  | 'launchkit';
-
-const NAV_GROUPS: Array<{
-  section: string;
-  items: { id: ViewId; label: string; icon: React.FC<any> }[];
-}> = [
-  {
-    section: 'Core Vector Engine',
-    items: [
-      { id: 'dashboard', label: 'Overview & Benchmark', icon: LayoutDashboard },
-      { id: 'search', label: 'Hybrid Search (BM25+HNSW)', icon: Search },
-      { id: 'recommendations', label: 'MMR Recommendations', icon: Lightbulb },
-      { id: 'vectorspace', label: '3D Space & 2D Graph', icon: Boxes },
-      { id: 'adaptive', label: 'Adaptive Lab (AIL)', icon: Sliders },
-    ],
-  },
-  {
-    section: 'Data & Experiments',
-    items: [
-      { id: 'catalog', label: 'Catalog & Bundles', icon: Package },
-      { id: 'abtest', label: 'A/B Testing Engine', icon: Split },
-      { id: 'conversational', label: 'Vector NLU Agent', icon: MessageSquare },
-      { id: 'analytics', label: 'Analytics & Trends', icon: BarChart3 },
-      { id: 'launchkit', label: 'Deployment & Docs', icon: Rocket },
-    ],
-  },
-];
+  | 'abtest'
+  | 'conversational';
 
 interface SidebarProps {
   active: ViewId;
-  onNavigate: (id: ViewId) => void;
+  onSelect: (id: ViewId) => void;
+  onOpenApiModal?: () => void;
+  uiLang?: UiLanguage;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ active, onNavigate }) => (
-  <aside
-    style={{
-      width: 248,
-      minHeight: '100vh',
-      background: 'var(--surface)',
-      borderRight: '1px solid var(--border)',
-      display: 'flex',
-      flexDirection: 'column',
-      flexShrink: 0,
-    }}
-  >
-    {/* Brand Zone */}
-    <div
-      style={{
-        height: 56,
-        padding: '0 18px',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-      }}
-    >
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <circle cx="6" cy="12" r="2.5" fill="var(--accent)" />
-        <circle cx="18" cy="6" r="2.5" fill="var(--text)" />
-        <circle cx="18" cy="18" r="2.5" fill="var(--text)" />
-        <path d="M6 12L18 6M6 12L18 18" stroke="var(--text)" strokeWidth="1.6" />
-      </svg>
-      <span
-        style={{
-          fontWeight: 700,
-          fontSize: '0.95rem',
-          letterSpacing: '-0.02em',
-          color: 'var(--text)',
-        }}
-      >
-        Eidos Studio
-      </span>
-      <span
-        className="mono"
-        style={{
-          marginLeft: 'auto',
-          fontSize: '0.6875rem',
-          fontWeight: 600,
-          color: 'var(--text-sec)',
-        }}
-      >
-        384d
-      </span>
-    </div>
+export const Sidebar: React.FC<SidebarProps> = ({
+  active,
+  onSelect,
+  onOpenApiModal,
+  uiLang = 'ru',
+}) => {
+  const t = UI_TRANSLATIONS[uiLang];
 
-    {/* Navigation Groups */}
-    <nav style={{ padding: '14px 10px', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {NAV_GROUPS.map((group) => (
-        <div key={group.section}>
-          <div
-            style={{
-              padding: '0 10px 6px',
-              fontSize: '0.6875rem',
-              fontWeight: 600,
-              color: 'var(--text-mut)',
-              letterSpacing: '0.02em',
-            }}
+  const NAV_SECTIONS: Array<{
+    title: string;
+    items: Array<{ id: ViewId; label: string; icon: React.FC<{ size?: number }> }>;
+  }> = [
+    {
+      title: t.nav.coreEngine,
+      items: [
+        { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
+        { id: 'vectorspace', label: t.nav.vectorspace, icon: Boxes },
+        { id: 'adaptive', label: t.nav.adaptive, icon: Sliders },
+        { id: 'search', label: t.nav.search, icon: Search },
+        { id: 'recommendations', label: t.nav.recommendations, icon: Lightbulb },
+      ],
+    },
+    {
+      title: t.nav.intelligenceOperations,
+      items: [
+        { id: 'catalog', label: t.nav.catalog, icon: Package },
+        { id: 'analytics', label: t.nav.analytics, icon: BarChart3 },
+        { id: 'abtest', label: t.nav.abtest, icon: Split },
+        { id: 'conversational', label: t.nav.conversational, icon: MessageSquare },
+      ],
+    },
+  ];
+
+  return (
+    <aside className="sidebar" aria-label="Primary Navigation">
+      <div className="sidebar-brand">
+        <div className="sidebar-brand-dot" />
+        <span>Eidos Engine</span>
+        <span
+          className="mono"
+          style={{
+            marginLeft: 'auto',
+            fontSize: '0.6875rem',
+            color: 'var(--text-sec)',
+            fontWeight: 500,
+          }}
+        >
+          v2.5
+        </span>
+      </div>
+
+      <nav className="sidebar-nav">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title} style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                padding: '6px 12px 4px',
+                fontSize: '0.6875rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--text-mut)',
+              }}
+            >
+              {section.title}
+            </div>
+            {section.items.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                data-testid={`nav-${id}`}
+                onClick={() => onSelect(id)}
+                className={`sidebar-item ${active === id ? 'active' : ''}`}
+              >
+                <Icon size={16} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      {onOpenApiModal && (
+        <div style={{ padding: '0 8px 8px' }}>
+          <button
+            type="button"
+            onClick={onOpenApiModal}
+            className="btn btn-secondary btn-sm"
+            style={{ width: '100%', justifyContent: 'flex-start' }}
           >
-            {group.section}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {group.items.map(({ id, label, icon: Icon }) => {
-              const isActive = active === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => onNavigate(id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    width: '100%',
-                    padding: '8px 10px',
-                    fontSize: '0.8125rem',
-                    fontWeight: isActive ? 600 : 500,
-                    color: isActive ? 'var(--accent)' : 'var(--text-sec)',
-                    background: isActive ? 'var(--accent-bg)' : 'transparent',
-                    border: 'none',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'background-color 0.12s, color 0.12s',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-                </button>
-              );
-            })}
-          </div>
+            <Terminal size={14} />
+            <span>{t.nav.apiButton}</span>
+          </button>
         </div>
-      ))}
-    </nav>
+      )}
 
-    {/* Real-time V8 Heap Monitor */}
-    <div
-      style={{
-        padding: '12px 16px',
-        borderTop: '1px solid var(--border)',
-        background: 'var(--bg-alt)',
-      }}
-    >
-      <MemoryMonitor />
-    </div>
-  </aside>
-);
+      <div className="sidebar-footer">
+        <div className="mono" style={{ fontWeight: 600, color: 'var(--text)' }}>
+          {t.nav.engineFooterTitle}
+        </div>
+        <div style={{ marginTop: 2 }}>{t.nav.engineFooterSub}</div>
+      </div>
+    </aside>
+  );
+};

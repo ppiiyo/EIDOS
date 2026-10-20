@@ -40,8 +40,14 @@ Unlike standard Western search engines that split text only on whitespace and fa
 ### 3. Instant Database & Feed Connection (Zero Lock-In)
 Connect any data source directly via the **Database Connector** in the UI or via the REST API / SDK:
 - **Production Databases**: PostgreSQL (`pg`), MongoDB, Supabase, MySQL, or custom REST Webhooks.
-- **No-Code Feed Importers**: Instant drag-and-drop or URL import for JSON arrays, CSV tables, Yandex.Market (YML), and Google Merchant RSS/XML feeds.
-- **1-Click Domain Presets in UI**: Test and benchmark the engine immediately on built-in production catalogs (**Marketplace RU**, **Streaming Cinema EN**, **Video Hosting Japan 🇯🇵**, and **Global Multilingual Hub**).
+- **No-Code Feed Importers**: Instant drag-and-drop or URL import for JSON arrays, CSV tables, and pre-computed 384-d vector bundles.
+- **1-Click Domain Presets in UI**: Test and benchmark the engine immediately on built-in production catalogs (**Marketplace RU**, **Streaming Cinema EN**, **Video Hosting Japan 🇯🇵**, and **Global Multilingual Hub**), including domain-preserving **1,200+ SKU scaling**.
+
+### 4. Enterprise Merchandising Studio & Live IR Evaluation Metrics
+- **Merchandising & Business Rules Engine**: Pin sponsored/featured SKUs to slot `#1`, exclude unwanted items, apply **Category Boost multipliers (`1.1x – 2.0x`)**, enforce **Cross-Category Only** cross-sell rules, and filter by minimum rating (`★ ≥ 4.5 – 4.9`) on top of MMR vector ranking.
+- **Live IR Evaluation Metrics Bar**: Real-time calculation of **NDCG@K** (Normalized Discounted Cumulative Gain), **Cluster Recall@K**, **MRR** (Mean Reciprocal Rank), and **Intra-List Diversity ($H$ bits)** alongside exact MMR X-Ray decomposition (`Cosine`, `Novelty Bonus = 1 − maxSim`, `MMR Score`).
+- **Trilingual Studio Interface (`RU | EN | JA`)**: Full studio UI localization in Russian, English, and Japanese, automatically synchronized with the active database preset or switchable with 1 click.
+- **Enterprise SecurityGuardrails**: Built-in XSS, script-tag, SQL/template injection, and prompt-injection sanitization across all search queries, CSV/JSON imports, and REST API endpoints.
 
 ---
 
@@ -49,11 +55,11 @@ Connect any data source directly via the **Database Connector** in the UI or via
 
 ```
 eidos/
+├── src/                     # Interactive Eidos Studio Workbench (React 19 + WebGL 3D + Recharts)
 ├── apps/
-│   ├── api/                 # Fastify REST API (HNSW + SQLite WAL + Rate Limiter + Prometheus)
-│   └── workspace/           # Interactive Recommendation Studio, Search Lab, Graph & Launch Kit
+│   └── api/                 # Fastify REST API (HNSW + CJK BM25 + SecurityGuardrails + Swagger)
 ├── packages/
-│   ├── core/                # Pure TypeScript Math Engine (HNSW, Multilingual BM25, RRF, MMR, Session, Bandit)
+│   ├── core/                # Pure TypeScript Math Engine (HNSW Int32, CJK BM25, MIND, LinUCB, Guardrails)
 │   ├── sdk/                 # Zero-dependency isomorphic TypeScript/JS client (@eidos/sdk)
 │   ├── react/               # Headless React hooks & ready-to-mount UI carousels (@eidos/react)
 │   ├── cli/                 # Developer CLI for indexing & benchmarking (@eidos/cli)

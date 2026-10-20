@@ -72,7 +72,6 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
         '@eidos/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
         '@eidos/sdk': path.resolve(__dirname, 'packages/sdk/src/index.ts'),
-        '@eidos/workspace': path.resolve(__dirname, 'apps/workspace/src'),
       },
     },
     server: {

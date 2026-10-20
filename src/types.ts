@@ -97,7 +97,28 @@ export interface CatalogItem {
 export interface CatalogRecommendation {
   item: CatalogItem;
   sim: number;
+  mmrScore?: number;
+  noveltyBonus?: number;
+  rank?: number;
+  isPinned?: boolean;
+  isBoosted?: boolean;
   whyRecommended?: string;
+}
+
+export interface MerchandisingRules {
+  pinnedIds: string[];
+  excludedIds: string[];
+  boostCategory: string;
+  boostFactor: number;
+  crossCategoryOnly: boolean;
+  minRating: number;
+}
+
+export interface RankingEvaluationMetrics {
+  ndcgAtK: number;
+  recallAtK: number;
+  mrr: number;
+  diversityBits: number;
 }
 
 export interface HybridSearchHit {

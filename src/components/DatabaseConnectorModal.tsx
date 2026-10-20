@@ -11,6 +11,7 @@ import {
   Code2,
   Layers,
 } from 'lucide-react';
+import { SecurityGuardrails } from '@eidos/core';
 import { CatalogItem } from '../types';
 import {
   PLATFORM_DOMAIN_PRESETS,
@@ -187,20 +188,30 @@ curl -X POST http://localhost:8080/v1/catalog \\
         return;
       }
       const normalized: CatalogItem[] = arr.map((item: any, idx: number) => {
-        const title = String(item.title || item.name || `Item #${idx + 1}`);
-        const description = String(item.description || item.notes || title);
+        const rawTitle = String(item.title || item.name || `Item #${idx + 1}`);
+        const rawDesc = String(item.description || item.notes || rawTitle);
+        const rawCat = String(item.category || 'Custom');
+        const title = SecurityGuardrails.scanAndSanitize(rawTitle).sanitizedInput || `Item #${idx + 1}`;
+        const description = SecurityGuardrails.scanAndSanitize(rawDesc).sanitizedInput || title;
+        const category = SecurityGuardrails.scanAndSanitize(rawCat).sanitizedInput || 'Custom';
         const detectedLang = detectTextLanguage(`${title} ${description}`);
         return {
           id: String(item.id || `custom_${Date.now()}_${idx}`),
           title,
           description,
-          category: String(item.category || 'Custom'),
-          price: item.price ? String(item.price) : item.views ? String(item.views) : '—',
+          category,
+          price: item.price
+            ? SecurityGuardrails.scanAndSanitize(String(item.price)).sanitizedInput
+            : item.views
+            ? SecurityGuardrails.scanAndSanitize(String(item.views)).sanitizedInput
+            : '—',
           rating: Number(item.rating) || 4.9,
           reviews: Number(item.reviews) || 100,
           badge: `Lang: ${detectedLang.toUpperCase()}`,
           icon: item.icon || '🎬',
-          tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
+          tags: Array.isArray(item.tags)
+            ? item.tags.map((t: any) => SecurityGuardrails.scanAndSanitize(String(t)).sanitizedInput)
+            : [],
           custom: true,
         };
       });

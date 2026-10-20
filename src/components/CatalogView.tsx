@@ -9,12 +9,14 @@ import {
   Boxes,
   Lightbulb,
 } from 'lucide-react';
+import { SecurityGuardrails } from '@eidos/core';
 import { CatalogItem } from '../types';
 import { trackEvent } from '../lib/analytics/tracker';
 import {
   exportCatalogWithEmbeddings,
   parseCatalogWithEmbeddings,
 } from '../utils/catalogExportImport';
+import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 interface CatalogViewProps {
   catalog: CatalogItem[];
@@ -25,6 +27,7 @@ interface CatalogViewProps {
   onInspectIn3D?: (item: CatalogItem) => void;
   onImportVectorBundle?: (items: CatalogItem[], embeddings: Map<string, Float32Array>) => void;
   onOpenCsvModal?: () => void;
+  uiLang?: UiLanguage;
 }
 
 export const CatalogView: React.FC<CatalogViewProps> = ({
@@ -36,7 +39,10 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   onInspectIn3D,
   onImportVectorBundle,
   onOpenCsvModal,
+  uiLang = 'ru',
 }) => {
+  const t = UI_TRANSLATIONS[uiLang].catalog;
+
   const [filter, setFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -63,19 +69,26 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
+    const safeTitle = SecurityGuardrails.scanAndSanitize(newTitle.trim()).sanitizedInput;
+    if (!safeTitle) return;
+
+    const safeDesc =
+      SecurityGuardrails.scanAndSanitize(newDesc.trim()).sanitizedInput || safeTitle;
+    const safeCat =
+      SecurityGuardrails.scanAndSanitize(newCat.trim()).sanitizedInput || 'General';
+    const safePrice = SecurityGuardrails.scanAndSanitize(newPrice.trim()).sanitizedInput;
 
     const item: CatalogItem = {
       id: String(Date.now()),
-      title: newTitle.trim(),
-      description: newDesc.trim() || newTitle.trim(),
-      category: newCat.trim() || 'General',
-      price: newPrice.trim(),
+      title: safeTitle,
+      description: safeDesc,
+      category: safeCat,
+      price: safePrice,
       rating: 5.0,
       reviews: 1,
-      badge: 'Новый',
+      badge: 'New',
       icon: '📦',
-      tags: [newCat.toLowerCase()],
+      tags: [safeCat.toLowerCase()],
     };
 
     onAddItem(item);
@@ -115,9 +128,9 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         }}
       >
         <div>
-          <h1 className="page-title">Catalog & 0ms Vector Bundle Manager</h1>
+          <h1 className="page-title">{t.title}</h1>
           <p className="page-sub">
-            Managed SKU corpus ({catalog.length.toLocaleString()} items · {embeddings.size.toLocaleString()} × 384-d L2 vectors)
+            {t.subtitle} ({catalog.length.toLocaleString()} SKU · {embeddings.size.toLocaleString()} × 384-d)
           </p>
         </div>
 
@@ -136,7 +149,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             title="Export catalog with pre-computed 384-d vectors as JSON bundle"
           >
             <Download size={14} />
-            <span>Export 384-d JSON Bundle</span>
+            <span>{t.exportJsonBtn}</span>
           </button>
 
           <button
@@ -146,7 +159,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             title="Import pre-computed JSON vector bundle with 0ms inference latency"
           >
             <Upload size={14} />
-            <span>Import JSON Bundle (0ms)</span>
+            <span>{t.importJsonBtn}</span>
           </button>
 
           {onOpenCsvModal && (
@@ -156,7 +169,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               onClick={onOpenCsvModal}
             >
               <FileSpreadsheet size={14} />
-              <span>CSV Import / Export</span>
+              <span>{t.csvBtn}</span>
             </button>
           )}
 
@@ -166,7 +179,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             onClick={() => setShowAddModal((v) => !v)}
           >
             <Plus size={14} />
-            <span>Add SKU</span>
+            <span>{t.addSkuBtn}</span>
           </button>
         </div>
       </div>
@@ -192,7 +205,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           <input
             className="input"
             style={{ paddingLeft: 34 }}
-            placeholder="Filter by title, description, or category..."
+            placeholder={t.filterPlaceholder}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
@@ -209,7 +222,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               borderColor: 'var(--border)',
             }}
           >
-            All ({catalog.length})
+            {t.allCategories} ({catalog.length})
           </button>
           {categories.slice(0, 6).map((cat) => (
             <button
@@ -233,7 +246,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
       {showAddModal && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
           <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>
-            Add New SKU (Auto-Vectorized to 384d)
+            {t.addModalTitle}
           </h2>
           <form
             onSubmit={handleAdd}
@@ -286,14 +299,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </div>
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, marginTop: 6 }}>
               <button type="submit" className="btn btn-primary btn-sm">
-                Save & Compute 384-d Vector
+                {t.saveVectorBtn}
               </button>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => setShowAddModal(false)}
               >
-                Cancel
+                {t.cancelBtn}
               </button>
             </div>
           </form>

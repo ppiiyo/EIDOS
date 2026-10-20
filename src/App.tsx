@@ -1,791 +1,760 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
-import { CatalogItem, CatalogRecommendation, HybridSearchHit, ToastItem, Project } from './types';
-import { INITIAL_CATALOG } from './data/catalog';
+import { Database, FileSpreadsheet, Terminal, RotateCcw, Globe } from 'lucide-react';
+import { SecurityGuardrails } from '@eidos/core';
+import {
+  CatalogItem,
+  CatalogRecommendation,
+  MerchandisingRules,
+  Project,
+  ToastItem,
+} from './types';
+import {
+  DEFAULT_CATALOG,
+  computeCatalogEmbeddingsWithModel,
+  computeTextEmbedding,
+  cosineSimilarity,
+  searchCatalogWithModel,
+  executeHybridCatalogSearch,
+  generateSemanticExplanation,
+  generateSyntheticScaledCatalog,
+  getOrBuildCatalogHNSWIndex,
+  HybridSearchHit,
+} from './utils/recommenderEngine';
 import {
   PLATFORM_DOMAIN_PRESETS,
   PlatformDomainId,
   PlatformDomainPreset,
 } from './data/domainDatabases';
-import {
-  computeTextEmbedding,
-  cosineSimilarity,
-  generateSemanticExplanation,
-  executeHybridCatalogSearch,
-  generateSyntheticScaledCatalog,
-} from './utils/recommenderEngine';
 import { Sidebar, ViewId } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { CatalogView } from './components/CatalogView';
 import { SearchView } from './components/SearchView';
 import { RecommendationsView } from './components/RecommendationsView';
-import { VectorSpaceView } from './components/VectorSpaceView';
-import { AdaptivePanel } from './components/AdaptivePanel';
 import { ABTestView } from './components/ABTestView';
 import { ConversationalView } from './components/ConversationalView';
 import { AnalyticsView } from './components/AnalyticsView';
-import { LaunchKitView } from './components/LaunchKitView';
+import { VectorSpaceView } from './components/VectorSpaceView';
+import { AdaptivePanel } from './components/AdaptivePanel';
 import { ApiConsoleModal } from './components/ApiConsoleModal';
 import { CsvImporterModal } from './components/CsvImporterModal';
 import { DatabaseConnectorModal } from './components/DatabaseConnectorModal';
 import { ToastContainer } from './components/ToastContainer';
 import { ConversationalAgent } from './lib/agent/conversational-agent';
-import { trackEvent } from './lib/analytics/tracker';
-import { Sun, Moon, Terminal, FileSpreadsheet, Database } from 'lucide-react';
+import { UiLanguage, UI_TRANSLATIONS } from './i18n/uiTranslations';
 
-const STORAGE_CATALOG_KEY = 'eidos_catalog_v3';
-const STORAGE_DOMAIN_KEY = 'eidos_domain_v3';
-const STORAGE_VIEW_KEY = 'eidos_active_view_v3';
-const STORAGE_THEME_KEY = 'eidos_theme_v3';
+const INITIAL_CATALOG = DEFAULT_CATALOG;
 
-// Task 0.1: Singleton @xenova/transformers initialization (Xenova/all-MiniLM-L6-v2)
-let embedderPromise: Promise<FeatureExtractionPipeline> | null = null;
-let embedderFailed = false;
-function getEmbedder(): Promise<FeatureExtractionPipeline> {
-  if (embedderFailed) {
-    return Promise.reject(new Error('Embedder fallback active'));
-  }
-  if (!embedderPromise) {
-    const loadPromise = pipeline(
-      'feature-extraction',
-      'Xenova/all-MiniLM-L6-v2',
-      { quantized: true }
-    );
-    const timeoutPromise = new Promise<FeatureExtractionPipeline>((_, reject) =>
-      setTimeout(() => {
-        embedderFailed = true;
-        reject(new Error('Model network timeout'));
-      }, 2500)
-    );
-    embedderPromise = Promise.race([loadPromise, timeoutPromise]).catch((err) => {
-      embedderFailed = true;
-      throw err;
-    });
-  }
-  return embedderPromise;
-}
-
-/**
- * Computes 384-d unit-normalized embedding.
- * For Multilingual / CJK / Cyrillic scripts, fuses transformer features with Eidos Multilingual E5 N-Gram & Anchor projections
- * so Japanese (日本語), Chinese (中文), Korean (한국어), Russian, and European catalogs never suffer from WordPiece [UNK] collapse.
- */
-export async function computeRealEmbedding(text: string): Promise<Float32Array> {
-  const multilingualVec = computeTextEmbedding(text);
-  const hasNonAscii = /[^\u0000-\u007f]/.test(text);
-
-  try {
-    const embedder = await getEmbedder();
-    const output = await embedder(text, { pooling: 'mean', normalize: true });
-    const modelVec = new Float32Array(output.data as ArrayLike<number>);
-
-    if (!hasNonAscii) {
-      return modelVec;
-    }
-
-    // Fuse multilingual CJK/Cyrillic structural vector with neural projection & L2 normalize
-    const fused = new Float32Array(384);
-    let sumSq = 0;
-    for (let i = 0; i < 384; i++) {
-      fused[i] = 0.72 * multilingualVec[i] + 0.28 * (modelVec[i] || 0);
-      sumSq += fused[i] * fused[i];
-    }
-    const norm = Math.sqrt(sumSq) || 1e-6;
-    for (let i = 0; i < 384; i++) {
-      fused[i] /= norm;
-    }
-    return fused;
-  } catch {
-    return multilingualVec;
-  }
-}
-
-export default function App() {
-  // 0. Dual Theme State (Light Clean Studio vs Dark Engineering Console)
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_THEME_KEY);
-      if (saved === 'dark' || saved === 'light') return saved;
-    } catch {
-      // ignore
-    }
-    return 'dark';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    try {
-      localStorage.setItem(STORAGE_THEME_KEY, theme);
-    } catch {
-      // ignore
-    }
-  }, [theme]);
-
-  // 1. Active Platform Domain Preset ('marketplace' | 'streaming' | 'video_jp' | 'global_multilingual')
-  const [activeDomain, setActiveDomain] = useState<PlatformDomainId>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_DOMAIN_KEY) as PlatformDomainId;
-      if (saved && ['marketplace', 'streaming', 'video_jp', 'global_multilingual'].includes(saved)) {
-        return saved;
-      }
-    } catch {
-      // ignore
-    }
-    return 'marketplace';
-  });
-
-  // 2. Catalog State with unified string IDs (Task 1.3)
-  const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_CATALOG_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item: any) => ({
-            ...item,
-            id: String(item.id),
-          }));
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return INITIAL_CATALOG.map((item) => ({
-      ...item,
-      id: String(item.id),
-    }));
-  });
-
-  const [isScaledCatalog, setIsScaledCatalog] = useState(false);
-
-  // Persist non-scaled catalog changes
-  useEffect(() => {
-    if (!isScaledCatalog) {
-      try {
-        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog));
-      } catch {
-        // ignore
-      }
-    }
-  }, [catalog, isScaledCatalog]);
-
-  // 3. Cross-Module Selected Item Anchor
-  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(() => catalog[0] || null);
-
-  useEffect(() => {
-    if (!selectedItem && catalog.length > 0) {
-      setSelectedItem(catalog[0]);
-    }
-  }, [catalog, selectedItem]);
-
-  // 4. Active View Navigation
-  const [activeView, setActiveView] = useState<ViewId>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_VIEW_KEY) as ViewId;
-      if (
-        saved &&
-        [
-          'dashboard',
-          'search',
-          'recommendations',
-          'vectorspace',
-          'adaptive',
-          'catalog',
-          'abtest',
-          'conversational',
-          'analytics',
-          'launchkit',
-        ].includes(saved)
-      ) {
-        return saved;
-      }
-    } catch {
-      // ignore
-    }
-    return 'dashboard';
-  });
-
-  const handleNavigate = (view: ViewId) => {
-    setActiveView(view);
-    try {
-      localStorage.setItem(STORAGE_VIEW_KEY, view);
-    } catch {
-      // ignore
-    }
-  };
-
-  // Global Modals
-  const [isApiConsoleOpen, setIsApiConsoleOpen] = useState(false);
-  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
-  const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);
-
-  // 5. Real Transformer + Multilingual CJK Embeddings Map (384-d)
+export function App() {
+  const [view, setView] = useState<ViewId>('dashboard');
+  const [uiLang, setUiLang] = useState<UiLanguage>('ru');
+  const [catalog, setCatalog] = useState<CatalogItem[]>(INITIAL_CATALOG);
   const [embeddings, setEmbeddings] = useState<Map<string, Float32Array>>(() => {
     const map = new Map<string, Float32Array>();
-    for (const item of catalog) {
+    for (const item of INITIAL_CATALOG) {
       map.set(
         String(item.id),
-        computeTextEmbedding(`passage: ${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`)
+        computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
       );
     }
     return map;
   });
-  const [embeddingStatus, setEmbeddingStatus] = useState<'loading' | 'ready' | 'fallback'>('loading');
 
+  // Global active seed item synchronized across 3D Vector Space, MMR Recommendations, and AIL
+  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(INITIAL_CATALOG[0] || null);
+  const [isScaledCatalog, setIsScaledCatalog] = useState(false);
+  const [activeDomain, setActiveDomain] = useState<PlatformDomainId>('marketplace');
+
+  // Enterprise Modals & Toast notifications
+  const [isApiModalOpen, setIsApiModalOpen] = useState(false);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const tTop = UI_TRANSLATIONS[uiLang].topbar;
+
+  const showToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
+    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setToasts((prev) => [...prev, { id, message, type }]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Recompute or top-up embeddings asynchronously if needed
   useEffect(() => {
-    if (isScaledCatalog) return;
-    let cancelled = false;
-    setEmbeddingStatus('loading');
+    let active = true;
+    const missing = catalog.some((i) => !embeddings.has(String(i.id)));
+    if (!missing) return;
 
-    // Immediately populate synchronous 384-d multilingual embeddings so switching databases has 0ms lag
-    const immediateMap = new Map<string, Float32Array>();
-    for (const item of catalog) {
-      immediateMap.set(
+    computeCatalogEmbeddingsWithModel(catalog, null).then((nextMap) => {
+      if (active) {
+        setEmbeddings(nextMap);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [catalog]);
+
+  // Pre-warm HNSW index whenever catalog or embeddings change
+  useEffect(() => {
+    if (embeddings.size > 0 && catalog.length > 0) {
+      getOrBuildCatalogHNSWIndex(catalog, embeddings);
+    }
+  }, [catalog, embeddings]);
+
+  const handleAddItem = (item: CatalogItem) => {
+    const safeTitle = SecurityGuardrails.scanAndSanitize(item.title).sanitizedInput || item.title;
+    const safeDesc = SecurityGuardrails.scanAndSanitize(item.description).sanitizedInput || item.description;
+    const safeCat = SecurityGuardrails.scanAndSanitize(item.category).sanitizedInput || item.category;
+    const sanitizedItem: CatalogItem = {
+      ...item,
+      title: safeTitle,
+      description: safeDesc,
+      category: safeCat,
+    };
+
+    const vec = computeTextEmbedding(
+      `passage: ${sanitizedItem.title}. ${sanitizedItem.category}. ${sanitizedItem.description}`
+    );
+    setEmbeddings((prev) => {
+      const next = new Map(prev);
+      next.set(String(sanitizedItem.id), vec);
+      return next;
+    });
+    setCatalog((prev) => [sanitizedItem, ...prev]);
+    setSelectedItem(sanitizedItem);
+    showToast(`Added "${sanitizedItem.title}" & computed 384-d L2 vector`, 'success');
+  };
+
+  const handleDeleteItem = (id: string) => {
+    setCatalog((prev) => {
+      const next = prev.filter((i) => String(i.id) !== String(id));
+      setSelectedItem((curr) =>
+        curr && String(curr.id) === String(id) ? next[0] || null : curr
+      );
+      return next;
+    });
+    setEmbeddings((prev) => {
+      const next = new Map(prev);
+      next.delete(String(id));
+      return next;
+    });
+    showToast(`Removed SKU #${id} from index`, 'info');
+  };
+
+  // Scale current domain catalog to 1,200+ items while preserving active domain & language
+  const handleScaleCatalog = (targetCount: number = 1200) => {
+    const t0 = performance.now();
+    const currentPreset = PLATFORM_DOMAIN_PRESETS.find((p) => p.id === activeDomain);
+    const baseItems = !isScaledCatalog
+      ? catalog
+      : currentPreset?.items || INITIAL_CATALOG;
+    const { catalog: scaledCat, embeddings: scaledEmb } =
+      generateSyntheticScaledCatalog(targetCount, baseItems, embeddings);
+    getOrBuildCatalogHNSWIndex(scaledCat, scaledEmb);
+    const elapsed = Math.round(performance.now() - t0);
+
+    setEmbeddings(scaledEmb);
+    setCatalog(scaledCat);
+    setSelectedItem(scaledCat[0] || null);
+    setIsScaledCatalog(true);
+    showToast(
+      `Scaled active corpus (${activeDomain}) to ${scaledCat.length.toLocaleString()} SKU in ${elapsed} ms`,
+      'success'
+    );
+  };
+
+  const handleRestoreCuratedCatalog = () => {
+    const preset = PLATFORM_DOMAIN_PRESETS.find((p) => p.id === activeDomain);
+    const baseItems = preset ? preset.items : INITIAL_CATALOG;
+    const map = new Map<string, Float32Array>();
+    for (const item of baseItems) {
+      map.set(
         String(item.id),
-        computeTextEmbedding(`passage: ${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`)
+        computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
       );
     }
-    setEmbeddings(immediateMap);
+    setEmbeddings(map);
+    setCatalog(baseItems);
+    setSelectedItem(baseItems[0] || null);
+    setIsScaledCatalog(false);
+    showToast(`Restored curated ${preset?.name || 'Eidos'} catalog (${baseItems.length} items)`, 'info');
+  };
 
-    (async () => {
-      const map = new Map<string, Float32Array>(immediateMap);
-      let usedModel = false;
+  // Switch between Marketplace (RU), Streaming (EN), Video Hosting (JP), or Global Multilingual preset
+  const handleSelectDomainPreset = useCallback(
+    (preset: PlatformDomainPreset) => {
+      const t0 = performance.now();
+      const map = new Map<string, Float32Array>();
+      for (const item of preset.items) {
+        map.set(
+          String(item.id),
+          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+        );
+      }
+      getOrBuildCatalogHNSWIndex(preset.items, map);
+      const elapsed = Math.round((performance.now() - t0) * 10) / 10;
 
-      for (let i = 0; i < catalog.length; i++) {
-        if (cancelled) return;
-        const item = catalog[i];
-        const fullText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
-        try {
-          const vec = await computeRealEmbedding(fullText);
-          map.set(String(item.id), vec);
-          usedModel = true;
-          if (i % 5 === 0) {
-            if (!cancelled) {
-              setEmbeddings(new Map(map));
-            }
-            await new Promise((r) => setTimeout(r, 0));
-          }
-        } catch {
-          map.set(String(item.id), computeTextEmbedding(`passage: ${fullText}`));
-        }
+      setEmbeddings(map);
+      setCatalog(preset.items);
+      setSelectedItem(preset.items[0] || null);
+      setIsScaledCatalog(false);
+      setActiveDomain(preset.id);
+
+      // Synchronize studio UI language with the chosen platform domain
+      if (preset.id === 'video_jp') {
+        setUiLang('ja');
+      } else if (preset.id === 'streaming') {
+        setUiLang('en');
+      } else if (preset.id === 'marketplace') {
+        setUiLang('ru');
       }
 
-      if (!cancelled) {
-        setEmbeddings(map);
-        setEmbeddingStatus(usedModel ? 'ready' : 'fallback');
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [catalog, isScaledCatalog]);
-
-  // 6. Real Hybrid Search (Dense HNSW + Sparse Multilingual CJK BM25)
-  const computeQueryVector = useCallback(
-    async (query: string): Promise<Float32Array> => {
-      const trimmed = query.trim();
-      if (embeddingStatus === 'ready') {
-        try {
-          return await computeRealEmbedding(`query: ${trimmed}`);
-        } catch {
-          return computeTextEmbedding(`query: ${trimmed}`);
-        }
-      }
-      return computeTextEmbedding(`query: ${trimmed}`);
+      showToast(
+        `${preset.icon} ${preset.name} (${preset.languageLabel}) — ${preset.items.length} SKU indexed (${elapsed} ms)`,
+        'success'
+      );
     },
-    [embeddingStatus]
+    [showToast]
+  );
+
+  // Import custom user JSON database in any language
+  const handleImportCustomDatabase = useCallback(
+    (items: CatalogItem[], label = 'Custom DB') => {
+      if (items.length === 0) return;
+      const t0 = performance.now();
+      const map = new Map<string, Float32Array>();
+      for (const item of items) {
+        map.set(
+          String(item.id),
+          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+        );
+      }
+      getOrBuildCatalogHNSWIndex(items, map);
+      const elapsed = Math.round((performance.now() - t0) * 10) / 10;
+
+      setEmbeddings(map);
+      setCatalog(items);
+      setSelectedItem(items[0] || null);
+      setIsScaledCatalog(false);
+      showToast(
+        `${label}: ${items.length} items vectorized into 384-d HNSW index in ${elapsed} ms`,
+        'success'
+      );
+    },
+    [showToast]
+  );
+
+  const handleImportVectorBundle = (
+    importedItems: CatalogItem[],
+    importedEmbeddings: Map<string, Float32Array>
+  ) => {
+    if (importedItems.length === 0) return;
+    setEmbeddings(importedEmbeddings);
+    setCatalog(importedItems);
+    setSelectedItem(importedItems[0] || null);
+    setIsScaledCatalog(importedItems.length >= 500);
+    showToast(
+      `Imported ${importedItems.length} items with 0ms pre-computed 384-d vectors`,
+      'success'
+    );
+  };
+
+  // Convert CSV Concepts from CsvImporterModal into CatalogItems with SecurityGuardrails & 384-d embeddings
+  const handleCsvImportConcepts = (
+    concepts: Array<{ name: string; category?: string; notes?: string }>,
+    replace: boolean
+  ) => {
+    const newItems: CatalogItem[] = concepts.map((c, idx) => {
+      const safeTitle = SecurityGuardrails.scanAndSanitize(c.name).sanitizedInput || `Item ${idx + 1}`;
+      const safeCat = SecurityGuardrails.scanAndSanitize(c.category || 'Imported CSV').sanitizedInput || 'Imported CSV';
+      const safeDesc = SecurityGuardrails.scanAndSanitize(c.notes || c.name).sanitizedInput || safeTitle;
+      return {
+        id: `csv_${Date.now()}_${idx}`,
+        title: safeTitle,
+        description: safeDesc,
+        category: safeCat,
+        price: '—',
+        rating: 4.8,
+        reviews: 12,
+        badge: 'CSV Import',
+        icon: '📄',
+        tags: [safeCat.toLowerCase()],
+        custom: true,
+      };
+    });
+
+    const nextCatalog = replace ? newItems : [...newItems, ...catalog];
+    const nextEmbeddings = new Map(replace ? [] : embeddings);
+    for (const item of newItems) {
+      nextEmbeddings.set(
+        String(item.id),
+        computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+      );
+    }
+
+    setEmbeddings(nextEmbeddings);
+    setCatalog(nextCatalog);
+    if (nextCatalog.length > 0) {
+      setSelectedItem(nextCatalog[0]);
+    }
+    showToast(`Imported ${newItems.length} records from CSV & vectorized to 384d`, 'success');
+  };
+
+  const handleSearch = useCallback(
+    async (query: string): Promise<CatalogItem[]> => {
+      const safeQuery = SecurityGuardrails.scanAndSanitize(query).sanitizedInput || query;
+      const recs = await searchCatalogWithModel(safeQuery, catalog, embeddings, null, 'e5-small', 10);
+      return recs.map((r) => r.item);
+    },
+    [catalog, embeddings]
   );
 
   const handleHybridSearch = useCallback(
-    async (query: string, alpha = 0.7, limit = 8): Promise<HybridSearchHit[]> => {
-      const trimmed = query.trim();
-      if (!trimmed) return [];
-      const queryVec = await computeQueryVector(trimmed);
-      return executeHybridCatalogSearch(
-        trimmed,
-        queryVec,
-        catalog,
-        embeddings,
-        alpha,
-        limit
-      );
+    async (query: string, alpha: number, limit = 8): Promise<HybridSearchHit[]> => {
+      const safeQuery = SecurityGuardrails.scanAndSanitize(query).sanitizedInput || query;
+      const queryVec = computeTextEmbedding(`query: ${safeQuery}`);
+      return executeHybridCatalogSearch(safeQuery, queryVec, catalog, embeddings, alpha, limit);
     },
-    [catalog, embeddings, computeQueryVector]
+    [catalog, embeddings]
   );
 
-  const handleSearch = useCallback(
-    async (query: string, limit = 8): Promise<CatalogItem[]> => {
-      const hits = await handleHybridSearch(query, 0.7, limit);
-      return hits.map((h) => h.item);
-    },
-    [handleHybridSearch]
-  );
+  // Authentic MMR (Maximal Marginal Relevance) + Enterprise Merchandising Rules Engine
+  const handleRecommend = useCallback(
+    (
+      itemId: string,
+      diversityLambda: number = 0.3,
+      limit: number = 6,
+      rules?: MerchandisingRules
+    ): CatalogRecommendation[] => {
+      const target = catalog.find((c) => String(c.id) === String(itemId));
+      const targetVec = embeddings.get(String(itemId));
+      if (!target || !targetVec) return [];
 
-  // 7. Real MMR (Maximal Marginal Relevance) Recommendation Implementation with Multilingual Explanations
-  const handleGetRecommendations = useCallback(
-    async (
-      targetItem: CatalogItem,
-      diversity = 0.35,
-      limit = 6
-    ): Promise<CatalogRecommendation[]> => {
-      const targetVec = embeddings.get(String(targetItem.id));
-      if (!targetVec) return [];
+      const excludedSet = new Set((rules?.excludedIds || []).map(String));
+      const pinnedSet = new Set((rules?.pinnedIds || []).map(String));
+      const boostCat = rules?.boostCategory && rules.boostCategory !== 'none' ? rules.boostCategory : null;
+      const boostFactor = rules?.boostFactor ?? 1.0;
+      const crossCatOnly = Boolean(rules?.crossCategoryOnly);
+      const minRating = rules?.minRating ?? 0;
 
-      const candidates = catalog.filter((c) => String(c.id) !== String(targetItem.id));
-      if (candidates.length === 0) return [];
+      // 1. Score all candidate items with cosine similarity + category boost & filter guardrails
+      const candidates: Array<{
+        item: CatalogItem;
+        sim: number;
+        boostedSim: number;
+        vec: Float32Array;
+        isBoosted: boolean;
+      }> = [];
 
-      const candSims = new Map<string, number>();
-      for (const c of candidates) {
-        const cVec = embeddings.get(String(c.id));
-        if (cVec) {
-          candSims.set(String(c.id), cosineSimilarity(targetVec, cVec));
+      for (const item of catalog) {
+        const idStr = String(item.id);
+        if (idStr === String(itemId)) continue;
+        if (excludedSet.has(idStr)) continue;
+        if (pinnedSet.has(idStr)) continue; // handled in pinned slot pass first
+        if (crossCatOnly && item.category === target.category) continue;
+        if (minRating > 0 && (item.rating ?? 5.0) < minRating) continue;
+
+        const vec = embeddings.get(idStr);
+        if (!vec) continue;
+
+        const rawSim = cosineSimilarity(targetVec, vec);
+        const isBoosted = Boolean(boostCat && item.category === boostCat);
+        const boostedSim = isBoosted ? Math.min(0.999, rawSim * boostFactor) : rawSim;
+
+        candidates.push({
+          item,
+          sim: rawSim,
+          boostedSim,
+          vec,
+          isBoosted,
+        });
+      }
+
+      candidates.sort((a, b) => b.boostedSim - a.boostedSim);
+      const topPool = candidates.slice(0, Math.min(48, candidates.length));
+
+      const selected: Array<{
+        item: CatalogItem;
+        sim: number;
+        mmrScore: number;
+        noveltyBonus: number;
+        vec: Float32Array;
+        isPinned?: boolean;
+        isBoosted?: boolean;
+      }> = [];
+
+      // 2. First place any Pinned SKUs at the top of the recommendation slate
+      if (rules?.pinnedIds && rules.pinnedIds.length > 0) {
+        for (const pinId of rules.pinnedIds) {
+          if (String(pinId) === String(itemId)) continue;
+          if (excludedSet.has(String(pinId))) continue;
+          const pinnedItem = catalog.find((c) => String(c.id) === String(pinId));
+          const pinnedVec = embeddings.get(String(pinId));
+          if (pinnedItem && pinnedVec && selected.length < limit) {
+            const rawSim = cosineSimilarity(targetVec, pinnedVec);
+            selected.push({
+              item: pinnedItem,
+              sim: rawSim,
+              mmrScore: 1.0,
+              noveltyBonus: 1.0,
+              vec: pinnedVec,
+              isPinned: true,
+              isBoosted: Boolean(boostCat && pinnedItem.category === boostCat),
+            });
+          }
         }
       }
 
-      const selected: CatalogItem[] = [];
-      const remaining = [...candidates];
+      // 3. Greedy MMR diversification loop with exact noveltyBonus & mmrScore tracking
+      while (selected.length < limit && topPool.length > 0) {
+        let bestIdx = 0;
+        let bestMmrScore = -Infinity;
+        let bestNovelty = 1.0;
 
-      while (selected.length < limit && remaining.length > 0) {
-        let bestScore = -Infinity;
-        let bestIndex = -1;
-
-        for (let i = 0; i < remaining.length; i++) {
-          const cand = remaining[i];
-          const simToTarget = candSims.get(String(cand.id)) ?? 0;
-
+        for (let i = 0; i < topPool.length; i++) {
+          const cand = topPool[i];
           let maxSimToSelected = 0;
-          if (selected.length > 0) {
-            const candVec = embeddings.get(String(cand.id));
-            if (candVec) {
-              for (const sel of selected) {
-                const selVec = embeddings.get(String(sel.id));
-                if (selVec) {
-                  const s = cosineSimilarity(candVec, selVec);
-                  if (s > maxSimToSelected) maxSimToSelected = s;
-                }
-              }
-            }
+          for (const sel of selected) {
+            const s = Math.max(0, cosineSimilarity(cand.vec, sel.vec));
+            if (s > maxSimToSelected) maxSimToSelected = s;
           }
 
-          const mmrScore = (1 - diversity) * simToTarget - diversity * maxSimToSelected;
-          if (mmrScore > bestScore) {
-            bestScore = mmrScore;
-            bestIndex = i;
+          const noveltyBonus =
+            selected.length === 0 ? 1.0 : Math.max(0, 1 - maxSimToSelected);
+          const mmrScore =
+            (1 - diversityLambda) * cand.boostedSim +
+            diversityLambda * noveltyBonus * 0.55;
+
+          if (mmrScore > bestMmrScore) {
+            bestMmrScore = mmrScore;
+            bestIdx = i;
+            bestNovelty = noveltyBonus;
           }
         }
 
-        if (bestIndex >= 0) {
-          selected.push(remaining[bestIndex]);
-          remaining.splice(bestIndex, 1);
-        } else {
-          break;
-        }
+        const chosen = topPool.splice(bestIdx, 1)[0];
+        selected.push({
+          item: chosen.item,
+          sim: chosen.sim,
+          mmrScore: Number(Math.max(0.05, bestMmrScore).toFixed(4)),
+          noveltyBonus: Number(bestNovelty.toFixed(4)),
+          vec: chosen.vec,
+          isPinned: false,
+          isBoosted: chosen.isBoosted,
+        });
       }
 
-      return selected.map((item) => ({
-        item,
-        sim: candSims.get(String(item.id)) ?? 0,
-        whyRecommended: generateSemanticExplanation(targetItem, item),
+      return selected.map((s, idx) => ({
+        item: s.item,
+        sim: s.sim,
+        mmrScore: s.mmrScore,
+        noveltyBonus: s.noveltyBonus,
+        rank: idx + 1,
+        isPinned: s.isPinned,
+        isBoosted: s.isBoosted,
+        whyRecommended: generateSemanticExplanation(target, s.item),
       }));
     },
     [catalog, embeddings]
   );
 
-  // 8. Conversational Agent Instance
-  const conversationalAgent = useMemo(() => {
-    return new ConversationalAgent(catalog, handleSearch);
-  }, [catalog, handleSearch]);
+  // Navigate to 3D Vector Space and highlight target item
+  const handleInspectIn3D = useCallback((item: CatalogItem) => {
+    setSelectedItem(item);
+    setView('vectorspace');
+  }, []);
 
-  useEffect(() => {
-    conversationalAgent.setCatalog(catalog);
-  }, [catalog, conversationalAgent]);
+  // Select item and inspect in Recommendations view
+  const handleInspectRecommendations = useCallback((item: CatalogItem) => {
+    setSelectedItem(item);
+    setView('recommendations');
+  }, []);
 
-  // 9. Toasts
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-
-  const addToast = useCallback(
-    (message: string, type: 'info' | 'success' | 'error' = 'info') => {
-      const id = Math.random().toString(36).slice(2, 9);
-      setToasts((prev) => [...prev, { id, message, type }]);
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 3500);
-    },
-    []
+  const agent = useMemo(
+    () => new ConversationalAgent(catalog, handleSearch),
+    [catalog, handleSearch]
   );
 
-  const dismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  // 10. Domain & Database Switching Actions
-  const handleSelectDomainPreset = useCallback(
-    (preset: PlatformDomainPreset) => {
-      const itemsWithStrIds = preset.items.map((item) => ({
-        ...item,
-        id: String(item.id),
-      }));
-      setIsScaledCatalog(false);
-      setActiveDomain(preset.id);
-      setCatalog(itemsWithStrIds);
-      setSelectedItem(itemsWithStrIds[0] || null);
-      try {
-        localStorage.setItem(STORAGE_DOMAIN_KEY, preset.id);
-      } catch {
-        // ignore
-      }
-      addToast(
-        `Подключена база «${preset.name}» (${itemsWithStrIds.length} объектов · ${preset.languageLabel})`,
-        'success'
-      );
-    },
-    [addToast]
-  );
-
-  const handleImportCustomDatabase = useCallback(
-    (items: CatalogItem[], label = 'Custom Database') => {
-      const itemsWithStrIds = items.map((item) => ({
-        ...item,
-        id: String(item.id),
-      }));
-      setIsScaledCatalog(false);
-      setCatalog(itemsWithStrIds);
-      setSelectedItem(itemsWithStrIds[0] || null);
-      addToast(
-        `Подключена база «${label}» (${itemsWithStrIds.length} объектов проиндексировано в 384-d HNSW)`,
-        'success'
-      );
-    },
-    [addToast]
-  );
-
-  // 11. Catalog & Scale Actions (Task 1.3: string IDs)
-  const handleAddItem = (newItem: CatalogItem) => {
-    const itemWithStrId: CatalogItem = { ...newItem, id: String(newItem.id) };
-    setCatalog((prev) => [itemWithStrId, ...prev]);
-    setSelectedItem(itemWithStrId);
-    trackEvent({ type: 'item_view', itemId: itemWithStrId.id, category: itemWithStrId.category });
-    addToast(`Added «${itemWithStrId.title}» (384-d vector indexed)`, 'success');
-  };
-
-  const handleDeleteItem = (id: string) => {
-    setCatalog((c) => c.filter((item) => item.id !== id));
-    addToast('SKU removed from catalog', 'info');
-  };
-
-  const handleScaleCatalog = (targetCount = 1200) => {
-    const { catalog: scaledItems, embeddings: scaledVectors } =
-      generateSyntheticScaledCatalog(targetCount);
-    const combinedCatalog = [...INITIAL_CATALOG.map((c) => ({ ...c, id: String(c.id) })), ...scaledItems];
-    const combinedEmbeddings = new Map<string, Float32Array>(scaledVectors);
-    for (const baseItem of INITIAL_CATALOG) {
-      const text = `passage: ${baseItem.title} ${baseItem.description} ${baseItem.category} ${baseItem.tags?.join(' ') || ''}`;
-      combinedEmbeddings.set(String(baseItem.id), computeTextEmbedding(text));
-    }
-    setIsScaledCatalog(true);
-    setCatalog(combinedCatalog);
-    setEmbeddings(combinedEmbeddings);
-    addToast(`Scaled corpus to ${combinedCatalog.length.toLocaleString()} SKU with 384-d HNSW index`, 'success');
-  };
-
-  const handleRestoreCatalog = () => {
-    const preset = PLATFORM_DOMAIN_PRESETS.find((p) => p.id === activeDomain) || PLATFORM_DOMAIN_PRESETS[0];
-    const base = preset.items.map((item) => ({ ...item, id: String(item.id) }));
-    setIsScaledCatalog(false);
-    setCatalog(base);
-    setSelectedItem(base[0]);
-    addToast(`Restored ${preset.name} (${base.length} SKU)`, 'info');
-  };
-
-  const handleImportVectorBundle = (
-    items: CatalogItem[],
-    importedEmbeddings: Map<string, Float32Array>
-  ) => {
-    setIsScaledCatalog(false);
-    setCatalog(items.map((item) => ({ ...item, id: String(item.id) })));
-    if (importedEmbeddings.size > 0) {
-      setEmbeddings(importedEmbeddings);
-    }
-    if (items[0]) setSelectedItem(items[0]);
-    addToast(
-      `Imported ${items.length} SKU (${importedEmbeddings.size} pre-computed 384-d vectors)`,
-      'success'
-    );
-  };
-
-  const csvProjectAdapter = useMemo<Project>(
+  // Project representation for CSV Importer / Exporter modal
+  const csvProject: Project = useMemo(
     () => ({
-      id: 'eidos-catalog-project',
-      name: 'Eidos Semantic Catalog',
+      id: 'eidos_catalog_proj',
+      name: 'Eidos Production Catalog',
       updatedAt: Date.now(),
-      concepts: catalog.map((c) => ({
-        id: String(c.id),
-        name: c.title,
-        category: c.category,
-        notes: c.description,
+      concepts: catalog.map((item) => ({
+        id: String(item.id),
+        name: item.title,
+        category: item.category,
+        notes: item.description,
       })),
     }),
     [catalog]
   );
 
-  const handleImportCsvConcepts = (
-    concepts: Array<{ name: string; category?: string; notes?: string }>,
-    replace: boolean
-  ) => {
-    const importedItems: CatalogItem[] = concepts.map((c, idx) => ({
-      id: `csv_${Date.now()}_${idx}`,
-      title: c.name,
-      category: c.category || 'Imported',
-      description: c.notes || c.name,
-      price: '4 990 ₽',
-      icon: '📦',
-      tags: c.category ? [c.category.toLowerCase()] : [],
-    }));
-    setIsScaledCatalog(false);
-    setCatalog((prev) => (replace ? importedItems : [...importedItems, ...prev]));
-    if (importedItems[0]) setSelectedItem(importedItems[0]);
-    addToast(`Imported ${importedItems.length} items from CSV and vectorized to 384d`, 'success');
-  };
-
-  const getViewTitle = (view: ViewId): string => {
-    switch (view) {
-      case 'dashboard':
-        return 'Overview & HNSW Benchmark';
-      case 'search':
-        return 'Hybrid Search Lab (BM25 + Dense HNSW)';
-      case 'recommendations':
-        return 'MMR Recommendations & Explainable X-Ray';
-      case 'vectorspace':
-        return '3D Vector Space & 2D Topology Graph';
-      case 'adaptive':
-        return 'Adaptive Intelligence Lab (AIL)';
-      case 'catalog':
-        return 'Catalog & 0ms Vector Bundles';
-      case 'abtest':
-        return 'Statistical A/B Experiments';
-      case 'conversational':
-        return 'Conversational Vector NLU Agent';
-      case 'analytics':
-        return 'Semantic Trends & Session Telemetry';
-      case 'launchkit':
-        return 'Deployment & Production Checklist';
-      default:
-        return 'Eidos Studio';
-    }
-  };
-
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-alt)', color: 'var(--text)' }}>
-      {/* 1. Left Sidebar Navigation */}
-      <Sidebar active={activeView} onNavigate={handleNavigate} />
+    <div className="app-shell">
+      <Sidebar
+        active={view}
+        onSelect={setView}
+        onOpenApiModal={() => setIsApiModalOpen(true)}
+        uiLang={uiLang}
+      />
 
-      {/* 2. Main Workspace */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        {/* Top Header Bar */}
+      <main className="main-area">
+        {/* Global Studio Status Bar */}
         <header
           style={{
-            height: 56,
-            background: 'var(--surface)',
+            height: 52,
             borderBottom: '1px solid var(--border)',
+            background: 'var(--surface)',
+            padding: '0 24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0 24px',
+            gap: 12,
             position: 'sticky',
             top: 0,
             zIndex: 10,
-            gap: 16,
           }}
         >
-          {/* Zone 1: Breadcrumb */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-            <span style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', fontWeight: 500 }}>Eidos</span>
-            <span style={{ color: 'var(--border-hi)' }}>/</span>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {getViewTitle(activeView)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <span
+              className="mono"
+              style={{
+                fontSize: '0.75rem',
+                padding: '3px 8px',
+                borderRadius: 4,
+                background: 'var(--bg-alt)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-sec)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {catalog.length.toLocaleString()} SKU · 384-d E5-Small
             </span>
+            {selectedItem && (
+              <div
+                style={{
+                  fontSize: '0.8125rem',
+                  color: 'var(--text-sec)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {tTop.activeSeed}{' '}
+                <strong style={{ color: 'var(--text)' }}>
+                  {selectedItem.icon} {selectedItem.title}
+                </strong>
+              </div>
+            )}
           </div>
 
-          {/* Zone 2: Global Tools, Database/Language Switcher, Embedder Status Badge & Theme Toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {/* Task 0.1 UI Indicator Badge */}
-            <span className="badge badge-accent" data-testid="embedding-status-badge">
-              {embeddingStatus === 'ready'
-                ? '🧠 Model: MiniLM + E5-CJK'
-                : embeddingStatus === 'loading'
-                ? '⏳ Loading model...'
-                : '⚡ Engine: E5-Multilingual 384d'}
-            </span>
+            {/* Global UI Language Switcher (RU | EN | JA) */}
+            <div
+              data-testid="ui-lang-switcher"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: 'var(--bg-alt)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                padding: 2,
+                gap: 2,
+              }}
+            >
+              {(['ru', 'en', 'ja'] as UiLanguage[]).map((lang) => {
+                const active = uiLang === lang;
+                return (
+                  <button
+                    key={lang}
+                    type="button"
+                    data-testid={`ui-lang-${lang}`}
+                    onClick={() => setUiLang(lang)}
+                    style={{
+                      border: 'none',
+                      borderRadius: 4,
+                      padding: '3px 8px',
+                      fontSize: '0.6875rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      background: active ? 'var(--accent)' : 'transparent',
+                      color: active ? '#FFFFFF' : 'var(--text-sec)',
+                      transition: 'all 0.12s ease',
+                    }}
+                    title={UI_TRANSLATIONS[lang].languageName}
+                  >
+                    {lang.toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
 
-            {/* Universal Database & Platform Domain Connector Button */}
             <button
               type="button"
-              className="btn btn-primary btn-sm"
               onClick={() => setIsDbConnectorOpen(true)}
-              data-testid="header-connect-db-btn"
-              title="Подключить базу маркетплейса, стриминга или видеохостинга (100+ языков, включая японский 日本語)"
+              className="btn btn-secondary btn-sm"
+              title="Switch platform database (Marketplace, Streaming, Video Hosting JP) or connect PostgreSQL / MongoDB / JSON"
             >
-              <Database size={13} />
-              <span>Подключить базу / Язык</span>
+              <Globe size={13} />
+              <span>{tTop.connectDb}</span>
             </button>
 
-            {/* CSV Import/Export Modal Button */}
+            {isScaledCatalog ? (
+              <button
+                type="button"
+                onClick={handleRestoreCuratedCatalog}
+                className="btn btn-secondary btn-sm"
+                title={tTop.restoreCurated}
+              >
+                <RotateCcw size={13} />
+                <span>{tTop.scaledBadge}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleScaleCatalog(1200)}
+                className="btn btn-secondary btn-sm"
+                title="Benchmark 1,200+ synthetic items with HNSW Phase 2"
+              >
+                <Database size={13} />
+                <span>{tTop.scaleTo1200}</span>
+              </button>
+            )}
+
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
               onClick={() => setIsCsvModalOpen(true)}
+              className="btn btn-secondary btn-sm"
             >
               <FileSpreadsheet size={13} />
-              <span>CSV Studio</span>
+              <span>{tTop.csvModal}</span>
             </button>
 
-            {/* Live API Console Button */}
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setIsApiConsoleOpen(true)}
+              onClick={() => setIsApiModalOpen(true)}
+              className="btn btn-primary btn-sm"
             >
               <Terminal size={13} />
-              <span>API Console</span>
-            </button>
-
-            {/* Light / Dark Theme Switcher */}
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              title={`Switch to ${theme === 'dark' ? 'Light Studio' : 'Dark Engineering'} theme`}
-            >
-              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-              <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+              <span>{tTop.apiSdk}</span>
             </button>
           </div>
         </header>
 
-        {/* Dynamic View Canvas */}
-        <main style={{ flex: 1, overflowY: 'auto' }}>
-          {activeView === 'dashboard' && (
-            <DashboardView
-              catalog={catalog}
-              embeddings={embeddings}
-              selectedItem={selectedItem}
-              isScaledCatalog={isScaledCatalog}
-              activeDomain={activeDomain}
-              onNavigate={handleNavigate}
-              onSearch={handleSearch}
-              onSelectItem={(item) => {
-                setSelectedItem(item);
-                handleNavigate('recommendations');
-              }}
-              onScaleCatalog={handleScaleCatalog}
-              onRestoreCatalog={handleRestoreCatalog}
-              onOpenApiConsole={() => setIsApiConsoleOpen(true)}
-              onSelectDomainPreset={handleSelectDomainPreset}
-              onOpenDatabaseConnector={() => setIsDbConnectorOpen(true)}
-            />
-          )}
+        {view === 'dashboard' && (
+          <DashboardView
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            isScaledCatalog={isScaledCatalog}
+            activeDomain={activeDomain}
+            uiLang={uiLang}
+            onNavigate={setView}
+            onSearch={handleSearch}
+            onSelectItem={setSelectedItem}
+            onScaleCatalog={handleScaleCatalog}
+            onRestoreCatalog={handleRestoreCuratedCatalog}
+            onOpenApiConsole={() => setIsApiModalOpen(true)}
+            onSelectDomainPreset={handleSelectDomainPreset}
+            onOpenDatabaseConnector={() => setIsDbConnectorOpen(true)}
+          />
+        )}
 
-          {activeView === 'search' && (
-            <SearchView
-              catalog={catalog}
-              onHybridSearch={handleHybridSearch}
-              onSelectItem={(item) => {
-                setSelectedItem(item);
-                handleNavigate('recommendations');
-              }}
-              onInspectIn3D={(item) => {
-                setSelectedItem(item);
-                handleNavigate('vectorspace');
-              }}
-            />
-          )}
+        {view === 'vectorspace' && (
+          <VectorSpaceView
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            onSelectItem={setSelectedItem}
+            onInspectRecommendations={handleInspectRecommendations}
+          />
+        )}
 
-          {activeView === 'recommendations' && (
-            <RecommendationsView
-              catalog={catalog}
-              selectedItem={selectedItem}
-              onSelectSeedItem={(item) => setSelectedItem(item)}
-              onGetRecommendations={handleGetRecommendations}
-              onInspectIn3D={(item) => {
-                setSelectedItem(item);
-                handleNavigate('vectorspace');
-              }}
-            />
-          )}
+        {view === 'adaptive' && (
+          <AdaptivePanel
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            onSelectItem={setSelectedItem}
+            onShowToast={showToast}
+          />
+        )}
 
-          {activeView === 'vectorspace' && (
-            <VectorSpaceView
-              catalog={catalog}
-              embeddings={embeddings}
-              selectedItem={selectedItem}
-              onSelectItem={(item) => setSelectedItem(item)}
-              onInspectRecommendations={(item) => {
-                setSelectedItem(item);
-                handleNavigate('recommendations');
-              }}
-            />
-          )}
+        {view === 'search' && (
+          <SearchView
+            catalog={catalog}
+            onHybridSearch={handleHybridSearch}
+            onSelectItem={handleInspectRecommendations}
+            onInspectIn3D={handleInspectIn3D}
+            uiLang={uiLang}
+          />
+        )}
 
-          {activeView === 'adaptive' && (
-            <div className="page">
-              <AdaptivePanel
-                catalog={catalog.slice(0, 100)}
-                embeddings={embeddings}
-                selectedItem={selectedItem || catalog[0]}
-                onSelectItem={(item) => setSelectedItem(item)}
-              />
-            </div>
-          )}
+        {view === 'recommendations' && (
+          <RecommendationsView
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            onSelectItem={setSelectedItem}
+            onRecommend={handleRecommend}
+            onInspectIn3D={handleInspectIn3D}
+            uiLang={uiLang}
+          />
+        )}
 
-          {activeView === 'catalog' && (
-            <CatalogView
-              catalog={catalog}
-              embeddings={embeddings}
-              onAddItem={handleAddItem}
-              onDeleteItem={handleDeleteItem}
-              onSelectItem={(item) => {
-                setSelectedItem(item);
-                handleNavigate('recommendations');
-              }}
-              onInspectIn3D={(item) => {
-                setSelectedItem(item);
-                handleNavigate('vectorspace');
-              }}
-              onImportVectorBundle={handleImportVectorBundle}
-              onOpenCsvModal={() => setIsCsvModalOpen(true)}
-            />
-          )}
+        {view === 'catalog' && (
+          <CatalogView
+            catalog={catalog}
+            embeddings={embeddings}
+            onAddItem={handleAddItem}
+            onDeleteItem={handleDeleteItem}
+            onSelectItem={handleInspectRecommendations}
+            onInspectIn3D={handleInspectIn3D}
+            onImportVectorBundle={handleImportVectorBundle}
+            onOpenCsvModal={() => setIsCsvModalOpen(true)}
+            uiLang={uiLang}
+          />
+        )}
 
-          {activeView === 'abtest' && <ABTestView />}
+        {view === 'analytics' && <AnalyticsView />}
 
-          {activeView === 'conversational' && (
-            <ConversationalView
-              agent={conversationalAgent}
-              onSelectItem={(item) => {
-                setSelectedItem(item);
-                handleNavigate('recommendations');
-              }}
-            />
-          )}
+        {view === 'abtest' && <ABTestView />}
 
-          {activeView === 'analytics' && <AnalyticsView />}
+        {view === 'conversational' && (
+          <ConversationalView
+            agent={agent}
+            onSelectItem={handleInspectRecommendations}
+          />
+        )}
+      </main>
 
-          {activeView === 'launchkit' && <LaunchKitView />}
-        </main>
-      </div>
-
-      {/* Live REST API Console Modal */}
+      {/* Live Interactive API & SDK Playground Modal */}
       <ApiConsoleModal
-        isOpen={isApiConsoleOpen}
-        onClose={() => setIsApiConsoleOpen(false)}
+        isOpen={isApiModalOpen}
+        onClose={() => setIsApiModalOpen(false)}
         catalog={catalog}
         selectedItem={selectedItem}
         onHybridSearch={handleHybridSearch}
-        onGetRecommendations={handleGetRecommendations}
+        onGetRecommendations={async (item, diversity, limit) =>
+          handleRecommend(String(item.id), diversity, limit)
+        }
       />
 
-      {/* Universal Database & Multilingual Platform Connector Modal */}
+      {/* Enterprise CSV Importer & Exporter Modal */}
+      <CsvImporterModal
+        isOpen={isCsvModalOpen}
+        project={csvProject}
+        onClose={() => setIsCsvModalOpen(false)}
+        onImportConcepts={handleCsvImportConcepts}
+        onShowToast={showToast}
+      />
+
+      {/* Universal Database & Multilingual Industry Platform Connector Modal */}
       <DatabaseConnectorModal
         isOpen={isDbConnectorOpen}
         activeDomain={activeDomain}
@@ -795,17 +764,8 @@ export default function App() {
         onImportCustomDatabase={handleImportCustomDatabase}
       />
 
-      {/* Bulk CSV Import / Export Studio Modal */}
-      <CsvImporterModal
-        isOpen={isCsvModalOpen}
-        project={csvProjectAdapter}
-        onClose={() => setIsCsvModalOpen(false)}
-        onImportConcepts={handleImportCsvConcepts}
-        onShowToast={addToast}
-      />
-
-      {/* Global Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
+export default App;

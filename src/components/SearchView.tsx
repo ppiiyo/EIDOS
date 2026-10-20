@@ -1,14 +1,30 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Sliders, Columns, Boxes, Lightbulb, AlertCircle, Globe } from 'lucide-react';
+import {
+  Search,
+  Sliders,
+  Columns,
+  Boxes,
+  Lightbulb,
+  AlertCircle,
+  Globe,
+  ShieldCheck,
+} from 'lucide-react';
+import { SecurityGuardrails } from '@eidos/core';
 import { CatalogItem } from '../types';
-import { HybridSearchHit, simulateKeywordSearch, detectTextLanguage } from '../utils/recommenderEngine';
+import {
+  HybridSearchHit,
+  simulateKeywordSearch,
+  detectTextLanguage,
+} from '../utils/recommenderEngine';
 import { trackEvent } from '../lib/analytics/tracker';
+import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 interface SearchViewProps {
   catalog: CatalogItem[];
   onHybridSearch: (query: string, alpha: number, limit?: number) => Promise<HybridSearchHit[]>;
   onSelectItem: (item: CatalogItem) => void;
   onInspectIn3D: (item: CatalogItem) => void;
+  uiLang?: UiLanguage;
 }
 
 export const SearchView: React.FC<SearchViewProps> = ({
@@ -16,7 +32,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onHybridSearch,
   onSelectItem,
   onInspectIn3D,
+  uiLang = 'ru',
 }) => {
+  const t = UI_TRANSLATIONS[uiLang].search;
+
   const dominantLang = useMemo(() => {
     const sample = catalog
       .slice(0, 4)
@@ -57,13 +76,19 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [keywordHits, setKeywordHits] = useState<Array<{ item: CatalogItem; matchedWords: string[] }>>([]);
   const [latencyMs, setLatencyMs] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [wasSanitized, setWasSanitized] = useState(false);
 
   const runSearch = async (targetQuery?: string, targetAlpha?: number) => {
-    const q = (targetQuery ?? query).trim();
+    const raw = (targetQuery ?? query).trim();
     const a = targetAlpha ?? alpha;
-    if (!q) return;
+    if (!raw) return;
 
-    if (targetQuery !== undefined) setQuery(targetQuery);
+    // SecurityGuardrails XSS & Prompt Injection protection
+    const scan = SecurityGuardrails.scanAndSanitize(raw);
+    const q = scan.sanitizedInput || raw;
+    setWasSanitized(!scan.isSafe);
+
+    if (targetQuery !== undefined) setQuery(q);
     setIsLoading(true);
     trackEvent({ type: 'search', query: q });
 
@@ -101,16 +126,16 @@ export const SearchView: React.FC<SearchViewProps> = ({
       {/* Header */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
         <div>
-          <h1 className="page-title">Hybrid Search Lab (Dense HNSW + Multilingual CJK BM25)</h1>
-          <p className="page-sub">
-            Convex combination Score(q, d) = α · DenseCosine(q, d) + (1 − α) · BM25(q, d) across 100+ languages (RU · EN · 日本語 · 中文 · EU)
-          </p>
+          <h1 className="page-title">{t.title}</h1>
+          <p className="page-sub">{t.subtitle}</p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="badge badge-accent" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <Globe size={12} />
-            <span>Corpus Script: {dominantLang.toUpperCase()}</span>
+            <span>
+              {t.corpusScript} {dominantLang.toUpperCase()}
+            </span>
           </span>
           <button
             type="button"
@@ -118,7 +143,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
             className={compareMode ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
           >
             <Columns size={14} />
-            <span>{compareMode ? 'Side-by-Side Comparison: ON' : 'Side-by-Side Comparison: OFF'}</span>
+            <span>{compareMode ? t.sideBySideOn : t.sideBySideOff}</span>
           </button>
         </div>
       </div>
@@ -140,13 +165,33 @@ export const SearchView: React.FC<SearchViewProps> = ({
               style={{ paddingLeft: 40, height: 42, fontSize: '0.9375rem' }}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter query in any language (Русский, English, 日本語, 中文, Español)..."
+              placeholder={t.placeholder}
             />
           </div>
           <button type="submit" className="btn btn-primary" disabled={isLoading || !query.trim()} style={{ height: 42 }}>
-            {isLoading ? 'Searching...' : 'Execute Hybrid Search'}
+            {isLoading ? t.searchingBtn : t.executeBtn}
           </button>
         </form>
+
+        {wasSanitized && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 6,
+              background: 'var(--success-bg)',
+              color: 'var(--success)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              marginBottom: 12,
+            }}
+          >
+            <ShieldCheck size={14} />
+            <span>{t.securityFilteredBadge}</span>
+          </div>
+        )}
 
         {/* Hybrid Mode & Alpha Slider */}
         <div
@@ -161,7 +206,9 @@ export const SearchView: React.FC<SearchViewProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-sec)' }}>Mode Preset:</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-sec)' }}>
+              {t.modePreset}
+            </span>
             {[
               { label: 'Pure BM25 (α=0.0)', val: 0.0 },
               { label: 'Balanced Hybrid (α=0.5)', val: 0.5 },
@@ -186,7 +233,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 260 }}>
             <Sliders size={14} style={{ color: 'var(--text-sec)' }} />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>α Weight:</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>{t.alphaWeight}</span>
             <input
               type="range"
               min={0}
@@ -204,7 +251,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
         {/* Sample Queries */}
         <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>Test queries:</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>{t.testQueries}</span>
           {sampleQueries.map((sq) => (
             <button
               key={sq.label}
@@ -231,7 +278,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)' }}>
-              Eidos Hybrid Retrieval ({hybridHits.length} hits)
+              {t.hybridHitsTitle} ({hybridHits.length} hits)
             </div>
             <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
               {latencyMs} ms · α={alpha.toFixed(2)}
@@ -352,10 +399,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-sec)' }}>
-                Legacy Exact Keyword Search ({keywordHits.length} hits)
+                {t.legacyHitsTitle} ({keywordHits.length} hits)
               </div>
               <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600 }}>
-                Substring token matching only
+                {t.legacySubtitle}
               </span>
             </div>
 
@@ -363,10 +410,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
               <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-sec)' }}>
                 <AlertCircle size={22} style={{ margin: '0 auto 8px', color: 'var(--warning)' }} />
                 <div style={{ fontWeight: 600, color: 'var(--text)' }}>
-                  0 results — Vocabulary / Script Mismatch Failure
+                  {t.legacyZeroTitle}
                 </div>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 6 }}>
-                  Traditional whitespace keyword search failed because exact tokens or non-spaced CJK compounds did not match, whereas Eidos Hybrid Search retrieved {hybridHits.length} conceptually relevant items.
+                  {t.legacyZeroDesc}
                 </p>
               </div>
             ) : (
