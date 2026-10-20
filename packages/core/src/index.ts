@@ -13,7 +13,7 @@ export * from './enterprise';
 export * from './persistence';
 export * from './security';
 export * from './search';
+export * from './bm25';
 export * from './cache';
 export * from './metrics';
 export * from './csv';
-

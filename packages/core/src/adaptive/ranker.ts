@@ -69,13 +69,22 @@ export class Ranker {
   }
 
   /**
-   * Validates that all supplied weights are non-negative.
+   * Validates that all supplied weights are finite and non-negative.
+   * Throws TypeError for NaN/Infinity and RangeError for negative values.
    */
   private validateWeights(config?: Partial<RankingConfig>): void {
     if (!config) return;
     for (const [key, value] of Object.entries(config)) {
-      if (typeof value === 'number' && value < 0) {
-        throw new Error(`Weight '${key}' must be non-negative. Received: ${value}`);
+      if (value === undefined) continue;
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new TypeError(
+          `Weight '${key}' must be a finite number. Received: ${String(value)}`
+        );
+      }
+      if (value < 0) {
+        throw new RangeError(
+          `Weight '${key}' must be non-negative. Received: ${value}`
+        );
       }
     }
   }

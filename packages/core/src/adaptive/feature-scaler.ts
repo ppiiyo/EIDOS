@@ -30,7 +30,10 @@ export class StreamingQuantileScaler {
     defaultMin: number = 0.0,
     defaultMax: number = 1.0
   ) {
-    this.windowSize = Math.max(10, windowSize);
+    if (!Number.isFinite(windowSize) || windowSize < 1) {
+      throw new RangeError(`StreamingQuantileScaler windowSize must be >= 1, got ${windowSize}`);
+    }
+    this.windowSize = Math.floor(windowSize);
     this.defaultMin = defaultMin;
     this.defaultMax = defaultMax;
     this.min = defaultMin;

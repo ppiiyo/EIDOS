@@ -47,7 +47,8 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
 
   return (
     <div
-      className={`card p-4 ${
+      onClick={() => onSelectItem(rec.item)}
+      className={`card p-4 cursor-pointer ${
         isPinned
           ? 'border-[1.5px] border-[var(--accent)]'
           : rec.isBoosted
@@ -151,7 +152,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
             type="button"
             data-testid="like-button"
             className={isLiked ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-            onClick={() => onToggleLike(rec.item)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleLike(rec.item);
+            }}
             title="Positive relevance feedback (logs click telemetry)"
           >
             <ThumbsUp size={12} />
@@ -160,7 +164,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
           <button
             type="button"
             className={isPinned ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-            onClick={() => onTogglePin(String(rec.item.id))}
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin(String(rec.item.id));
+            }}
             title="Pin or unpin item at the top of recommendation slots"
           >
             <Pin size={12} />
@@ -169,7 +176,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => onExclude(String(rec.item.id))}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExclude(String(rec.item.id));
+            }}
             title="Exclude this item from recommendations"
           >
             <EyeOff size={12} />
@@ -178,7 +188,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => onInspectIn3D(rec.item)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onInspectIn3D(rec.item);
+            }}
           >
             <Boxes size={12} />
             <span>3D</span>
@@ -186,7 +199,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => onSelectItem(rec.item)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectItem(rec.item);
+            }}
           >
             <span>{t.makeSeedBtn}</span>
             <ArrowRight size={12} />

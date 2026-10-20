@@ -3,6 +3,8 @@
  * Supports Latin, Cyrillic, Japanese (Kanji/Hiragana/Katakana), Chinese (Hanzi), Korean (Hangul), Arabic, etc.
  * Formula: score(D, Q) = Σ IDF(qi) * (f(qi, D) * (k1 + 1)) / (f(qi, D) + k1 * (1 - b + b * |D| / avgdl))
  */
+import { tokenizeCJK } from '../bm25/cjk-tokenizer';
+
 export interface BM25Document {
   id: string | number;
   text?: string;
@@ -17,7 +19,7 @@ export interface BM25SearchResult {
   score: number;
 }
 
-const CJK_REGEX = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af]+/g;
+const CJK_SEQ_REGEX = /[\u4e00-\u9fa5\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]+/g;
 
 export class BM25Index {
   private documents: Map<string, string[]> = new Map();
@@ -41,39 +43,28 @@ export class BM25Index {
 
   /**
    * Static helper that tokenizes and normalizes input text across all languages including CJK (Japanese, Chinese, Korean).
-   * For CJK sequences without spaces, extracts character unigrams, bigrams, and trigrams.
+   * Delegates base unigram/word segmentation to tokenizeCJK and supplements compound CJK sequences with bigrams/trigrams.
    */
   public static tokenize(text: string): string[] {
-    if (!text) return [];
+    const tokens = tokenizeCJK(text);
+    if (tokens.length === 0) return tokens;
+
     const normalized = text.toLowerCase().trim();
-    if (!normalized) return [];
-
-    const baseTokens = normalized
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-      .split(/\s+/)
-      .filter((token) => token.length >= 2);
-
-    // Extract CJK character unigrams, bigrams, and trigrams for Japanese/Chinese/Korean
-    const cjkMatches = normalized.match(CJK_REGEX);
+    const cjkMatches = normalized.match(CJK_SEQ_REGEX);
     if (cjkMatches) {
       for (const seq of cjkMatches) {
-        if (seq.length === 1) {
-          baseTokens.push(seq);
-        } else {
-          for (let i = 0; i < seq.length; i++) {
-            baseTokens.push(seq[i]);
-            if (i + 1 < seq.length) {
-              baseTokens.push(seq.slice(i, i + 2));
-            }
-            if (i + 2 < seq.length) {
-              baseTokens.push(seq.slice(i, i + 3));
-            }
+        for (let i = 0; i < seq.length; i++) {
+          if (i + 1 < seq.length) {
+            tokens.push(seq.slice(i, i + 2));
+          }
+          if (i + 2 < seq.length) {
+            tokens.push(seq.slice(i, i + 3));
           }
         }
       }
     }
 
-    return baseTokens;
+    return tokens;
   }
 
   /**

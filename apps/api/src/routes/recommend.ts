@@ -93,7 +93,8 @@ export async function recommendRoutes(
 
       if (bestIndex >= 0) {
         selected.push(pool[bestIndex]);
-        pool.splice(bestIndex, 1);
+        pool[bestIndex] = pool[pool.length - 1];
+        pool.pop();
       } else {
         break;
       }
