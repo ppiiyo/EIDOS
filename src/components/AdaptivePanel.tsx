@@ -5,35 +5,18 @@ import {
   RankingFeatures,
   SMMRConfig,
   ExplainabilityEngine,
-  calculateMMRScore,
   cosineSimilarity,
   MultiInterestUserTower,
   MultiInterestProfile,
   BanditExplorer,
-  HNSWIndex,
-  ScalarQuantizer,
-  VectorSteering,
-  SteeringModifier,
 } from '@eidos/core';
+import { Sliders, Layers, Zap, Compass } from 'lucide-react';
+import { computeTextEmbedding } from '../utils/recommenderEngine';
 import {
-  Sliders,
-  Sparkles,
-  Zap,
-  TrendingUp,
-  Clock,
-  Compass,
-  UserCheck,
-  Network,
-  Info,
-  Layers,
-  Database,
-  Cpu,
-  ThumbsUp,
-  ShoppingCart,
-  ThumbsDown,
-  RotateCcw,
-  Plus,
-} from 'lucide-react';
+  CapsulesSubView,
+  BanditsSubView,
+  SteeringSubView,
+} from './adaptive/AdaptiveSubViews';
 
 interface AdaptivePanelProps {
   catalog: CatalogItem[];
@@ -47,42 +30,24 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
   catalog,
   embeddings,
   selectedItem,
-  onSelectItem,
   onShowToast,
 }) => {
   const currentSeed = selectedItem || catalog[0];
-  const [activeSubTab, setActiveSubTab] = useState<'ranker' | 'capsules' | 'bandits' | 'hnsw' | 'steering'>('ranker');
+  const [activeSubTab, setActiveSubTab] = useState<'ranker' | 'capsules' | 'bandits' | 'steering'>('ranker');
 
-  // 1. Ranker Weights
   const [rankingConfig, setRankingConfig] = useState<RankingConfig>({
-    alpha: 0.4, // similarity
-    beta: 0.15, // popularity
-    gamma: 0.15, // freshness
-    delta: 0.2, // userAffinity
-    epsilon: 0.1, // categoryRepetition
-    zeta: 0.1, // contextualRelevance
-    eta: 0.1, // kgCentrality
+    alpha: 0.4, beta: 0.15, gamma: 0.15, delta: 0.2, epsilon: 0.1, zeta: 0.1, eta: 0.1,
   });
-
   const [smmrConfig, setSmmrConfig] = useState<SMMRConfig>({
-    lambda: 0.65,
-    sampleSize: 12,
-    temperature: 0.3,
-    deterministic: true,
+    lambda: 0.65, sampleSize: 12, temperature: 0.3, deterministic: true,
   });
-
-  // 2. Multi-Interest Tower
-  const [capsuleHistory, setCapsuleHistory] = useState<number[]>([1, 2, 3, 5, 8]);
+  const [capsuleHistory] = useState<number[]>([1, 2, 3, 5, 8]);
   const [capsuleProfile, setCapsuleProfile] = useState<MultiInterestProfile | null>(null);
 
-  const tower = useMemo(() => {
-    return new MultiInterestUserTower({
-      maxInterests: 3,
-      routingIterations: 4,
-      temperature: 0.2,
-      normalization: 'l2',
-    });
-  }, []);
+  const tower = useMemo(
+    () => new MultiInterestUserTower({ maxInterests: 3, routingIterations: 4, temperature: 0.2, normalization: 'l2' }),
+    []
+  );
 
   useEffect(() => {
     let active = true;
@@ -93,235 +58,145 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
         async (id) => embeddings.get(id) || new Float32Array(384).fill(0.1),
         (id) => catalog.find((c) => c.id === id)?.category || 'General'
       )
-      .then((p) => {
-        if (active) setCapsuleProfile(p);
-      });
-
-    return () => {
-      active = false;
-    };
+      .then((p) => { if (active) setCapsuleProfile(p); });
+    return () => { active = false; };
   }, [tower, capsuleHistory, catalog, embeddings]);
 
-  // 3. Bandits Simulator
   const [banditStrategy, setBanditStrategy] = useState<'linucb' | 'thompson'>('linucb');
-  const [banditExplorer, setBanditExplorer] = useState(() => {
-    return new BanditExplorer({ featureDimension: 4, alpha: 0.8, strategy: 'linucb' });
-  });
-  const [banditEventCount, setBanditEventCount] = useState(0);
+  const [banditEvents, setBanditEvents] = useState<
+    Array<{ itemId: string; eventType: 'click' | 'purchase' | 'like' | 'dislike' }>
+  >([]);
+
+  const banditExplorer = useMemo(() => {
+    const explorer = new BanditExplorer({ featureDimension: 4, alpha: 0.8, strategy: banditStrategy });
+    const ctx = new Float32Array([1.0, 0.5, 0.2, 0.8]);
+    for (const ev of banditEvents) {
+      explorer.updateFromFeedback({ userId: 'user', itemId: ev.itemId, eventType: ev.eventType, timestamp: Date.now() }, ctx);
+    }
+    return explorer;
+  }, [banditStrategy, banditEvents]);
 
   const handleBanditAction = (itemId: string, eventType: 'click' | 'purchase' | 'like' | 'dislike') => {
-    banditExplorer.updateFromFeedback(
-      { userId: 'user', itemId, eventType, timestamp: Date.now() },
-      new Float32Array([1.0, 0.5, 0.2, 0.8])
-    );
-    setBanditEventCount((c) => c + 1);
+    setBanditEvents((prev) => [...prev, { itemId, eventType }]);
     if (onShowToast) onShowToast(`Bandit event: ${eventType} on item #${itemId}`, 'info');
   };
 
-  // 4. Vector Steering
   const [steeringModifiers, setSteeringModifiers] = useState<
     Array<{ label: string; type: 'positive' | 'negative'; weight: number; vector: Float32Array }>
-  >([
-    { label: 'Минималистичный премиум', type: 'positive', weight: 0.6, vector: new Float32Array(384).fill(0.08) },
-    { label: 'Бюджетный пластик', type: 'negative', weight: 0.5, vector: new Float32Array(384).fill(-0.06) },
+  >(() => [
+    { label: 'Минималистичный премиум', type: 'positive', weight: 0.6, vector: computeTextEmbedding('query: минималистичный премиум техника дизайн') },
+    { label: 'Бюджетный пластик', type: 'negative', weight: 0.5, vector: computeTextEmbedding('query: дешевый бюджетный пластик') },
   ]);
-  const [newSteerLabel, setNewSteerLabel] = useState('');
-  const [newSteerType, setNewSteerType] = useState<'positive' | 'negative'>('positive');
 
-  // Compute Live Ranker Output
   const rankedResults = useMemo(() => {
     if (!currentSeed) return [];
     const seedEmb = embeddings.get(currentSeed.id);
     if (!seedEmb) return [];
 
-    const candidates = catalog.filter((c) => c.id !== currentSeed.id);
+    return catalog
+      .filter((c) => c.id !== currentSeed.id)
+      .map((cand) => {
+        const candEmb = embeddings.get(cand.id);
+        const sim = candEmb ? cosineSimilarity(Array.from(seedEmb), Array.from(candEmb)) : 0.4;
+        const popularity = Math.min(1.0, (cand.reviews || 500) / 15000);
+        const idNum = parseInt(cand.id.replace(/\D/g, ''), 10) || 1;
+        const freshness = ((idNum * 19) % 100) / 100;
+        const features: RankingFeatures = {
+          similarity: sim,
+          popularity,
+          freshness,
+          userAffinity: sim * 0.9,
+          categoryRepetition: cand.category === currentSeed.category ? 0.3 : 0.0,
+          contextualRelevance: 0.75,
+          kgCentrality: cand.category === currentSeed.category ? 0.8 : 0.3,
+        };
+        const score =
+          rankingConfig.alpha * features.similarity +
+          rankingConfig.beta * features.popularity +
+          rankingConfig.gamma * features.freshness +
+          rankingConfig.delta * features.userAffinity -
+          rankingConfig.epsilon * features.categoryRepetition +
+          rankingConfig.zeta * features.contextualRelevance +
+          rankingConfig.eta * features.kgCentrality;
 
-    const scored = candidates.map((cand) => {
-      const candEmb = embeddings.get(cand.id);
-      const sim = candEmb ? cosineSimilarity(Array.from(seedEmb), Array.from(candEmb)) : 0.4;
-      const popularity = Math.min(1.0, (cand.reviews || 500) / 15000);
-      const idNum = parseInt(cand.id.replace(/\D/g, ''), 10) || 1;
-      const freshness = ((idNum * 19) % 100) / 100;
-      const userAffinity = sim * 0.9;
-      const categoryRepetition = cand.category === currentSeed.category ? 0.3 : 0.0;
-      const contextualRelevance = 0.75;
-      const kgCentrality = cand.category === currentSeed.category ? 0.8 : 0.3;
-
-      const features: RankingFeatures = {
-        similarity: sim,
-        popularity,
-        freshness,
-        userAffinity,
-        categoryRepetition,
-        contextualRelevance,
-        kgCentrality,
-      };
-
-      const score =
-        rankingConfig.alpha * features.similarity +
-        rankingConfig.beta * features.popularity +
-        rankingConfig.gamma * features.freshness +
-        rankingConfig.delta * features.userAffinity -
-        rankingConfig.epsilon * features.categoryRepetition +
-        rankingConfig.zeta * features.contextualRelevance +
-        rankingConfig.eta * features.kgCentrality;
-
-      const explanation = ExplainabilityEngine.explain(
-        String(cand.id),
-        features,
-        rankingConfig,
-        capsuleHistory.map(String),
-        [],
-        'ru'
-      );
-
-      return { item: cand, score, features, explanation };
-    });
-
-    scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, 5);
+        const explanation = ExplainabilityEngine.explain(
+          String(cand.id), features, rankingConfig, capsuleHistory.map(String), [], 'ru'
+        );
+        return { item: cand, score, features, explanation };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
   }, [currentSeed, catalog, embeddings, rankingConfig, capsuleHistory]);
 
   return (
     <div className="flex flex-col gap-6 bg-[#0E0E12] border border-[#222228] rounded-xl p-6 shadow-xs text-[#F5F5F5]">
-      {/* Sub-tab Navigation */}
       <div className="flex items-center justify-between pb-4 border-b border-[#222228] flex-wrap gap-3">
         <div className="flex items-center gap-1 bg-[#141418] p-1 rounded-lg border border-[#26262B]">
-          <button
-            onClick={() => setActiveSubTab('ranker')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activeSubTab === 'ranker'
-                ? 'bg-[#2563EB] text-white'
-                : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Multi-Feature Ranker</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('capsules')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activeSubTab === 'capsules'
-                ? 'bg-[#2563EB] text-white'
-                : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Multi-Interest Capsules</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('bandits')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activeSubTab === 'bandits'
-                ? 'bg-[#2563EB] text-white'
-                : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>Contextual Bandits (LinUCB)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('steering')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-              activeSubTab === 'steering'
-                ? 'bg-[#2563EB] text-white'
-                : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
-            }`}
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span>Vector Steering</span>
-          </button>
+          {[
+            { id: 'ranker' as const, label: 'Multi-Feature Ranker', icon: Sliders },
+            { id: 'capsules' as const, label: 'Multi-Interest Capsules', icon: Layers },
+            { id: 'bandits' as const, label: 'Contextual Bandits (LinUCB)', icon: Zap },
+            { id: 'steering' as const, label: 'Vector Steering', icon: Compass },
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveSubTab(id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === id ? 'bg-[#2563EB] text-white' : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{label}</span>
+            </button>
+          ))}
         </div>
-
         <div className="flex items-center gap-2 text-xs font-mono text-[#10B981]">
           <span className="w-2 h-2 rounded-full bg-[#10B981]" />
           <span>AIL Core Engine Active</span>
         </div>
       </div>
 
-      {/* SUB-VIEW 1: MULTI-FEATURE RANKER */}
       {activeSubTab === 'ranker' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sliders Column */}
           <div className="bg-[#101020] border border-[#1e1e35] p-5 rounded-2xl flex flex-col gap-4">
             <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider block">
               Ranker Weight Parameters
             </span>
-
-            <div>
-              <div className="flex justify-between text-xs font-mono mb-1">
-                <span className="text-[#a0a0be]">α Semantic Cosine</span>
-                <span className="text-cyan-400 font-bold">{rankingConfig.alpha.toFixed(2)}</span>
+            {[
+              { label: 'α Semantic Cosine', val: rankingConfig.alpha, key: 'alpha' as const, color: 'text-cyan-400' },
+              { label: 'δ User History Affinity', val: rankingConfig.delta, key: 'delta' as const, color: 'text-purple-400' },
+              { label: 'β Popularity Score', val: rankingConfig.beta, key: 'beta' as const, color: 'text-emerald-400' },
+            ].map((s) => (
+              <div key={s.key}>
+                <div className="flex justify-between text-xs font-mono mb-1">
+                  <span className="text-[#a0a0be]">{s.label}</span>
+                  <span className={`${s.color} font-bold`}>{s.val.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range" min="0" max="1" step="0.05" value={s.val}
+                  onChange={(e) => setRankingConfig({ ...rankingConfig, [s.key]: parseFloat(e.target.value) })}
+                  className="w-full accent-cyan-400 h-1.5 bg-[#18182e] rounded-lg"
+                />
               </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={rankingConfig.alpha}
-                onChange={(e) => setRankingConfig({ ...rankingConfig, alpha: parseFloat(e.target.value) })}
-                className="w-full accent-cyan-400 h-1.5 bg-[#18182e] rounded-lg"
-              />
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs font-mono mb-1">
-                <span className="text-[#a0a0be]">δ User History Affinity</span>
-                <span className="text-purple-400 font-bold">{rankingConfig.delta.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={rankingConfig.delta}
-                onChange={(e) => setRankingConfig({ ...rankingConfig, delta: parseFloat(e.target.value) })}
-                className="w-full accent-purple-400 h-1.5 bg-[#18182e] rounded-lg"
-              />
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs font-mono mb-1">
-                <span className="text-[#a0a0be]">β Popularity Score</span>
-                <span className="text-emerald-400 font-bold">{rankingConfig.beta.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={rankingConfig.beta}
-                onChange={(e) => setRankingConfig({ ...rankingConfig, beta: parseFloat(e.target.value) })}
-                className="w-full accent-emerald-400 h-1.5 bg-[#18182e] rounded-lg"
-              />
-            </div>
-
+            ))}
             <div>
               <div className="flex justify-between text-xs font-mono mb-1">
                 <span className="text-[#a0a0be]">λ SMMR Diversity Balance</span>
                 <span className="text-rose-400 font-bold">{smmrConfig.lambda.toFixed(2)}</span>
               </div>
               <input
-                type="range"
-                min="0.1"
-                max="0.95"
-                step="0.05"
-                value={smmrConfig.lambda}
+                type="range" min="0.1" max="0.95" step="0.05" value={smmrConfig.lambda}
                 onChange={(e) => setSmmrConfig({ ...smmrConfig, lambda: parseFloat(e.target.value) })}
                 className="w-full accent-rose-400 h-1.5 bg-[#18182e] rounded-lg"
               />
             </div>
           </div>
 
-          {/* Results Column */}
           <div className="lg:col-span-2 flex flex-col gap-3">
             <span className="text-xs font-mono text-[#8a8aa3] uppercase tracking-wider block mb-1">
               Top Adaptive Recommendations (Composite Scoring)
             </span>
-
             {rankedResults.map((res, idx) => (
               <div
                 key={res.item.id}
@@ -347,135 +222,33 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
         </div>
       )}
 
-      {/* SUB-VIEW 2: MULTI-INTEREST CAPSULES */}
-      {activeSubTab === 'capsules' && (
-        <div className="flex flex-col gap-4">
-          <p className="text-xs text-[#8a8aa3]">
-            MIND / ComiRec-DR dynamic routing partitions the user's sequential history into isolated interest vectors instead of blurring them into one single centroid.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {capsuleProfile?.interestEmbeddings.map((emb, idx) => {
-              const weight = capsuleProfile.interestWeights[idx] || 0;
-              const cats = capsuleProfile.interestCategories[idx] || [];
-
-              return (
-                <div
-                  key={idx}
-                  className="p-4 rounded-xl border border-purple-500/30 bg-purple-950/15 flex flex-col gap-2.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-purple-400">CAPSULE #{idx + 1}</span>
-                    <span className="text-xs font-mono text-white font-bold">{(weight * 100).toFixed(1)}%</span>
-                  </div>
-                  <div className="w-full bg-[#141424] rounded-full h-1.5 overflow-hidden">
-                    <div className="h-full bg-purple-400 rounded-full" style={{ width: `${weight * 100}%` }} />
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {cats.map((c) => (
-                      <span key={c} className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#18182e] text-white">
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* SUB-VIEW 3: CONTEXTUAL BANDITS */}
+      {activeSubTab === 'capsules' && <CapsulesSubView capsuleProfile={capsuleProfile} />}
       {activeSubTab === 'bandits' && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-[#8a8aa3]">
-              LinUCB dynamically explores unpulled items by adding an upper confidence bound bonus (α·σ) to expected reward.
-            </p>
-            <div className="flex items-center gap-1 bg-[#121222] p-1 rounded-lg border border-[#202036]">
-              <button
-                onClick={() => setBanditStrategy('linucb')}
-                className={`px-2.5 py-1 text-xs font-mono rounded ${
-                  banditStrategy === 'linucb' ? 'bg-amber-500/20 text-amber-300' : 'text-[#8a8aa3]'
-                }`}
-              >
-                LinUCB
-              </button>
-              <button
-                onClick={() => setBanditStrategy('thompson')}
-                className={`px-2.5 py-1 text-xs font-mono rounded ${
-                  banditStrategy === 'thompson' ? 'bg-purple-500/20 text-purple-300' : 'text-[#8a8aa3]'
-                }`}
-              >
-                Thompson
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {catalog.slice(0, 4).map((it) => {
-              const score = banditExplorer.predictArm(String(it.id), new Float32Array([1.0, 0.5, 0.2, 0.8]));
-              const arm = banditExplorer.getArmState(String(it.id));
-
-              return (
-                <div key={it.id} className="p-3.5 rounded-xl bg-[#121222] border border-[#1e1e32] flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-white">{it.title.slice(0, 18)}...</span>
-                    <span className="text-xs font-mono text-amber-400 font-bold">{score.finalScore.toFixed(2)}</span>
-                  </div>
-                  <div className="text-[10px] font-mono text-[#8a8aa3]">
-                    Expected: {score.expectedReward.toFixed(2)} · Pulls: {arm?.pulls || 0}
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 mt-2">
-                    <button
-                      onClick={() => handleBanditAction(String(it.id), 'click')}
-                      className="py-1 px-1 bg-cyan-950/40 text-cyan-400 border border-cyan-800/40 rounded text-[10px] font-mono"
-                    >
-                      Click
-                    </button>
-                    <button
-                      onClick={() => handleBanditAction(String(it.id), 'purchase')}
-                      className="py-1 px-1 bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 rounded text-[10px] font-mono"
-                    >
-                      Buy
-                    </button>
-                    <button
-                      onClick={() => handleBanditAction(String(it.id), 'dislike')}
-                      className="py-1 px-1 bg-rose-950/40 text-rose-400 border border-rose-800/40 rounded text-[10px] font-mono"
-                    >
-                      Skip
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <BanditsSubView
+          catalog={catalog}
+          banditStrategy={banditStrategy}
+          banditExplorer={banditExplorer}
+          banditEventCount={banditEvents.length}
+          onChangeStrategy={setBanditStrategy}
+          onBanditAction={handleBanditAction}
+        />
       )}
-
-      {/* SUB-VIEW 4: VECTOR STEERING */}
       {activeSubTab === 'steering' && (
-        <div className="flex flex-col gap-4">
-          <p className="text-xs text-[#8a8aa3]">
-            Vector Steering applies directional arithmetic to modify queries with positive and negative concept modifiers while respecting angular safety bounds.
-          </p>
-
-          <div className="space-y-2">
-            {steeringModifiers.map((mod, i) => (
-              <div key={i} className="p-2.5 rounded-xl bg-[#121222] border border-[#1e1e32] flex items-center justify-between">
-                <span className="text-xs font-mono text-white">
-                  {mod.type === 'positive' ? '🟢 + ' : '🔴 - '} {mod.label} (weight: {mod.weight})
-                </span>
-                <button
-                  onClick={() => setSteeringModifiers(steeringModifiers.filter((_, idx) => idx !== i))}
-                  className="text-xs text-[#6c6c88] hover:text-rose-400"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <SteeringSubView
+          currentSeed={currentSeed}
+          catalog={catalog}
+          embeddings={embeddings}
+          steeringModifiers={steeringModifiers}
+          onAddModifier={(label, type) =>
+            setSteeringModifiers((prev) => [
+              ...prev,
+              { label, type, weight: 0.6, vector: computeTextEmbedding(`query: ${label}`) },
+            ])
+          }
+          onRemoveModifier={(idx) =>
+            setSteeringModifiers((prev) => prev.filter((_, i) => i !== idx))
+          }
+        />
       )}
     </div>
   );

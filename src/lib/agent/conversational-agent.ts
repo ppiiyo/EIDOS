@@ -1,13 +1,11 @@
-/**
- * Rule-based Conversational Agent поверх @eidos/core.
- * Без LLM. Использует реальный векторный поиск и векторный сдвиг.
- */
+import { cosineSimilarity, SecurityGuardrails } from '@eidos/core';
 import { CatalogItem } from '../../types';
 
-export interface AgentTurn {
-  role: 'user' | 'agent';
-  text: string;
+export interface AgentMessage {
+  role: 'user' | 'assistant';
+  content: string;
   timestamp: number;
+  recommendedItems?: CatalogItem[];
 }
 
 export interface AgentResponse {
@@ -16,212 +14,274 @@ export interface AgentResponse {
   explanation?: string;
 }
 
-// ── Простой NLU: извлечение интентов и сущностей ───────────────────────────
-
-type Intent = 'search' | 'similar' | 'cheaper' | 'expensive'
-            | 'category' | 'modify' | 'help' | 'unknown';
-
-interface ParsedQuery {
-  intent: Intent;
+interface ParsedIntent {
+  type: 'recommend' | 'search' | 'similar' | 'filter' | 'greeting' | 'unknown';
+  categoryAliases?: string[];
+  maxPrice?: number;
+  minPrice?: number;
+  referenceItemTitle?: string;
   keywords: string[];
-  priceConstraint?: { op: 'lt' | 'gt' | 'eq'; value: number };
-  category?: string;
 }
 
-const INTENT_RULES: { intent: Intent; patterns: RegExp[] }[] = [
-  { intent: 'cheaper',   patterns: [/дешевле|дешёв|бюджет|до (\d+)/i] },
-  { intent: 'expensive', patterns: [/дороже|премиум|люкс|от (\d+)/i] },
-  { intent: 'similar',   patterns: [/похож|как этот|аналог|подобн|похожие на (.+)/i] },
-  { intent: 'category',  patterns: [/категори|раздел|покажи (все )?(.+)/i] },
-  { intent: 'modify',    patterns: [/но |как .+ но|более|менее|строже|темнее|светлее/i] },
-  { intent: 'help',      patterns: [/помощь|что ты|как работает|что умеешь/i] },
-  { intent: 'search',    patterns: [/найди|покажи|ищу|хочу|нужен|нужна|подбери/i] },
+const MULTILINGUAL_CATEGORY_MAP: Array<{ triggers: string[]; aliases: string[] }> = [
+  {
+    triggers: ['электроник', 'гаджет', 'ноутбук', 'смартфон', 'наушник', 'electronics', 'gadget', 'laptop', 'audio'],
+    aliases: ['электроника', 'техника', 'electronics', 'hardware', 'audio'],
+  },
+  {
+    triggers: ['книг', 'литератур', 'чтени', 'book', 'reading'],
+    aliases: ['книги', 'books', 'education'],
+  },
+  {
+    triggers: ['фильм', 'кино', 'сериал', 'movie', 'cinema', 'sci-fi', 'фантастик'],
+    aliases: ['фильмы', 'movies', 'sci-fi', 'cinema', 'thriller', 'documentary'],
+  },
+  {
+    triggers: ['игр', 'гейм', 'game', 'gaming', 'rpg'],
+    aliases: ['игры', 'games', 'gaming', 'anime'],
+  },
+  {
+    triggers: ['одежд', 'пальто', 'кроссовк', 'fashion', 'clothing', 'спорт', 'sport'],
+    aliases: ['одежда', 'спорт', 'fashion', 'clothing', 'sport'],
+  },
+  {
+    triggers: ['кофе', 'дом', 'быт', 'coffee', 'home'],
+    aliases: ['техника', 'дом', 'coffee', 'lifestyle'],
+  },
 ];
 
-export function parseQuery(raw: string): ParsedQuery {
-  const q = raw.trim().toLowerCase();
-  let intent: Intent = 'search';
-
-  for (const rule of INTENT_RULES) {
-    if (rule.patterns.some(p => p.test(q))) { intent = rule.intent; break; }
-  }
-
-  // Извлечение цены
-  const priceMatch = q.match(/(?:до|дешевле|бюджет)\s*(\d[\d\s]*)/);
-  const priceConstraint = priceMatch
-    ? { op: 'lt' as const, value: parseInt(priceMatch[1].replace(/\s/g,''), 10) }
-    : undefined;
-
-  // Ключевые слова (убираем стоп-слова)
-  const stopWords = new Set(['найди','покажи','ищу','хочу','нужен','нужна',
-    'как','но','более','менее','похожие','похож','на','все','мне','подбери',
-    'что','есть','какие','где','как','это','этот','эта','эти']);
-  const keywords = q
-    .replace(/[^a-zа-яё0-9\s]/gi, '')
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !stopWords.has(w));
-
-  return { intent, keywords, priceConstraint };
+function parseItemNumericPrice(priceStr?: string | number): number | null {
+  if (typeof priceStr === 'number') return Number.isFinite(priceStr) ? priceStr : null;
+  if (!priceStr) return null;
+  const cleaned = String(priceStr).replace(/\s+/g, '').replace(/,/g, '.');
+  const match = cleaned.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const val = parseFloat(match[1]);
+  return Number.isFinite(val) ? val : null;
 }
 
-// ── Основной агент ─────────────────────────────────────────────────────────
-
 export class ConversationalAgent {
-  private history: AgentTurn[] = [];
-  private lastResults: CatalogItem[] = [];
-  private maxHistory = 20;
+  private items: CatalogItem[] = [];
+  private embeddings = new Map<string, Float32Array>();
+  private embedFn: (text: string) => Promise<Float32Array>;
+  private history: AgentMessage[] = [];
+  private lastCategoryAliases: string[] | undefined;
+  private lastSemanticQuery = '';
 
   constructor(
-    private catalog: CatalogItem[],
-    private searchFn: (query: string, limit?: number) => Promise<CatalogItem[]>,
-  ) {}
-
-  /** Обновить каталог (например после добавления товара) */
-  setCatalog(catalog: CatalogItem[]) {
-    this.catalog = catalog;
-  }
-
-  getHistory(): AgentTurn[] { return [...this.history]; }
-  clearHistory() { this.history = []; this.lastResults = []; }
-
-  async respond(raw: string): Promise<AgentResponse> {
-    const parsed = parseQuery(raw);
-    this.addTurn('user', raw);
-
-    let response: AgentResponse;
-
-    switch (parsed.intent) {
-      case 'help':
-        response = this.helpResponse(); break;
-      case 'cheaper':
-        response = this.filterByPrice(parsed, 'lt'); break;
-      case 'expensive':
-        response = this.filterByPrice(parsed, 'gt'); break;
-      case 'similar':
-        response = await this.similarItems(raw, parsed); break;
-      case 'modify':
-        response = await this.modifyLastResults(raw, parsed); break;
-      case 'category':
-        response = this.filterByCategory(parsed); break;
-      case 'search':
-      default:
-        response = await this.searchItems(raw, parsed); break;
-    }
-
-    this.lastResults = response.items;
-    this.addTurn('agent', response.text);
-    return response;
-  }
-
-  private addTurn(role: AgentTurn['role'], text: string) {
-    this.history.push({ role, text, timestamp: Date.now() });
-    if (this.history.length > this.maxHistory) this.history.shift();
-  }
-
-  // ── Реализации интентов ──────────────────────────────────────────────────
-
-  private helpResponse(): AgentResponse {
-    return {
-      text: 'Я могу: искать товары по смыслу, находить похожие, фильтровать по цене и категории. Попробуйте: «найди механическую клавиатуру до 10000».',
-      items: [],
-    };
-  }
-
-  private async searchItems(raw: string, parsed: ParsedQuery): Promise<AgentResponse> {
-    const items = await this.searchFn(raw, 10);
-    const filtered = this.applyPriceFilter(items, parsed.priceConstraint);
-
-    if (filtered.length === 0) {
-      return {
-        text: `По запросу «${raw}» ничего не найдено${parsed.priceConstraint ? ` в ценовом диапазоне до ${parsed.priceConstraint.value}` : ''}. Попробуйте переформулировать.`,
-        items: [],
-      };
-    }
-
-    return {
-      text: `Нашёл ${filtered.length} товар(ов) по запросу «${raw}»:`,
-      items: filtered,
-      explanation: 'Семантический поиск по векторным эмбеддингам',
-    };
-  }
-
-  private async similarItems(raw: string, parsed: ParsedQuery): Promise<AgentResponse> {
-    // Берём первый результат из последнего поиска как базу
-    const base = this.lastResults[0] ?? this.catalog[0];
-    if (!base) return { text: 'Каталог пуст.', items: [] };
-
-    const items = await this.searchFn(base.title, 10);
-    const filtered = items
-      .filter(i => i.id !== base.id)
-      .slice(0, 6);
-
-    return {
-      text: `Похожие на «${base.title}»:`,
-      items: filtered,
-      explanation: `Векторная близость к «${base.title}»`,
-    };
-  }
-
-  private async modifyLastResults(raw: string, parsed: ParsedQuery): Promise<AgentResponse> {
-    // Повторный поиск с уточнённым запросом
-    const items = await this.searchFn(raw, 8);
-    return {
-      text: `Уточнённые результаты:`,
-      items,
-      explanation: 'Запрос переформулирован с учётом модификаторов',
-    };
-  }
-
-  private parseNumericPrice(priceStr?: string | number): number {
-    if (typeof priceStr === 'number') return priceStr;
-    if (!priceStr) return 0;
-    const num = parseFloat(priceStr.replace(/[^0-9.]/g, ''));
-    return isNaN(num) ? 0 : num;
-  }
-
-  private filterByPrice(parsed: ParsedQuery, op: 'lt'|'gt'): AgentResponse {
-    const value = parsed.priceConstraint?.value ?? (op === 'lt' ? 1000 : 5000);
-    const constraint = { op, value };
-    const items = this.applyPriceFilter(
-      this.lastResults.length > 0 ? this.lastResults : this.catalog,
-      constraint,
-    );
-    const label = op === 'lt' ? `дешевле ${value}` : `дороже ${value}`;
-    return {
-      text: items.length > 0
-        ? `Нашёл ${items.length} товар(ов) ${label}:`
-        : `Нет товаров ${label}.`,
-      items,
-      explanation: `Фильтр: цена ${op === 'lt' ? '<' : '>'} ${value}`,
-    };
-  }
-
-  private filterByCategory(parsed: ParsedQuery): AgentResponse {
-    const keyword = parsed.keywords.find(k =>
-      this.catalog.some(i => i.category.toLowerCase().includes(k))
-    );
-    if (!keyword) return { text: 'Не удалось определить категорию.', items: [] };
-
-    const items = this.catalog.filter(i =>
-      i.category.toLowerCase().includes(keyword)
-    );
-    return {
-      text: `Товары в категории «${keyword}»:`,
-      items,
-      explanation: `Фильтр по категории: ${keyword}`,
-    };
-  }
-
-  private applyPriceFilter(
     items: CatalogItem[],
-    constraint?: { op: string; value: number },
-  ): CatalogItem[] {
-    if (!constraint) return items;
-    return items.filter(i => {
-      const p = this.parseNumericPrice(i.price);
-      return constraint.op === 'lt' ? p <= constraint.value
-        : constraint.op === 'gt' ? p >= constraint.value
-        : true;
+    embeddings: Map<string, Float32Array>,
+    embedFn: (text: string) => Promise<Float32Array>
+  ) {
+    this.items = items;
+    this.embeddings = embeddings;
+    this.embedFn = embedFn;
+  }
+
+  public updateCatalog(items: CatalogItem[], embeddings: Map<string, Float32Array>): void {
+    this.items = items;
+    this.embeddings = embeddings;
+  }
+
+  private extractIntent(rawText: string): ParsedIntent {
+    const lower = rawText.toLowerCase().trim();
+
+    if (/^(hi|hello|hey|привет|здравствуй|добрый день)\b/.test(lower) && lower.split(/\s+/).length <= 3) {
+      return { type: 'greeting', keywords: [] };
+    }
+
+    let categoryAliases: string[] | undefined;
+    for (const group of MULTILINGUAL_CATEGORY_MAP) {
+      if (group.triggers.some((t) => lower.includes(t))) {
+        categoryAliases = group.aliases;
+        break;
+      }
+    }
+
+    let maxPrice: number | undefined;
+    let minPrice: number | undefined;
+
+    const underMatch = lower.match(
+      /(?:under|below|less than|cheaper than|max|до|дешевле|меньше|не дороже)\s*\$?(\d+(?:\s*\d+)*)/
+    );
+    if (underMatch) {
+      maxPrice = parseFloat(underMatch[1].replace(/\s+/g, ''));
+    }
+
+    const overMatch = lower.match(
+      /(?:over|above|more than|min|от|дороже|больше)\s*\$?(\d+(?:\s*\d+)*)/
+    );
+    if (overMatch) {
+      minPrice = parseFloat(overMatch[1].replace(/\s+/g, ''));
+    }
+
+    let referenceItemTitle: string | undefined;
+    for (const item of this.items) {
+      if (lower.includes(item.title.toLowerCase())) {
+        referenceItemTitle = item.title;
+        break;
+      }
+    }
+
+    const stopWords = new Set([
+      'find', 'show', 'me', 'recommend', 'suggest', 'looking', 'for', 'something', 'like', 'similar', 'to',
+      'a', 'an', 'the', 'in', 'with', 'and', 'or', 'under', 'over', 'below', 'above',
+      'покажи', 'найди', 'посоветуй', 'подбери', 'что-то', 'похожее', 'на', 'для', 'до', 'дешевле', 'рублей', 'руб', 'а',
+    ]);
+    const keywords = lower
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !stopWords.has(w) && !/^\d+$/.test(w));
+
+    let type: ParsedIntent['type'] = 'search';
+    if (referenceItemTitle && /(similar|like|похож|вроде|как)/.test(lower)) {
+      type = 'similar';
+    } else if (maxPrice !== undefined || minPrice !== undefined) {
+      type = 'filter';
+    } else if (/(recommend|suggest|посоветуй|подбери|порекомендуй)/.test(lower)) {
+      type = 'recommend';
+    }
+
+    return {
+      type,
+      categoryAliases,
+      maxPrice,
+      minPrice,
+      referenceItemTitle,
+      keywords,
+    };
+  }
+
+  public async respond(userMessage: string): Promise<AgentResponse> {
+    const scan = SecurityGuardrails.scanAndSanitize(userMessage);
+    const cleanMessage = scan.sanitizedInput || userMessage.replace(/[<>]/g, '');
+
+    this.history.push({ role: 'user', content: cleanMessage, timestamp: Date.now() });
+
+    const intent = this.extractIntent(cleanMessage);
+
+    if (intent.type === 'greeting') {
+      const text =
+        'Привет! Я семантический NLU-агент Eidos. Опишите концепт, жанр, категорию или бюджет (например: «найди электронику для работы» или «а дешевле 15000 рублей»).';
+      this.history.push({ role: 'assistant', content: text, timestamp: Date.now() });
+      return { text, items: [] };
+    }
+
+    // Multi-turn context inheritance: if user refines only price ("а дешевле 15000"), keep previous category/query context
+    const activeCategoryAliases = intent.categoryAliases ?? this.lastCategoryAliases;
+    if (intent.categoryAliases) {
+      this.lastCategoryAliases = intent.categoryAliases;
+    }
+
+    const semanticQuery =
+      intent.keywords.length > 0
+        ? intent.keywords.join(' ')
+        : this.lastSemanticQuery || cleanMessage;
+    if (intent.keywords.length > 0) {
+      this.lastSemanticQuery = semanticQuery;
+    }
+
+    let candidates = [...this.items];
+
+    if (activeCategoryAliases && activeCategoryAliases.length > 0) {
+      const catFiltered = candidates.filter((item) => {
+        const itemCat = item.category.toLowerCase();
+        return activeCategoryAliases.some((alias) => itemCat.includes(alias));
+      });
+      if (catFiltered.length > 0) {
+        candidates = catFiltered;
+      }
+    }
+
+    if (intent.maxPrice !== undefined) {
+      candidates = candidates.filter((item) => {
+        const p = parseItemNumericPrice(item.price);
+        return p !== null && p <= intent.maxPrice!;
+      });
+    }
+
+    if (intent.minPrice !== undefined) {
+      candidates = candidates.filter((item) => {
+        const p = parseItemNumericPrice(item.price);
+        return p !== null && p >= intent.minPrice!;
+      });
+    }
+
+    if (candidates.length === 0) {
+      const text = `По запросу «${cleanMessage}» не найдено позиций в заданных рамках бюджета. Попробуйте расширить ценовой диапазон.`;
+      this.history.push({ role: 'assistant', content: text, timestamp: Date.now() });
+      return { text, items: [] };
+    }
+
+    if (intent.type === 'similar' && intent.referenceItemTitle) {
+      const refItem = this.items.find((i) => i.title === intent.referenceItemTitle);
+      if (refItem && this.embeddings.has(String(refItem.id))) {
+        const refVec = Array.from(this.embeddings.get(String(refItem.id))!);
+        const scored = candidates
+          .filter((i) => i.id !== refItem.id && this.embeddings.has(String(i.id)))
+          .map((item) => ({
+            item,
+            score: cosineSimilarity(refVec, Array.from(this.embeddings.get(String(item.id))!)),
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 4);
+
+        const items = scored.map((s) => s.item);
+        const text = `Позиции, семантически близкие к «${refItem.title}» в 384-мерном пространстве:`;
+        this.history.push({
+          role: 'assistant',
+          content: text,
+          timestamp: Date.now(),
+          recommendedItems: items,
+        });
+        return {
+          text,
+          items,
+          explanation: `Ранжировано по косинусному сходству 384-d векторов к «${refItem.title}»`,
+        };
+      }
+    }
+
+    const queryVec = Array.from(await this.embedFn(semanticQuery));
+    const scored = candidates
+      .filter((i) => this.embeddings.has(String(i.id)))
+      .map((item) => ({
+        item,
+        score: cosineSimilarity(queryVec, Array.from(this.embeddings.get(String(item.id))!)),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4);
+
+    const items = scored.map((s) => s.item);
+    const filterNotes: string[] = [];
+    if (activeCategoryAliases) filterNotes.push(`категория: ${activeCategoryAliases[0]}`);
+    if (intent.maxPrice !== undefined) filterNotes.push(`до ${intent.maxPrice.toLocaleString('ru-RU')} ₽`);
+    if (intent.minPrice !== undefined) filterNotes.push(`от ${intent.minPrice.toLocaleString('ru-RU')} ₽`);
+
+    const text = `Найдено ${items.length} релевантных позиций по запросу «${cleanMessage}»${
+      filterNotes.length ? ` (${filterNotes.join(', ')})` : ''
+    }:`;
+    this.history.push({
+      role: 'assistant',
+      content: text,
+      timestamp: Date.now(),
+      recommendedItems: items,
     });
+
+    return {
+      text,
+      items,
+      explanation: `Семантический 384-d поиск по ${candidates.length} кандидатам`,
+    };
+  }
+
+  public getHistory(): AgentMessage[] {
+    return [...this.history];
+  }
+
+  public clearHistory(): void {
+    this.history = [];
+    this.lastCategoryAliases = undefined;
+    this.lastSemanticQuery = '';
   }
 }

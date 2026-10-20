@@ -119,13 +119,18 @@ function normalizeL2(vec: Float32Array): Float32Array {
 
 /**
  * Computes cosine distance (1 - cosine_similarity).
- * Guaranteed to be >= 0.
+ * Guaranteed to be >= 0. Throws RangeError on dimension mismatch.
  */
 function cosineDistance(a: Float32Array, b: Float32Array): number {
+  if (a.length !== b.length) {
+    throw new RangeError(
+      `HNSW vector dimension mismatch: expected ${a.length}, got ${b.length}`
+    );
+  }
   let dot = 0;
   let normA = 0;
   let normB = 0;
-  const len = Math.min(a.length, b.length);
+  const len = a.length;
 
   for (let i = 0; i < len; i++) {
     const valA = a[i];
@@ -139,6 +144,17 @@ function cosineDistance(a: Float32Array, b: Float32Array): number {
   if (denominator <= 1e-12) return 1.0;
   const cos = dot / denominator;
   return Math.max(0.0, 1.0 - cos);
+}
+
+function assertFiniteFloat32Vector(vec: Float32Array, label: string): void {
+  if (!vec || vec.length === 0) {
+    throw new RangeError(`${label} must be a non-empty Float32Array`);
+  }
+  for (let i = 0; i < vec.length; i++) {
+    if (!Number.isFinite(vec[i])) {
+      throw new RangeError(`${label} contains non-finite coordinate at index ${i}`);
+    }
+  }
 }
 
 /**
@@ -156,6 +172,7 @@ function quantizedCosineDistance(a: QuantizedVector, b: QuantizedVector): number
 export class HNSWIndex {
   private readonly config: HNSWConfig;
   private readonly mL: number;
+  private dimension: number | null = null;
   private nodes = new Map<string, HNSWNode>();
   private idToInternal = new Map<string, number>();
   private internalToId: string[] = [];
@@ -165,11 +182,31 @@ export class HNSWIndex {
   private maxLevel = -1;
 
   constructor(config?: Partial<HNSWConfig>) {
+    const M = config?.M ?? 16;
+    const M0 = config?.M0 ?? M * 2;
+    const efConstruction = config?.efConstruction ?? Math.max(64, M * 2);
+    const efSearch = config?.efSearch ?? 32;
+
+    if (!Number.isFinite(M) || M < 2) {
+      throw new RangeError(`HNSWConfig.M must be a finite integer >= 2, got ${M}`);
+    }
+    if (!Number.isFinite(M0) || M0 < M) {
+      throw new RangeError(`HNSWConfig.M0 must be >= M (${M}), got ${M0}`);
+    }
+    if (!Number.isFinite(efConstruction) || efConstruction < M) {
+      throw new RangeError(
+        `HNSWConfig.efConstruction (${efConstruction}) must be >= M (${M})`
+      );
+    }
+    if (!Number.isFinite(efSearch) || efSearch < 1) {
+      throw new RangeError(`HNSWConfig.efSearch must be >= 1, got ${efSearch}`);
+    }
+
     this.config = {
-      M: config?.M ?? 16,
-      M0: config?.M0 ?? 32,
-      efConstruction: config?.efConstruction ?? 64,
-      efSearch: config?.efSearch ?? 32,
+      M,
+      M0,
+      efConstruction,
+      efSearch,
       useQuantization: config?.useQuantization ?? false,
     };
     this.mL = 1.0 / Math.log(this.config.M);
@@ -326,8 +363,17 @@ export class HNSWIndex {
    * Inserts an item into the HNSW graph.
    */
   public insert(id: string, vector: Float32Array): void {
+    assertFiniteFloat32Vector(vector, `HNSW insert vector (${id})`);
+    if (this.dimension !== null && vector.length !== this.dimension) {
+      throw new RangeError(
+        `HNSW insert dimension mismatch for '${id}': expected ${this.dimension}, got ${vector.length}`
+      );
+    }
     if (this.nodes.has(id)) {
       return;
+    }
+    if (this.dimension === null) {
+      this.dimension = vector.length;
     }
 
     const normVec = normalizeL2(vector);
@@ -453,6 +499,19 @@ export class HNSWIndex {
    * Searches the HNSW index for the K approximate nearest neighbors.
    */
   public search(query: Float32Array, k = 10, efSearch?: number): HNSWSearchResult[] {
+    if (!Number.isFinite(k) || k < 1) {
+      throw new RangeError(`HNSW search k must be >= 1, got ${k}`);
+    }
+    if (efSearch !== undefined && (!Number.isFinite(efSearch) || efSearch < 1)) {
+      throw new RangeError(`HNSW search efSearch must be >= 1, got ${efSearch}`);
+    }
+    assertFiniteFloat32Vector(query, 'HNSW query vector');
+    if (this.dimension !== null && query.length !== this.dimension) {
+      throw new RangeError(
+        `HNSW query dimension mismatch: expected ${this.dimension}, got ${query.length}`
+      );
+    }
+
     if (this.entryPointId === null || this.nodes.size === 0) {
       return [];
     }
@@ -609,6 +668,7 @@ export class HNSWIndex {
 
     this.entryPointId = entryPointId;
     this.maxLevel = maxLevel;
+    this.dimension = nodes.length > 0 ? nodes[0].vector.length : null;
   }
 
   public getMemoryStats(): {
@@ -617,7 +677,7 @@ export class HNSWIndex {
     internalIdCount: number;
   } {
     const nodeCount = this.nodes.size;
-    const dimension = 384;
+    const dimension = this.dimension ?? 384;
     const avgFriendsPerNode = this.config.M;
     const bytesPerNode = 40 + (dimension * 4) + (avgFriendsPerNode * 4); // Phase 2: Int32 is 4 bytes vs string overhead
     const estimatedBytes = nodeCount * bytesPerNode;
@@ -637,5 +697,6 @@ export class HNSWIndex {
     this.nextInternalId = 0;
     this.entryPointId = null;
     this.maxLevel = -1;
+    this.dimension = null;
   }
 }

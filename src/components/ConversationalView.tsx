@@ -40,8 +40,8 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
   };
 
   return (
-    <div className="page" style={{ maxWidth: 840 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+    <div className="page max-w-[840px]">
+      <div className="flex justify-between items-center mb-5">
         <div>
           <h1 className="page-title">Conversational Vector NLU Agent</h1>
           <p className="page-sub">
@@ -54,26 +54,14 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
       </div>
 
       {/* Chat Stream */}
-      <div
-        className="card"
-        style={{
-          padding: 20,
-          marginBottom: 16,
-          minHeight: 380,
-          maxHeight: '62vh',
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-        }}
-      >
+      <div className="card p-5 mb-4 min-h-[380px] max-h-[62vh] overflow-y-auto flex flex-col gap-3.5">
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text-sec)' }}>
-            <Bot size={32} style={{ margin: '0 auto 12px', color: 'var(--accent)' }} />
-            <p style={{ fontSize: '0.875rem', marginBottom: 14 }}>
+          <div className="text-center py-12 px-4 text-[var(--text-sec)]">
+            <Bot size={32} className="mx-auto mb-3 text-[var(--accent)]" />
+            <p className="text-sm mb-3.5">
               Ask for products by concept, budget, or similarity anchor:
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+            <div className="flex flex-wrap gap-2 justify-center">
               {[
                 'подбери научно-фантастические фильмы о космосе и времени',
                 'найди гаджеты и технику для работы до 30000 рублей',
@@ -97,79 +85,42 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
           return (
             <div
               key={i}
-              style={{
-                display: 'flex',
-                gap: 10,
-                flexDirection: isUser ? 'row-reverse' : 'row',
-              }}
+              className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
             >
               <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: '50%',
-                  flexShrink: 0,
-                  background: isUser ? 'var(--accent)' : 'var(--bg-alt)',
-                  border: '1px solid var(--border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                className={`w-[30px] h-[30px] rounded-full shrink-0 border border-[var(--border)] flex items-center justify-center ${
+                  isUser ? 'bg-[var(--accent)]' : 'bg-[var(--bg-alt)]'
+                }`}
               >
                 {isUser ? <User size={14} color="#fff" /> : <Bot size={14} color="var(--accent)" />}
               </div>
-              <div style={{ maxWidth: '78%' }}>
+              <div className="max-w-[78%]">
                 <div
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    fontSize: '0.875rem',
-                    background: isUser ? 'var(--accent)' : 'var(--bg-alt)',
-                    color: isUser ? '#fff' : 'var(--text)',
-                    border: isUser ? 'none' : '1px solid var(--border)',
-                  }}
+                  className={`px-3.5 py-2.5 rounded-[10px] text-sm ${
+                    isUser
+                      ? 'bg-[var(--accent)] text-white'
+                      : 'bg-[var(--bg-alt)] text-[var(--text)] border border-[var(--border)]'
+                  }`}
                 >
                   {msg.text}
                 </div>
 
                 {msg.items.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                  <div className="flex flex-col gap-2 mt-2">
                     {msg.items.map((item) => (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => onSelectItem?.(item)}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '10px 14px',
-                          borderRadius: 8,
-                          width: '100%',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          fontSize: '0.875rem',
-                        }}
+                        className="flex justify-between items-center px-3.5 py-2.5 rounded-lg w-full bg-[var(--surface)] border border-[var(--border)] cursor-pointer text-left text-sm"
                       >
                         <div>
-                          <div style={{ fontWeight: 600, color: 'var(--text)' }}>
+                          <div className="font-semibold text-[var(--text)]">
                             {item.icon} {item.title}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>
-                            {item.category}
-                          </div>
+                          <div className="text-xs text-[var(--text-sec)]">{item.category}</div>
                         </div>
-                        <span
-                          className="mono"
-                          style={{
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                            marginLeft: 12,
-                            color: 'var(--accent)',
-                          }}
-                        >
+                        <span className="mono font-semibold whitespace-nowrap ml-3 text-[var(--accent)]">
                           {item.price || '—'}
                         </span>
                       </button>
@@ -178,9 +129,7 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
                 )}
 
                 {msg.explanation && (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-mut)', marginTop: 4 }}>
-                    {msg.explanation}
-                  </div>
+                  <div className="text-xs text-[var(--text-mut)] mt-1">{msg.explanation}</div>
                 )}
               </div>
             </div>
@@ -188,31 +137,11 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
         })}
 
         {isTyping && (
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: '50%',
-                background: 'var(--bg-alt)',
-                border: '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
+          <div className="flex gap-2.5">
+            <div className="w-[30px] h-[30px] rounded-full bg-[var(--bg-alt)] border border-[var(--border)] flex items-center justify-center">
               <Bot size={14} color="var(--accent)" />
             </div>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRadius: 10,
-                background: 'var(--bg-alt)',
-                border: '1px solid var(--border)',
-                fontSize: '0.875rem',
-                color: 'var(--text-sec)',
-              }}
-            >
+            <div className="px-3.5 py-2.5 rounded-[10px] bg-[var(--bg-alt)] border border-[var(--border)] text-sm text-[var(--text-sec)]">
               Computing 384-d intent vector...
             </div>
           </div>
@@ -221,7 +150,7 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
       </div>
 
       {/* Input */}
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="flex gap-2">
         <input
           className="input"
           value={input}

@@ -3,11 +3,9 @@ import {
   Search,
   Sliders,
   Columns,
-  Boxes,
-  Lightbulb,
-  AlertCircle,
   Globe,
   ShieldCheck,
+  Cpu,
 } from 'lucide-react';
 import { SecurityGuardrails } from '@eidos/core';
 import { CatalogItem } from '../types';
@@ -17,7 +15,9 @@ import {
   detectTextLanguage,
 } from '../utils/recommenderEngine';
 import { trackEvent } from '../lib/analytics/tracker';
+import { EmbeddingEngineState } from '../lib/embeddings';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
+import { SearchResultsColumns } from './search/SearchResultsColumns';
 
 interface SearchViewProps {
   catalog: CatalogItem[];
@@ -25,6 +25,7 @@ interface SearchViewProps {
   onSelectItem: (item: CatalogItem) => void;
   onInspectIn3D: (item: CatalogItem) => void;
   uiLang?: UiLanguage;
+  embeddingState?: EmbeddingEngineState;
 }
 
 export const SearchView: React.FC<SearchViewProps> = ({
@@ -33,6 +34,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onSelectItem,
   onInspectIn3D,
   uiLang = 'ru',
+  embeddingState,
 }) => {
   const t = UI_TRANSLATIONS[uiLang].search;
 
@@ -83,7 +85,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
     const a = targetAlpha ?? alpha;
     if (!raw) return;
 
-    // SecurityGuardrails XSS & Prompt Injection protection
     const scan = SecurityGuardrails.scanAndSanitize(raw);
     const q = scan.sanitizedInput || raw;
     setWasSanitized(!scan.isSafe);
@@ -110,7 +111,6 @@ export const SearchView: React.FC<SearchViewProps> = ({
     }
   };
 
-  // Update query when catalog domain language changes
   useEffect(() => {
     const defaultQ = sampleQueries[0].label;
     setQuery(defaultQ);
@@ -121,17 +121,32 @@ export const SearchView: React.FC<SearchViewProps> = ({
     runSearch(query, alpha);
   }, [alpha, catalog.length]);
 
+  const modelStatusLabel =
+    embeddingState?.status === 'ready'
+      ? 'ONNX Neural Ready (384-d WASM)'
+      : embeddingState?.status === 'loading-model'
+      ? `ONNX Loading (${embeddingState.progress}%) · Hybrid Anchor + BM25 Active`
+      : 'Local 384-d Anchor + BM25 Lexical Active';
+
   return (
     <div className="page">
-      {/* Header */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
+      <div className="flex flex-wrap justify-between items-start gap-4 mb-5">
         <div>
           <h1 className="page-title">{t.title}</h1>
           <p className="page-sub">{t.subtitle}</p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="badge badge-accent" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            data-testid="embedding-status-badge"
+            className={`badge ${
+              embeddingState?.status === 'ready' ? 'badge-success' : 'badge-warning'
+            }`}
+          >
+            <Cpu size={12} />
+            <span>{modelStatusLabel}</span>
+          </span>
+          <span className="badge badge-accent">
             <Globe size={12} />
             <span>
               {t.corpusScript} {dominantLang.toUpperCase()}
@@ -148,65 +163,43 @@ export const SearchView: React.FC<SearchViewProps> = ({
         </div>
       </div>
 
-      {/* Search Bar & Hybrid Alpha Controls */}
-      <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+      <div className="card p-5 mb-5">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             runSearch();
           }}
-          style={{ display: 'flex', gap: 10, marginBottom: 16 }}
+          className="flex gap-2.5 mb-4"
         >
-          <div style={{ position: 'relative', flex: 1 }}>
-            <Search size={16} style={{ position: 'absolute', left: 14, top: 13, color: 'var(--text-sec)' }} />
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3.5 top-3 text-[var(--text-sec)]" />
             <input
               data-testid="search-input"
-              className="input"
-              style={{ paddingLeft: 40, height: 42, fontSize: '0.9375rem' }}
+              className="input pl-10 h-[42px] text-[0.9375rem]"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t.placeholder}
             />
           </div>
-          <button type="submit" className="btn btn-primary" disabled={isLoading || !query.trim()} style={{ height: 42 }}>
+          <button
+            type="submit"
+            className="btn btn-primary h-[42px]"
+            disabled={isLoading || !query.trim()}
+          >
             {isLoading ? t.searchingBtn : t.executeBtn}
           </button>
         </form>
 
         {wasSanitized && (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '4px 10px',
-              borderRadius: 6,
-              background: 'var(--success-bg)',
-              color: 'var(--success)',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              marginBottom: 12,
-            }}
-          >
+          <div className="badge badge-success mb-3">
             <ShieldCheck size={14} />
             <span>{t.securityFilteredBadge}</span>
           </div>
         )}
 
-        {/* Hybrid Mode & Alpha Slider */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-sec)' }}>
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-3.5 border-t border-[var(--border)]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-[var(--text-sec)]">
               {t.modePreset}
             </span>
             {[
@@ -219,21 +212,20 @@ export const SearchView: React.FC<SearchViewProps> = ({
                 key={preset.label}
                 type="button"
                 onClick={() => setAlpha(preset.val)}
-                className="btn btn-sm"
-                style={{
-                  background: Math.abs(alpha - preset.val) < 0.02 ? 'var(--accent)' : 'var(--bg-alt)',
-                  color: Math.abs(alpha - preset.val) < 0.02 ? '#FFFFFF' : 'var(--text-sec)',
-                  borderColor: 'var(--border)',
-                }}
+                className={
+                  Math.abs(alpha - preset.val) < 0.02
+                    ? 'btn btn-primary btn-sm'
+                    : 'btn btn-secondary btn-sm'
+                }
               >
                 {preset.label}
               </button>
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 260 }}>
-            <Sliders size={14} style={{ color: 'var(--text-sec)' }} />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>{t.alphaWeight}</span>
+          <div className="flex items-center gap-2.5 min-w-[260px]">
+            <Sliders size={14} className="text-[var(--text-sec)]" />
+            <span className="text-xs text-[var(--text-sec)]">{t.alphaWeight}</span>
             <input
               type="range"
               min={0}
@@ -241,17 +233,16 @@ export const SearchView: React.FC<SearchViewProps> = ({
               step={0.05}
               value={alpha}
               onChange={(e) => setAlpha(parseFloat(e.target.value))}
-              style={{ flex: 1, accentColor: 'var(--accent)' }}
+              className="flex-1 accent-[var(--accent)]"
             />
-            <span className="mono" style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--accent)' }}>
+            <span className="mono text-xs font-bold text-[var(--accent)]">
               {alpha.toFixed(2)}
             </span>
           </div>
         </div>
 
-        {/* Sample Queries */}
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>{t.testQueries}</span>
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-[var(--text-sec)]">{t.testQueries}</span>
           {sampleQueries.map((sq) => (
             <button
               key={sq.label}
@@ -266,193 +257,16 @@ export const SearchView: React.FC<SearchViewProps> = ({
         </div>
       </div>
 
-      {/* Results Area: Side-by-Side or Single Column */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: compareMode ? 'repeat(auto-fit, minmax(380px, 1fr))' : '1fr',
-          gap: 20,
-        }}
-      >
-        {/* Column 1: Eidos Hybrid Search */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text)' }}>
-              {t.hybridHitsTitle} ({hybridHits.length} hits)
-            </div>
-            <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
-              {latencyMs} ms · α={alpha.toFixed(2)}
-            </span>
-          </div>
-
-          {hybridHits.length === 0 ? (
-            <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-sec)' }}>
-              No matches found for this threshold.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {hybridHits.map((hit, idx) => (
-                <div
-                  key={hit.item.id}
-                  data-testid="search-result"
-                  className="card"
-                  onClick={() => onSelectItem(hit.item)}
-                  style={{ padding: 16, cursor: 'pointer' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-mut)', fontWeight: 700, marginTop: 2 }}>
-                        #{idx + 1}
-                      </span>
-                      <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>{hit.item.icon || '📦'}</span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text)' }}>
-                          {hit.item.title}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 2 }}>
-                          <span>{hit.item.category}</span>
-                          <span> · </span>
-                          <span className="mono">{hit.item.price || '—'}</span>
-                          <span> · </span>
-                          <span className="mono" style={{ color: 'var(--accent)' }}>
-                            {hit.source.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div className="mono" style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--success)' }}>
-                        {(hit.fusedScore * 100).toFixed(1)}%
-                      </div>
-                      <div className="mono" style={{ fontSize: '0.6875rem', color: 'var(--text-sec)' }}>
-                        D:{(hit.denseScore * 100).toFixed(0)}% · B:{(hit.bm25Score * 100).toFixed(0)}%
-                      </div>
-                    </div>
-                  </div>
-
-                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', margin: '8px 0' }}>
-                    {hit.item.description}
-                  </p>
-
-                  {/* Score Decomposition Bar */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: 10,
-                      padding: '8px 10px',
-                      background: 'var(--bg-alt)',
-                      borderRadius: 6,
-                      fontSize: '0.6875rem',
-                      marginBottom: 10,
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={{ color: 'var(--text-sec)' }}>Dense 384-d Cosine</span>
-                        <span className="mono" style={{ fontWeight: 600 }}>{(hit.denseScore * 100).toFixed(1)}%</span>
-                      </div>
-                      <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.min(100, hit.denseScore * 100)}%`, height: '100%', background: 'var(--accent)' }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                        <span style={{ color: 'var(--text-sec)' }}>BM25 Lexical Match (CJK + Unicode)</span>
-                        <span className="mono" style={{ fontWeight: 600 }}>{(hit.bm25Score * 100).toFixed(1)}%</span>
-                      </div>
-                      <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.min(100, hit.bm25Score * 100)}%`, height: '100%', background: 'var(--success)' }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-mut)' }}>{hit.whyRecommended}</span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onInspectIn3D(hit.item);
-                        }}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <Boxes size={12} />
-                        <span>3D Node</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectItem(hit.item);
-                        }}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <Lightbulb size={12} />
-                        <span>MMR Recs</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Column 2: Legacy Exact Keyword Search (for Comparison) */}
-        {compareMode && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-sec)' }}>
-                {t.legacyHitsTitle} ({keywordHits.length} hits)
-              </div>
-              <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600 }}>
-                {t.legacySubtitle}
-              </span>
-            </div>
-
-            {keywordHits.length === 0 ? (
-              <div className="card" style={{ padding: 36, textAlign: 'center', color: 'var(--text-sec)' }}>
-                <AlertCircle size={22} style={{ margin: '0 auto 8px', color: 'var(--warning)' }} />
-                <div style={{ fontWeight: 600, color: 'var(--text)' }}>
-                  {t.legacyZeroTitle}
-                </div>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 6 }}>
-                  {t.legacyZeroDesc}
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {keywordHits.slice(0, 8).map(({ item, matchedWords }, idx) => (
-                  <div key={item.id} className="card" style={{ padding: 16, opacity: 0.9 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text)' }}>
-                          #{idx + 1} · {item.icon} {item.title}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 2 }}>
-                          {item.category} · {item.price || '—'}
-                        </div>
-                      </div>
-                      <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600 }}>
-                        {matchedWords.length} word match
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)', marginTop: 8 }}>
-                      {item.description}
-                    </p>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-mut)', marginTop: 6 }}>
-                      Matched tokens: <span className="mono">{matchedWords.join(', ')}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SearchResultsColumns
+        compareMode={compareMode}
+        hybridHits={hybridHits}
+        keywordHits={keywordHits}
+        latencyMs={latencyMs}
+        alpha={alpha}
+        t={t}
+        onSelectItem={onSelectItem}
+        onInspectIn3D={onInspectIn3D}
+      />
     </div>
   );
 };

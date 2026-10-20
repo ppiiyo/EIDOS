@@ -74,6 +74,15 @@ export function calculateMMRScore(
   maxSimilarityToSelected: number,
   lambda = 0.7
 ): number {
-  const boundedLambda = Math.max(0, Math.min(1, lambda));
-  return boundedLambda * relevanceScore - (1 - boundedLambda) * maxSimilarityToSelected;
+  if (
+    !Number.isFinite(relevanceScore) ||
+    !Number.isFinite(maxSimilarityToSelected) ||
+    !Number.isFinite(lambda)
+  ) {
+    throw new RangeError('calculateMMRScore arguments must be finite numbers');
+  }
+  if (lambda < 0 || lambda > 1) {
+    throw new RangeError(`calculateMMRScore lambda must be in [0, 1], got ${lambda}`);
+  }
+  return lambda * relevanceScore - (1 - lambda) * maxSimilarityToSelected;
 }

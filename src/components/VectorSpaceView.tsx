@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Boxes, Network, Sliders, Compass, ArrowUpRight } from 'lucide-react';
+import { Boxes, Network, Sliders, ArrowUpRight } from 'lucide-react';
 import { CatalogItem } from '../types';
 import { VectorCanvas3D } from './VectorCanvas3D';
 import { GraphView } from './GraphView';
@@ -24,7 +24,6 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
   const [spaceMode, setSpaceMode] = useState<'3d' | '2d'>('3d');
   const [threshold, setThreshold] = useState<number>(0.24);
 
-  // Limit 2D force graph to top 80 items when scaled to 1,200+ items for 60fps physics
   const graphCatalog = useMemo(() => catalog.slice(0, 80), [catalog]);
 
   const { names, edges, clusters, metrics } = useMemo(() => {
@@ -43,7 +42,6 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
 
   return (
     <div className="page">
-      {/* Header & Mode Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="page-title">3D Vector Space & 2D Topology Graph</h1>
@@ -52,19 +50,13 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
           </p>
         </div>
 
-        {/* Segmented Control: 3D WebGL vs 2D Force Graph */}
-        <div
-          className="flex items-center gap-1 p-1 rounded-lg border"
-          style={{ background: 'var(--bg-alt)', borderColor: 'var(--border)' }}
-        >
+        <div className="flex items-center gap-1 p-1 rounded-lg border bg-[var(--bg-alt)] border-[var(--border)]">
           <button
             type="button"
             onClick={() => setSpaceMode('3d')}
-            className="px-3.5 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            style={{
-              background: spaceMode === '3d' ? 'var(--accent)' : 'transparent',
-              color: spaceMode === '3d' ? '#FFFFFF' : 'var(--text-sec)',
-            }}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              spaceMode === '3d' ? 'bg-[var(--accent)] text-white' : 'bg-transparent text-[var(--text-sec)]'
+            }`}
           >
             <Boxes size={14} />
             <span>3D WebGL Universe (Three.js)</span>
@@ -73,11 +65,9 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
           <button
             type="button"
             onClick={() => setSpaceMode('2d')}
-            className="px-3.5 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            style={{
-              background: spaceMode === '2d' ? 'var(--accent)' : 'transparent',
-              color: spaceMode === '2d' ? '#FFFFFF' : 'var(--text-sec)',
-            }}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              spaceMode === '2d' ? 'bg-[var(--accent)] text-white' : 'bg-transparent text-[var(--text-sec)]'
+            }`}
           >
             <Network size={14} />
             <span>2D Force Topology Graph</span>
@@ -85,19 +75,15 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
         </div>
       </div>
 
-      {/* Selected Anchor Context Bar */}
       {selectedItem && (
-        <div
-          className="card mb-5 px-4 py-3 flex flex-wrap items-center justify-between gap-3"
-          style={{ borderColor: 'var(--border)' }}
-        >
+        <div className="card mb-5 px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-[var(--border)]">
           <div className="flex items-center gap-3 text-xs">
             <span className="text-lg">{selectedItem.icon || '📦'}</span>
             <div>
-              <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
+              <div className="font-semibold text-sm text-[var(--text)]">
                 Active Vector Node: {selectedItem.title}
               </div>
-              <div style={{ color: 'var(--text-sec)' }}>
+              <div className="text-[var(--text-sec)]">
                 <span>{selectedItem.category}</span>
                 <span className="mx-1.5">·</span>
                 <span className="mono">ID #{selectedItem.id}</span>
@@ -118,9 +104,8 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
         </div>
       )}
 
-      {/* Viewport Content */}
       {spaceMode === '3d' ? (
-        <div className="rounded-xl overflow-hidden border border-[#1E293B]" style={{ height: 640 }}>
+        <div className="rounded-xl overflow-hidden border border-[#1E293B] h-[640px]">
           <VectorCanvas3D
             catalog={catalog.slice(0, 150)}
             embeddings={embeddings}
@@ -138,38 +123,37 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* 2D Graph Controls & Topology Metrics */}
           <div className="card p-4 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4 flex-wrap text-xs">
               <div>
-                <span style={{ color: 'var(--text-sec)' }}>Nodes: </span>
+                <span className="text-[var(--text-sec)]">Nodes: </span>
                 <strong className="mono">{names.length}</strong>
               </div>
-              <span style={{ color: 'var(--border-hi)' }}>·</span>
+              <span className="text-[var(--border-hi)]">·</span>
               <div>
-                <span style={{ color: 'var(--text-sec)' }}>Active Edges: </span>
+                <span className="text-[var(--text-sec)]">Active Edges: </span>
                 <strong className="mono">{edges.length}</strong>
               </div>
-              <span style={{ color: 'var(--border-hi)' }}>·</span>
+              <span className="text-[var(--border-hi)]">·</span>
               <div>
-                <span style={{ color: 'var(--text-sec)' }}>Detected Clusters: </span>
+                <span className="text-[var(--text-sec)]">Detected Clusters: </span>
                 <strong className="mono">{clusters.length}</strong>
               </div>
-              <span style={{ color: 'var(--border-hi)' }}>·</span>
+              <span className="text-[var(--border-hi)]">·</span>
               <div>
-                <span style={{ color: 'var(--text-sec)' }}>Graph Entropy: </span>
+                <span className="text-[var(--text-sec)]">Graph Entropy: </span>
                 <strong className="mono">{metrics.entropy.toFixed(2)} bits</strong>
               </div>
-              <span style={{ color: 'var(--border-hi)' }}>·</span>
+              <span className="text-[var(--border-hi)]">·</span>
               <div>
-                <span style={{ color: 'var(--text-sec)' }}>Clustering Coeff: </span>
+                <span className="text-[var(--text-sec)]">Clustering Coeff: </span>
                 <strong className="mono">{(metrics.clustering * 100).toFixed(1)}%</strong>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <Sliders size={14} style={{ color: 'var(--text-sec)' }} />
-              <span className="text-xs font-medium" style={{ color: 'var(--text-sec)' }}>
+              <Sliders size={14} className="text-[var(--text-sec)]" />
+              <span className="text-xs font-medium text-[var(--text-sec)]">
                 Cosine Edge Threshold:
               </span>
               <input
@@ -179,16 +163,15 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
                 step={0.02}
                 value={threshold}
                 onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                style={{ width: 120, accentColor: 'var(--accent)' }}
+                className="w-[120px] accent-[var(--accent)]"
               />
-              <span className="mono text-xs font-semibold" style={{ color: 'var(--accent)' }}>
+              <span className="mono text-xs font-semibold text-[var(--accent)]">
                 {(threshold * 100).toFixed(0)}%
               </span>
             </div>
           </div>
 
-          {/* 2D Force Graph Canvas */}
-          <div className="rounded-xl overflow-hidden border border-[#1E293B]" style={{ height: 580 }}>
+          <div className="rounded-xl overflow-hidden border border-[#1E293B] h-[580px]">
             <GraphView
               names={names}
               edges={edges}

@@ -1,71 +1,67 @@
-# План глубокой ревизии, зачистки и модернизации Eidos Engine
+# План реализации: Подготовка Browser-First релиза Eidos
 
-## 1. Полная зачистка дубликатов и «мёртвого» кода (Dead Code Elimination)
+## Контекст и ключевые принципы
+Продукт строится по стратегии **Browser-First**: весь основной цикл (индексация до ~50 000 товаров, 384-мерные эмбеддинги MiniLM/E5 через `@xenova/transformers`, HNSW, гибридный поиск BM25 + Dense, MMR-диверсификация, контекстуальные бандиты и A/B-движок) работает целиком во вкладке браузера без обязательного сервера.
 
-Мы полностью очистим репозиторий от дублирующихся приложений, конфликтующих локфайлов и неиспользуемых компонентов, сохранив единый источник истины (Single Source of Truth):
-
-- **Удаление дублирующихся под-приложений**:
-  - Удалить `apps/workspace/` (100% устаревший дубликат корневого приложения `/src`).
-  - Удалить `apps/landing/` (неиспользуемый скелет на Next.js 14).
-  - Обновить `pnpm-workspace.yaml` и `package.json`, чтобы оставить чистую структуру: корневое рабочее пространство студии (`/src`), ядро `@eidos/core` (`packages/core/`) и Fastify REST API (`apps/api/`).
-- **Устранение конфликта пакетных менеджеров**:
-  - Удалить `bun.lock` из корня проекта, оставив единый `pnpm-lock.yaml`.
-- **Удаление 12 неиспользуемых UI-компонентов из `src/components/`**:
-  - `AnalysisView.tsx`, `ConversationalAgentView.tsx`, `EidosLogo.tsx`, `ExportView.tsx`, `FeedImporterModal.tsx`, `Header.tsx`, `Modals.tsx`, `PitchModal.tsx`, `PresentationLandingView.tsx`, `ProductCard.tsx`, `RoiCalculatorModal.tsx`, `VisualExplanationLayer.tsx`.
-- **Удаление дублирующихся утилит из `src/utils/`**:
-  - Удалить `src/utils/semanticEngine.ts` (дубликат `recommenderEngine.ts`).
-  - Консолидировать `src/utils/featureAttribution.ts` и `src/utils/securityGuardrails.ts` с каноничными реализациями в `@eidos/core`.
+Зафиксированные архитектурные решения:
+1. **Архитектура монорепо (`apps/workspace`)**: Основной фронтенд переносится в `apps/workspace`, корневой `vite.config.ts` и `package.json` проксируют сборку и dev-сервер (порт 3000) в `apps/workspace`, а дублирующий корневой каталог `src/` удаляется.
+2. **Честная семантика и статус модели**: Полный отказ от псевдо-эмбеддингов на n-граммах/якорях, маскирующихся под нейросеть. Пока ONNX/WASM модель (`Xenova/all-MiniLM-L6-v2` / `Xenova/multilingual-e5-small`) скачивается и инициализируется, UI отображает честный прогресс и явно работает в лексическом режиме **BM25**, не фабрикуя проценты семантического сходства.
+3. **Строгие инварианты вычислений**: Любое несовпадение размерностей векторов (`a.length !== b.length`) и любые `NaN`/`Infinity` или невалидные гиперпараметры немедленно выбрасывают `RangeError` (никаких `Math.min(a.length, b.length)`).
+4. **Хранилище**: `localStorage` используется исключительно для настроек UI; каталог товаров, `Float32Array` эмбеддинги и снимки индексов хранятся в **IndexedDB**.
+5. **Модульность**: Ни один UI-компонент не превышает **300 строк**; каждое изменение сопровождается TDD-тестом (падает до фикса, зеленеет после).
 
 ---
 
-## 2. Исправление выявленных багов и уязвимостей безопасности
-
-- **Исправление бага «призрачного» выбранного элемента (`src/App.tsx`)**:
-  - В `handleDeleteItem(id)` проверять, совпадает ли удаляемый `id` с `selectedItem?.id`. Если да — автоматически переключать `selectedItem` на первый доступный элемент актуального каталога (`nextCatalog[0] || null`).
-- **Исправление сброса пресета при масштабировании до 1 200+ элементов (`src/App.tsx` и `src/utils/recommenderEngine.ts`)**:
-  - Модифицировать `handleScaleCatalog` и `generateSyntheticScaledCatalog(targetCount, baseCatalog)` так, чтобы масштабирование сохраняло текущий выбранный домен (`activeDomain`: Российский маркетплейс, Стриминг, Японский видеохостинг 動画・配信 или Global Multilingual), а не сбрасывало витрину к `INITIAL_CATALOG`.
-- **Честный расчёт MMR X-Ray и управление `limit` (`src/App.tsx`, `src/types.ts`, `src/components/RecommendationsView.tsx`)**:
-  - Расширить интерфейс `CatalogRecommendation` полями `mmrScore`, `noveltyBonus` (`1 - maxSimToAlreadySelected`) и `rank`.
-  - Возвращать точные математические значения напрямую из цикла MMR в `App.tsx`, убрав аппроксимацию из `RecommendationsView.tsx`.
-  - Подключить в UI `RecommendationsView` селектор `Top-K Limit` (`4`, `6`, `8`, `12`).
-- **Защита импорта данных и REST API (`SecurityGuardrails` & Auth)**:
-  - Внедрить проверку и санитизацию через `SecurityGuardrails.sanitizeInput()` и `detectPromptInjection()` во все точки ввода: `CsvImporterModal`, `DatabaseConnectorModal` (REST/Webhook JSON), создание нового товара в `CatalogView` и поисковые запросы.
-  - В `apps/api/src/server.ts` добавить middleware проверки заголовка `x-api-key` / `Authorization: Bearer` для мутирующих эндпоинтов (`POST /v1/catalog`, `POST /v1/feedback`) и санитизацию входных документов через `SecurityGuardrails`.
+## Фаза 1: Строгие математические инварианты в `@eidos/core` (TDD)
+- **`packages/core/src/cosine.ts`**:
+  - Заменить `Error` на `RangeError` при `a.length !== b.length` или пустых векторах, а также добавить проверку входных координат на `Number.isFinite` (выбрасывать `RangeError` при `NaN` / `Infinity`).
+- **`packages/core/src/hnsw.ts`, `bm25.ts`, `hybrid-search.ts`, `diversity.ts`, `bandits.ts`, `ab-testing.ts`**:
+  - Ввести стартовую валидацию конфигурации и входных векторов: проверять `dimension > 0`, `M >= 2`, `efConstruction >= M`, `efSearch >= 1`, `k1 > 0`, `b ∈ [0, 1]`, `lambda ∈ [0, 1]`, `rrfK > 0`, а также размерность и конечность (`Number.isFinite`) каждого добавляемого/искомого вектора с выбрасыванием `RangeError`.
+- **TDD-тесты (`packages/core/test/strict-validation.test.ts`)**:
+  - Написать тесты, проверяющие выбрасывание `RangeError` на векторах разной длины, векторах с `NaN`/`Infinity` и невалидных конфигах HNSW/BM25/MMR/Bandits.
 
 ---
 
-## 3. Полная мультиязычность интерфейса студии (UI Localization: RU / EN / JA)
-
-Чтобы платформа выглядела монолитно и безупречно для клиентов из России/СНГ, США/Европы и Японии:
-
-- **Словарь локализации интерфейса (`src/i18n/uiTranslations.ts`)**:
-  - Создать типизированную систему переводов интерфейса для трёх языков: **Русский (`RU`)**, **English (`EN`)**, **日本語 (`JA`)**.
-  - Охватить навигацию (`Sidebar`), верхнюю панель (`App.tsx`), карточки KPI и бенчмарков (`DashboardView`), гибридный поиск (`SearchView`), рекомендации и правила мерчандайзинга (`RecommendationsView`), 3D/2D векторное пространство (`VectorSpaceView`), A/B тестирование и аналитику.
-- **Переключатель языка интерфейса в шапке (`RU | EN | JA`)**:
-  - Добавить компактный переключатель языка UI в верхнюю панель студии.
-  - При переключении пресета базы данных (например, на японский видеохостинг `video_jp`) предлагать или синхронизировать язык объяснений и интерфейса.
+## Фаза 2: Честный браузерный пайплайн эмбеддингов (ONNX/WASM + явный BM25)
+- **Удаление псевдо-семантики**:
+  - Удалить `computeTextEmbedding` на базе хэш-бакетов и жёстко закодированных словарей (`RECOMMENDER_ANCHORS`) и локальный `cosineSimilarity` с `Math.min(a.length, b.length)`.
+  - Использовать единую реализацию `cosineSimilarity` из `@eidos/core`.
+- **Менеджер модели (`embeddingPipeline.ts`)**:
+  - Явная конечная машина состояний модели: `'idle' | 'loading' | 'ready' | 'error'` с прогрессом скачивания весов ONNX/WASM.
+  - Пока статус `!== 'ready'`, поиск и рекомендации работают в явно маркированном режиме `BM25 (Lexical Only)` с честным бейджем в интерфейсе; семантический скор и 384-d HNSW активируются только при наличии реальных векторов модели.
+  - Батч-индексация с отдачей управления циклу событий (`requestIdleCallback` / чанки), чтобы интерфейс оставался отзывчивым на каталогах до 50 000 позиций.
 
 ---
 
-## 4. Внедрение киллер-фич уровня Algolia Recommend / AWS Personalize / Qdrant
-
-Мы закроем главные функциональные пробелы по сравнению с топ-конкурентами прямо в интерактивной студии:
-
-1. **Merchandising & Business Rules Studio (в `RecommendationsView` и `SearchView`)**:
-   - **Pinning (Закрепление SKU)**: возможность закрепить любой товар/видео на 1-м месте выдачи (Sponsored / Pinned Slot).
-   - **Exclude / Hide (Скрытие)**: быстрое исключение нежелательных позиций или фильтрация «Только другие категории» (Cross-Category Only).
-   - **Category Boost (Бустинг категории)**: множитель веса (`1.0x` – `2.0x`) для приоритетной категории бизнеса (например, повышение маржинальных товаров или оригинального контента платформы).
-   - **Price / Rating Guardrail**: фильтр минимального рейтинга (например, `★ ≥ 4.7`) для рекомендательного блока.
-2. **Панель метрик качества ранжирования в реальном времени (Evaluation Metrics Bar)**:
-   - Расчёт и отображение стандартных индустриальных метрик качества поверх текущей выдачи:
-     - **NDCG@K** (Normalized Discounted Cumulative Gain — качество порядка ранжирования).
-     - **Recall@K** (полнота охвата релевантного кластера).
-     - **MRR** (Mean Reciprocal Rank — позиция первого высокорелевантного ответа).
-     - **ILS / Shannon Entropy** (Intra-List Diversity в битах).
+## Фаза 3: Миграция каталога и векторов в IndexedDB
+- **Слой хранения (`idbCatalogStore.ts`)**:
+  - Создать типизированное хранилище на базе нативного `IndexedDB` (объектные хранилища `catalog_items`, `embeddings_384d`, `index_snapshots`, `projects`) с пакетной записью (`readwrite` транзакции батчами по 500–1000 записей) и хранением векторов в бинарном `Float32Array` (`ArrayBuffer`) без JSON-сериализации массивов чисел.
+- **Разделение ответственности с `localStorage`**:
+  - Удалить запись `eidos_catalog_*` из `localStorage`.
+  - Оставить в `localStorage` только легковесные настройки интерфейса (тема, язык, активная вкладка).
+- **Тесты персистентности**:
+  - Покрыть тестами сохранение/чтение/очистку каталога и бинарных `Float32Array` векторов через `fake-indexeddb` / мок-адаптер IndexedDB.
 
 ---
 
-## 5. Верификация и сборка
+## Фаза 4: Перенос в `apps/workspace` и декомпозиция компонентов (< 300 строк)
+- **Структура `apps/workspace`**:
+  - Перенести фронтенд в `apps/workspace/src/`, настроить корневой `vite.config.ts` и `index.html` для прозрачного запуска `apps/workspace` на порту 3000 AI Studio и удалить устаревший корневой `src/`.
+- **Декомпозиция компонентов до лимита ≤ 300 строк**:
+  - Разбить монолитные представления на компактные доменные модули (< 300 строк каждый):
+    - `App.tsx` → оболочка маршрутизации + хуки `useCatalogStore`, `useEmbeddingModel`, `useWorkspaceSearch`.
+    - `RecommendationsView.tsx` → `RecommendationControls.tsx`, `RecommendationCardList.tsx`, `XRayInspectorPanel.tsx`.
+    - `CatalogView.tsx` → `CatalogToolbar.tsx`, `CatalogTable.tsx`, `CatalogItemDrawer.tsx`.
+    - `SearchView.tsx` → `SearchHeader.tsx`, `SearchResultsList.tsx`, `ModelStatusBanner.tsx`.
+    - `ABTestView.tsx` → `ABExperimentForm.tsx`, `ABMetricsBoard.tsx`, `BanditSimulationPanel.tsx`.
+    - `GraphView.tsx` & `VectorSpaceView.tsx` → вынос рендереров канваса, тулбаров фильтрации и инспекторов узлов в отдельные подкомпоненты.
+    - `LaunchKitView.tsx` → разбиение на секции SDK-сниппетов и экспорта индекса.
 
-- Проверить отсутствие неиспользуемых импортов и ошибок типизации (`lint_applet` / `compile_applet`).
-- Запустить unit и E2E тесты ядра `@eidos/core`, убедившись, что все тесты проходят на 100%.
+---
+
+## Фаза 5: Верификация и автоматический контроль качества
+- Автоматический тест-инвариант (`architecture-constraints.test.ts`), проверяющий:
+  - отсутствие корневого легаси-каталога `src/`;
+  - что каждый `.tsx`/`.ts` компонент в `apps/workspace/src/components` содержит **≤ 300 строк**;
+  - отсутствие вызовов `Math.min(a.length, b.length)` и записи каталога в `localStorage`.
+- Прогон полного набора тестов `vitest` и проверка продакшен-сборки через `compile_applet`.

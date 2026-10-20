@@ -69,32 +69,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-brand">
         <div className="sidebar-brand-dot" />
         <span>Eidos Engine</span>
-        <span
-          className="mono"
-          style={{
-            marginLeft: 'auto',
-            fontSize: '0.6875rem',
-            color: 'var(--text-sec)',
-            fontWeight: 500,
-          }}
-        >
+        <span className="mono ml-auto text-[0.6875rem] text-[var(--text-sec)] font-medium">
           v2.5
         </span>
       </div>
 
       <nav className="sidebar-nav">
         {NAV_SECTIONS.map((section) => (
-          <div key={section.title} style={{ marginBottom: 14 }}>
-            <div
-              style={{
-                padding: '6px 12px 4px',
-                fontSize: '0.6875rem',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: 'var(--text-mut)',
-              }}
-            >
+          <div key={section.title} className="mb-3.5">
+            <div className="px-3 pt-1.5 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-[var(--text-mut)]">
               {section.title}
             </div>
             {section.items.map(({ id, label, icon: Icon }) => (
@@ -114,12 +97,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {onOpenApiModal && (
-        <div style={{ padding: '0 8px 8px' }}>
+        <div className="px-2 pb-2">
           <button
             type="button"
             onClick={onOpenApiModal}
-            className="btn btn-secondary btn-sm"
-            style={{ width: '100%', justifyContent: 'flex-start' }}
+            className="btn btn-secondary btn-sm w-full justify-start"
           >
             <Terminal size={14} />
             <span>{t.nav.apiButton}</span>
@@ -128,10 +110,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <div className="sidebar-footer">
-        <div className="mono" style={{ fontWeight: 600, color: 'var(--text)' }}>
+        <div className="mono font-semibold text-[var(--text)]">
           {t.nav.engineFooterTitle}
         </div>
-        <div style={{ marginTop: 2 }}>{t.nav.engineFooterSub}</div>
+        <div className="mt-0.5">{t.nav.engineFooterSub}</div>
       </div>
     </aside>
   );

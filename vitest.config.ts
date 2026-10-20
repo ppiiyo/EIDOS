@@ -1,15 +1,20 @@
+import path from 'path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@eidos/core': path.resolve(__dirname, './packages/core/src/index.ts'),
+      '@eidos/sdk': path.resolve(__dirname, './packages/sdk/src/index.ts'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
-    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      include: ['packages/core/src/**/*.ts', 'apps/api/src/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.d.ts'],
-    },
+    include: [
+      'packages/**/tests/**/*.test.ts',
+      'tests/unit/**/*.test.ts',
+      'tests/integration/**/*.test.ts',
+    ],
   },
 });

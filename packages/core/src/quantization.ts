@@ -72,8 +72,13 @@ export class ScalarQuantizer {
    * @returns Approximate dot product
    */
   public static dotProduct(a: QuantizedVector, b: QuantizedVector): number {
+    if (a.data.length !== b.data.length) {
+      throw new RangeError(
+        `QuantizedVector dimension mismatch: ${a.data.length} vs ${b.data.length}`
+      );
+    }
     let intAcc = 0;
-    const len = Math.min(a.data.length, b.data.length);
+    const len = a.data.length;
     const dataA = a.data;
     const dataB = b.data;
 

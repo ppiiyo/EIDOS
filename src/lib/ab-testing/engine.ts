@@ -1,205 +1,210 @@
-/**
- * Статистический движок A/B тестирования.
- * Без внешних зависимостей. Детерминированное назначение вариантов.
- */
+import { get, set } from 'idb-keyval';
+import { getEidosIdbStore } from '../storage';
 
 export interface Variant {
   name: string;
+  weight: number;
   users: number;
   conversions: number;
-  revenue: number;
+  totalRevenue: number;
+  clicks: number;
+  impressions: number;
 }
 
 export interface Experiment {
   id: string;
   name: string;
   description: string;
+  status: 'running' | 'paused' | 'completed';
   variants: Variant[];
-  trafficSplit: number[];   // доли трафика, сумма = 1
-  metric: 'conversion' | 'revenue';
-  status: 'draft' | 'running' | 'completed';
-  createdAt: number;
-  completedAt?: number;
+  metric: 'ctr' | 'conversion' | 'revenue';
+  createdAt: string;
+  assignments: Record<string, string>;
 }
 
 export interface ExperimentResult {
   variantName: string;
   users: number;
   conversions: number;
-  rate: number;            // доля конверсий
-  zScore: number;
+  rate: number;
+  uplift: number;
   pValue: number;
-  significant: boolean;    // p < 0.05
-  uplift: number;          // % относительно контроля
-  confidence: number;      // (1-p)*100
+  significant: boolean;
+  confidence95: [number, number];
 }
 
-// ── Детерминированный хэш для назначения ──────────────────────────────────
-function fnv1a(str: string): number {
-  let h = 0x811c9dc5;
+const IDB_EXPERIMENTS_KEY = 'eidos_experiments_v2';
+
+let memoryExperiments: Record<string, Experiment> = {};
+
+export async function flushExperimentsToIdb(): Promise<void> {
+  await set(IDB_EXPERIMENTS_KEY, memoryExperiments, getEidosIdbStore());
+}
+
+export async function hydrateExperimentsFromIdb(): Promise<Experiment[]> {
+  try {
+    const stored = await get<Record<string, Experiment>>(IDB_EXPERIMENTS_KEY, getEidosIdbStore());
+    if (stored && typeof stored === 'object') {
+      memoryExperiments = stored;
+    }
+  } catch {
+    // ignore in restricted environments
+  }
+  return Object.values(memoryExperiments);
+}
+
+function hashUserToUnit(userId: string, experimentId: string): number {
+  const str = `${userId}:${experimentId}`;
+  let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
+    h = Math.imul(h, 16777619);
   }
-  return (h >>> 0) / 0xffffffff;  // нормализуем в [0,1)
+  return (h >>> 0) / 4294967295;
 }
 
-// ── Аппроксимация нормального CDF (Abramowitz & Stegun) ──────────────────
-function normCDF(x: number): number {
-  const a1=0.254829592, a2=-0.284496736, a3=1.421413741;
-  const a4=-1.453152027, a5=1.061405429, p=0.3275911;
-  const sign = x < 0 ? -1 : 1;
-  const ax = Math.abs(x) / Math.SQRT2;
-  const t = 1 / (1 + p * ax);
-  const y = 1 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1) * t * Math.exp(-ax*ax);
+function normalCDF(z: number): number {
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+  const p = 0.3275911;
+  const sign = z < 0 ? -1 : 1;
+  const x = Math.abs(z) / Math.SQRT2;
+  const t = 1 / (1 + p * x);
+  const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
   return 0.5 * (1 + sign * y);
 }
 
-// ── Хранилище ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'eidos_ab_experiments';
-
-function loadExperiments(): Experiment[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'); }
-  catch { return []; }
+function twoProportionZTest(c1: number, n1: number, c2: number, n2: number): number {
+  if (n1 === 0 || n2 === 0) return 1;
+  const p1 = c1 / n1;
+  const p2 = c2 / n2;
+  const pPool = (c1 + c2) / (n1 + n2);
+  const se = Math.sqrt(pPool * (1 - pPool) * (1 / n1 + 1 / n2));
+  if (se === 0) return 1;
+  const z = (p2 - p1) / se;
+  return 2 * (1 - normalCDF(Math.abs(z)));
 }
-function saveExperiments(exps: Experiment[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(exps));
-}
 
-// ── API ────────────────────────────────────────────────────────────────────
-
-export function createExperiment(cfg: {
+export function createExperiment(params: {
   name: string;
   description: string;
-  variantNames: string[];   // минимум 2: [контроль, вариант...]
-  trafficSplit: number[];   // например [0.5, 0.5]
-  metric: 'conversion' | 'revenue';
+  variantNames: string[];
+  trafficSplit?: number[];
+  metric?: 'ctr' | 'conversion' | 'revenue';
 }): Experiment {
-  if (cfg.variantNames.length < 2) throw new Error('Нужно минимум 2 варианта');
-  if (cfg.trafficSplit.length !== cfg.variantNames.length)
-    throw new Error('trafficSplit должен совпадать по длине с вариантами');
-  const sum = cfg.trafficSplit.reduce((a, b) => a + b, 0);
-  if (Math.abs(sum - 1) > 0.001) throw new Error('Сумма долей должна быть 1');
+  const n = params.variantNames.length;
+  if (n < 2) throw new RangeError('Need at least 2 variants');
+  const weights = params.trafficSplit || params.variantNames.map(() => 1 / n);
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - 1) > 0.01) throw new RangeError('Traffic split must sum to 1');
 
   const exp: Experiment = {
-    id: `exp_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
-    name: cfg.name,
-    description: cfg.description,
-    variants: cfg.variantNames.map(name => ({ name, users: 0, conversions: 0, revenue: 0 })),
-    trafficSplit: cfg.trafficSplit,
-    metric: cfg.metric,
+    id: `exp_${Date.now()}_${(Object.keys(memoryExperiments).length + 1).toString(36)}`,
+    name: params.name,
+    description: params.description,
     status: 'running',
-    createdAt: Date.now(),
+    variants: params.variantNames.map((name, i) => ({
+      name,
+      weight: weights[i],
+      users: 0,
+      conversions: 0,
+      totalRevenue: 0,
+      clicks: 0,
+      impressions: 0,
+    })),
+    metric: params.metric || 'conversion',
+    createdAt: new Date().toISOString(),
+    assignments: {},
   };
-  const all = loadExperiments();
-  all.unshift(exp);
-  saveExperiments(all);
+  memoryExperiments[exp.id] = exp;
+  void flushExperimentsToIdb().catch(() => {});
   return exp;
 }
 
-export function listExperiments(): Experiment[] { return loadExperiments(); }
-
-export function getExperiment(id: string): Experiment | undefined {
-  return loadExperiments().find(e => e.id === id);
-}
-
-/**
- * Назначить пользователя в вариант. Детерминированно: один и тот же
- * userId всегда попадает в один и тот же вариант для данного эксперимента.
- */
 export function assignVariant(experimentId: string, userId: string): string {
-  const all = loadExperiments();
-  const exp = all.find(e => e.id === experimentId);
-  if (!exp || exp.status !== 'running') return exp?.variants[0].name ?? '';
+  const exp = memoryExperiments[experimentId];
+  if (!exp) throw new Error(`Experiment ${experimentId} not found`);
+  if (exp.assignments[userId]) return exp.assignments[userId];
 
-  const bucket = fnv1a(userId + experimentId);
+  const u = hashUserToUnit(userId, experimentId);
   let cum = 0;
-  for (let i = 0; i < exp.trafficSplit.length; i++) {
-    cum += exp.trafficSplit[i];
-    if (bucket < cum) {
-      exp.variants[i].users++;
-      saveExperiments(all);
-      return exp.variants[i].name;
+  let chosen = exp.variants[0].name;
+  for (const v of exp.variants) {
+    cum += v.weight;
+    if (u <= cum) {
+      chosen = v.name;
+      break;
     }
   }
-  exp.variants[0].users++;
-  saveExperiments(all);
-  return exp.variants[0].name;
+  exp.assignments[userId] = chosen;
+  const vObj = exp.variants.find((v) => v.name === chosen)!;
+  vObj.users++;
+  vObj.impressions++;
+  void flushExperimentsToIdb().catch(() => {});
+  return chosen;
 }
 
-/**
- * Записать конверсию (или выручку) для пользователя.
- */
 export function recordOutcome(
   experimentId: string,
   userId: string,
   converted: boolean,
-  revenue: number = 0,
+  revenue = 0,
+  clicked = false
 ): void {
-  const all = loadExperiments();
-  const exp = all.find(e => e.id === experimentId);
-  if (!exp || exp.status !== 'running') return;
-
-  const bucket = fnv1a(userId + experimentId);
-  let cum = 0, idx = 0;
-  for (let i = 0; i < exp.trafficSplit.length; i++) {
-    cum += exp.trafficSplit[i];
-    if (bucket < cum) { idx = i; break; }
-  }
-  if (converted) exp.variants[idx].conversions++;
-  exp.variants[idx].revenue += revenue;
-  saveExperiments(all);
+  const exp = memoryExperiments[experimentId];
+  if (!exp) return;
+  const vName = exp.assignments[userId];
+  if (!vName) return;
+  const v = exp.variants.find((x) => x.name === vName);
+  if (!v) return;
+  if (clicked) v.clicks++;
+  if (converted) v.conversions++;
+  v.totalRevenue += revenue;
+  void flushExperimentsToIdb().catch(() => {});
 }
 
-/**
- * Рассчитать статистическую значимость (двухпропорциональный z-тест).
- * Контроль — первый вариант.
- */
 export function analyzeExperiment(experimentId: string): ExperimentResult[] {
-  const exp = loadExperiments().find(e => e.id === experimentId);
-  if (!exp) return [];
-
+  const exp = memoryExperiments[experimentId];
+  if (!exp) throw new Error(`Experiment ${experimentId} not found`);
   const control = exp.variants[0];
-  const p1 = control.users > 0 ? control.conversions / control.users : 0;
+  const controlRate = control.users > 0 ? control.conversions / control.users : 0;
 
   return exp.variants.map((v, i) => {
     const rate = v.users > 0 ? v.conversions / v.users : 0;
-
-    if (i === 0) {
-      return { variantName: v.name, users: v.users, conversions: v.conversions,
-               rate, zScore: 0, pValue: 1, significant: false, uplift: 0, confidence: 0 };
-    }
-
-    // pooled proportion
-    const totalUsers = control.users + v.users;
-    const totalConv  = control.conversions + v.conversions;
-    const pooled = totalUsers > 0 ? totalConv / totalUsers : 0;
-
-    const se = Math.sqrt(
-      pooled * (1 - pooled) * (1/Math.max(control.users,1) + 1/Math.max(v.users,1))
-    );
-
-    const z = se > 1e-9 ? (rate - p1) / se : 0;
-    const pValue = 2 * (1 - normCDF(Math.abs(z)));
-    const uplift = p1 > 0 ? ((rate - p1) / p1) * 100 : 0;
-
+    const uplift = i === 0 || controlRate === 0 ? 0 : ((rate - controlRate) / controlRate) * 100;
+    const pValue =
+      i === 0
+        ? 1
+        : twoProportionZTest(control.conversions, control.users, v.conversions, v.users);
+    const se = v.users > 0 ? Math.sqrt((rate * (1 - rate)) / v.users) : 0;
+    const ci: [number, number] = [Math.max(0, rate - 1.96 * se), Math.min(1, rate + 1.96 * se)];
     return {
       variantName: v.name,
       users: v.users,
       conversions: v.conversions,
       rate,
-      zScore: z,
-      pValue,
-      significant: pValue < 0.05,
       uplift,
-      confidence: (1 - pValue) * 100,
+      pValue,
+      significant: pValue < 0.05 && v.users >= 30,
+      confidence95: ci,
     };
   });
 }
 
-export function completeExperiment(experimentId: string): void {
-  const all = loadExperiments();
-  const exp = all.find(e => e.id === experimentId);
-  if (exp) { exp.status = 'completed'; exp.completedAt = Date.now(); }
-  saveExperiments(all);
+export function listExperiments(): Experiment[] {
+  return Object.values(memoryExperiments);
+}
+
+export function getExperiment(id: string): Experiment | null {
+  return memoryExperiments[id] || null;
+}
+
+export function completeExperiment(id: string): void {
+  if (memoryExperiments[id]) {
+    memoryExperiments[id].status = 'completed';
+    void flushExperimentsToIdb().catch(() => {});
+  }
 }

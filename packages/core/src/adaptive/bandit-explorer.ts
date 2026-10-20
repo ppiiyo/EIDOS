@@ -24,16 +24,40 @@ function randomGaussian(): number {
 export class BanditExplorer {
   private readonly config: BanditConfig;
   private readonly d: number;
+  private readonly strictDimension: boolean;
   private readonly regLambda: number;
   private arms = new Map<string, BanditArmState>();
 
   constructor(config?: Partial<BanditConfig>) {
+    const featureDimension = config?.featureDimension ?? 6;
+    const alpha = config?.alpha ?? 0.5;
+    const lambda = config?.lambda ?? 1.0;
+    const varianceScale = config?.varianceScale ?? 0.25;
+
+    if (!Number.isFinite(featureDimension) || featureDimension < 1) {
+      throw new RangeError(
+        `BanditConfig.featureDimension must be >= 1, got ${featureDimension}`
+      );
+    }
+    if (!Number.isFinite(alpha) || alpha < 0) {
+      throw new RangeError(`BanditConfig.alpha must be >= 0, got ${alpha}`);
+    }
+    if (!Number.isFinite(lambda) || lambda <= 0) {
+      throw new RangeError(`BanditConfig.lambda must be > 0, got ${lambda}`);
+    }
+    if (!Number.isFinite(varianceScale) || varianceScale < 0) {
+      throw new RangeError(
+        `BanditConfig.varianceScale must be >= 0, got ${varianceScale}`
+      );
+    }
+
+    this.strictDimension = config?.featureDimension !== undefined;
     this.config = {
-      featureDimension: config?.featureDimension ?? 6,
-      alpha: config?.alpha ?? 0.5,
-      lambda: config?.lambda ?? 1.0,
+      featureDimension,
+      alpha,
+      lambda,
       strategy: config?.strategy ?? 'linucb',
-      varianceScale: config?.varianceScale ?? 0.25,
+      varianceScale,
     };
     this.d = this.config.featureDimension;
     this.regLambda = Math.max(1e-6, this.config.lambda);
@@ -78,14 +102,27 @@ export class BanditExplorer {
   }
 
   /**
-   * Converts input Float32Array to Float64Array and pads/truncates to feature dimension d.
+   * Validates and converts input context to Float64Array.
+   * Throws RangeError on NaN/Infinity or dimension mismatch when featureDimension was configured.
    */
   private alignContext(context: Float32Array | Float64Array | number[]): Float64Array {
+    if (!context || context.length === 0) {
+      throw new RangeError('Bandit context vector must be non-empty');
+    }
+    if (this.strictDimension && context.length !== this.d) {
+      throw new RangeError(
+        `Bandit context dimension mismatch: expected ${this.d}, got ${context.length}`
+      );
+    }
+    for (let i = 0; i < context.length; i++) {
+      if (!Number.isFinite(context[i])) {
+        throw new RangeError(`Bandit context contains non-finite value at index ${i}`);
+      }
+    }
     const aligned = new Float64Array(this.d);
-    const limit = Math.min(context.length, this.d);
-    for (let i = 0; i < limit; i++) {
-      const val = context[i];
-      aligned[i] = Number.isFinite(val) ? val : 0.0;
+    const copyLen = context.length <= this.d ? context.length : this.d;
+    for (let i = 0; i < copyLen; i++) {
+      aligned[i] = context[i];
     }
     return aligned;
   }
@@ -303,6 +340,9 @@ export class BanditExplorer {
     rawContext: Float32Array | Float64Array | number[],
     reward: number
   ): void {
+    if (!Number.isFinite(reward)) {
+      throw new RangeError(`Bandit reward must be a finite number, got ${reward}`);
+    }
     const arm = this.getOrCreateArm(armId);
     const x = this.alignContext(rawContext);
     const d = this.d;

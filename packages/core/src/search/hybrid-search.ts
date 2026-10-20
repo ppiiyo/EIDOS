@@ -49,6 +49,28 @@ export class HybridSearch {
     const rrfK = options?.rrfK ?? 60;
     const denseWeight = options?.denseWeight ?? 1.0;
     const sparseWeight = options?.sparseWeight ?? 1.0;
+
+    if (!Number.isFinite(limit) || limit < 1) {
+      throw new RangeError(`HybridSearch limit must be >= 1, got ${limit}`);
+    }
+    if (!Number.isFinite(rrfK) || rrfK <= 0) {
+      throw new RangeError(`HybridSearch rrfK must be > 0, got ${rrfK}`);
+    }
+    if (!Number.isFinite(denseWeight) || denseWeight < 0) {
+      throw new RangeError(`HybridSearch denseWeight must be >= 0, got ${denseWeight}`);
+    }
+    if (!Number.isFinite(sparseWeight) || sparseWeight < 0) {
+      throw new RangeError(`HybridSearch sparseWeight must be >= 0, got ${sparseWeight}`);
+    }
+    if (!queryVector || queryVector.length === 0) {
+      throw new RangeError('HybridSearch queryVector must be non-empty');
+    }
+    for (let i = 0; i < queryVector.length; i++) {
+      if (!Number.isFinite(queryVector[i])) {
+        throw new RangeError(`HybridSearch queryVector contains non-finite value at index ${i}`);
+      }
+    }
+
     const candidateFetchLimit = Math.max(limit * 3, 20);
 
     // 1. Dense Search (HNSW)

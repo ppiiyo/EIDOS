@@ -2,21 +2,18 @@ import React, { useState, useRef } from 'react';
 import {
   Search,
   Plus,
-  Trash2,
   Download,
   Upload,
   FileSpreadsheet,
-  Boxes,
-  Lightbulb,
 } from 'lucide-react';
 import { SecurityGuardrails } from '@eidos/core';
 import { CatalogItem } from '../types';
-import { trackEvent } from '../lib/analytics/tracker';
 import {
   exportCatalogWithEmbeddings,
   parseCatalogWithEmbeddings,
 } from '../utils/catalogExportImport';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
+import { CatalogTable } from './catalog/CatalogTable';
 
 interface CatalogViewProps {
   catalog: CatalogItem[];
@@ -116,17 +113,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
   return (
     <div className="page">
-      {/* Header & Action Bar */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: 16,
-          marginBottom: 20,
-        }}
-      >
+      <div className="flex flex-wrap justify-between items-start gap-4 mb-5">
         <div>
           <h1 className="page-title">{t.title}</h1>
           <p className="page-sub">
@@ -134,12 +121,12 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-2 flex-wrap">
           <input
             ref={jsonInputRef}
             type="file"
             accept=".json"
-            style={{ display: 'none' }}
+            className="hidden"
             onChange={handleJsonBundleUpload}
           />
           <button
@@ -184,43 +171,25 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       </div>
 
-      {/* Filter & Category Bar */}
-      <div
-        className="card"
-        style={{
-          padding: 14,
-          marginBottom: 18,
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div style={{ position: 'relative', flex: 1, minWidth: 240, maxWidth: 380 }}>
+      <div className="card p-3.5 mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative flex-1 min-w-[240px] max-w-[380px]">
           <Search
             size={14}
-            style={{ position: 'absolute', left: 12, top: 11, color: 'var(--text-sec)' }}
+            className="absolute left-3 top-2.5 text-[var(--text-sec)]"
           />
           <input
-            className="input"
-            style={{ paddingLeft: 34 }}
+            className="input pl-8"
             placeholder={t.filterPlaceholder}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={() => setCategoryFilter('all')}
-            className="btn btn-sm"
-            style={{
-              background: categoryFilter === 'all' ? 'var(--accent)' : 'var(--bg-alt)',
-              color: categoryFilter === 'all' ? '#FFFFFF' : 'var(--text-sec)',
-              borderColor: 'var(--border)',
-            }}
+            className={categoryFilter === 'all' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
           >
             {t.allCategories} ({catalog.length})
           </button>
@@ -229,12 +198,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               key={cat}
               type="button"
               onClick={() => setCategoryFilter(cat)}
-              className="btn btn-sm"
-              style={{
-                background: categoryFilter === cat ? 'var(--accent)' : 'var(--bg-alt)',
-                color: categoryFilter === cat ? '#FFFFFF' : 'var(--text-sec)',
-                borderColor: 'var(--border)',
-              }}
+              className={categoryFilter === cat ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
             >
               {cat}
             </button>
@@ -242,20 +206,15 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       </div>
 
-      {/* Add SKU Inline Form */}
       {showAddModal && (
-        <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>
-            {t.addModalTitle}
-          </h2>
+        <div className="card p-5 mb-5">
+          <h2 className="text-base font-semibold mb-3">{t.addModalTitle}</h2>
           <form
             onSubmit={handleAdd}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
           >
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Title
-              </label>
+              <label className="text-xs font-medium block mb-1">Title</label>
               <input
                 className="input"
                 value={newTitle}
@@ -265,9 +224,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Category
-              </label>
+              <label className="text-xs font-medium block mb-1">Category</label>
               <input
                 className="input"
                 value={newCat}
@@ -276,9 +233,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Price
-              </label>
+              <label className="text-xs font-medium block mb-1">Price</label>
               <input
                 className="input"
                 value={newPrice}
@@ -287,9 +242,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Semantic Description
-              </label>
+              <label className="text-xs font-medium block mb-1">Semantic Description</label>
               <input
                 className="input"
                 value={newDesc}
@@ -297,7 +250,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                 placeholder="Detailed attributes for 384-d vector indexing"
               />
             </div>
-            <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, marginTop: 6 }}>
+            <div className="col-span-full flex gap-2 mt-1.5">
               <button type="submit" className="btn btn-primary btn-sm">
                 {t.saveVectorBtn}
               </button>
@@ -313,116 +266,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         </div>
       )}
 
-      {/* High-Density Data Table */}
-      <div className="card" style={{ overflowX: 'auto' }}>
-        <table className="table" data-testid="catalog-table">
-          <thead>
-            <tr>
-              <th style={{ width: 72 }}>ID</th>
-              <th>Item Title & Category</th>
-              <th style={{ width: 120 }}>Price</th>
-              <th>Semantic Description</th>
-              <th style={{ width: 110 }}>Vector Norm</th>
-              <th style={{ textAlign: 'right', width: 170 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice(0, 150).map((item) => {
-              const vec = embeddings.get(String(item.id));
-              return (
-                <tr
-                  key={item.id}
-                  onClick={() => {
-                    trackEvent({ type: 'item_click', itemId: item.id, category: item.category });
-                    onSelectItem?.(item);
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <td className="mono" style={{ color: 'var(--text-sec)', fontSize: '0.75rem' }}>
-                    #{item.id}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: '1.15rem' }}>{item.icon || '📦'}</span>
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text)' }}>{item.title}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>
-                          <span>{item.category}</span>
-                          {item.rating && (
-                            <>
-                              <span> · </span>
-                              <span className="mono">★ {item.rating.toFixed(1)}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="mono" style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.8125rem' }}>
-                    {item.price || '—'}
-                  </td>
-                  <td
-                    style={{
-                      color: 'var(--text-sec)',
-                      fontSize: '0.8125rem',
-                      maxWidth: 360,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {item.description}
-                  </td>
-                  <td className="mono" style={{ fontSize: '0.75rem', color: 'var(--success)' }}>
-                    {vec ? `${vec.length}d · L2=1.0` : 'Pending'}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      {onInspectIn3D && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onInspectIn3D(item);
-                          }}
-                          title="Locate in 3D Vector Space"
-                        >
-                          <Boxes size={12} />
-                        </button>
-                      )}
-                      {onSelectItem && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectItem(item);
-                          }}
-                          title="Inspect MMR Recommendations"
-                        >
-                          <Lightbulb size={12} />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="btn btn-danger btn-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteItem(item.id);
-                        }}
-                        title="Delete SKU"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <CatalogTable
+        items={filtered}
+        embeddings={embeddings}
+        onSelectItem={onSelectItem}
+        onInspectIn3D={onInspectIn3D}
+        onDeleteItem={onDeleteItem}
+      />
     </div>
   );
 };

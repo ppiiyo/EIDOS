@@ -29,6 +29,12 @@ export class BM25Index {
   private readonly b: number; // Document length normalization parameter (default 0.75)
 
   constructor(k1: number = 1.5, b: number = 0.75) {
+    if (!Number.isFinite(k1) || k1 <= 0) {
+      throw new RangeError(`BM25 k1 must be a finite number > 0, got ${k1}`);
+    }
+    if (!Number.isFinite(b) || b < 0 || b > 1) {
+      throw new RangeError(`BM25 b must be in range [0, 1], got ${b}`);
+    }
     this.k1 = k1;
     this.b = b;
   }
@@ -155,6 +161,9 @@ export class BM25Index {
    * Searches the BM25 index with a textual query and returns ranked document IDs.
    */
   public search(query: string, limit: number = 10): BM25SearchResult[] {
+    if (!Number.isFinite(limit) || limit < 1) {
+      throw new RangeError(`BM25 search limit must be >= 1, got ${limit}`);
+    }
     const queryTokens = this.tokenize(query);
     if (queryTokens.length === 0 || this.documents.size === 0) {
       return [];

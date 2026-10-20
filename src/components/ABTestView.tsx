@@ -34,8 +34,7 @@ export const ABTestView: React.FC = () => {
     }
     const targetId = selected || exps[0]?.id;
     if (targetId) {
-      const r = analyzeExperiment(targetId);
-      setResults(r);
+      setResults(analyzeExperiment(targetId));
     }
   };
 
@@ -65,11 +64,18 @@ export const ABTestView: React.FC = () => {
   };
 
   const handleSimulate = (expId: string) => {
+    let seed = 20261020 + expId.length;
+    const nextRand = () => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
     for (let i = 0; i < 200; i++) {
-      const uid = `sim_user_${Date.now()}_${i}`;
+      const uid = `sim_user_${expId}_${i}`;
       const variant = assignVariant(expId, uid);
       const baseProb = variant.includes('Variant') ? 0.085 : 0.048;
-      const converted = Math.random() < baseProb;
+      const converted = nextRand() < baseProb;
       recordOutcome(expId, uid, converted, converted ? 49.99 : 0);
     }
     refresh();
@@ -79,7 +85,7 @@ export const ABTestView: React.FC = () => {
 
   return (
     <div className="page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+      <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="page-title">Statistical A/B Experiment Engine</h1>
           <p className="page-sub">
@@ -92,27 +98,16 @@ export const ABTestView: React.FC = () => {
       </div>
 
       {errorMessage && (
-        <div
-          className="card"
-          style={{
-            padding: '10px 14px',
-            marginBottom: 16,
-            borderColor: 'var(--error)',
-            color: 'var(--error)',
-            fontSize: '0.8125rem',
-          }}
-        >
+        <div className="card px-3.5 py-2.5 mb-4 border-[var(--error)] text-[var(--error)] text-[0.8125rem]">
           {errorMessage}
         </div>
       )}
 
       {showForm && (
-        <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+        <div className="card p-5 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Experiment Name
-              </label>
+              <label className="text-[0.8125rem] font-medium block mb-1">Experiment Name</label>
               <input
                 className="input"
                 value={form.name}
@@ -121,9 +116,7 @@ export const ABTestView: React.FC = () => {
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Primary Metric
-              </label>
+              <label className="text-[0.8125rem] font-medium block mb-1">Primary Metric</label>
               <select
                 className="input"
                 value={form.metric}
@@ -134,9 +127,7 @@ export const ABTestView: React.FC = () => {
               </select>
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Control Traffic Split (%)
-              </label>
+              <label className="text-[0.8125rem] font-medium block mb-1">Control Traffic Split (%)</label>
               <input
                 className="input"
                 type="number"
@@ -147,9 +138,7 @@ export const ABTestView: React.FC = () => {
               />
             </div>
             <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: 4 }}>
-                Hypothesis Description
-              </label>
+              <label className="text-[0.8125rem] font-medium block mb-1">Hypothesis Description</label>
               <input
                 className="input"
                 value={form.description}
@@ -158,7 +147,7 @@ export const ABTestView: React.FC = () => {
               />
             </div>
           </div>
-          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+          <div className="mt-4 flex gap-2">
             <button type="button" className="btn btn-primary btn-sm" onClick={handleCreate}>
               Create Experiment
             </button>
@@ -169,44 +158,40 @@ export const ABTestView: React.FC = () => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+        <div className="flex flex-col gap-2">
           {experiments.map((exp) => (
             <button
               key={exp.id}
               type="button"
               onClick={() => setSelected(exp.id)}
-              style={{
-                textAlign: 'left',
-                padding: '12px 14px',
-                borderRadius: 8,
-                border: selected === exp.id ? '1px solid var(--accent)' : '1px solid var(--border)',
-                background: selected === exp.id ? 'var(--accent-bg)' : 'var(--surface)',
-                color: 'var(--text)',
-                cursor: 'pointer',
-              }}
+              className={`text-left px-3.5 py-3 rounded-lg border text-[var(--text)] cursor-pointer ${
+                selected === exp.id
+                  ? 'border-[var(--accent)] bg-[var(--accent-bg)]'
+                  : 'border-[var(--border)] bg-[var(--surface)]'
+              }`}
             >
-              <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{exp.name}</div>
-              <div className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginTop: 4 }}>
+              <div className="font-semibold text-sm">{exp.name}</div>
+              <div className="mono text-xs text-[var(--text-sec)] mt-1">
                 {exp.variants.map((v) => v.users).reduce((a, b) => a + b, 0)} users · {exp.status}
               </div>
             </button>
           ))}
           {experiments.length === 0 && (
-            <div className="card" style={{ padding: 16, fontSize: '0.8125rem', color: 'var(--text-sec)' }}>
+            <div className="card p-4 text-[0.8125rem] text-[var(--text-sec)]">
               No experiments created yet. Click "New Experiment" to start testing ranking variants.
             </div>
           )}
         </div>
 
         {sel && (
-          <div className="card" style={{ padding: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="card p-5">
+            <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text)' }}>{sel.name}</h2>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-sec)' }}>{sel.description}</p>
+                <h2 className="font-semibold text-base text-[var(--text)]">{sel.name}</h2>
+                <p className="text-[0.8125rem] text-[var(--text-sec)]">{sel.description}</p>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="flex gap-2">
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulate(sel.id)}>
                   <Play size={13} /> Simulate 200 Sessions
                 </button>
@@ -240,7 +225,7 @@ export const ABTestView: React.FC = () => {
               <tbody>
                 {results.map((r) => (
                   <tr key={r.variantName}>
-                    <td style={{ fontWeight: 600 }}>{r.variantName}</td>
+                    <td className="font-semibold">{r.variantName}</td>
                     <td className="mono">{r.users.toLocaleString()}</td>
                     <td className="mono">{r.conversions.toLocaleString()}</td>
                     <td className="mono">{(r.rate * 100).toFixed(2)}%</td>
@@ -249,13 +234,9 @@ export const ABTestView: React.FC = () => {
                         'Baseline'
                       ) : (
                         <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            color: r.uplift > 0 ? 'var(--success)' : 'var(--error)',
-                            fontWeight: 600,
-                          }}
+                          className={`inline-flex items-center gap-1 font-semibold ${
+                            r.uplift > 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'
+                          }`}
                         >
                           {r.uplift > 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
                           {r.uplift > 0 ? '+' : ''}
@@ -263,10 +244,14 @@ export const ABTestView: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="mono" style={{ fontSize: '0.8125rem' }}>
+                    <td className="mono text-[0.8125rem]">
                       {r.pValue < 0.001 ? '< 0.001' : r.pValue.toFixed(4)}
                     </td>
-                    <td className="mono" style={{ fontSize: '0.75rem', fontWeight: 600, color: r.significant ? 'var(--success)' : 'var(--text-sec)' }}>
+                    <td
+                      className={`mono text-xs font-semibold ${
+                        r.significant ? 'text-[var(--success)]' : 'text-[var(--text-sec)]'
+                      }`}
+                    >
                       {r.significant ? '95% Significant (p < 0.05)' : 'Awaiting sample size'}
                     </td>
                   </tr>

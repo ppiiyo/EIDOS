@@ -26,8 +26,11 @@ function normalizeL2(vector: Float32Array): Float32Array {
  * Computes dot product between two equal-length vectors.
  */
 function dotProduct(a: Float32Array, b: Float32Array): number {
+  if (a.length !== b.length) {
+    throw new RangeError(`MultiInterestUserTower dimension mismatch: ${a.length} vs ${b.length}`);
+  }
   let dot = 0;
-  const len = Math.min(a.length, b.length);
+  const len = a.length;
   for (let i = 0; i < len; i++) {
     dot += a[i] * b[i];
   }

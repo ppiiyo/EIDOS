@@ -69,7 +69,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, 'apps/workspace'),
         '@eidos/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
         '@eidos/sdk': path.resolve(__dirname, 'packages/sdk/src/index.ts'),
       },

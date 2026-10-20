@@ -1,5 +1,5 @@
 import { CatalogItem, CatalogRecommendation, CatalogEdge } from '../types';
-import { HNSWIndex, BM25Index, HybridSearch } from '@eidos/core';
+import { HNSWIndex, BM25Index, HybridSearch, cosineSimilarity as coreCosineSimilarity } from '@eidos/core';
 import { INITIAL_CATALOG } from '../data/catalog';
 
 export { INITIAL_CATALOG };
@@ -12,23 +12,18 @@ export type SupportedLanguage = 'ru' | 'en' | 'ja' | 'zh' | 'ko' | 'es' | 'de' |
  */
 export function detectTextLanguage(text: string): SupportedLanguage {
   if (!text) return 'ru';
-  // Check Japanese Hiragana / Katakana first
   if (/[\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f]/.test(text)) {
     return 'ja';
   }
-  // Check Korean Hangul
   if (/[\uac00-\ud7af\u1100-\u11ff]/.test(text)) {
     return 'ko';
   }
-  // Check CJK Unified Ideographs (Chinese Hanzi / Japanese Kanji)
   if (/[\u4e00-\u9fff\u3400-\u4dbf]/.test(text)) {
-    // Distinguish common Japanese Kanji patterns if no kana present, otherwise Chinese
     if (/(動画|配信|実況|講座|解説|映画|音楽|宇宙|開発|料理|東京|京都)/.test(text)) {
       return 'ja';
     }
     return 'zh';
   }
-  // Check Cyrillic (Russian, Ukrainian, etc.)
   if (/[а-яёіїєґ]/i.test(text)) {
     return 'ru';
   }
@@ -44,157 +39,6 @@ export function detectTextLanguage(text: string): SupportedLanguage {
   }
   return 'en';
 }
-
-/**
- * Multilingual Semantic Anchor Categories across RU, EN, JA (Japanese), ZH (Chinese), KO, ES, DE, FR
- * Tailored for Marketplaces, Streaming Platforms, and Video Hosting Platforms worldwide.
- */
-const RECOMMENDER_ANCHORS: Array<{ name: string; words: string[] }> = [
-  {
-    name: 'cyberpunk_simulation_ai',
-    words: [
-      // RU & EN
-      'киберпанк', 'cyberpunk', '2077', 'матрица', 'matrix', 'симуляция', 'simulation', 'реальность', 'sci-fi',
-      'ии', 'ai', 'будущее', 'future', 'импланты', 'виртуальность', 'неон', 'neon', 'хакер', 'hacker', 'роботы', 'robots', 'код', 'neural',
-      // JA (Japanese)
-      'サイバーパンク', 'ナイトシティ', 'マトリックス', 'シミュレーション', '仮想現実', '人工知能', '未来', 'ネオン', 'ハッカー', 'ロボット', 'アンドロイド', '電脳',
-      // ZH / KO / EU
-      '赛博朋克', '人工智能', '黑客帝国', '虚拟现实', '사이버펑크', '인공지능', 'ciberpunk', 'inteligencia'
-    ],
-  },
-  {
-    name: 'coffee_appliances_lifestyle',
-    words: [
-      // RU & EN
-      'кофемашина', 'кофе', 'эспрессо', 'капучино', 'зерновой', 'напитки', 'бытовая',
-      'техника', 'латте', 'бариста', 'кофейный', 'варка', 'coffee', 'espresso', 'barista', 'cafe', 'vlog', 'morning', 'routine',
-      // JA (Japanese)
-      'コーヒー', 'エスプレッソ', 'カフェ', 'バリスタ', 'ラテ', '焙煎', '珈琲', '朝活', 'ルーティン', '暮らし', 'カフェ巡り', '抽出',
-      // ZH / KO / EU
-      '咖啡', '浓缩咖啡', '拿铁', '커피', '에스프레소', '카페', 'kaffee'
-    ],
-  },
-  {
-    name: 'programming_education_code',
-    words: [
-      // RU & EN
-      'python', 'питон', 'программирование', 'обучение', 'код', 'алгоритмы', 'разработка',
-      'backend', 'книга', 'учеба', 'компьютер', 'it', 'software', 'developer', 'rust', 'database', 'база', 'coding', 'tutorial', 'webassembly', 'vector',
-      // JA (Japanese)
-      'プログラミング', '開発', 'コード', 'アルゴリズム', 'データベース', 'エンジニア', '講座', '入門', '解説', 'システム', 'ベクトル', '高速', '実装', '深層学習',
-      // ZH / KO / EU
-      '编程', '数据库', '算法', '开发', '프로그래밍', '데이터베이스', '알고리즘', 'programación', 'programmierung'
-    ],
-  },
-  {
-    name: 'sci_fi_space_desert',
-    words: [
-      // RU & EN
-      'дюна', 'dune', 'интерстеллар', 'interstellar', 'космос', 'фантастика', 'пустыня', 'политика', 'планета',
-      'нолан', 'nolan', 'время', 'звезды', 'арракис', 'спайс', 'гравитация', 'space', 'черные', 'дыры', 'blackhole', 'cosmos', 'universe', 'astrophysics',
-      // JA (Japanese)
-      '宇宙', 'ブラックホール', 'インターステラー', 'デューン', '科学', 'ドキュメンタリー', '相対性理論', '銀河', '惑星', '星', '重力', '時間', '天文学', 'ノーラン',
-      // ZH / KO / EU
-      '宇宙', '黑洞', '星际穿越', '太空', '科学', '우주', '블랙홀', '인터스텔라', 'espacio', 'weltraum'
-    ],
-  },
-  {
-    name: 'fantasy_rpg_magic_anime',
-    words: [
-      // RU & EN
-      'witcher', 'ведьмак', 'гарри', 'поттер', 'фэнтези', 'rpg', 'магия', 'чудовища',
-      'геральт', 'властелин', 'колец', 'хоббит', 'хогвартс', 'заклинания', 'fantasy', 'magic', 'anime', 'dragon', 'lore',
-      // JA (Japanese)
-      'ファンタジー', '魔法', 'ウィッチャー', 'アニメ', '異世界', '冒険', '神話', 'メイキング', 'イラスト', '背景美術', '魔法陣', '魔王', '勇者', '物語',
-      // ZH / KO / EU
-      '奇幻', '魔法', '动漫', '巫师', '판타지', '마법', '애니메이션', 'fantasía'
-    ],
-  },
-  {
-    name: 'computing_work_laptop',
-    words: [
-      // RU & EN
-      'ноутбук', 'компьютер', 'probook', 'intel', 'ram', 'процессор', 'работа', 'экран',
-      'железо', 'память', 'клавиатура', 'дисплей', 'laptop', 'кресло', 'эргономика', 'офис', 'keyboard', 'workstation', 'monitor', 'desk',
-      // JA (Japanese)
-      'ノートpc', 'パソコン', 'キーボード', 'メカニカル', 'ガジェット', 'レビュー', 'デスクツアー', 'モニター', '自作pc', 'チェア', '作業環境', 'ディスプレイ',
-      // ZH / KO / EU
-      '笔记本电脑', '机械键盘', '显示器', '노트북', '키보드', '데스크셋업'
-    ],
-  },
-  {
-    name: 'audio_music_sound',
-    words: [
-      // RU & EN
-      'наушники', 'звук', 'музыка', 'soundmax', 'шумоподавление', 'bluetooth', 'аудио',
-      'бас', 'гарнитура', 'динамик', 'sound', 'headphones', 'винил', 'music', 'lofi', 'bgm', 'ambient', 'asmr', 'synthwave',
-      // JA (Japanese)
-      '音楽', 'イヤホン', 'ヘッドホン', 'ノイズキャンセリング', '高音質', '作業用', '作業用bgm', '音響', 'オーディオ', 'チル', '深夜', '歌ってみた', 'サウンドトラック',
-      // ZH / KO / EU
-      '音乐', '耳机', '降噪', '음악', '헤드폰', '노이즈캔슬링', 'música', 'musik'
-    ],
-  },
-  {
-    name: 'dystopia_politics_control',
-    words: [
-      // RU & EN
-      '1984', 'оруэлл', 'orwell', 'антиутопия', 'dystopia', 'тоталитарное', 'общество', 'контроль', 'разум',
-      'партия', 'свобода', 'власть', 'надзор', 'государство', 'surveillance', 'history', 'philosophy',
-      // JA (Japanese)
-      'ディストピア', '監視社会', '歴史', '哲学', '社会', 'オーウェル', '思想', '自由', '権力', '考察',
-      // ZH / KO / EU
-      '反乌托邦', '历史', '哲学', '디스토피아', '역사', '철학'
-    ],
-  },
-  {
-    name: 'cinema_dreams_mind',
-    words: [
-      // RU & EN
-      'начало', 'inception', 'сны', 'сон', 'dreams', 'нолан', 'триллер', 'thriller', 'сознание', 'разум', 'погружение',
-      'подсознание', 'иллюзия', 'кино', 'фильм', 'cinema', 'movie', 'director', 'documentary', '4k',
-      // JA (Japanese)
-      '映画', 'シネマ', 'インセプション', 'スリラー', '心理', '潜在意識', '夢', '監督', '名作', '考察動画', '予告編', '映像',
-      // ZH / KO / EU
-      '电影', '盗梦空间', '纪录片', '영화', '다큐멘터리', '스릴러', 'película', 'cinéma'
-    ],
-  },
-  {
-    name: 'gaming_companion_adventure',
-    words: [
-      // RU & EN
-      'stray', 'кот', 'cat', 'игра', 'game', 'приключения', 'adventure', 'роботы', 'город', 'кибергород', 'открытый',
-      'мир', 'монополия', 'настолка', 'экономика', 'стратегия', 'консоль', 'steam', 'gameplay', 'stream', 'esports',
-      // JA (Japanese)
-      'ゲーム', 'ゲーム実況', '実況', 'プレイ', '配信', 'ストレイ', '猫', '野良猫', '攻略', 'インディーゲーム', 'オープンワールド', 'eスポーツ', 'ボードゲーム',
-      // ZH / KO / EU
-      '游戏', '游戏直播', '攻略', '猫咪', '게임', '게임방송', '고양이', ' videojuegos'
-    ],
-  },
-  {
-    name: 'mobile_display_gadgets',
-    words: [
-      // RU & EN
-      'смартфон', 'smartphone', 'galaxy', 'ultra', 'amoled', 'камера', 'camera', '5g', 'флагман', 'телефон',
-      'гаджет', 'экран', 'дисплей', 'часы', 'очки', 'photography', 'video', '8k',
-      // JA (Japanese)
-      'スマホ', 'スマートフォン', 'カメラ', '撮影', '写真', 'レンズ', '動画編集', '映像制作', 'フラッグシップ',
-      // ZH / KO / EU
-      '智能手机', '相机', '摄影', '스마트폰', '카메라'
-    ],
-  },
-  {
-    name: 'sport_fitness_running',
-    words: [
-      // RU & EN
-      'кроссовки', 'runmax', 'бег', 'running', 'спорт', 'sport', 'тренировки', 'workout', 'амортизация', 'браслет',
-      'bandpro', 'пульс', 'шаги', 'фитнес', 'fitness', 'трекер', 'здоровье', 'кашемир', 'пальто', 'шелк', 'marathon',
-      // JA (Japanese)
-      'ランニング', 'マラソン', '筋トレ', 'フィットネス', 'トレーニング', 'シューズ', 'スニーカー', 'スマートウォッチ', '健康', 'ヨガ', 'ストレッチ',
-      // ZH / KO / EU
-      '跑步', '健身', '运动鞋', '马拉松', '러닝', '피트니스', '운동'
-    ],
-  },
-];
 
 function hashGram(str: string): number {
   let hash = 2166136261;
@@ -213,17 +57,15 @@ export const EMBEDDING_DIM = 384;
 const CJK_CHAR_TEST = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af]/;
 
 /**
- * Dense 384-dimensional semantic vector matching E5 multilingual behavior across all scripts
- * (Latin, Cyrillic, Japanese Kanji/Kana, Chinese Hanzi, Korean Hangul, Arabic, etc.)
+ * Deterministic 384-d L2-normalized Unicode n-gram feature projection used for
+ * deterministic seed coordinates when the ONNX neural model is not yet loaded.
  */
 export function computeTextEmbedding(text: string): Float32Array {
   const vec = new Float32Array(EMBEDDING_DIM);
   let clean = text.toLowerCase().trim();
 
-  let isQuery = false;
   if (clean.startsWith('query:')) {
     clean = clean.replace(/^query:\s*/, '');
-    isQuery = true;
   } else if (clean.startsWith('passage:')) {
     clean = clean.replace(/^passage:\s*/, '');
   }
@@ -231,48 +73,16 @@ export function computeTextEmbedding(text: string): Float32Array {
   const words = clean.split(/[\s,_\-—"«»'().:;!?、。「」『』【】・]+/).filter(Boolean);
   const hasCjk = CJK_CHAR_TEST.test(clean);
 
-  // 1. Multilingual Anchor projections distributed across first 96 dimensions (8 harmonics per anchor)
-  for (let i = 0; i < RECOMMENDER_ANCHORS.length; i++) {
-    const anchor = RECOMMENDER_ANCHORS[i];
-    let score = 0;
-
-    // Check space-separated words
-    for (const w of words) {
-      if (!w) continue;
-      if (anchor.words.includes(w)) {
-        score += 2.4;
-      } else {
-        for (const aw of anchor.words) {
-          if (w.length >= 3 && aw.length >= 3) {
-            const minLen = Math.min(4, Math.min(w.length, aw.length));
-            if (w.slice(0, minLen) === aw.slice(0, minLen)) {
-              score += 0.95;
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // Also check continuous CJK / compound substring matches (critical for Japanese/Chinese without spaces)
-    if (hasCjk || words.length <= 3) {
-      for (const aw of anchor.words) {
-        if (aw.length >= 2 && clean.includes(aw)) {
-          score += 2.1;
-        }
-      }
-    }
-
-    if (isQuery && score > 0) {
-      score *= 1.25;
-    }
-    const baseIdx = i * 8;
-    for (let h = 0; h < 8; h++) {
-      vec[baseIdx + h] = score * Math.cos(h * 0.35 + i * 0.2);
-    }
+  // 1. Token stem hashing across first 96 dimensions
+  for (const w of words) {
+    const stem = w.slice(0, Math.min(5, w.length));
+    const h = hashGram(stem);
+    const idx = h % 96;
+    const sign = h & 0x100 ? 1 : -1;
+    vec[idx] += sign * 1.4;
   }
 
-  // 2. Character 2-gram (for CJK/short roots), 3-gram, 4-gram, and 5-gram subword hashing across dimensions 96..351 (256 buckets)
+  // 2. Character 2-gram..5-gram subword hashing across dimensions 96..351 (256 buckets)
   const padded = `^${clean}$`;
   const minGram = hasCjk ? 2 : 3;
   for (let len = minGram; len <= 5; len++) {
@@ -280,23 +90,17 @@ export function computeTextEmbedding(text: string): Float32Array {
       const gram = padded.slice(i, i + len);
       const h = hashGram(gram);
       const idx = 96 + (h % 256);
-      const sign = (h & 0x100) ? 1 : -1;
+      const sign = h & 0x100 ? 1 : -1;
       const weight = len === 2 ? 0.55 : len === 3 ? 0.35 : len === 4 ? 0.45 : 0.3;
       vec[idx] += sign * weight;
     }
   }
 
-  // 3. Structural & morphological harmonics across dimensions 352..383
+  // 3. Structural harmonics across dimensions 352..383
   vec[352] = Math.min(clean.length / 60, 1.0);
-  let vowelCount = 0;
-  for (const ch of clean) {
-    if ('аеёиоуыэюяaeiouyあいうえおアイウエオ'.includes(ch)) vowelCount++;
-  }
-  vec[353] = vowelCount / Math.max(1, clean.length);
-
   for (let i = 0; i < clean.length; i++) {
     const chCode = clean.charCodeAt(i);
-    const targetIdx = 354 + (chCode % 30);
+    const targetIdx = 353 + (chCode % 31);
     vec[targetIdx] += 0.18 * Math.cos((i + 1) * 0.35);
   }
 
@@ -317,24 +121,24 @@ export function cosineSimilarity(
   a: Float32Array | number[],
   b: Float32Array | number[]
 ): number {
-  if (!a || !b || a.length === 0 || b.length === 0) return 0;
-  const len = Math.min(a.length, b.length);
-  let dot = 0;
-  let na = 0;
-  let nb = 0;
-
-  for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    na += a[i] * a[i];
-    nb += b[i] * b[i];
-  }
-
-  if (na === 0 || nb === 0) return 0;
-  const raw = dot / (Math.sqrt(na) * Math.sqrt(nb));
-  return Math.max(0, Math.min(1, raw));
+  return Math.max(0, coreCosineSimilarity(a, b));
 }
 
 export const cosineSim = cosineSimilarity;
+
+/**
+ * Deterministic 32-bit Seeded PRNG (Mulberry32).
+ * Guarantees 100% reproducible synthetic catalog vectors and benchmark simulations.
+ */
+export function mulberry32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export type ModelChoice = 'e5-small' | 'all-minilm' | 'built-in';
 
@@ -344,12 +148,15 @@ export interface EmbedderPipeline {
   }>;
 }
 
+export type RetrievalMode = 'semantic-onnx' | 'hybrid-384d' | 'lexical-bm25';
+
 export interface HybridSearchHit {
   item: CatalogItem;
   fusedScore: number;
   denseScore: number;
   bm25Score: number;
   source: 'hybrid' | 'dense' | 'sparse';
+  retrievalMode?: RetrievalMode;
   whyRecommended: string;
 }
 
@@ -786,11 +593,59 @@ export function executeHybridCatalogSearch(
       denseScore: dScore,
       bm25Score: sScore,
       source,
+      retrievalMode: source === 'sparse' ? 'lexical-bm25' : 'hybrid-384d',
       whyRecommended,
     });
   }
 
   results.sort((a, b) => b.fusedScore - a.fusedScore);
+  return results.slice(0, limit);
+}
+
+/**
+ * Explicit Lexical BM25 Search (used when ONNX model is still downloading or when alpha === 0).
+ * Never fabricates dense cosine similarity scores — sets denseScore = 0 and retrievalMode = 'lexical-bm25'.
+ */
+export function executeLexicalBm25Search(
+  query: string,
+  catalog: CatalogItem[],
+  limit = 10
+): HybridSearchHit[] {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const bm25 = new BM25Index();
+  const catalogMap = new Map<string, CatalogItem>();
+  for (const item of catalog) {
+    const id = String(item.id);
+    catalogMap.set(id, item);
+    const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
+    bm25.addDocument(id, docText);
+  }
+
+  const rawHits = bm25.search(trimmed, Math.max(limit, 20));
+  let maxScore = 0;
+  for (const h of rawHits) {
+    if (h.score > maxScore) maxScore = h.score;
+  }
+
+  const results: HybridSearchHit[] = [];
+  for (const h of rawHits) {
+    if (h.score <= 0) continue;
+    const item = catalogMap.get(String(h.id));
+    if (!item) continue;
+    const normBm25 = maxScore > 0 ? h.score / maxScore : 0;
+    results.push({
+      item,
+      fusedScore: normBm25,
+      denseScore: 0,
+      bm25Score: normBm25,
+      source: 'sparse',
+      retrievalMode: 'lexical-bm25',
+      whyRecommended: `BM25 Okapi Lexical Match (${(normBm25 * 100).toFixed(0)}%) — ONNX semantic vector not used`,
+    });
+  }
+
   return results.slice(0, limit);
 }
 
@@ -1026,11 +881,13 @@ export function searchWithHNSWIndex(
 export function generateSyntheticScaledCatalog(
   targetCount = 1200,
   baseCatalog: CatalogItem[] = INITIAL_CATALOG,
-  baseEmbeddings?: Map<string, Float32Array>
+  baseEmbeddings?: Map<string, Float32Array>,
+  seed = 2026
 ): {
   catalog: CatalogItem[];
   embeddings: Map<string, Float32Array>;
 } {
+  const rng = mulberry32(seed);
   const sourceCatalog = baseCatalog && baseCatalog.length > 0 ? baseCatalog : INITIAL_CATALOG;
   const modifiers = [
     'Ultra Pro', 'Max Elite', 'Series X', 'Edition Prime', 'Smart v2',
@@ -1079,8 +936,8 @@ export function generateSyntheticScaledCatalog(
     const vec = new Float32Array(384);
     let sumSq = 0;
     for (let d = 0; d < 384; d++) {
-      const baseComponent = baseVec ? baseVec[d] * 0.88 : Math.sin(d * 0.1 + (i % 7) * 1.7) * 0.8;
-      const jitter = Math.cos(d * 0.13 + i * 0.37) * 0.12;
+      const baseComponent = baseVec ? baseVec[d] * 0.88 : (rng() * 2 - 1) * 0.8;
+      const jitter = (rng() * 2 - 1) * 0.12;
       const val = baseComponent + jitter;
       vec[d] = val;
       sumSq += val * val;

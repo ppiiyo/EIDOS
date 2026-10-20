@@ -2,6 +2,7 @@ import { CatalogItem } from './types';
 import { VectorSteering } from './adaptive/vector-steering';
 import { AgentDialogueMessage, AgentIntent } from './types';
 import { cosineSimilarity } from './cosine';
+import { SecurityGuardrails } from './security/guardrails';
 
 /**
  * Conversational Catalog Agent for interactive, natural language discovery.
@@ -9,6 +10,8 @@ import { cosineSimilarity } from './cosine';
  */
 export class ConversationalCatalogAgent {
   private dialogueHistory: AgentDialogueMessage[] = [];
+  private lastMaxPrice: number | undefined;
+  private lastPositiveMods: string[] = [];
 
   constructor(
     private systemPrompt: string = 'Ты — интеллектуальный Eidos ассистент по подбору товаров и семантическому поиску.'
@@ -30,7 +33,7 @@ export class ConversationalCatalogAgent {
 
     // Extract price constraints (e.g. "до 15000", "< 50000")
     let maxPrice: number | undefined = undefined;
-    const priceMatch = text.match(/до\s*(\d+[\s\d]*)/i);
+    const priceMatch = text.match(/(?:до|дешевле|under|max)\s*(\d+[\s\d]*)/i);
     if (priceMatch) {
       maxPrice = parseInt(priceMatch[1].replace(/\s+/g, ''), 10);
     }
@@ -68,12 +71,26 @@ export class ConversationalCatalogAgent {
     catalog: CatalogItem[],
     resolveEmbedding: (text: string) => Float32Array
   ): Promise<AgentDialogueMessage> {
-    const intent = this.parseIntent(userInput);
+    const scan = SecurityGuardrails.scanAndSanitize(userInput);
+    const safeInput = scan.sanitizedInput || userInput.replace(/[<>]/g, '');
+
+    const intent = this.parseIntent(safeInput);
+    if (intent.maxPrice !== undefined) {
+      this.lastMaxPrice = intent.maxPrice;
+    }
+    const effectiveMaxPrice = intent.maxPrice ?? this.lastMaxPrice;
+
+    if (intent.positiveModifiers.length > 0) {
+      this.lastPositiveMods = intent.positiveModifiers;
+    }
+    const effectivePosMods =
+      intent.positiveModifiers.length > 0 ? intent.positiveModifiers : this.lastPositiveMods;
+
     const baseQueryVec = resolveEmbedding(intent.query);
 
     // Apply conversational vector steering
     const steeringMods = [
-      ...intent.positiveModifiers.map((mod) => ({
+      ...effectivePosMods.map((mod) => ({
         label: mod,
         type: 'positive' as const,
         weight: 0.5,
@@ -91,12 +108,20 @@ export class ConversationalCatalogAgent {
 
     // Filter and score candidates
     let candidates = catalog;
-    if (intent.maxPrice !== undefined) {
-      candidates = candidates.filter((c) => (c.price ? c.price <= intent.maxPrice! : true));
+    if (effectiveMaxPrice !== undefined) {
+      candidates = candidates.filter((c) => {
+        const rawPrice = c.price as number | string | undefined;
+        if (typeof rawPrice === 'number') return rawPrice <= effectiveMaxPrice;
+        if (typeof rawPrice === 'string') {
+          const parsed = parseFloat(rawPrice.replace(/[^\d.]/g, ''));
+          return Number.isFinite(parsed) ? parsed <= effectiveMaxPrice : true;
+        }
+        return true;
+      });
     }
 
     const scored = candidates.map((item) => {
-      const itemVec = resolveEmbedding(`${item.title} ${item.description} ${item.category} ${item.tags.join(' ')}`);
+      const itemVec = resolveEmbedding(`${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`);
       const sim = cosineSimilarity(Array.from(steeredVec), Array.from(itemVec));
       return { item, sim };
     });
@@ -106,10 +131,10 @@ export class ConversationalCatalogAgent {
 
     // Formulate response
     const itemNames = topPicks.map((p) => `«${p.item.title}» (${(p.sim * 100).toFixed(0)}% совпадение)`).join(', ');
-    let responseText = `Я проанализировал ваш запрос «${userInput}».`;
+    let responseText = `Я проанализировал ваш запрос «${safeInput}».`;
 
     if (steeringMods.length > 0) {
-      responseText += ` Вектор смещён с учётом акцентов: [${intent.positiveModifiers.join(', ')}] и исключений: [${intent.negativeModifiers.join(', ')}].`;
+      responseText += ` Вектор смещён с учётом акцентов: [${effectivePosMods.join(', ')}] и исключений: [${intent.negativeModifiers.join(', ')}].`;
     }
 
     if (topPicks.length > 0) {
@@ -129,7 +154,7 @@ export class ConversationalCatalogAgent {
       },
     };
 
-    this.dialogueHistory.push({ role: 'user', content: userInput, timestamp: Date.now() });
+    this.dialogueHistory.push({ role: 'user', content: safeInput, timestamp: Date.now() });
     this.dialogueHistory.push(assistantMessage);
 
     return assistantMessage;

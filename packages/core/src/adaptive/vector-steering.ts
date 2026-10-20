@@ -21,10 +21,13 @@ function normalizeL2(v: Float32Array): Float32Array {
  * Computes cosine similarity between two vectors.
  */
 function cosine(a: Float32Array, b: Float32Array): number {
+  if (a.length !== b.length) {
+    throw new RangeError(`VectorSteering dimension mismatch: ${a.length} vs ${b.length}`);
+  }
   let dot = 0;
   let normA = 0;
   let normB = 0;
-  const len = Math.min(a.length, b.length);
+  const len = a.length;
   for (let i = 0; i < len; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];
@@ -53,6 +56,9 @@ export class VectorSteering {
     modifiers: SteeringModifier[],
     config?: Partial<SteeringConfig>
   ): Float32Array {
+    if (!baseVector || baseVector.length === 0) {
+      throw new RangeError('VectorSteering baseVector must be non-empty');
+    }
     const baseWeight = config?.baseWeight ?? 1.0;
     const maxDeviation = config?.maxAngularDeviation ?? 0.75; // Cosine distance ceiling (1 - cos)
     const normalization = config?.normalization ?? 'l2';
@@ -62,6 +68,9 @@ export class VectorSteering {
 
     // Apply base vector
     for (let i = 0; i < dim; i++) {
+      if (!Number.isFinite(baseVector[i])) {
+        throw new RangeError(`VectorSteering baseVector contains non-finite value at ${i}`);
+      }
       steered[i] = baseVector[i] * baseWeight;
     }
 
@@ -70,9 +79,16 @@ export class VectorSteering {
       const sign = mod.type === 'positive' ? 1.0 : -1.0;
       const effectiveWeight = mod.weight * sign;
       const modVec = mod.vector;
-      const limit = Math.min(dim, modVec.length);
+      if (!modVec || modVec.length !== dim) {
+        throw new RangeError(
+          `VectorSteering modifier dimension mismatch: expected ${dim}, got ${modVec?.length ?? 0}`
+        );
+      }
 
-      for (let i = 0; i < limit; i++) {
+      for (let i = 0; i < dim; i++) {
+        if (!Number.isFinite(modVec[i])) {
+          throw new RangeError(`VectorSteering modifier contains non-finite value at ${i}`);
+        }
         steered[i] += modVec[i] * effectiveWeight;
       }
     }
@@ -105,10 +121,21 @@ export class VectorSteering {
    * @returns Normalized difference vector representing the semantic shift
    */
   public static computeDelta(originVector: Float32Array, targetVector: Float32Array): Float32Array {
-    const dim = Math.min(originVector.length, targetVector.length);
+    if (!originVector || !targetVector || originVector.length === 0) {
+      throw new RangeError('VectorSteering computeDelta vectors must be non-empty');
+    }
+    if (originVector.length !== targetVector.length) {
+      throw new RangeError(
+        `VectorSteering computeDelta dimension mismatch: ${originVector.length} vs ${targetVector.length}`
+      );
+    }
+    const dim = originVector.length;
     const delta = new Float32Array(dim);
 
     for (let i = 0; i < dim; i++) {
+      if (!Number.isFinite(originVector[i]) || !Number.isFinite(targetVector[i])) {
+        throw new RangeError(`VectorSteering computeDelta contains non-finite value at ${i}`);
+      }
       delta[i] = targetVector[i] - originVector[i];
     }
 

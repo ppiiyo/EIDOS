@@ -69,8 +69,15 @@ export class CrossEncoderRanker {
    * Models [u; v; |u - v|; u * v] non-linear alignment.
    */
   private computeInteractionScore(u: Float32Array, v: Float32Array): number {
-    const dim = Math.min(u.length, v.length);
-    if (dim === 0) return 0.5;
+    if (!u || !v || u.length !== v.length) {
+      throw new RangeError(
+        `CrossEncoderRanker dimension mismatch: ${u?.length ?? 0} vs ${v?.length ?? 0}`
+      );
+    }
+    const dim = u.length;
+    if (dim === 0) {
+      throw new RangeError('CrossEncoderRanker embedding cannot be empty');
+    }
 
     let dotSum = 0;
     let normUSq = 0;

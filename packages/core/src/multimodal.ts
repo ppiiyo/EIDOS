@@ -15,7 +15,15 @@ export class MultimodalEmbedder {
     imageEmbedding: Float32Array,
     textWeight: number = 0.55
   ): Float32Array {
-    const dim = Math.min(textEmbedding.length, imageEmbedding.length);
+    if (!textEmbedding || !imageEmbedding || textEmbedding.length === 0) {
+      throw new RangeError('MultimodalEmbedder embeddings must be non-empty');
+    }
+    if (textEmbedding.length !== imageEmbedding.length) {
+      throw new RangeError(
+        `MultimodalEmbedder dimension mismatch: ${textEmbedding.length} vs ${imageEmbedding.length}`
+      );
+    }
+    const dim = textEmbedding.length;
     const joint = new Float32Array(dim);
 
     const imageWeight = 1.0 - textWeight;

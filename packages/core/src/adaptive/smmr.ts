@@ -20,6 +20,18 @@ export class SMMR {
    *
    * @param config - SMMR options
    */
+  private static validateConfig(cfg: SMMRConfig): void {
+    if (!Number.isFinite(cfg.lambda) || cfg.lambda < 0 || cfg.lambda > 1) {
+      throw new RangeError(`SMMR lambda must be in [0, 1], got ${cfg.lambda}`);
+    }
+    if (!Number.isFinite(cfg.sampleSize) || cfg.sampleSize < 1) {
+      throw new RangeError(`SMMR sampleSize must be >= 1, got ${cfg.sampleSize}`);
+    }
+    if (!Number.isFinite(cfg.temperature) || cfg.temperature < 0) {
+      throw new RangeError(`SMMR temperature must be >= 0, got ${cfg.temperature}`);
+    }
+  }
+
   constructor(config?: Partial<SMMRConfig>) {
     this.config = {
       lambda: config?.lambda ?? 0.7,
@@ -27,6 +39,7 @@ export class SMMR {
       temperature: config?.temperature ?? 0.5,
       deterministic: config?.deterministic ?? false,
     };
+    SMMR.validateConfig(this.config);
   }
 
   /**
@@ -42,17 +55,44 @@ export class SMMR {
     limit: number,
     config?: Partial<SMMRConfig>
   ): Array<{ id: string; score: number }> {
-    if (!candidates || candidates.length === 0 || limit <= 0) {
-      return [];
-    }
-
     const lambda = config?.lambda ?? this.config.lambda;
-    const sampleSize = Math.max(1, config?.sampleSize ?? this.config.sampleSize);
+    const sampleSize = config?.sampleSize ?? this.config.sampleSize;
     const temperature = config?.temperature ?? this.config.temperature;
     const deterministic =
       config?.deterministic !== undefined
         ? config.deterministic
         : this.config.deterministic || temperature <= 1e-4;
+
+    SMMR.validateConfig({ lambda, sampleSize, temperature, deterministic });
+    if (!Number.isFinite(limit)) {
+      throw new RangeError(`SMMR limit must be finite, got ${limit}`);
+    }
+
+    if (!candidates || candidates.length === 0 || limit <= 0) {
+      return [];
+    }
+
+    const expectedDim = candidates[0].embedding?.length ?? 0;
+    if (expectedDim === 0) {
+      throw new RangeError('SMMR candidate embedding cannot be empty');
+    }
+    for (const c of candidates) {
+      if (!Number.isFinite(c.score)) {
+        throw new RangeError(`SMMR candidate '${c.id}' has non-finite score: ${c.score}`);
+      }
+      if (!c.embedding || c.embedding.length !== expectedDim) {
+        throw new RangeError(
+          `SMMR candidate '${c.id}' embedding dimension mismatch: expected ${expectedDim}, got ${c.embedding?.length ?? 0}`
+        );
+      }
+      for (let i = 0; i < c.embedding.length; i++) {
+        if (!Number.isFinite(c.embedding[i])) {
+          throw new RangeError(
+            `SMMR candidate '${c.id}' embedding has non-finite coordinate at index ${i}`
+          );
+        }
+      }
+    }
 
     const remaining = [...candidates];
     const selected: Array<{ id: string; score: number; embedding: Float32Array }> = [];

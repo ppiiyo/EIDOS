@@ -553,3 +553,17 @@ export function exportConceptsToCsv(
   const result = lines.join('\n');
   return includeBom ? `\uFEFF${result}` : result;
 }
+
+export function parseCsvToConcepts(csvText: string, options: CsvParseOptions = {}) {
+  const res = parseSemanticConceptsCsv(csvText, options);
+  return {
+    ...res,
+    errors: res.warnings.concat(res.invalidRows.map((r) => r.error || 'Invalid row')),
+    stats: {
+      totalRows: res.totalRows,
+      importedCount: res.concepts.length,
+      skippedDuplicateCount: res.duplicatesCount,
+    },
+  };
+}
+
