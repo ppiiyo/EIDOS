@@ -2,6 +2,7 @@ import path from 'path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  root: path.resolve(__dirname),
   resolve: {
     alias: {
       '@eidos/core': path.resolve(__dirname, './packages/core/src/index.ts'),
@@ -9,6 +10,7 @@ export default defineConfig({
     },
   },
   test: {
+    root: path.resolve(__dirname),
     globals: true,
     environment: 'node',
     include: [
