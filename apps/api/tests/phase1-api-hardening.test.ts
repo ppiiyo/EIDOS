@@ -46,17 +46,27 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
   });
 
   describe('TASK 1.2: Security Stack (CORS, Helmet CSP, Rate Limiting)', () => {
-    it('attaches Helmet CSP and hardening headers to API responses', async () => {
+    it('attaches 7+ Helmet CSP hardening headers and 3 CORS headers to API responses', async () => {
       const res = await app.inject({
         method: 'GET',
         url: '/v1/health',
       });
 
       expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('application/json');
+      // 7+ Security headers
       expect(res.headers['content-security-policy']).toContain("default-src 'self'");
       expect(res.headers['x-content-type-options']).toBe('nosniff');
       expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+      expect(res.headers['x-xss-protection']).toBeDefined();
       expect(res.headers['strict-transport-security']).toContain('max-age=');
+      expect(res.headers['referrer-policy']).toBe('no-referrer');
+      expect(res.headers['cross-origin-opener-policy']).toBe('same-origin');
+
+      // 3 CORS headers
+      expect(res.headers['access-control-allow-origin']).toBeDefined();
+      expect(res.headers['access-control-allow-methods']).toContain('POST');
+      expect(res.headers['access-control-allow-credentials']).toBe('true');
     });
 
     it('enforces CORS origin whitelist', async () => {
@@ -108,13 +118,26 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
   });
 
   describe('TASK 1.3: Production Auth & JWT Expiration Validation', () => {
-    it('rejects hardcoded dev keys (eidos_dev_key, test-key) when NODE_ENV=production', async () => {
+    it('rejects missing key on /v1/health in production (401) and rejects hardcoded dev keys (eidos_dev_key, test-key)', async () => {
       const prevEnv = process.env.NODE_ENV;
       const prevKey = process.env.EIDOS_API_KEY;
       process.env.NODE_ENV = 'production';
       process.env.EIDOS_API_KEY = 'prod_secret_key_999';
 
       const warnSpy = vi.spyOn(app.log, 'warn');
+
+      const healthNoKeyRes = await app.inject({
+        method: 'GET',
+        url: '/v1/health',
+      });
+      expect(healthNoKeyRes.statusCode).toBe(401);
+
+      const healthWithKeyRes = await app.inject({
+        method: 'GET',
+        url: '/v1/health',
+        headers: { 'x-api-key': 'prod_secret_key_999' },
+      });
+      expect(healthWithKeyRes.statusCode).toBe(200);
 
       const devKeyRes = await app.inject({
         method: 'POST',

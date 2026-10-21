@@ -8,193 +8,219 @@ export interface DemoCatalogSeedItem {
   category: string;
   tags: string[];
   price: number;
+  rating?: number;
 }
 
-const CATEGORY_TEMPLATES: Array<{
-  category: string;
-  items: Array<{ title: string; desc: string; tags: string[]; basePrice: number }>;
-}> = [
-  {
-    category: 'Electronics',
-    items: [
-      {
-        title: 'Neural Spatial Audio Headphones Pro',
-        desc: 'Active noise cancelling wireless headphones with 3D spatial head tracking and lossless LDAC codec.',
-        tags: ['audio', 'headphones', 'wireless', 'anc', 'spatial'],
-        basePrice: 349.99,
-      },
-      {
-        title: 'UltraWide 49" OLED Curved Monitor',
-        desc: '240Hz 0.03ms QD-OLED display for software engineering, trading, and sim racing.',
-        tags: ['monitor', 'oled', 'ultrawide', 'display', 'gaming'],
-        basePrice: 1199.0,
-      },
-      {
-        title: 'Split Ergonomic Mechanical Keyboard',
-        desc: 'Hot-swappable programmable QMK/VIA wireless split keyboard with tactile switches.',
-        tags: ['keyboard', 'mechanical', 'ergonomic', 'qmk', 'peripherals'],
-        basePrice: 229.0,
-      },
-      {
-        title: 'Thunderbolt 5 NVMe Enclosure 8TB',
-        desc: '80Gbps rugged aluminum SSD array with active cooling for 8K RAW video editing.',
-        tags: ['storage', 'ssd', 'nvme', 'thunderbolt', 'creator'],
-        basePrice: 649.0,
-      },
-      {
-        title: 'Full-Frame Mirrorless Cinema Camera',
-        desc: '6K 60fps 15-stop dynamic range hybrid camera with phase-detect autofocus.',
-        tags: ['camera', 'cinema', 'mirrorless', 'photography', 'video'],
-        basePrice: 2499.0,
-      },
-    ],
-  },
-  {
-    category: 'Books',
-    items: [
-      {
-        title: 'Designing Data-Intensive Applications',
-        desc: 'Deep architectural guide to distributed systems, consensus, replication, and stream processing.',
-        tags: ['distributed-systems', 'architecture', 'databases', 'engineering'],
-        basePrice: 44.99,
-      },
-      {
-        title: 'Approximate Nearest Neighbor Search in High Dimensions',
-        desc: 'Mathematical foundations of HNSW graphs, product quantization, and vector similarity search.',
-        tags: ['hnsw', 'vector-search', 'math', 'machine-learning', 'ai'],
-        basePrice: 54.0,
-      },
-      {
-        title: 'Deep Recommender Systems at Scale',
-        desc: 'Two-tower retrieval, multi-interest capsules, contextual bandits, and online learning.',
-        tags: ['recommenders', 'deep-learning', 'bandits', 'personalization'],
-        basePrice: 49.5,
-      },
-      {
-        title: 'Neuromancer Anniversary Edition',
-        desc: 'Foundational cyberpunk science fiction novel exploring artificial intelligence and cyberspace.',
-        tags: ['scifi', 'cyberpunk', 'ai', 'classic'],
-        basePrice: 18.99,
-      },
-      {
-        title: 'High-Performance TypeScript & V8 Internals',
-        desc: 'TypedArrays, SIMD optimization, memory layout, and zero-allocation algorithms in Node.js.',
-        tags: ['typescript', 'nodejs', 'performance', 'v8', 'programming'],
-        basePrice: 38.0,
-      },
-    ],
-  },
-  {
-    category: 'Games',
-    items: [
-      {
-        title: 'Starfield Shattered Horizon',
-        desc: 'Interstellar space exploration RPG with procedural planetary systems and ship engineering.',
-        tags: ['scifi', 'space', 'rpg', 'exploration'],
-        basePrice: 69.99,
-      },
-      {
-        title: 'Detroit: Synthetic Dawn',
-        desc: 'Interactive narrative thriller about android consciousness and moral branching choices.',
-        tags: ['cyberpunk', 'ai', 'narrative', 'scifi'],
-        basePrice: 39.99,
-      },
-      {
-        title: 'Factorio Space Age Expansion',
-        desc: 'Industrial automation, logistics networks, interplanetary orbital platforms, and circuit logic.',
-        tags: ['simulation', 'strategy', 'automation', 'engineering'],
-        basePrice: 35.0,
-      },
-      {
-        title: 'Baldur Gate Tactical Chronicles',
-        desc: 'Party-based tactical fantasy RPG with deep systemic interactions and co-op campaign.',
-        tags: ['rpg', 'tactical', 'fantasy', 'strategy'],
-        basePrice: 59.99,
-      },
-      {
-        title: 'SimRacing GT Telemetry Pro',
-        desc: 'Laser-scanned circuit racing simulator with real-time tire thermodynamics and force feedback.',
-        tags: ['simulation', 'racing', 'esports', 'physics'],
-        basePrice: 49.99,
-      },
-    ],
-  },
-  {
-    category: 'Appliances',
-    items: [
-      {
-        title: 'Dual-Boiler PID Espresso Workstation',
-        desc: 'Commercial rotary pump espresso machine with flow profiling and precision PID temperature control.',
-        tags: ['coffee', 'espresso', 'kitchen', 'barista'],
-        basePrice: 1490.0,
-      },
-      {
-        title: 'Smart Induction Sous-Vide Precision Cooker',
-        desc: 'Wi-Fi connected 1800W immersion circulator with 0.05C thermal stability.',
-        tags: ['kitchen', 'cooking', 'smart-home', 'appliance'],
-        basePrice: 199.0,
-      },
-      {
-        title: 'HEPA 14 Laser Air Purifier Studio',
-        desc: 'Real-time PM2.5 and VOC spectrometer air filtration system with whisper-quiet brushless motor.',
-        tags: ['smart-home', 'air-purifier', 'health', 'sensors'],
-        basePrice: 429.0,
-      },
-      {
-        title: 'Robotic LiDAR Mapping Vacuum Station',
-        desc: '3D dToF laser navigation robot vacuum with self-emptying hot-water mop washing dock.',
-        tags: ['robotics', 'smart-home', 'lidar', 'cleaning'],
-        basePrice: 899.0,
-      },
-      {
-        title: 'Artisan Flat-Burr Single Dose Grinder',
-        desc: '64mm DLC-coated stepless flat burr grinder with zero-retention bellows for specialty coffee.',
-        tags: ['coffee', 'grinder', 'espresso', 'kitchen'],
-        basePrice: 399.0,
-      },
-    ],
-  },
-  {
-    category: 'Sports',
-    items: [
-      {
-        title: 'Carbon Plate Marathon Racing Shoes',
-        desc: 'Featherweight Pebax foam running shoes with full-length carbon fiber propulsion plate.',
-        tags: ['running', 'marathon', 'carbon', 'fitness'],
-        basePrice: 249.99,
-      },
-      {
-        title: 'GPS Multi-Band Sapphire Triathlon Watch',
-        desc: 'Dual-frequency GNSS adventure smartwatch with solar charging, HRV recovery, and offline topo maps.',
-        tags: ['wearable', 'gps', 'triathlon', 'running', 'fitness'],
-        basePrice: 799.0,
-      },
-      {
-        title: 'Direct-Drive Smart Indoor Cycling Trainer',
-        desc: '2500W electromagnetic resistance bike trainer with virtual shifting and 1% power accuracy.',
-        tags: ['cycling', 'indoor-trainer', 'watts', 'fitness'],
-        basePrice: 999.0,
-      },
-      {
-        title: 'Adjustable Cast-Iron Kettlebell Pro',
-        desc: 'Competition-grade steel kettlebell adjustable from 12kg to 32kg for strength conditioning.',
-        tags: ['strength', 'kettlebell', 'gym', 'conditioning'],
-        basePrice: 219.0,
-      },
-      {
-        title: 'Ultralight 800-Fill Down Alpine Jacket',
-        desc: 'Packable Pertex Quantum windproof mountaineering jacket for high-altitude expeditions.',
-        tags: ['outdoor', 'mountaineering', 'apparel', 'alpine'],
-        basePrice: 329.0,
-      },
-    ],
-  },
+const CATEGORIES = [
+  'Electronics',
+  'Books',
+  'Games',
+  'Appliances',
+  'Sports',
+  'Fashion',
+  'Home',
+  'Toys',
+] as const;
+
+const ADJECTIVES = [
+  'Quantum',
+  'Neural',
+  'UltraLight',
+  'ProGrade',
+  'Titanium',
+  'Precision',
+  'Ergonomic',
+  'Modular',
+  'Carbon',
+  'Studio',
+  'Acoustic',
+  'Tactical',
+  'Autonomous',
+  'Cryo',
+  'HyperSpeed',
+  'Bespoke',
+  'Artisan',
+  'NextGen',
+  'Spatial',
+  'Kinetic',
 ];
 
+const CATEGORY_NOUNS: Record<string, { nouns: string[]; tags: string[]; basePrice: number }> = {
+  Electronics: {
+    nouns: [
+      'Spatial Audio Headphones',
+      'QD-OLED Curved Monitor',
+      'Split Mechanical Keyboard',
+      'Thunderbolt NVMe Array',
+      'Mirrorless Cinema Camera',
+      'DSP Audio Interface',
+      'GaN 240W Desktop Charger',
+      'Wi-Fi 7 Mesh Router',
+      'MicroLED Drawing Tablet',
+      'Low-Latency Wireless Mouse',
+    ],
+    tags: ['electronics', 'hardware', 'tech', 'wireless', 'creator', 'pro'],
+    basePrice: 249.99,
+  },
+  Books: {
+    nouns: [
+      'Distributed Systems Architecture',
+      'Approximate Nearest Neighbor Search',
+      'Deep Recommender Systems',
+      'High-Performance TypeScript',
+      'Cyberpunk Neuromancer Chronicles',
+      'Linear Algebra for Machine Learning',
+      'Bayesian Contextual Bandits',
+      'Rust Systems Programming',
+      'Graph Neural Networks Handbook',
+      'Quantum Information Theory',
+    ],
+    tags: ['books', 'engineering', 'ai', 'algorithms', 'math', 'programming'],
+    basePrice: 39.99,
+  },
+  Games: {
+    nouns: [
+      'Starfield Shattered Horizon',
+      'Cyberpunk Night City Chronicles',
+      'Factorio Orbital Automation',
+      'Tactical Fantasy Chronicles',
+      'SimRacing GT Telemetry Pro',
+      'Orbital Colony Simulator',
+      'Mecha Vanguard Tactics',
+      'Rogue AI Cybernetic Protocol',
+      'Deep Space Fleet Commander',
+      'Quantum Puzzle Odyssey',
+    ],
+    tags: ['games', 'rpg', 'scifi', 'simulation', 'strategy', 'cyberpunk'],
+    basePrice: 49.99,
+  },
+  Appliances: {
+    nouns: [
+      'Dual-Boiler PID Espresso Machine',
+      'Smart Induction Sous-Vide Cooker',
+      'HEPA 14 Laser Air Purifier',
+      'LiDAR Mapping Robot Vacuum',
+      'Flat-Burr Single Dose Grinder',
+      'Countertop Steam Convection Oven',
+      'Ultrasonic Cold Brew Extractor',
+      'Smart Wine Preservation Cabinet',
+      'Variable Temperature Gooseneck Kettle',
+      'Brushless High-Torque Blender',
+    ],
+    tags: ['appliances', 'kitchen', 'smart-home', 'coffee', 'espresso', 'automation'],
+    basePrice: 329.0,
+  },
+  Sports: {
+    nouns: [
+      'Carbon Plate Marathon Shoes',
+      'Multi-Band GPS Triathlon Watch',
+      'Direct-Drive Smart Bike Trainer',
+      'Adjustable Competition Kettlebell',
+      '800-Fill Alpine Down Jacket',
+      'Aero Carbon Road Helmet',
+      'Hydration Trail Running Vest',
+      'Smart Rowing Ergometer',
+      'Titanium Trekking Poles',
+      'Infrared Muscle Recovery Gun',
+    ],
+    tags: ['sports', 'fitness', 'running', 'endurance', 'outdoor', 'training'],
+    basePrice: 189.0,
+  },
+  Fashion: {
+    nouns: [
+      'Merino Wool Technical Hoodie',
+      'Gore-Tex Pro Storm Shell',
+      'Selvedge Japanese Denim Jeans',
+      'Minimalist Full-Grain Leather Sneaker',
+      'Ballistic Nylon Commuter Backpack',
+      'Titanium Polarized Aviator Sunglasses',
+      'Cashmere Structured Overcoat',
+      'Waterproof Chelsea Boots',
+      'Breathable Linen Overshirt',
+      'Chronograph Automatic Field Watch',
+    ],
+    tags: ['fashion', 'apparel', 'minimalist', 'technical', 'outerwear', 'style'],
+    basePrice: 159.0,
+  },
+  Home: {
+    nouns: [
+      'Ergonomic Mesh Task Chair',
+      'Dual-Motor Standing Desk Frame',
+      'Full-Spectrum Circadian Desk Lamp',
+      'Acoustic Walnut Wall Panels',
+      'Weighted Bamboo Cooling Blanket',
+      'Modular Aluminum Shelving System',
+      'Smart Matter Thread Thermostat',
+      'Organic Linen Duvet Set',
+      'Minimalist Concrete Planter',
+      'Solid Walnut Monitor Riser',
+    ],
+    tags: ['home', 'office', 'ergonomic', 'interior', 'workspace', 'design'],
+    basePrice: 219.0,
+  },
+  Toys: {
+    nouns: [
+      'Programmable Robotics STEM Kit',
+      'Architectural Technic Crane Set',
+      'FPV Brushless Micro Drone',
+      'Magnetic Neodymium Geometry Tiles',
+      'Wooden Montessori Logic Board',
+      'Solar Rover Engineering Kit',
+      'Die-Cast Scale Formula Car',
+      'Electronic Synthesizer Building Blocks',
+      'Telescope Astrophotography Starter',
+      'RC Rock Crawler 4x4 Chassis',
+    ],
+    tags: ['toys', 'stem', 'robotics', 'educational', 'building', 'engineering'],
+    basePrice: 79.99,
+  },
+};
+
 /**
- * Generates 105 deterministic, realistic e-commerce seed items (5 core legacy items + 100 extended items).
+ * Generates deterministic 384-d unit-normalized vector from item metadata in <0.01ms.
  */
-export function generateDemoCatalog(targetCount = 105): DemoCatalogSeedItem[] {
+export function computeDeterministicSeedVector(
+  id: string,
+  category: string,
+  title: string,
+  tags: string[]
+): Float32Array {
+  const vec = new Float32Array(384);
+  const catIdx = Math.max(0, CATEGORIES.indexOf(category as any));
+
+  // Category subspace anchor (dims 0..63)
+  const baseDim = (catIdx * 8) % 64;
+  for (let d = 0; d < 8; d++) {
+    vec[baseDim + d] = 0.65;
+  }
+
+  // Deterministic token hashing across dims 64..383
+  const text = `${id} ${category} ${title} ${tags.join(' ')}`.toLowerCase();
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+    const targetDim = 64 + ((h + i * 17) % 320);
+    vec[targetDim] += ((h & 0xff) / 255.0 - 0.5) * 0.4;
+  }
+
+  // L2 normalize
+  let sumSq = 0;
+  for (let i = 0; i < 384; i++) {
+    sumSq += vec[i] * vec[i];
+  }
+  const norm = Math.sqrt(sumSq) || 1;
+  for (let i = 0; i < 384; i++) {
+    vec[i] /= norm;
+  }
+  return vec;
+}
+
+/**
+ * Generates 5,005+ deterministic, realistic e-commerce seed items
+ * (5 core legacy items '1'..'5' + 5,000+ unique items across 8 categories).
+ */
+export function generateDemoCatalog(targetCount = 5005): DemoCatalogSeedItem[] {
   const baseFive: DemoCatalogSeedItem[] = [
     {
       id: '1',
@@ -203,6 +229,7 @@ export function generateDemoCatalog(targetCount = 105): DemoCatalogSeedItem[] {
       category: 'Games',
       tags: ['cyberpunk', 'rpg', 'scifi', 'simulation'],
       price: 59.99,
+      rating: 4.8,
     },
     {
       id: '2',
@@ -211,6 +238,7 @@ export function generateDemoCatalog(targetCount = 105): DemoCatalogSeedItem[] {
       category: 'Movies',
       tags: ['scifi', 'simulation', 'cyberpunk', 'ai'],
       price: 14.99,
+      rating: 4.9,
     },
     {
       id: '3',
@@ -219,6 +247,7 @@ export function generateDemoCatalog(targetCount = 105): DemoCatalogSeedItem[] {
       category: 'Books',
       tags: ['scifi', 'space', 'politics'],
       price: 19.99,
+      rating: 4.9,
     },
     {
       id: '4',
@@ -227,6 +256,7 @@ export function generateDemoCatalog(targetCount = 105): DemoCatalogSeedItem[] {
       category: 'Books',
       tags: ['programming', 'python', 'ai', 'code'],
       price: 39.99,
+      rating: 4.7,
     },
     {
       id: '5',
@@ -235,36 +265,48 @@ export function generateDemoCatalog(targetCount = 105): DemoCatalogSeedItem[] {
       category: 'Appliances',
       tags: ['coffee', 'espresso', 'kitchen'],
       price: 499.0,
+      rating: 4.8,
     },
   ];
 
-  const editions = ['Mark I', 'Mark II', 'Studio Edition', 'Enterprise Pro', 'Ultra'];
   const items: DemoCatalogSeedItem[] = [...baseFive];
-  let nextId = 6;
+  const countToGenerate = Math.max(0, targetCount - baseFive.length);
 
-  for (const edition of editions) {
-    for (const group of CATEGORY_TEMPLATES) {
-      for (const tpl of group.items) {
-        if (items.length >= targetCount) break;
-        const editionMultiplier = 1 + editions.indexOf(edition) * 0.08;
-        items.push({
-          id: String(nextId++),
-          title: `${tpl.title} — ${edition}`,
-          description: `${tpl.desc} (${edition} configuration with calibrated telemetry).`,
-          category: group.category,
-          tags: [...tpl.tags, group.category.toLowerCase()],
-          price: Math.round(tpl.basePrice * editionMultiplier * 100) / 100,
-        });
-      }
-    }
+  for (let i = 0; i < countToGenerate; i++) {
+    const category = CATEGORIES[i % CATEGORIES.length];
+    const spec = CATEGORY_NOUNS[category];
+    const adj = ADJECTIVES[Math.floor(i / CATEGORIES.length) % ADJECTIVES.length];
+    const noun = spec.nouns[Math.floor(i / (CATEGORIES.length * ADJECTIVES.length)) % spec.nouns.length];
+    const seriesNum = Math.floor(i / 80) + 1;
+    const itemId = `item-${i + 6}`;
+
+    const priceFactor = 0.75 + ((i * 19) % 150) / 100;
+    const price = Math.round(spec.basePrice * priceFactor * 100) / 100;
+    const rating = Math.round((4.1 + ((i * 7) % 9) * 0.1) * 10) / 10;
+
+    items.push({
+      id: itemId,
+      title: `${adj} ${noun} Gen-${seriesNum}`,
+      description: `High-performance ${adj.toLowerCase()} ${noun.toLowerCase()} in ${category} category (Series ${seriesNum}, SKU #${itemId}). Engineered for low-latency workflows and reliability.`,
+      category,
+      tags: [adj.toLowerCase(), ...spec.tags.slice(0, 4)],
+      price,
+      rating,
+    });
   }
 
   return items;
 }
 
 if (require.main === module) {
-  const dataset = generateDemoCatalog(105);
+  const countArgIdx = process.argv.indexOf('--count');
+  const requestedCount =
+    countArgIdx !== -1 && process.argv[countArgIdx + 1]
+      ? Math.max(5000, parseInt(process.argv[countArgIdx + 1], 10))
+      : 5005;
+
+  const dataset = generateDemoCatalog(requestedCount);
   const outPath = path.resolve(process.cwd(), 'data/demo-seed-100.json');
   fs.writeFileSync(outPath, JSON.stringify(dataset, null, 2), 'utf-8');
-  console.log(`Generated ${dataset.length} seed items at ${outPath}`);
+  console.log(`✅ Generated ${dataset.length} seed items at ${outPath}`);
 }

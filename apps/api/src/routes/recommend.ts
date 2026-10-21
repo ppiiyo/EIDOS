@@ -51,10 +51,10 @@ export const recommendSchema = z
     const resolvedUserId = data.user_id || data.userId;
 
     if (data.strategy === 'user') {
-      if (!resolvedUserId) {
+      if (!resolvedUserId && (!data.history || data.history.length === 0)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'user_id is required when strategy is "user"',
+          message: 'user_id or history required for user strategy',
           path: ['user_id'],
         });
       }
@@ -62,7 +62,7 @@ export const recommendSchema = z
       if (!resolvedItemId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'item_id or itemId is required',
+          message: 'item_id or itemId is required for simple/adaptive strategy',
           path: ['item_id'],
         });
       }

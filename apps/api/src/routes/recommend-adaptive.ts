@@ -27,6 +27,8 @@ export async function recommendAdaptiveRoutes(
   opts: { vectorStore: VectorStore }
 ): Promise<void> {
   fastify.post('/v1/recommend/adaptive', { preHandler: authenticate }, async (request, reply) => {
+    reply.header('Deprecation', 'true');
+    reply.header('Link', '</v1/recommend>; rel="successor-version"');
     const parseResult = recommendAdaptiveSchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply.status(400).send({

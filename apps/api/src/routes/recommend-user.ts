@@ -26,6 +26,8 @@ export async function recommendUserRoutes(
   opts: { vectorStore: VectorStore }
 ): Promise<void> {
   fastify.post('/v1/recommend/user', { preHandler: authenticate }, async (request, reply) => {
+    reply.header('Deprecation', 'true');
+    reply.header('Link', '</v1/recommend>; rel="successor-version"');
     const parseResult = recommendUserSchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply.status(400).send({

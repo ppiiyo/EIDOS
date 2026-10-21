@@ -73,7 +73,7 @@ export function signJwtToken(
   return `${header}.${body}.${signature}`;
 }
 
-export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<unknown> {
   const apiKeyHeader = (request.headers['x-api-key'] as string) || '';
   const authHeader = request.headers.authorization || '';
 
@@ -92,15 +92,15 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       path: request.url,
       userAgent: request.headers['user-agent'],
     });
-    reply.status(401).send({
+    return reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
       message:
         'Missing or malformed Authorization header. Expected format: Bearer <API_KEY> or x-api-key header',
     });
-    return;
   }
 
+  // В production разрешаем ТОЛЬКО переменную окружения EIDOS_API_KEY
   const isProduction = process.env.NODE_ENV === 'production';
   const validKeys = isProduction
     ? [process.env.EIDOS_API_KEY].filter((k): k is string => Boolean(k))
@@ -124,12 +124,11 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         path: request.url,
         userAgent: request.headers['user-agent'],
       });
-      reply.status(401).send({
+      return reply.status(401).send({
         statusCode: 401,
         error: 'Unauthorized',
         message: 'Authentication token has expired.',
       });
-      return;
     }
 
     if (jwtCheck.isValid) {
@@ -147,11 +146,10 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       path: request.url,
       userAgent: request.headers['user-agent'],
     });
-    reply.status(401).send({
+    return reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
       message: 'Invalid API key provided.',
     });
-    return;
   }
 }

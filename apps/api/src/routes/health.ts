@@ -1,20 +1,23 @@
 import { FastifyInstance } from 'fastify';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
+import { authenticate } from '../middleware/auth';
 
 export interface ComponentCheck {
-  status: 'ok' | 'degraded' | 'error';
+  status: 'ok' | 'warning' | 'degraded' | 'error';
   [key: string]: unknown;
 }
 
 async function checkVectorStore(vectorStore: VectorStore): Promise<ComponentCheck> {
   try {
-    const count = vectorStore.count();
+    const itemCount = vectorStore.size();
     const hnswSize = vectorStore.getHNSW().size();
     return {
-      status: count >= 0 && hnswSize >= 0 ? 'ok' : 'degraded',
-      itemsCount: count,
+      status: itemCount > 0 ? 'ok' : 'warning',
+      itemCount,
+      itemsCount: itemCount,
       hnswIndexedCount: hnswSize,
+      message: itemCount > 0 ? `Indexed ${itemCount} items` : 'Vector store is empty',
     };
   } catch (err) {
     return {
@@ -48,6 +51,7 @@ async function checkEmbeddingModel(embedder?: ServerEmbedder): Promise<Component
       status: dim === 384 ? 'ok' : 'degraded',
       model: 'all-MiniLM-L6-v2',
       dimension: dim,
+      message: 'Embedding model loaded',
     };
   } catch (err) {
     return {
@@ -58,13 +62,13 @@ async function checkEmbeddingModel(embedder?: ServerEmbedder): Promise<Component
 }
 
 function checkMemory(): ComponentCheck {
-  const mem = process.memoryUsage();
-  const heapUsedMB = Math.round((mem.heapUsed / (1024 * 1024)) * 100) / 100;
-  const heapTotalMB = Math.round((mem.heapTotal / (1024 * 1024)) * 100) / 100;
-  const rssMB = Math.round((mem.rss / (1024 * 1024)) * 100) / 100;
+  const usage = process.memoryUsage();
+  const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024);
+  const heapTotalMB = Math.round(usage.heapTotal / 1024 / 1024);
+  const rssMB = Math.round(usage.rss / 1024 / 1024);
 
   return {
-    status: rssMB < 2048 ? 'ok' : 'degraded',
+    status: rssMB < 2048 ? 'ok' : 'warning',
     heapUsedMB,
     heapTotalMB,
     rssMB,
@@ -84,31 +88,41 @@ export async function healthRoutes(
 ): Promise<void> {
   const bootTime = Date.now();
 
-  fastify.get('/v1/health', async (_request, reply) => {
-    const startTime = Date.now();
+  fastify.get(
+    '/v1/health',
+    {
+      preHandler: async (request, reply) => {
+        if (process.env.NODE_ENV === 'production') {
+          return authenticate(request, reply);
+        }
+      },
+    },
+    async (_request, reply) => {
+      const startTime = Date.now();
 
-    const checks = {
-      vectorStore: await checkVectorStore(opts.vectorStore),
-      database: await checkDatabase(opts.vectorStore),
-      embeddingModel: await checkEmbeddingModel(opts.embedder),
-      memory: checkMemory(),
-      uptime: checkUptime(),
-    };
+      const checks = {
+        vectorStore: await checkVectorStore(opts.vectorStore),
+        database: await checkDatabase(opts.vectorStore),
+        embeddingModel: await checkEmbeddingModel(opts.embedder),
+        memory: checkMemory(),
+        uptime: checkUptime(),
+      };
 
-    const isHealthy = Object.values(checks).every((c) => c.status === 'ok');
-    const responseTime = Date.now() - startTime;
+      const isHealthy = Object.values(checks).every((c) => c.status === 'ok');
+      const responseTime = Date.now() - startTime;
 
-    return reply.status(isHealthy ? 200 : 503).send({
-      status: isHealthy ? 'healthy' : 'degraded',
-      timestamp: new Date().toISOString(),
-      responseTimeMs: responseTime,
-      version: process.env.npm_package_version || '1.0.0',
-      itemsCount: opts.vectorStore.count(),
-      uptimeSeconds: Math.floor((Date.now() - bootTime) / 1000),
-      model: 'all-MiniLM-L6-v2',
-      checks,
-    });
-  });
+      return reply.status(isHealthy ? 200 : 503).send({
+        status: isHealthy ? 'healthy' : 'degraded',
+        timestamp: new Date().toISOString(),
+        responseTimeMs: responseTime,
+        version: process.env.npm_package_version || '1.0.0',
+        itemsCount: opts.vectorStore.count(),
+        uptimeSeconds: Math.floor((Date.now() - bootTime) / 1000),
+        model: 'all-MiniLM-L6-v2',
+        checks,
+      });
+    }
+  );
 
   // Readiness probe for Kubernetes
   fastify.get('/v1/health/ready', async (_request, reply) => {
@@ -124,7 +138,7 @@ export async function healthRoutes(
       embeddingModel.status === 'ok';
 
     return reply.status(isReady ? 200 : 503).send({
-      status: isReady ? 'ready' : 'not_ready',
+      status: isReady ? 'ready' : 'not ready',
       timestamp: new Date().toISOString(),
       checks: {
         vectorStore,
@@ -135,8 +149,11 @@ export async function healthRoutes(
   });
 
   // Liveness probe for Kubernetes
-  fastify.get('/v1/health/live', async () => ({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-  }));
+  fastify.get('/v1/health/live', async (_request, reply) => {
+    return reply.status(200).send({
+      status: 'ok',
+      alive: true,
+      timestamp: new Date().toISOString(),
+    });
+  });
 }
