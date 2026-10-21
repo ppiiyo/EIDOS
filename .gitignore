@@ -18,3 +18,5 @@ build/
 # Build outputs
 dist/
 *.log
+bun.lock
+bun.lockb

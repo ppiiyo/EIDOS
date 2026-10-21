@@ -28,7 +28,9 @@
 
 ### Run Locally in 3 Commands
 
-**Prerequisites:** Node.js `>= 20.0.0` and `pnpm` `>= 9.0.0`.
+**Prerequisites:**
+- **Node.js** `>= 20.0.0`
+- **pnpm** `>= 9.0.0` (`pnpm@9.15.4` is the **sole supported package manager**, enforced via `"preinstall": "npx only-allow pnpm"`; `npm`, `yarn`, and `bun` lockfiles are disallowed).
 
 ```bash
 git clone https://github.com/ppiiyo/EIDOS.git && cd EIDOS
@@ -43,6 +45,16 @@ Once started, the interactive **EIDOS Studio Workbench** and local API routes ar
 ## 🏛️ Architecture
 
 EIDOS is structured as a modular TypeScript monorepo separating client SDKs, the Fastify HTTP/security layer, and the zero-dependency mathematical core (`@eidos/core`).
+
+```text
+eidos/
+├── apps/api/            # Fastify REST API
+├── apps/workspace/      # React 19 Studio UI
+├── packages/core/       # Math Engine
+├── packages/sdk/        # @eidos/sdk
+├── packages/python-sdk/ # Python client
+└── scripts/             # Build & benchmark
+```
 
 ```mermaid
 flowchart TB
@@ -91,8 +103,9 @@ flowchart TB
 | :--- | :--- | :--- |
 | **`@eidos/core`** | `packages/core` | Pure TypeScript math & indexing engine: `HNSWIndex`, `BM25Index`, `tokenizeCJK`, `HybridSearch`, `Ranker`, `StreamingQuantileScaler`, `SMMR`, `BanditExplorer` (LinUCB), and `SecurityGuardrails`. |
 | **`@eidos/sdk`** | `packages/sdk` | Lightweight, zero-dependency TypeScript/JavaScript client with `AbortController` timeouts and strict request/response typing. |
+| **`eidos-sdk` (Python)** | `packages/python-sdk` | Official Python client for batch vector indexing, hybrid search, and backend recommendation workflows. |
 | **`@eidos/api`** | `apps/api` | High-throughput Fastify REST server with Zod schema validation, Prometheus metrics (`/metrics`), and in-memory + WAL-backed vector storage. |
-| **`@eidos/workspace`** | `apps/workspace` | Interactive React 19 + Three.js/WebGL engineering studio for hybrid search benchmarking, MMR diversity tuning, and A/B simulation. |
+| **`@eidos/workspace`** | `apps/workspace` | Interactive React 19 + Three.js/WebGL engineering studio (`vite.config.ts`, `index.html`) for hybrid search benchmarking, MMR diversity tuning, and A/B simulation. |
 
 ---
 

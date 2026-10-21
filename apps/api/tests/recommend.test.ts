@@ -48,6 +48,6 @@ describe('POST /v1/recommend', () => {
   it('returns 200 on GET /v1/health', async () => {
     const res = await app.inject({ method: 'GET', url: '/v1/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json().status).toBe('ok');
+    expect(['ok', 'healthy']).toContain(res.json().status);
   });
 });

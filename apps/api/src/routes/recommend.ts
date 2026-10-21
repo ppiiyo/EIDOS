@@ -1,110 +1,177 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { calculateCategoryEntropy, calculateMMRScore, cosineSimilarity, SecurityGuardrails } from '@eidos/core';
+import {
+  calculateCategoryEntropy,
+  calculateMMRScore,
+  Candidate,
+  cosineSimilarity,
+  SecurityGuardrails,
+} from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
+import { StoredItem } from '../types';
+import { AILManager } from '../services/ail';
 
-const recommendRequestSchema = z
+export const recommendSchema = z
   .object({
-    itemId: z.string().optional(),
-    item_id: z.string().optional(),
-    limit: z.number().int().min(1).max(50).default(5),
+    item_id: z.string().min(1).optional(),
+    itemId: z.string().min(1).optional(),
+    user_id: z.string().min(1).optional(),
+    userId: z.string().min(1).optional(),
+    history: z.array(z.string()).default([]),
+    strategy: z.enum(['simple', 'adaptive', 'user']).default('adaptive'),
+    limit: z.number().int().min(1).max(100).default(10),
+    diversity_factor: z.number().min(0).max(1).optional(),
+    diversityFactor: z.number().min(0).max(1).optional(),
     minSimilarity: z.number().min(0).max(1).default(0.35),
-    diversityFactor: z.number().min(0).max(1).default(0.7),
     excludeIds: z.array(z.string()).optional(),
     filterCategory: z.string().optional(),
+    filters: z
+      .object({
+        category: z.string().optional(),
+        min_price: z.number().optional(),
+        max_price: z.number().optional(),
+        exclude_ids: z.array(z.string()).optional(),
+      })
+      .optional(),
+    context: z
+      .object({
+        timestamp: z.number().optional(),
+        device: z.enum(['mobile', 'desktop', 'tablet']).optional(),
+        sessionId: z.string().optional(),
+        hourOfDay: z.number().min(0).max(23).optional(),
+        dayOfWeek: z.number().min(0).max(6).optional(),
+        language: z.string().optional(),
+      })
+      .optional(),
   })
-  .refine((data) => !!(data.itemId || data.item_id), {
-    message: 'itemId or item_id is required',
-    path: ['itemId'],
+  .superRefine((data, ctx) => {
+    const resolvedItemId = data.item_id || data.itemId;
+    const resolvedUserId = data.user_id || data.userId;
+
+    if (data.strategy === 'user') {
+      if (!resolvedUserId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'user_id is required when strategy is "user"',
+          path: ['user_id'],
+        });
+      }
+    } else {
+      if (!resolvedItemId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'item_id or itemId is required',
+          path: ['item_id'],
+        });
+      }
+    }
   });
 
-export async function recommendRoutes(
-  fastify: FastifyInstance,
-  opts: { vectorStore: VectorStore }
-): Promise<void> {
-  fastify.post('/v1/recommend', { preHandler: authenticate }, async (request, reply) => {
-    const startTime = performance.now();
+export type UnifiedRecommendInput = z.infer<typeof recommendSchema>;
 
-    const parseResult = recommendRequestSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      return reply.status(400).send({
-        statusCode: 400,
-        error: 'Bad Request',
-        message: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
-      });
-    }
+function matchesFilters(
+  item: StoredItem | undefined,
+  category?: string,
+  minPrice?: number,
+  maxPrice?: number,
+  excludeSet?: Set<string>
+): boolean {
+  if (!item) return false;
+  if (excludeSet && excludeSet.has(item.id)) return false;
+  if (category && item.category !== category) return false;
+  if (typeof minPrice === 'number' && (typeof item.price !== 'number' || item.price < minPrice)) {
+    return false;
+  }
+  if (typeof maxPrice === 'number' && (typeof item.price !== 'number' || item.price > maxPrice)) {
+    return false;
+  }
+  return true;
+}
 
-    const { limit, minSimilarity, diversityFactor, excludeIds = [], filterCategory } =
-      parseResult.data;
-    const itemId = (parseResult.data.itemId || parseResult.data.item_id)!;
+export async function simpleRecommend(
+  data: UnifiedRecommendInput,
+  vectorStore: VectorStore
+) {
+  const startTime = performance.now();
+  const itemId = (data.item_id || data.itemId)!;
+  const diversityFactor = data.diversity_factor ?? data.diversityFactor ?? 0.7;
+  const category = data.filters?.category ?? data.filterCategory;
+  const minPrice = data.filters?.min_price;
+  const maxPrice = data.filters?.max_price;
+  const excludeSet = new Set([
+    ...(data.excludeIds || []),
+    ...(data.filters?.exclude_ids || []),
+  ]);
 
-    const sourceItem = opts.vectorStore.get(itemId);
-    if (!sourceItem) {
-      return reply.status(404).send({
-        statusCode: 404,
-        error: 'Not Found',
-        message: `Item with id '${itemId}' does not exist in the index.`,
-      });
-    }
-
-    // Vector Integrity Guardrail: Assert dimensions and absence of NaN / Inf
-    const rawVec = sourceItem.normalizedVector || sourceItem.embedding;
-    const vectorCheck = SecurityGuardrails.validateVectorBounds(rawVec, 384);
-    const sourceVec = vectorCheck.isValid ? (vectorCheck.corrected || rawVec) : rawVec;
-
-    // Step 1: Candidate retrieval via HNSW vector store
-    const candidates = opts.vectorStore.search(
-      sourceVec,
-      Math.max(limit * 3, 20),
-      minSimilarity,
-      itemId,
-      filterCategory
-    );
-
-    const filteredCandidates = candidates.filter((c) => !excludeIds.includes(c.item.id));
-
-    // Step 2: MMR Diversity Re-ranking
-    const selected: typeof filteredCandidates = [];
-    const pool = [...filteredCandidates];
-
-    while (selected.length < limit && pool.length > 0) {
-      let bestScore = -Infinity;
-      let bestIndex = -1;
-
-      for (let i = 0; i < pool.length; i++) {
-        const candidate = pool[i];
-        let maxSimToSelected = 0;
-
-        for (const s of selected) {
-          const sim = cosineSimilarity(
-            candidate.item.normalizedVector || candidate.item.embedding,
-            s.item.normalizedVector || s.item.embedding
-          );
-          if (sim > maxSimToSelected) maxSimToSelected = sim;
-        }
-
-        const mmr = calculateMMRScore(candidate.score, maxSimToSelected, diversityFactor);
-        if (mmr > bestScore) {
-          bestScore = mmr;
-          bestIndex = i;
-        }
-      }
-
-      if (bestIndex >= 0) {
-        selected.push(pool[bestIndex]);
-        pool[bestIndex] = pool[pool.length - 1];
-        pool.pop();
-      } else {
-        break;
-      }
-    }
-
-    const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
-    const categories = selected.map((s) => s.item.category);
-    const entropy = calculateCategoryEntropy(categories);
-
+  const sourceItem = vectorStore.get(itemId);
+  if (!sourceItem) {
     return {
+      notFound: true as const,
+      message: `Item with id '${itemId}' does not exist in the index.`,
+    };
+  }
+
+  const rawVec = sourceItem.normalizedVector || sourceItem.embedding;
+  const vectorCheck = SecurityGuardrails.validateVectorBounds(rawVec, 384);
+  const sourceVec = vectorCheck.isValid ? vectorCheck.corrected || rawVec : rawVec;
+
+  const candidates = vectorStore.search(
+    sourceVec,
+    Math.max(data.limit * 3, 20),
+    data.minSimilarity,
+    itemId,
+    category
+  );
+
+  const filteredCandidates = candidates.filter((c) =>
+    matchesFilters(c.item, category, minPrice, maxPrice, excludeSet)
+  );
+
+  const selected: typeof filteredCandidates = [];
+  const pool = [...filteredCandidates];
+
+  while (selected.length < data.limit && pool.length > 0) {
+    let bestScore = -Infinity;
+    let bestIndex = -1;
+
+    for (let i = 0; i < pool.length; i++) {
+      const candidate = pool[i];
+      let maxSimToSelected = 0;
+
+      for (const s of selected) {
+        const sim = cosineSimilarity(
+          candidate.item.normalizedVector || candidate.item.embedding,
+          s.item.normalizedVector || s.item.embedding
+        );
+        if (sim > maxSimToSelected) maxSimToSelected = sim;
+      }
+
+      const mmr = calculateMMRScore(candidate.score, maxSimToSelected, diversityFactor);
+      if (mmr > bestScore) {
+        bestScore = mmr;
+        bestIndex = i;
+      }
+    }
+
+    if (bestIndex >= 0) {
+      selected.push(pool[bestIndex]);
+      pool[bestIndex] = pool[pool.length - 1];
+      pool.pop();
+    } else {
+      break;
+    }
+  }
+
+  const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+  const categories = selected.map((s) => s.item.category);
+  const entropy = calculateCategoryEntropy(categories);
+
+  return {
+    notFound: false as const,
+    payload: {
+      strategy: 'simple' as const,
+      item_id: itemId,
       sourceItemId: itemId,
       recommendations: selected.map((s) => ({
         id: s.item.id,
@@ -117,6 +184,425 @@ export async function recommendRoutes(
       })),
       latencyMs,
       entropy,
+    },
+  };
+}
+
+export async function adaptiveRecommend(
+  data: UnifiedRecommendInput,
+  vectorStore: VectorStore,
+  ail: AILManager
+) {
+  const startTime = performance.now();
+  const itemId = (data.item_id || data.itemId)!;
+  const userId = data.user_id || data.userId;
+  const history = data.history || [];
+  const category = data.filters?.category ?? data.filterCategory;
+  const minPrice = data.filters?.min_price;
+  const maxPrice = data.filters?.max_price;
+  const excludeSet = new Set([
+    ...(data.excludeIds || []),
+    ...(data.filters?.exclude_ids || []),
+  ]);
+
+  const sourceItem = vectorStore.get(itemId);
+  if (!sourceItem) {
+    return {
+      notFound: true as const,
+      message: `Item '${itemId}' not found in catalog.`,
     };
+  }
+
+  if (!AILManager.isEnabled()) {
+    const results = vectorStore
+      .search(
+        sourceItem.normalizedVector || sourceItem.embedding,
+        data.limit * 2,
+        0.01,
+        itemId,
+        category
+      )
+      .filter((r) => matchesFilters(r.item, category, minPrice, maxPrice, excludeSet))
+      .slice(0, data.limit);
+
+    const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+    const entropy = calculateCategoryEntropy(results.map((r) => r.item.category));
+
+    return {
+      notFound: false as const,
+      payload: {
+        strategy: 'adaptive' as const,
+        item_id: itemId,
+        sourceItemId: itemId,
+        user_id: userId,
+        fallback: true,
+        recommendations: results.map((r) => ({
+          id: r.item.id,
+          title: r.item.title,
+          description: r.item.description,
+          category: r.item.category,
+          tags: r.item.tags,
+          price: r.item.price,
+          score: r.score,
+        })),
+        latencyMs,
+        entropy,
+      },
+    };
+  }
+
+  const itemCandidates = vectorStore
+    .search(sourceItem.normalizedVector || sourceItem.embedding, 100, 0.0, itemId, category)
+    .filter((c) => matchesFilters(c.item, category, minPrice, maxPrice, excludeSet));
+
+  const sources = new Map<string, Candidate[]>();
+  sources.set(
+    'similarity',
+    itemCandidates.map((c) => ({
+      id: c.item.id,
+      source: 'similarity',
+      rawScore: c.score,
+      embedding: new Float32Array(c.item.normalizedVector || c.item.embedding),
+    }))
+  );
+
+  let userEmbedding: Float32Array | null = null;
+  if (userId || history.length > 0) {
+    const uId = userId || 'anonymous';
+    const userProfile = await ail.userTower.buildProfile(
+      uId,
+      history,
+      async (id) => {
+        const it = vectorStore.get(id);
+        return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
+      },
+      (id) => vectorStore.get(id)?.category || 'General'
+    );
+    userEmbedding = userProfile.embedding;
+
+    const userCandidates = vectorStore
+      .search(userEmbedding, 100, 0.0, itemId, category)
+      .filter((c) => matchesFilters(c.item, category, minPrice, maxPrice, excludeSet));
+    sources.set(
+      'user_affinity',
+      userCandidates.map((c) => ({
+        id: c.item.id,
+        source: 'user_affinity',
+        rawScore: c.score,
+        embedding: new Float32Array(c.item.normalizedVector || c.item.embedding),
+      }))
+    );
+  }
+
+  const fusedCandidates = ail.candidateFusion.fuse(sources, 100);
+  const enrichedCandidates = fusedCandidates.map((cand) => {
+    const enrichedVec = ail.kgEnricher.enrich(cand.id, cand.embedding, (id) => {
+      const it = vectorStore.get(id);
+      return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
+    });
+    return {
+      ...cand,
+      embedding: enrichedVec,
+    };
+  });
+
+  const reqContext = data.context
+    ? { timestamp: data.context.timestamp ?? Date.now(), ...data.context }
+    : { timestamp: Date.now() };
+
+  const candidatesWithFeatures = enrichedCandidates.map((c) => {
+    const stored = vectorStore.get(c.id);
+    const similarity = stored
+      ? cosineSimilarity(sourceItem.normalizedVector || sourceItem.embedding, c.embedding)
+      : 0;
+    const popularity = ail.metadataStore.getPopularity(c.id);
+    const freshness = ail.metadataStore.getFreshness(c.id);
+    const userAffinity = userEmbedding
+      ? Math.max(0, cosineSimilarity(userEmbedding, c.embedding))
+      : 0.5;
+    const categoryRepetition = stored && stored.category === sourceItem.category ? 0.3 : 0.0;
+    const contextualRelevance = stored
+      ? ail.contextSignals.getContextualRelevance(stored.category, reqContext)
+      : 0.5;
+    const kgCentrality = ail.kgEnricher.getCentrality(c.id);
+
+    return {
+      id: c.id,
+      embedding: c.embedding,
+      stored,
+      features: {
+        similarity: Math.max(0, similarity),
+        popularity,
+        freshness,
+        userAffinity,
+        categoryRepetition,
+        contextualRelevance,
+        kgCentrality,
+      },
+    };
+  });
+
+  const adjustedWeights = ail.feedbackLoop.getAdjustedWeights();
+  const ranked = ail.ranker.rank(
+    candidatesWithFeatures.map((c) => ({ id: c.id, features: c.features })),
+    adjustedWeights
+  );
+
+  const candMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
+  const smmrPool = ranked
+    .map((r) => {
+      const item = candMap.get(r.id);
+      if (!item) return null;
+      return {
+        id: r.id,
+        score: r.score,
+        embedding: item.embedding,
+      };
+    })
+    .filter((x): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+
+  const finalSelected = ail.smmr.rerank(smmrPool, data.limit);
+  const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+  const selectedCategories = finalSelected
+    .map((s) => candMap.get(s.id)?.stored?.category)
+    .filter((c): c is string => Boolean(c));
+  const entropy = calculateCategoryEntropy(selectedCategories);
+
+  return {
+    notFound: false as const,
+    payload: {
+      strategy: 'adaptive' as const,
+      item_id: itemId,
+      sourceItemId: itemId,
+      user_id: userId,
+      recommendations: finalSelected.map((s) => {
+        const itemInfo = candMap.get(s.id)?.stored;
+        return {
+          id: s.id,
+          title: itemInfo?.title || s.id,
+          description: itemInfo?.description,
+          category: itemInfo?.category,
+          tags: itemInfo?.tags,
+          price: itemInfo?.price,
+          score: Math.round(s.score * 10000) / 10000,
+        };
+      }),
+      latencyMs,
+      entropy,
+      debug: {
+        totalCandidates: enrichedCandidates.length,
+        sources: Array.from(sources.keys()),
+        weights: adjustedWeights,
+      },
+    },
+  };
+}
+
+export async function userRecommend(
+  data: UnifiedRecommendInput,
+  vectorStore: VectorStore,
+  ail: AILManager
+) {
+  const startTime = performance.now();
+  const userId = (data.user_id || data.userId)!;
+  const history = data.history || [];
+  const category = data.filters?.category ?? data.filterCategory;
+  const minPrice = data.filters?.min_price;
+  const maxPrice = data.filters?.max_price;
+  const excludeSet = new Set([
+    ...history,
+    ...(data.excludeIds || []),
+    ...(data.filters?.exclude_ids || []),
+  ]);
+
+  if (!AILManager.isEnabled()) {
+    const fallbackItemId = history.length > 0 ? history[0] : '1';
+    const fallbackSource = vectorStore.get(fallbackItemId);
+    if (!fallbackSource) {
+      return {
+        notFound: true as const,
+        message: `Fallback item '${fallbackItemId}' not found in index.`,
+      };
+    }
+
+    const results = vectorStore
+      .search(
+        fallbackSource.normalizedVector || fallbackSource.embedding,
+        data.limit * 2,
+        0.01,
+        fallbackItemId,
+        category
+      )
+      .filter((r) => matchesFilters(r.item, category, minPrice, maxPrice, excludeSet))
+      .slice(0, data.limit);
+
+    const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+    const entropy = calculateCategoryEntropy(results.map((r) => r.item.category));
+
+    return {
+      notFound: false as const,
+      payload: {
+        strategy: 'user' as const,
+        user_id: userId,
+        fallback: true,
+        recommendations: results.map((r) => ({
+          id: r.item.id,
+          title: r.item.title,
+          description: r.item.description,
+          category: r.item.category,
+          tags: r.item.tags,
+          price: r.item.price,
+          score: r.score,
+        })),
+        latencyMs,
+        entropy,
+      },
+    };
+  }
+
+  const profile = await ail.userTower.buildProfile(
+    userId,
+    history,
+    async (itemId) => {
+      const item = vectorStore.get(itemId);
+      return item ? new Float32Array(item.normalizedVector || item.embedding) : new Float32Array(384);
+    },
+    (itemId) => vectorStore.get(itemId)?.category || 'General'
+  );
+
+  const topCandidates = vectorStore.search(profile.embedding, 100, 0.0, undefined, category);
+  const candidateItems = topCandidates.filter((c) =>
+    matchesFilters(c.item, category, minPrice, maxPrice, excludeSet)
+  );
+
+  const reqContext = data.context
+    ? { timestamp: data.context.timestamp ?? Date.now(), ...data.context }
+    : { timestamp: Date.now() };
+
+  const candidatesWithFeatures = candidateItems.map((c) => {
+    const similarity = c.score;
+    const popularity = ail.metadataStore.getPopularity(c.item.id);
+    const freshness = ail.metadataStore.getFreshness(c.item.id);
+    const userAff = cosineSimilarity(
+      profile.embedding,
+      c.item.normalizedVector || c.item.embedding
+    );
+    const catCount = profile.categoryDistribution.get(c.item.category) || 0;
+    const categoryRepetition = Math.min(1, catCount / Math.max(1, profile.history.length));
+    const contextualRelevance = ail.contextSignals.getContextualRelevance(
+      c.item.category,
+      reqContext
+    );
+    const kgCentrality = ail.kgEnricher.getCentrality(c.item.id);
+
+    return {
+      id: c.item.id,
+      item: c.item,
+      features: {
+        similarity,
+        popularity,
+        freshness,
+        userAffinity: Math.max(0, userAff),
+        categoryRepetition,
+        contextualRelevance,
+        kgCentrality,
+      },
+    };
+  });
+
+  const adjustedWeights = ail.feedbackLoop.getAdjustedWeights();
+  const ranked = ail.ranker.rank(
+    candidatesWithFeatures.map((c) => ({ id: c.id, features: c.features })),
+    adjustedWeights
+  );
+
+  const candidateMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
+  const smmrPool = ranked
+    .map((r) => {
+      const orig = candidateMap.get(r.id);
+      if (!orig) return null;
+      return {
+        id: r.id,
+        score: r.score,
+        embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),
+      };
+    })
+    .filter((x): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+
+  const finalSelected = ail.smmr.rerank(smmrPool, data.limit);
+  const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+  const selectedCategories = finalSelected
+    .map((s) => candidateMap.get(s.id)?.item.category)
+    .filter((c): c is string => Boolean(c));
+  const entropy = calculateCategoryEntropy(selectedCategories);
+
+  return {
+    notFound: false as const,
+    payload: {
+      strategy: 'user' as const,
+      user_id: userId,
+      recommendations: finalSelected.map((s) => {
+        const itemInfo = candidateMap.get(s.id)?.item;
+        return {
+          id: s.id,
+          title: itemInfo?.title || s.id,
+          description: itemInfo?.description,
+          category: itemInfo?.category,
+          tags: itemInfo?.tags,
+          price: itemInfo?.price,
+          score: Math.round(s.score * 10000) / 10000,
+        };
+      }),
+      latencyMs,
+      entropy,
+      debug: {
+        totalCandidates: candidateItems.length,
+        weights: adjustedWeights,
+      },
+    },
+  };
+}
+
+export async function recommendRoutes(
+  fastify: FastifyInstance,
+  opts: { vectorStore: VectorStore }
+): Promise<void> {
+  fastify.post('/v1/recommend', { preHandler: authenticate }, async (request, reply) => {
+    const parseResult = recommendSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: parseResult.error.issues
+          .map((i) => `${i.path.join('.')}: ${i.message}`)
+          .join('; '),
+      });
+    }
+
+    const data = parseResult.data;
+    const ail = AILManager.getInstance();
+
+    let result;
+    switch (data.strategy) {
+      case 'simple':
+        result = await simpleRecommend(data, opts.vectorStore);
+        break;
+      case 'adaptive':
+        result = await adaptiveRecommend(data, opts.vectorStore, ail);
+        break;
+      case 'user':
+        result = await userRecommend(data, opts.vectorStore, ail);
+        break;
+    }
+
+    if (result.notFound) {
+      return reply.status(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        message: result.message,
+      });
+    }
+
+    return result.payload;
   });
 }

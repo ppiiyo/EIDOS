@@ -17,11 +17,11 @@ function aistudioMediaPlugin(): Plugin {
             const relativePath = decodedPath.replace(/^\//, '');
             const aistudioDir = path.resolve(
               __dirname,
-              'public',
+              '../../public',
               'assets',
               'aistudio',
             );
-            const filePath = path.resolve(__dirname, 'public', relativePath);
+            const filePath = path.resolve(__dirname, '../../public', relativePath);
             if (
               filePath.startsWith(aistudioDir + path.sep) &&
               fs.existsSync(filePath) &&
@@ -67,22 +67,23 @@ function aistudioMediaPlugin(): Plugin {
 export default defineConfig(() => {
   return {
     root: path.resolve(__dirname),
+    publicDir: path.resolve(__dirname, '../../public'),
     base: process.env.VITE_BASE_PATH || '/',
     build: {
-      outDir: path.resolve(__dirname, 'dist'),
+      outDir: path.resolve(__dirname, '../../dist'),
       emptyOutDir: true,
     },
     plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, 'apps/workspace'),
-        '@eidos/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
-        '@eidos/sdk': path.resolve(__dirname, 'packages/sdk/src/index.ts'),
+        '@': path.resolve(__dirname),
+        '@eidos/core': path.resolve(__dirname, '../../packages/core/src/index.ts'),
+        '@eidos/sdk': path.resolve(__dirname, '../../packages/sdk/src/index.ts'),
       },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},

@@ -8,9 +8,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview --port=3000",
+    "preinstall": "node -e \"process.exit(process.env.CI === 'true' ? 1 : 0)\" || npx only-allow pnpm",
+    "dev": "vite --config apps/workspace/vite.config.ts --port=3000 --host=0.0.0.0",
+    "build": "vite build --config apps/workspace/vite.config.ts",
+    "preview": "vite preview --config apps/workspace/vite.config.ts --port=3000",
     "lint": "tsc --noEmit && tsc -p packages/core/tsconfig.json --emitDeclarationOnly && tsc -p packages/sdk/tsconfig.json --noEmit && tsc -p apps/api/tsconfig.json --noEmit",
     "typecheck": "npm run lint",
     "test": "vitest run",

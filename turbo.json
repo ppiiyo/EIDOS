@@ -3,8 +3,15 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "vite.config.ts",
+        "index.html",
+        "src/**"
+      ],
       "outputs": [
         "dist/**",
+        "../../dist/**",
         ".next/**",
         "!.next/cache/**",
         "out/**"

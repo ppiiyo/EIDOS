@@ -13,31 +13,140 @@ function timingSafeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+interface JwtValidationResult {
+  isJwt: boolean;
+  isValid: boolean;
+  isExpired: boolean;
+}
+
+/**
+ * Validates JWT structure, expiration claim (exp), and optional HMAC-SHA256 signature.
+ */
+function validateJwtToken(token: string, secret: string): JwtValidationResult {
+  const parts = token.split('.');
+  if (parts.length !== 3 || !token.startsWith('eyJ')) {
+    return { isJwt: false, isValid: false, isExpired: false };
+  }
+
+  try {
+    const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
+    const payload = JSON.parse(payloadJson) as { exp?: number; nbf?: number };
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (typeof payload.exp === 'number' && payload.exp <= nowSec) {
+      return { isJwt: true, isValid: false, isExpired: true };
+    }
+    if (typeof payload.nbf === 'number' && payload.nbf > nowSec) {
+      return { isJwt: true, isValid: false, isExpired: false };
+    }
+
+    if (!secret) {
+      return { isJwt: true, isValid: false, isExpired: false };
+    }
+
+    const signingInput = `${parts[0]}.${parts[1]}`;
+    const expectedSig = crypto
+      .createHmac('sha256', secret)
+      .update(signingInput)
+      .digest('base64url');
+
+    const sigMatches = timingSafeEqual(parts[2], expectedSig);
+    return { isJwt: true, isValid: sigMatches, isExpired: false };
+  } catch {
+    return { isJwt: true, isValid: false, isExpired: false };
+  }
+}
+
+/**
+ * Helper to sign JWT tokens for authenticated clients and tests.
+ */
+export function signJwtToken(
+  payload: Record<string, unknown>,
+  secret: string
+): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(`${header}.${body}`)
+    .digest('base64url');
+  return `${header}.${body}.${signature}`;
+}
+
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const apiKeyHeader = (request.headers['x-api-key'] as string) || '';
   const authHeader = request.headers.authorization || '';
-  const configuredKey = process.env.EIDOS_API_KEY || 'test-key';
 
   let token = '';
   if (apiKeyHeader) {
-    token = apiKeyHeader;
+    token = apiKeyHeader.trim();
   } else if (authHeader.startsWith('Bearer ')) {
     token = authHeader.slice(7).trim();
   }
 
   if (!token) {
+    request.log.warn({
+      event: 'auth_failed',
+      reason: 'missing_token',
+      ip: request.ip,
+      path: request.url,
+      userAgent: request.headers['user-agent'],
+    });
     reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
-      message: 'Missing or malformed Authorization header. Expected format: Bearer <API_KEY> or x-api-key header',
+      message:
+        'Missing or malformed Authorization header. Expected format: Bearer <API_KEY> or x-api-key header',
     });
     return;
   }
 
-  const validKeys = [configuredKey, 'eidos_dev_key', 'test-key'];
+  const isProduction = process.env.NODE_ENV === 'production';
+  const validKeys = isProduction
+    ? [process.env.EIDOS_API_KEY].filter((k): k is string => Boolean(k))
+    : [process.env.EIDOS_API_KEY, 'eidos_dev_key', 'test-key'].filter((k): k is string =>
+        Boolean(k)
+      );
+
+  const jwtSecret =
+    process.env.JWT_SECRET ||
+    process.env.EIDOS_API_KEY ||
+    (isProduction ? '' : 'eidos_jwt_secret');
+
+  // Check if token is a JWT and validate expiration + signature
+  const jwtCheck = validateJwtToken(token, jwtSecret);
+  if (jwtCheck.isJwt) {
+    if (jwtCheck.isExpired) {
+      request.log.warn({
+        event: 'auth_failed',
+        reason: 'token_expired',
+        ip: request.ip,
+        path: request.url,
+        userAgent: request.headers['user-agent'],
+      });
+      reply.status(401).send({
+        statusCode: 401,
+        error: 'Unauthorized',
+        message: 'Authentication token has expired.',
+      });
+      return;
+    }
+
+    if (jwtCheck.isValid) {
+      return;
+    }
+  }
+
   const isValid = validKeys.some((k) => timingSafeEqual(token, k));
 
-  if (process.env.NODE_ENV !== 'test' && !isValid) {
+  if (!isValid) {
+    request.log.warn({
+      event: 'auth_failed',
+      reason: 'invalid_key',
+      ip: request.ip,
+      path: request.url,
+      userAgent: request.headers['user-agent'],
+    });
     reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
@@ -46,4 +155,3 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     return;
   }
 }
-

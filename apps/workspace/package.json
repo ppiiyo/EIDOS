@@ -5,9 +5,9 @@
   "description": "Eidos Browser-First Workspace Studio Application",
   "type": "module",
   "scripts": {
-    "dev": "vite --config ../../vite.config.ts --port=3000 --host=0.0.0.0",
-    "build": "vite build --config ../../vite.config.ts",
+    "dev": "vite --config vite.config.ts --port=3000 --host=0.0.0.0",
+    "build": "vite build --config vite.config.ts",
     "lint": "tsc -p ../../tsconfig.json --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts tests/unit"
+    "test": "vitest run --config ../../vitest.config.ts ../../tests/unit"
   }
 }

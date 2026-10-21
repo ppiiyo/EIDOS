@@ -22,10 +22,18 @@ function collectFiles(dir: string, exts: string[]): string[] {
 }
 
 describe('Phase 5: Architectural Constraints & Quality Invariants', () => {
-  it('verifies legacy root /src directory is removed and frontend resides in apps/workspace/src', () => {
+  it('verifies Phase 0 cleanup: legacy /src removed, bun.lock gitignored, pnpm enforced, and Vite config inside apps/workspace', () => {
     expect(fs.existsSync(path.resolve(ROOT_DIR, 'src'))).toBe(false);
     expect(fs.existsSync(WORKSPACE_SRC)).toBe(true);
     expect(fs.existsSync(path.resolve(WORKSPACE_SRC, 'App.tsx'))).toBe(true);
+    expect(fs.existsSync(path.resolve(ROOT_DIR, 'apps/workspace/vite.config.ts'))).toBe(true);
+    expect(fs.existsSync(path.resolve(ROOT_DIR, 'apps/workspace/index.html'))).toBe(true);
+
+    const gitignore = fs.readFileSync(path.resolve(ROOT_DIR, '.gitignore'), 'utf-8');
+    expect(gitignore).toContain('bun.lock');
+
+    const rootPkg = JSON.parse(fs.readFileSync(path.resolve(ROOT_DIR, 'package.json'), 'utf-8'));
+    expect(rootPkg.scripts?.preinstall).toContain('npx only-allow pnpm');
   });
 
   it('enforces <= 300 lines limit across App.tsx and all components in apps/workspace/src/components', () => {

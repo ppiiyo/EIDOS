@@ -1,14 +1,8 @@
 import Fastify, { FastifyInstance } from 'fastify';
-import cors from '@fastify/cors';
 import { Metrics } from '@eidos/core';
 import { registerOpenAPI } from './openapi';
-import { healthRoutes } from './routes/health';
-import { catalogRoutes } from './routes/catalog';
-import { searchRoutes } from './routes/search';
-import { recommendRoutes } from './routes/recommend';
-import { recommendUserRoutes } from './routes/recommend-user';
-import { recommendAdaptiveRoutes } from './routes/recommend-adaptive';
-import { feedbackRoutes } from './routes/feedback';
+import { securityPlugin } from './plugins/security';
+import { apiRoutesPlugin } from './plugins/routes';
 import { VectorStore } from './services/vector-store';
 import { ServerEmbedder } from './services/embedder';
 import { AILManager } from './services/ail';
@@ -64,10 +58,10 @@ export async function buildServer(): Promise<FastifyInstance> {
     logger: false,
   });
 
-  await fastify.register(cors, {
-    origin: true,
-  });
+  // 1. Register security stack (CORS whitelist, Rate Limit, Helmet CSP)
+  await fastify.register(securityPlugin);
 
+  // 2. Register OpenAPI / Swagger documentation
   await registerOpenAPI(fastify);
 
   const vectorStore = new VectorStore();
@@ -97,14 +91,8 @@ export async function buildServer(): Promise<FastifyInstance> {
     return await Metrics.getMetrics();
   });
 
-  // Register modular v1 routes
-  await fastify.register(healthRoutes, { vectorStore });
-  await fastify.register(catalogRoutes, { vectorStore, embedder });
-  await fastify.register(searchRoutes, { vectorStore, embedder });
-  await fastify.register(recommendRoutes, { vectorStore });
-  await fastify.register(recommendUserRoutes, { vectorStore });
-  await fastify.register(recommendAdaptiveRoutes, { vectorStore });
-  await fastify.register(feedbackRoutes);
+  // 3. Register API routes and 404/SPA fallback handler
+  await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
 
   return fastify;
 }
