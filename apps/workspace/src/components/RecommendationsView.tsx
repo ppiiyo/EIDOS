@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Sliders, Boxes, Eye } from 'lucide-react';
 import {
   CatalogItem,
@@ -70,10 +70,13 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
 
   const recs = useMemo(() => {
     if (!activeSeed) return [];
-    const results = onRecommend(activeSeed.id, diversityLambda, topKLimit, activeRules);
-    trackEvent({ type: 'recommendation', itemId: String(activeSeed.id) });
-    return results;
+    return onRecommend(activeSeed.id, diversityLambda, topKLimit, activeRules);
   }, [activeSeed, diversityLambda, topKLimit, activeRules, catalog, onRecommend]);
+
+  useEffect(() => {
+    if (!activeSeed) return;
+    trackEvent({ type: 'recommendation', itemId: String(activeSeed.id) });
+  }, [activeSeed, diversityLambda, topKLimit, activeRules]);
 
   const irMetrics = useMemo(
     () => computeRankingEvaluationMetrics(activeSeed, recs, catalog, embeddings),
