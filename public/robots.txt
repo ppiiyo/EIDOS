@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /v1/diagnostics/
+
+Sitemap: https://eidos-semantic-ideation-platform.ai.studio/sitemap.xml

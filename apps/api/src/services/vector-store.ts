@@ -82,6 +82,10 @@ export class VectorStore {
     return this.items.get(String(id));
   }
 
+  public getAll(): StoredItem[] {
+    return Array.from(this.items.values());
+  }
+
   public count(): number {
     return this.items.size;
   }

@@ -1,9 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { Metrics } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
 import { AILManager } from '../services/ail';
+import { ApiQueryCache } from '../services/query-cache';
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -34,6 +36,25 @@ export async function catalogRoutes(
   opts: { vectorStore: VectorStore; embedder: ServerEmbedder }
 ): Promise<void> {
   /**
+   * Catalog statistics & diagnostics endpoint.
+   */
+  fastify.get('/v1/catalog/stats', async () => {
+    const allItems = opts.vectorStore.getAll();
+    const categories: Record<string, number> = {};
+    for (const item of allItems) {
+      categories[item.category] = (categories[item.category] || 0) + 1;
+    }
+
+    return {
+      totalItems: opts.vectorStore.count(),
+      hnswIndexed: opts.vectorStore.getHNSW().size(),
+      walPending: opts.vectorStore.getWAL().size(),
+      categories,
+      cache: ApiQueryCache.getInstance().stats(),
+    };
+  });
+
+  /**
    * Single item upsert with strict Zod validation schema (BUG #7).
    */
   fastify.post('/v1/catalog/upsert', { preHandler: authenticate }, async (request, reply) => {
@@ -54,6 +75,9 @@ export async function catalogRoutes(
         tags: validated.tags || [],
         embedding,
       });
+
+      ApiQueryCache.invalidateAll();
+      Metrics.vectorStoreSize.set(opts.vectorStore.count());
 
       if (AILManager.isEnabled()) {
         const ail = AILManager.getInstance();
@@ -101,7 +125,6 @@ export async function catalogRoutes(
     const { items } = parseResult.data;
     const start = Date.now();
 
-    // Identify items needing text embedding
     const itemsNeedingEmbedding: Array<{ index: number; text: string }> = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
@@ -111,7 +134,6 @@ export async function catalogRoutes(
       }
     }
 
-    // Batch embed in single inference call
     if (itemsNeedingEmbedding.length > 0) {
       const textsToEmbed = itemsNeedingEmbedding.map((e) => e.text);
       const generatedEmbeddings = await opts.embedder.embedBatch(textsToEmbed);
@@ -131,7 +153,6 @@ export async function catalogRoutes(
         embedding: item.embedding!,
       });
 
-      // Update online statistics in Ranker scalers
       if (AILManager.isEnabled()) {
         const ail = AILManager.getInstance();
         ail.ranker.updateStatistics({
@@ -142,6 +163,9 @@ export async function catalogRoutes(
 
       indexed++;
     }
+
+    ApiQueryCache.invalidateAll();
+    Metrics.vectorStoreSize.set(opts.vectorStore.count());
 
     const durationMs = Date.now() - start;
     return reply.status(201).send({

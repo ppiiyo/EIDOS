@@ -11,6 +11,7 @@ import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { StoredItem } from '../types';
 import { AILManager } from '../services/ail';
+import { ApiQueryCache } from '../services/query-cache';
 
 export const recommendSchema = z
   .object({
@@ -581,6 +582,20 @@ export async function recommendRoutes(
 
     const data = parseResult.data;
     const ail = AILManager.getInstance();
+    const cacheKey = `rec:${JSON.stringify(data)}:${AILManager.isEnabled()}:${opts.vectorStore.count()}`;
+    const cache = ApiQueryCache.getInstance();
+    const cached = cache.get(cacheKey) as Record<string, unknown> | undefined;
+    ApiQueryCache.syncMetrics();
+
+    if (cached) {
+      reply.header('x-cache', 'HIT');
+      return {
+        ...cached,
+        cached: true,
+      };
+    }
+
+    reply.header('x-cache', 'MISS');
 
     let result;
     switch (data.strategy) {
@@ -603,6 +618,7 @@ export async function recommendRoutes(
       });
     }
 
+    cache.set(cacheKey, result.payload);
     return result.payload;
   });
 }

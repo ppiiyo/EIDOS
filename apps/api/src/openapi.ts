@@ -3,34 +3,43 @@ import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUI from '@fastify/swagger-ui';
 
 /**
- * Registers OpenAPI / Swagger schema specifications and the interactive Swagger UI.
+ * Registers OpenAPI 3.0.3 / Swagger schema specifications and interactive Swagger UI.
  * Mounts interactive documentation at `/docs` and raw spec at `/docs/json`.
  */
 export async function registerOpenAPI(fastify: FastifyInstance): Promise<void> {
   await fastify.register(fastifySwagger, {
     openapi: {
+      openapi: '3.0.3',
       info: {
-        title: 'Eidos API',
-        description: 'Production Semantic Recommendation & Approximate Nearest Neighbor Retrieval Engine',
-        version: '2.1.0',
+        title: 'Eidos API — Semantic Search & Adaptive Recommendation Engine',
+        description:
+          'Production Hybrid Vector Search (BM25 + 384-d HNSW), Multi-Interest User Tower, Contextual Bandits (LinUCB), and SMMR Diversity Re-ranking API.',
+        version: '3.5.0',
         contact: {
           name: 'Eidos Engineering Team',
-          url: 'https://github.com/ppiiyo/Eidos',
+          url: 'https://github.com/ppiiyo/EIDOS',
+        },
+        license: {
+          name: 'MIT',
+          url: 'https://opensource.org/licenses/MIT',
         },
       },
       servers: [
         {
           url: 'http://localhost:8080',
-          description: 'Development API Server',
+          description: 'Local Development API Server',
+        },
+        {
+          url: 'https://eidos-semantic-ideation-platform.ai.studio',
+          description: 'Cloud Production API Server',
         },
       ],
       tags: [
-        { name: 'Health', description: 'System health, telemetry, and index diagnostics' },
-        { name: 'Catalog', description: 'Item ingestion, vector embedding and upsert operations' },
-        { name: 'Search', description: 'Dense semantic similarity search over high-dimensional vectors' },
-        { name: 'Recommendation', description: 'Item-to-item and user-to-item personalized neural recommendations' },
-        { name: 'Adaptive', description: 'Exploration bandits, LinUCB, multi-interest and steering' },
-        { name: 'Feedback', description: 'Online click/conversion feedback and adaptive ranking training' },
+        { name: 'Health', description: 'System health, Kubernetes readiness/liveness probes, and telemetry' },
+        { name: 'Catalog', description: 'Item ingestion, vector embedding, and catalog diagnostics' },
+        { name: 'Search', description: 'Hybrid (BM25 + Dense 384-d HNSW) semantic search with security guardrails' },
+        { name: 'Recommendation', description: 'Unified item-to-item, adaptive multi-feature, and personalized user recommendations' },
+        { name: 'Feedback', description: 'Online click/conversion feedback loop and adaptive weight learning' },
       ],
       components: {
         securitySchemes: {
@@ -38,7 +47,13 @@ export async function registerOpenAPI(fastify: FastifyInstance): Promise<void> {
             type: 'apiKey',
             name: 'x-api-key',
             in: 'header',
-            description: 'API key authentication token for enterprise access',
+            description: 'API key authentication header (`x-api-key: <EIDOS_API_KEY>`)',
+          },
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description: 'Bearer API Key or signed JWT token (`Authorization: Bearer <TOKEN>`)',
           },
         },
       },
@@ -49,7 +64,7 @@ export async function registerOpenAPI(fastify: FastifyInstance): Promise<void> {
     routePrefix: '/docs',
     uiConfig: {
       docExpansion: 'list',
-      deepLinking: false,
+      deepLinking: true,
     },
     staticCSP: true,
     transformStaticCSP: (header) => header,

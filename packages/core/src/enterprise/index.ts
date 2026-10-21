@@ -116,3 +116,6 @@ export class CatalogSyncConnector {
     return items;
   }
 }
+
+export * from './circuit-breaker';
+

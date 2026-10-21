@@ -2,6 +2,8 @@ import Fastify, { FastifyInstance } from 'fastify';
 import { Metrics } from '@eidos/core';
 import { registerOpenAPI } from './openapi';
 import { securityPlugin } from './plugins/security';
+import { observabilityPlugin } from './plugins/observability';
+import { errorTrackerPlugin } from './plugins/error-tracker';
 import { apiRoutesPlugin } from './plugins/routes';
 import { VectorStore } from './services/vector-store';
 import { ServerEmbedder } from './services/embedder';
@@ -56,12 +58,18 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   const fastify = Fastify({
     logger: false,
+    connectionTimeout: 15_000,
+    requestTimeout: 10_000,
   });
 
   // 1. Register security stack (CORS whitelist, Rate Limit, Helmet CSP)
   await fastify.register(securityPlugin);
 
-  // 2. Register OpenAPI / Swagger documentation
+  // 2. Register observability & error tracking plugins
+  await fastify.register(observabilityPlugin);
+  await fastify.register(errorTrackerPlugin);
+
+  // 3. Register OpenAPI / Swagger documentation
   await registerOpenAPI(fastify);
 
   const vectorStore = new VectorStore();
@@ -85,14 +93,21 @@ export async function buildServer(): Promise<FastifyInstance> {
     });
   }
 
+  Metrics.vectorStoreSize.set(vectorStore.count());
+
   // Prometheus /metrics endpoint
   fastify.get('/metrics', async (_request, reply) => {
     reply.header('content-type', Metrics.getContentType());
     return await Metrics.getMetrics();
   });
 
-  // 3. Register API routes and 404/SPA fallback handler
+  // 4. Register API routes and 404/SPA fallback handler
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
+
+  // Attach vectorStore cleanup on Fastify close
+  fastify.addHook('onClose', async () => {
+    await vectorStore.getWAL().flush();
+  });
 
   return fastify;
 }
@@ -102,8 +117,17 @@ export const buildApp = buildServer;
 if (require.main === module) {
   const port = Number(process.env.PORT || 8080);
   buildServer()
-    .then((app) => app.listen({ port, host: '0.0.0.0' }))
-    .then(() => {
+    .then(async (app) => {
+      const gracefulShutdown = async (signal: string) => {
+        console.log(`Received ${signal}. Flushing WAL and shutting down gracefully...`);
+        await app.close();
+        process.exit(0);
+      };
+
+      process.once('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+      process.once('SIGINT', () => void gracefulShutdown('SIGINT'));
+
+      await app.listen({ port, host: '0.0.0.0' });
       console.log(`Eidos API server listening on http://0.0.0.0:${port}`);
     })
     .catch((err) => {

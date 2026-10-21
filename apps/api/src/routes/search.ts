@@ -1,17 +1,23 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { SecurityGuardrails } from '@eidos/core';
+import { SecurityGuardrails, CircuitBreaker } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
+import { ApiQueryCache } from '../services/query-cache';
 
 const searchRequestSchema = z.object({
   query: z.string().min(1, 'query is required').max(500),
-  limit: z.number().int().min(1).max(50).default(10),
+  limit: z.number().int().min(1).max(100).default(10),
   minSimilarity: z.number().min(0).max(1).default(0.25),
   filterCategory: z.string().optional(),
   mode: z.enum(['dense', 'sparse', 'hybrid']).default('hybrid'),
-  alpha: z.number().min(0).max(1).default(0.5), // 0.0 = pure sparse BM25, 1.0 = pure dense HNSW
+  alpha: z.number().min(0).max(1).default(0.5),
+});
+
+const embedCircuitBreaker = new CircuitBreaker({
+  failureThreshold: 5,
+  resetTimeoutMs: 15_000,
 });
 
 export async function searchRoutes(
@@ -44,10 +50,25 @@ export async function searchRoutes(
     }
 
     const safeQuery = securityScan.sanitizedInput;
+    const cacheKey = `search:${safeQuery}:${limit}:${minSimilarity}:${filterCategory || '*'}:${mode}:${alpha}:${opts.vectorStore.count()}`;
+    const cache = ApiQueryCache.getInstance();
+    const cachedResponse = cache.get(cacheKey) as Record<string, unknown> | undefined;
+    ApiQueryCache.syncMetrics();
+
+    if (cachedResponse) {
+      reply.header('x-cache', 'HIT');
+      return {
+        ...cachedResponse,
+        cached: true,
+        latencyMs: Math.round((performance.now() - startTime) * 100) / 100,
+      };
+    }
+
+    reply.header('x-cache', 'MISS');
 
     let queryVector: Float32Array;
     try {
-      queryVector = await opts.embedder.embed(safeQuery);
+      queryVector = await embedCircuitBreaker.execute(() => opts.embedder.embed(safeQuery));
     } catch (err) {
       return reply.status(500).send({
         statusCode: 500,
@@ -56,7 +77,6 @@ export async function searchRoutes(
       });
     }
 
-    // Vector Integrity Guardrail: Assert dimensions and absence of NaN / Inf
     const vectorCheck = SecurityGuardrails.validateVectorBounds(queryVector, 384);
     if (!vectorCheck.isValid) {
       return reply.status(400).send({
@@ -81,15 +101,10 @@ export async function searchRoutes(
         filterCategory
       );
     } else if (mode === 'dense') {
-      results = opts.vectorStore.search(
-        cleanVector,
-        limit,
-        minSimilarity,
-        undefined,
-        filterCategory
-      ).map((r) => ({ ...r, source: 'dense' }));
+      results = opts.vectorStore
+        .search(cleanVector, limit, minSimilarity, undefined, filterCategory)
+        .map((r) => ({ ...r, source: 'dense' }));
     } else {
-      // Sparse BM25 only
       const bm25Hits = opts.vectorStore.getBM25().search(safeQuery, limit * 2);
       for (const hit of bm25Hits) {
         const item = opts.vectorStore.get(hit.id);
@@ -101,8 +116,7 @@ export async function searchRoutes(
     }
 
     const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
-
-    return {
+    const responsePayload = {
       query: safeQuery,
       mode,
       results: results.map((r) => ({
@@ -117,5 +131,8 @@ export async function searchRoutes(
       })),
       latencyMs,
     };
+
+    cache.set(cacheKey, responsePayload);
+    return responsePayload;
   });
 }
