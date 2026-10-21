@@ -36,13 +36,7 @@ async function startUnifiedServer() {
   const fastifyApp = await buildServer();
   await fastifyApp.ready();
 
-  const vite = !isProduction
-    ? await createViteServer({
-        configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
-        server: { middlewareMode: true },
-        appType: 'spa',
-      })
-    : null;
+  let vite: Awaited<ReturnType<typeof createViteServer>> | null = null;
 
   const server = http.createServer(async (req, res) => {
     const url = req.url || '/';
@@ -83,6 +77,20 @@ async function startUnifiedServer() {
 
     fastifyApp.routing(req, res);
   });
+
+  if (!isProduction) {
+    vite = await createViteServer({
+      configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
+      server: {
+        middlewareMode: true,
+        hmr: {
+          server,
+        },
+        watch: null,
+      },
+      appType: 'spa',
+    });
+  }
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
