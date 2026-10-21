@@ -34,6 +34,7 @@ describe('Phase 5: Architectural Constraints & Quality Invariants', () => {
 
     const rootPkg = JSON.parse(fs.readFileSync(path.resolve(ROOT_DIR, 'package.json'), 'utf-8'));
     expect(rootPkg.scripts?.preinstall).toContain('npx only-allow pnpm');
+    expect(rootPkg.pnpm?.overrides?.protobufjs).toBe('>=7.6.1');
   });
 
   it('enforces <= 300 lines limit across App.tsx and all components in apps/workspace/src/components', () => {
