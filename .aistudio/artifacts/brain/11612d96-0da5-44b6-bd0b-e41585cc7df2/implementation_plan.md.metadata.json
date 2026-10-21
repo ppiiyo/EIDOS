@@ -1,6 +1,6 @@
 {
-  "summary": "План доведения браузерного семантического движка Eidos до публичного запуска: строгая валидация RangeError/NaN в @eidos/core, честный ONNX/WASM + BM25 пайплайн без псевдо-эмбеддингов, миграция каталога и векторов в IndexedDB (до 50 000 товаров), декомпозиция всех компонентов до <300 строк, перенос фронтенда в apps/workspace с проксированием из корня и полное TDD-покрытие.",
-  "updatedAt": "2026-10-20T10:43:05.654320109Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Flagship 10k+-star Open-Source README.md blueprint for EIDOS (github.com/ppiiyo/EIDOS), detailing the visual design, algorithmic guarantees, Mermaid architecture diagram, Live Demo CTA banner, cURL & TypeScript SDK examples with explainability, benchmark & complexity matrices, test suite coverage, and engineering roadmap.",
+  "updatedAt":  "2026-10-20T23:26:06.522294843Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }
