@@ -17,6 +17,7 @@ import {
   BanditsSubView,
   SteeringSubView,
 } from './adaptive/AdaptiveSubViews';
+import { UiLanguage } from '../i18n/uiTranslations';
 
 interface AdaptivePanelProps {
   catalog: CatalogItem[];
@@ -24,6 +25,7 @@ interface AdaptivePanelProps {
   selectedItem: CatalogItem | null;
   onSelectItem: (item: CatalogItem) => void;
   onShowToast?: (msg: string, type?: 'info' | 'success' | 'error') => void;
+  uiLang?: UiLanguage;
 }
 
 export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
@@ -31,6 +33,7 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
   embeddings,
   selectedItem,
   onShowToast,
+  uiLang = 'ru',
 }) => {
   const currentSeed = selectedItem || catalog[0];
   const [activeSubTab, setActiveSubTab] = useState<'ranker' | 'capsules' | 'bandits' | 'steering'>('ranker');
@@ -92,6 +95,7 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
     if (!currentSeed) return [];
     const seedEmb = embeddings.get(currentSeed.id);
     if (!seedEmb) return [];
+    const explainLang = uiLang === 'ru' ? 'ru' : 'en';
 
     return catalog
       .filter((c) => c.id !== currentSeed.id)
@@ -120,13 +124,13 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
           rankingConfig.eta * features.kgCentrality;
 
         const explanation = ExplainabilityEngine.explain(
-          String(cand.id), features, rankingConfig, capsuleHistory.map(String), [], 'ru'
+          String(cand.id), features, rankingConfig, capsuleHistory.map(String), [], explainLang
         );
         return { item: cand, score, features, explanation };
       })
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
-  }, [currentSeed, catalog, embeddings, rankingConfig, capsuleHistory]);
+  }, [currentSeed, catalog, embeddings, rankingConfig, capsuleHistory, uiLang]);
 
   return (
     <div className="flex flex-col gap-6 bg-[#0E0E12] border border-[#222228] rounded-xl p-6 shadow-xs text-[#F5F5F5]">

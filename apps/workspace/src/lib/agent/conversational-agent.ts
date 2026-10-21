@@ -1,5 +1,6 @@
 import { cosineSimilarity, SecurityGuardrails } from "@eidos/core";
 import { CatalogItem } from '../../types';
+import { detectTextLanguage, SupportedLanguage } from '../../utils/recommenderEngine';
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
@@ -25,28 +26,38 @@ interface ParsedIntent {
 
 const MULTILINGUAL_CATEGORY_MAP: Array<{ triggers: string[]; aliases: string[] }> = [
   {
-    triggers: ['электроник', 'гаджет', 'ноутбук', 'смартфон', 'наушник', 'electronics', 'gadget', 'laptop', 'audio'],
-    aliases: ['электроника', 'техника', 'electronics', 'hardware', 'audio'],
+    triggers: [
+      'электроник', 'гаджет', 'ноутбук', 'смартфон', 'наушник',
+      'electronics', 'gadget', 'laptop', 'audio', 'headphones',
+      'ガジェット', 'ノートpc', 'パソコン', 'ヘッドホン', 'イヤホン', 'プログラミング', 'it',
+    ],
+    aliases: ['электроника', 'техника', 'electronics', 'hardware', 'audio', 'ガジェット', 'プログラミング', '音楽'],
   },
   {
-    triggers: ['книг', 'литератур', 'чтени', 'book', 'reading'],
-    aliases: ['книги', 'books', 'education'],
+    triggers: ['книг', 'литератур', 'чтени', 'book', 'reading', 'novel', '本', '書籍', '文学'],
+    aliases: ['книги', 'books', 'education', '映画・考察', 'プログラミング・it'],
   },
   {
-    triggers: ['фильм', 'кино', 'сериал', 'movie', 'cinema', 'sci-fi', 'фантастик'],
-    aliases: ['фильмы', 'movies', 'sci-fi', 'cinema', 'thriller', 'documentary'],
+    triggers: [
+      'фильм', 'кино', 'сериал', 'movie', 'cinema', 'sci-fi', 'фантастик', 'documentary',
+      '映画', 'ドキュメンタリー', '宇宙', '科学', '考察', '纪录片', 'película',
+    ],
+    aliases: ['фильмы', 'movies', 'sci-fi', 'cinema', 'thriller', 'documentary', '科学・宇宙', '映画・考察', '科学纪录片'],
   },
   {
-    triggers: ['игр', 'гейм', 'game', 'gaming', 'rpg'],
-    aliases: ['игры', 'games', 'gaming', 'anime'],
+    triggers: ['игр', 'гейм', 'game', 'gaming', 'rpg', 'ゲーム', '実況', 'サイバーパンク'],
+    aliases: ['игры', 'games', 'gaming', 'anime', 'ゲーム実況', 'アニメ'],
   },
   {
-    triggers: ['одежд', 'пальто', 'кроссовк', 'fashion', 'clothing', 'спорт', 'sport'],
-    aliases: ['одежда', 'спорт', 'fashion', 'clothing', 'sport'],
+    triggers: [
+      'одежд', 'пальто', 'кроссовк', 'fashion', 'clothing', 'спорт', 'sport', 'running', 'marathon',
+      'スポーツ', 'ランニング', 'マラソン', 'フィットネス',
+    ],
+    aliases: ['одежда', 'спорт', 'fashion', 'clothing', 'sport', 'スポーツ・フィットネス'],
   },
   {
-    triggers: ['кофе', 'дом', 'быт', 'coffee', 'home'],
-    aliases: ['техника', 'дом', 'coffee', 'lifestyle'],
+    triggers: ['кофе', 'дом', 'быт', 'coffee', 'espresso', 'home', 'コーヒー', 'エスプレッソ', 'カフェ', 'vlog'],
+    aliases: ['техника', 'дом', 'coffee', 'lifestyle', 'vlog・ライフスタイル'],
   },
 ];
 
@@ -86,7 +97,10 @@ export class ConversationalAgent {
   private extractIntent(rawText: string): ParsedIntent {
     const lower = rawText.toLowerCase().trim();
 
-    if (/^(hi|hello|hey|привет|здравствуй|добрый день)\b/.test(lower) && lower.split(/\s+/).length <= 3) {
+    if (
+      /^(hi|hello|hey|привет|здравствуй|добрый день|こんにちは|こんばんは|はじめまして)\b/i.test(lower) &&
+      lower.split(/\s+/).length <= 3
+    ) {
       return { type: 'greeting', keywords: [] };
     }
 
@@ -101,16 +115,16 @@ export class ConversationalAgent {
     let maxPrice: number | undefined;
     let minPrice: number | undefined;
 
-    const underMatch = lower.match(
-      /(?:under|below|less than|cheaper than|max|до|дешевле|меньше|не дороже)\s*\$?(\d+(?:\s*\d+)*)/
-    );
+    const underMatch =
+      lower.match(/(?:under|below|less than|cheaper than|max|до|дешевле|меньше|не дороже)\s*[$¥]?\s*(\d+(?:\s*\d+)*)/) ||
+      lower.match(/(\d+(?:\s*\d+)*)\s*(?:円|ドル|ルーブル)?\s*(?:以下|未満|以内)/);
     if (underMatch) {
       maxPrice = parseFloat(underMatch[1].replace(/\s+/g, ''));
     }
 
-    const overMatch = lower.match(
-      /(?:over|above|more than|min|от|дороже|больше)\s*\$?(\d+(?:\s*\d+)*)/
-    );
+    const overMatch =
+      lower.match(/(?:over|above|more than|min|от|дороже|больше)\s*[$¥]?\s*(\d+(?:\s*\d+)*)/) ||
+      lower.match(/(\d+(?:\s*\d+)*)\s*(?:円|ドル|ルーブル)?\s*(?:以上|超)/);
     if (overMatch) {
       minPrice = parseFloat(overMatch[1].replace(/\s+/g, ''));
     }
@@ -127,18 +141,19 @@ export class ConversationalAgent {
       'find', 'show', 'me', 'recommend', 'suggest', 'looking', 'for', 'something', 'like', 'similar', 'to',
       'a', 'an', 'the', 'in', 'with', 'and', 'or', 'under', 'over', 'below', 'above',
       'покажи', 'найди', 'посоветуй', 'подбери', 'что-то', 'похожее', 'на', 'для', 'до', 'дешевле', 'рублей', 'руб', 'а',
+      'おすすめ', '探して', '教えて', '見せて', '似た', 'みたいな',
     ]);
     const keywords = lower
       .replace(/[^\p{L}\p{N}\s]/gu, ' ')
       .split(/\s+/)
-      .filter((w) => w.length > 2 && !stopWords.has(w) && !/^\d+$/.test(w));
+      .filter((w) => w.length >= 2 && !stopWords.has(w) && !/^\d+$/.test(w));
 
     let type: ParsedIntent['type'] = 'search';
-    if (referenceItemTitle && /(similar|like|похож|вроде|как)/.test(lower)) {
+    if (referenceItemTitle && /(similar|like|похож|вроде|как|似た|みたい|近い)/.test(lower)) {
       type = 'similar';
     } else if (maxPrice !== undefined || minPrice !== undefined) {
       type = 'filter';
-    } else if (/(recommend|suggest|посоветуй|подбери|порекомендуй)/.test(lower)) {
+    } else if (/(recommend|suggest|посоветуй|подбери|порекомендуй|おすすめ|推薦|紹介)/.test(lower)) {
       type = 'recommend';
     }
 
@@ -152,9 +167,19 @@ export class ConversationalAgent {
     };
   }
 
+  private resolveLang(cleanMessage: string): SupportedLanguage {
+    const msgLang = detectTextLanguage(cleanMessage);
+    if (msgLang === 'ja' || msgLang === 'zh' || msgLang === 'ru') return msgLang;
+    const corpusSample = this.items.slice(0, 3).map((i) => i.title).join(' ');
+    const corpusLang = detectTextLanguage(corpusSample);
+    if (msgLang === 'en' && /[a-z]{3,}/i.test(cleanMessage)) return 'en';
+    return corpusLang;
+  }
+
   public async respond(userMessage: string): Promise<AgentResponse> {
     const scan = SecurityGuardrails.scanAndSanitize(userMessage);
     const cleanMessage = scan.sanitizedInput || userMessage.replace(/[<>]/g, '');
+    const lang = this.resolveLang(cleanMessage);
 
     this.history.push({ role: 'user', content: cleanMessage, timestamp: Date.now() });
 
@@ -162,12 +187,15 @@ export class ConversationalAgent {
 
     if (intent.type === 'greeting') {
       const text =
-        'Привет! Я семантический NLU-агент Eidos. Опишите концепт, жанр, категорию или бюджет (например: «найди электронику для работы» или «а дешевле 15000 рублей»).';
+        lang === 'ja'
+          ? 'こんにちは！Eidos セマンティックNLUエージェントです。探したいテーマ、ジャンル、予算、または似たアイテム名を入力してください（例：「宇宙とブラックホールの科学動画を探して」）。'
+          : lang === 'en'
+          ? 'Hello! I am the Eidos Semantic NLU Agent. Describe a concept, genre, category, or budget constraint (e.g., "recommend sci-fi movies about space and time").'
+          : 'Привет! Я семантический NLU-агент Eidos. Опишите концепт, жанр, категорию или бюджет (например: «найди электронику для работы» или «а дешевле 15000 рублей»).';
       this.history.push({ role: 'assistant', content: text, timestamp: Date.now() });
       return { text, items: [] };
     }
 
-    // Multi-turn context inheritance: if user refines only price ("а дешевле 15000"), keep previous category/query context
     const activeCategoryAliases = intent.categoryAliases ?? this.lastCategoryAliases;
     if (intent.categoryAliases) {
       this.lastCategoryAliases = intent.categoryAliases;
@@ -208,7 +236,12 @@ export class ConversationalAgent {
     }
 
     if (candidates.length === 0) {
-      const text = `По запросу «${cleanMessage}» не найдено позиций в заданных рамках бюджета. Попробуйте расширить ценовой диапазон.`;
+      const text =
+        lang === 'ja'
+          ? `「${cleanMessage}」に一致する条件のアイテムが見つかりませんでした。予算や条件を広げて再度お試しください。`
+          : lang === 'en'
+          ? `No items matched "${cleanMessage}" within the specified constraints. Try relaxing your budget or category filter.`
+          : `По запросу «${cleanMessage}» не найдено позиций в заданных рамках бюджета. Попробуйте расширить ценовой диапазон.`;
       this.history.push({ role: 'assistant', content: text, timestamp: Date.now() });
       return { text, items: [] };
     }
@@ -227,18 +260,25 @@ export class ConversationalAgent {
           .slice(0, 4);
 
         const items = scored.map((s) => s.item);
-        const text = `Позиции, семантически близкие к «${refItem.title}» в 384-мерном пространстве:`;
+        const text =
+          lang === 'ja'
+            ? `384次元ベクトル空間で「${refItem.title}」に意味的に近いアイテム：`
+            : lang === 'en'
+            ? `Items semantically closest to "${refItem.title}" in 384-d vector space:`
+            : `Позиции, семантически близкие к «${refItem.title}» в 384-мерном пространстве:`;
+        const explanation =
+          lang === 'ja'
+            ? `「${refItem.title}」との384次元コサイン類似度でランキング`
+            : lang === 'en'
+            ? `Ranked by 384-d cosine similarity to "${refItem.title}"`
+            : `Ранжировано по косинусному сходству 384-d векторов к «${refItem.title}»`;
         this.history.push({
           role: 'assistant',
           content: text,
           timestamp: Date.now(),
           recommendedItems: items,
         });
-        return {
-          text,
-          items,
-          explanation: `Ранжировано по косинусному сходству 384-d векторов к «${refItem.title}»`,
-        };
+        return { text, items, explanation };
       }
     }
 
@@ -254,13 +294,48 @@ export class ConversationalAgent {
 
     const items = scored.map((s) => s.item);
     const filterNotes: string[] = [];
-    if (activeCategoryAliases) filterNotes.push(`категория: ${activeCategoryAliases[0]}`);
-    if (intent.maxPrice !== undefined) filterNotes.push(`до ${intent.maxPrice.toLocaleString('ru-RU')} ₽`);
-    if (intent.minPrice !== undefined) filterNotes.push(`от ${intent.minPrice.toLocaleString('ru-RU')} ₽`);
+    if (activeCategoryAliases) {
+      filterNotes.push(
+        lang === 'ja'
+          ? `カテゴリ: ${activeCategoryAliases[0]}`
+          : lang === 'en'
+          ? `category: ${activeCategoryAliases[0]}`
+          : `категория: ${activeCategoryAliases[0]}`
+      );
+    }
+    if (intent.maxPrice !== undefined) {
+      filterNotes.push(
+        lang === 'ja'
+          ? `上限 ${intent.maxPrice.toLocaleString()}`
+          : lang === 'en'
+          ? `under ${intent.maxPrice.toLocaleString()}`
+          : `до ${intent.maxPrice.toLocaleString('ru-RU')} ₽`
+      );
+    }
+    if (intent.minPrice !== undefined) {
+      filterNotes.push(
+        lang === 'ja'
+          ? `下限 ${intent.minPrice.toLocaleString()}`
+          : lang === 'en'
+          ? `over ${intent.minPrice.toLocaleString()}`
+          : `от ${intent.minPrice.toLocaleString('ru-RU')} ₽`
+      );
+    }
 
-    const text = `Найдено ${items.length} релевантных позиций по запросу «${cleanMessage}»${
-      filterNotes.length ? ` (${filterNotes.join(', ')})` : ''
-    }:`;
+    const noteSuffix = filterNotes.length ? ` (${filterNotes.join(', ')})` : '';
+    const text =
+      lang === 'ja'
+        ? `「${cleanMessage}」に対して関連性の高い ${items.length} 件のアイテムを抽出しました${noteSuffix}：`
+        : lang === 'en'
+        ? `Found ${items.length} relevant items for "${cleanMessage}"${noteSuffix}:`
+        : `Найдено ${items.length} релевантных позиций по запросу «${cleanMessage}»${noteSuffix}:`;
+    const explanation =
+      lang === 'ja'
+        ? `${candidates.length} 件の候補から384次元セマンティック検索を実行`
+        : lang === 'en'
+        ? `Semantic 384-d retrieval across ${candidates.length} candidates`
+        : `Семантический 384-d поиск по ${candidates.length} кандидатам`;
+
     this.history.push({
       role: 'assistant',
       content: text,
@@ -268,11 +343,7 @@ export class ConversationalAgent {
       recommendedItems: items,
     });
 
-    return {
-      text,
-      items,
-      explanation: `Семантический 384-d поиск по ${candidates.length} кандидатам`,
-    };
+    return { text, items, explanation };
   }
 
   public getHistory(): AgentMessage[] {

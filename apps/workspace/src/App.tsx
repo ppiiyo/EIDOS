@@ -98,7 +98,9 @@ export function App() {
       for (const item of newItems) {
         nextEmbeddings.set(
           String(item.id),
-          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+          computeTextEmbedding(
+            `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
+          )
         );
       }
       setEmbeddings(nextEmbeddings);
@@ -198,6 +200,7 @@ export function App() {
             selectedItem={selectedItem}
             onSelectItem={setSelectedItem}
             onInspectRecommendations={handleInspectRecommendations}
+            uiLang={uiLang}
           />
         )}
 
@@ -208,6 +211,7 @@ export function App() {
             selectedItem={selectedItem}
             onSelectItem={setSelectedItem}
             onShowToast={showToast}
+            uiLang={uiLang}
           />
         )}
 
@@ -218,6 +222,7 @@ export function App() {
             onSelectItem={handleInspectRecommendations}
             onInspectIn3D={handleInspectIn3D}
             uiLang={uiLang}
+            embeddingState={engineState}
           />
         )}
 
@@ -250,7 +255,11 @@ export function App() {
         {view === 'analytics' && <AnalyticsView />}
         {view === 'abtest' && <ABTestView />}
         {view === 'conversational' && (
-          <ConversationalView agent={agent} onSelectItem={handleInspectRecommendations} />
+          <ConversationalView
+            agent={agent}
+            onSelectItem={handleInspectRecommendations}
+            uiLang={uiLang}
+          />
         )}
       </main>
 

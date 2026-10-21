@@ -2,16 +2,76 @@ import React, { useState, useRef, useEffect } from "react";
 import { Send, RotateCcw, Bot, User } from 'lucide-react';
 import { ConversationalAgent, AgentResponse } from '../lib/agent/conversational-agent';
 import { CatalogItem } from '../types';
+import { UiLanguage } from '../i18n/uiTranslations';
 
 interface ConversationalViewProps {
   agent: ConversationalAgent;
   onSelectItem?: (item: CatalogItem) => void;
+  uiLang?: UiLanguage;
 }
+
+const AGENT_COPY: Record<
+  UiLanguage,
+  {
+    title: string;
+    subtitle: string;
+    clearBtn: string;
+    emptyHint: string;
+    computingText: string;
+    placeholder: string;
+    prompts: string[];
+  }
+> = {
+  ru: {
+    title: 'Диалоговый Векторный NLU Агент',
+    subtitle:
+      'Многошаговое извлечение намерений на естественном языке в 384-d пространстве с фильтрацией бюджета и категорий',
+    clearBtn: 'Очистить диалог',
+    emptyHint: 'Запросите подбор по смыслу, бюджету или эталонному объекту:',
+    computingText: 'Вычисление 384-d вектора намерения...',
+    placeholder: 'Введите запрос на Русском, English или 日本語...',
+    prompts: [
+      'подбери научно-фантастические фильмы о космосе и времени',
+      'найди гаджеты и технику для работы до 30000 рублей',
+      'посоветуй что-то похожее на Cyberpunk 2077',
+    ],
+  },
+  en: {
+    title: 'Conversational Vector NLU Agent',
+    subtitle:
+      'Multi-turn natural language intent extraction over 384-d embeddings with price and category constraints',
+    clearBtn: 'Clear session',
+    emptyHint: 'Ask for products by concept, budget, or similarity anchor:',
+    computingText: 'Computing 384-d intent vector...',
+    placeholder: 'Type a natural language request in English, Русский, or 日本語...',
+    prompts: [
+      'recommend sci-fi movies about relativistic time and black holes',
+      'find electronics and gadgets for coding and work',
+      'suggest something similar to Cyberpunk 2077',
+    ],
+  },
+  ja: {
+    title: '対話型ベクトル NLU エージェント',
+    subtitle:
+      '384次元ベクトル空間におけるマルチターン自然言語意図抽出（カテゴリ・予算制約対応）',
+    clearBtn: '履歴をクリア',
+    emptyHint: 'コンセプト、カテゴリ、予算、または類似アイテムで質問してください：',
+    computingText: '384次元インテントベクトルを計算中...',
+    placeholder: '日本語、English、Русскийでリクエストを入力...',
+    prompts: [
+      '宇宙とブラックホールに関する科学ドキュメンタリーや映画を探して',
+      'サイバーパンクと人工知能のゲーム実況をおすすめして',
+      'RustとPythonの高速データベース開発講座を教えて',
+    ],
+  },
+};
 
 export const ConversationalView: React.FC<ConversationalViewProps> = ({
   agent,
   onSelectItem,
+  uiLang = 'ru',
 }) => {
+  const copy = AGENT_COPY[uiLang];
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<AgentResponse[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -43,13 +103,11 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
     <div className="page max-w-[840px]">
       <div className="flex justify-between items-center mb-5">
         <div>
-          <h1 className="page-title">Conversational Vector NLU Agent</h1>
-          <p className="page-sub">
-            Multi-turn natural language intent extraction over 384-d embeddings with price and category constraints
-          </p>
+          <h1 className="page-title">{copy.title}</h1>
+          <p className="page-sub">{copy.subtitle}</p>
         </div>
         <button type="button" className="btn btn-secondary btn-sm" onClick={handleClear}>
-          <RotateCcw size={13} /> Clear session
+          <RotateCcw size={13} /> {copy.clearBtn}
         </button>
       </div>
 
@@ -58,15 +116,9 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
         {messages.length === 0 && (
           <div className="text-center py-12 px-4 text-[var(--text-sec)]">
             <Bot size={32} className="mx-auto mb-3 text-[var(--accent)]" />
-            <p className="text-sm mb-3.5">
-              Ask for products by concept, budget, or similarity anchor:
-            </p>
+            <p className="text-sm mb-3.5">{copy.emptyHint}</p>
             <div className="flex flex-wrap gap-2 justify-center">
-              {[
-                'подбери научно-фантастические фильмы о космосе и времени',
-                'найди гаджеты и технику для работы до 30000 рублей',
-                'посоветуй что-то похожее на Cyberpunk 2077',
-              ].map((prompt) => (
+              {copy.prompts.map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
@@ -142,7 +194,7 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
               <Bot size={14} color="var(--accent)" />
             </div>
             <div className="px-3.5 py-2.5 rounded-[10px] bg-[var(--bg-alt)] border border-[var(--border)] text-sm text-[var(--text-sec)]">
-              Computing 384-d intent vector...
+              {copy.computingText}
             </div>
           </div>
         )}
@@ -156,7 +208,7 @@ export const ConversationalView: React.FC<ConversationalViewProps> = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Type a natural language request..."
+          placeholder={copy.placeholder}
           disabled={isTyping}
         />
         <button

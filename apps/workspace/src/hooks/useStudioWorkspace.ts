@@ -179,7 +179,9 @@ export function useStudioWorkspace() {
     for (const item of baseItems) {
       map.set(
         String(item.id),
-        computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+        computeTextEmbedding(
+          `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
+        )
       );
     }
     setEmbeddings(map);
@@ -196,7 +198,9 @@ export function useStudioWorkspace() {
       for (const item of preset.items) {
         map.set(
           String(item.id),
-          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+          computeTextEmbedding(
+            `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
+          )
         );
       }
       getOrBuildCatalogHNSWIndex(preset.items, map);
@@ -224,7 +228,9 @@ export function useStudioWorkspace() {
       for (const item of items) {
         map.set(
           String(item.id),
-          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+          computeTextEmbedding(
+            `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
+          )
         );
       }
       getOrBuildCatalogHNSWIndex(items, map);

@@ -5,6 +5,7 @@ import { VectorCanvas3D } from './VectorCanvas3D';
 import { GraphView } from './GraphView';
 import { buildCatalogSimilarityMatrix } from '../utils/recommenderEngine';
 import { extractEdges, detectClusters, computeMetrics } from '../utils/graphMath';
+import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 interface VectorSpaceViewProps {
   catalog: CatalogItem[];
@@ -12,6 +13,7 @@ interface VectorSpaceViewProps {
   selectedItem: CatalogItem | null;
   onSelectItem: (item: CatalogItem) => void;
   onInspectRecommendations: (item: CatalogItem) => void;
+  uiLang?: UiLanguage;
 }
 
 export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
@@ -20,9 +22,11 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
   selectedItem,
   onSelectItem,
   onInspectRecommendations,
+  uiLang = 'ru',
 }) => {
   const [spaceMode, setSpaceMode] = useState<'3d' | '2d'>('3d');
   const [threshold, setThreshold] = useState<number>(0.24);
+  const modCopy = UI_TRANSLATIONS[uiLang].dashboard.modules.vectorspace;
 
   const graphCatalog = useMemo(() => catalog.slice(0, 80), [catalog]);
 
@@ -44,10 +48,8 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
     <div className="page">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="page-title">3D Vector Space & 2D Topology Graph</h1>
-          <p className="page-sub">
-            Interactive projection of 384-dimensional embeddings, HNSW graph layers (L0–L2), INT8 quantization lattice, and force-directed semantic clusters
-          </p>
+          <h1 className="page-title">{modCopy.title}</h1>
+          <p className="page-sub">{modCopy.desc}</p>
         </div>
 
         <div className="flex items-center gap-1 p-1 rounded-lg border bg-[var(--bg-alt)] border-[var(--border)]">
@@ -59,7 +61,7 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
             }`}
           >
             <Boxes size={14} />
-            <span>3D WebGL Universe (Three.js)</span>
+            <span>3D WebGL (Three.js)</span>
           </button>
 
           <button
@@ -70,7 +72,7 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
             }`}
           >
             <Network size={14} />
-            <span>2D Force Topology Graph</span>
+            <span>2D Force Graph</span>
           </button>
         </div>
       </div>
@@ -81,7 +83,7 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
             <span className="text-lg">{selectedItem.icon || '📦'}</span>
             <div>
               <div className="font-semibold text-sm text-[var(--text)]">
-                Active Vector Node: {selectedItem.title}
+                {UI_TRANSLATIONS[uiLang].topbar.activeSeed} {selectedItem.title}
               </div>
               <div className="text-[var(--text-sec)]">
                 <span>{selectedItem.category}</span>
@@ -98,7 +100,7 @@ export const VectorSpaceView: React.FC<VectorSpaceViewProps> = ({
             onClick={() => onInspectRecommendations(selectedItem)}
             className="btn btn-secondary btn-sm"
           >
-            <span>Inspect in MMR Recommendations</span>
+            <span>{UI_TRANSLATIONS[uiLang].nav.recommendations}</span>
             <ArrowUpRight size={13} />
           </button>
         </div>
