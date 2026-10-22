@@ -5,6 +5,7 @@ import { HybridSearchHit } from '../../utils/recommenderEngine';
 
 interface SearchResultsColumnsProps {
   compareMode: boolean;
+  showXray?: boolean;
   hybridHits: HybridSearchHit[];
   keywordHits: Array<{ item: CatalogItem; matchedWords: string[] }>;
   latencyMs: number;
@@ -22,6 +23,7 @@ interface SearchResultsColumnsProps {
 
 export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
   compareMode,
+  showXray = true,
   hybridHits,
   keywordHits,
   latencyMs,
@@ -96,32 +98,86 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
                   {hit.item.description}
                 </p>
 
-                <div className="grid grid-cols-2 gap-2.5 px-2.5 py-2 bg-[var(--bg-alt)] rounded-md text-[0.6875rem] mb-2.5">
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-[var(--text-sec)]">Dense 384-d Cosine</span>
-                      <span className="mono font-semibold">{(hit.denseScore * 100).toFixed(1)}%</span>
+                {showXray && (
+                  <div
+                    data-testid="search-xray-panel"
+                    className="px-3 py-2.5 bg-[var(--bg-alt)] border border-[var(--border)] rounded-md text-[0.6875rem] mb-2.5"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-2">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-[var(--text-sec)]">
+                            HNSW 384-d {hit.denseRank ? `(#${hit.denseRank})` : ''}
+                          </span>
+                          <span className="mono font-semibold">
+                            {(hit.denseScore * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="h-1 bg-[var(--border)] rounded overflow-hidden">
+                          <div
+                            className="h-full bg-[var(--accent)]"
+                            style={{ width: `${Math.min(100, hit.denseScore * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-[var(--text-sec)]">
+                            BM25 Okapi {hit.sparseRank ? `(#${hit.sparseRank})` : '(0)'}
+                          </span>
+                          <span className="mono font-semibold">
+                            {(hit.bm25Score * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="h-1 bg-[var(--border)] rounded overflow-hidden">
+                          <div
+                            className="h-full bg-[var(--success)]"
+                            style={{ width: `${Math.min(100, hit.bm25Score * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-[var(--text-sec)]">RRF (k=60)</span>
+                          <span className="mono font-semibold text-[var(--text)]">
+                            {((hit.rrfScore ?? hit.fusedScore * 0.016) * 1000).toFixed(2)}‰
+                          </span>
+                        </div>
+                        <div className="h-1 bg-[var(--border)] rounded overflow-hidden flex">
+                          <div
+                            className="h-full bg-[var(--accent)]"
+                            style={{
+                              width: `${Math.min(100, alpha * 100)}%`,
+                            }}
+                          />
+                          <div
+                            className="h-full bg-[var(--success)]"
+                            style={{
+                              width: `${Math.min(100, (1 - alpha) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="h-1 bg-[var(--border)] rounded overflow-hidden">
-                      <div
-                        className="h-full bg-[var(--accent)]"
-                        style={{ width: `${Math.min(100, hit.denseScore * 100)}%` }}
-                      />
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-[var(--border)] text-[var(--text-sec)]">
+                      <span className="mono">
+                        Fused = {alpha.toFixed(2)}·D({(hit.denseScore * 100).toFixed(0)}%) +{' '}
+                        {(1 - alpha).toFixed(2)}·BM25({(hit.bm25Score * 100).toFixed(0)}%) ={' '}
+                        <strong className="text-[var(--text)]">
+                          {(hit.fusedScore * 100).toFixed(1)}%
+                        </strong>
+                      </span>
+                      {hit.matchedTokens && hit.matchedTokens.length > 0 && (
+                        <span className="mono text-[var(--success)]">
+                          Tokens: {hit.matchedTokens.join(' · ')}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-[var(--text-sec)]">BM25 Lexical Match (CJK + Unicode)</span>
-                      <span className="mono font-semibold">{(hit.bm25Score * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="h-1 bg-[var(--border)] rounded overflow-hidden">
-                      <div
-                        className="h-full bg-[var(--success)]"
-                        style={{ width: `${Math.min(100, hit.bm25Score * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
+                )}
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-[var(--text-mut)]">{hit.whyRecommended}</span>

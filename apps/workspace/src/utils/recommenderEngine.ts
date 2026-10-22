@@ -273,6 +273,12 @@ export interface HybridSearchHit {
   source: 'hybrid' | 'dense' | 'sparse';
   retrievalMode?: RetrievalMode;
   whyRecommended: string;
+  denseRank?: number;
+  sparseRank?: number;
+  rrfScore?: number;
+  rrfDenseContribution?: number;
+  rrfSparseContribution?: number;
+  matchedTokens?: string[];
 }
 
 export interface RecommendationXRay {
@@ -618,31 +624,55 @@ export function executeHybridCatalogSearch(
 
   // 1. Dense HNSW retrieval (or full scan when catalog < 100 to get exact dense scores for every item)
   const denseScores = new Map<string, number>();
+  const denseRanks = new Map<string, number>();
   if (catalog.length >= 400) {
     const annHits = hnsw.search(queryVec, Math.min(catalog.length, Math.max(limit * 4, 60)), 64);
-    for (const h of annHits) {
+    annHits.forEach((h, idx) => {
       denseScores.set(String(h.id), Math.max(0, h.score));
-    }
+      denseRanks.set(String(h.id), idx + 1);
+    });
   } else {
+    const denseList: Array<{ id: string; score: number }> = [];
     for (const item of catalog) {
       const vec = embeddings.get(String(item.id));
       if (vec) {
-        denseScores.set(String(item.id), cosineSimilarity(queryVec, vec));
+        const s = cosineSimilarity(queryVec, vec);
+        denseScores.set(String(item.id), s);
+        denseList.push({ id: String(item.id), score: s });
       }
     }
+    denseList
+      .sort((a, b) => b.score - a.score)
+      .forEach((entry, idx) => denseRanks.set(entry.id, idx + 1));
   }
 
   // 2. Sparse BM25 retrieval (with CJK + Multilingual tokenizer)
   const bm25RawHits = bm25.search(trimmed, Math.max(limit * 4, 50));
   const bm25Scores = new Map<string, number>();
+  const sparseRanks = new Map<string, number>();
   let maxBm25 = 0;
   for (const h of bm25RawHits) {
     if (h.score > maxBm25) maxBm25 = h.score;
   }
-  for (const h of bm25RawHits) {
+  bm25RawHits.forEach((h, idx) => {
     const normScore = maxBm25 > 0 ? h.score / maxBm25 : 0;
     bm25Scores.set(String(h.id), normScore);
-  }
+    if (h.score > 0) sparseRanks.set(String(h.id), idx + 1);
+  });
+
+  // Extract query tokens for X-Ray lexical token attribution
+  const cjkChars: string[] = (trimmed.match(CJK_RUN_MATCH) || []).flatMap((run) =>
+    run.split('')
+  );
+  const queryTokens: string[] = Array.from(
+    new Set<string>([
+      ...trimmed
+        .toLowerCase()
+        .split(/[\s,_\-—"«»'().:;!?、。「」『』【】・]+/)
+        .filter((w) => w.length >= 2),
+      ...cjkChars,
+    ])
+  );
 
   // 3. Convex + RRF Fusion across candidate union
   const candidateIds = new Set<string>([
@@ -651,6 +681,7 @@ export function executeHybridCatalogSearch(
   ]);
 
   const queryLang = detectTextLanguage(trimmed);
+  const RRF_K = 60;
 
   const results: HybridSearchHit[] = [];
   for (const id of candidateIds) {
@@ -662,6 +693,15 @@ export function executeHybridCatalogSearch(
 
     // If pure BM25 (alpha === 0), filter out items with 0 BM25 score
     if (alpha === 0 && sScore === 0) continue;
+
+    const dRank = denseRanks.get(id);
+    const sRank = sparseRanks.get(id);
+    const rrfDenseContribution = dRank ? alpha / (RRF_K + dRank) : 0;
+    const rrfSparseContribution = sRank ? (1 - alpha) / (RRF_K + sRank) : 0;
+    const rrfScore = rrfDenseContribution + rrfSparseContribution;
+
+    const fullDocLower = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`.toLowerCase();
+    const matchedTokens = queryTokens.filter((tok) => fullDocLower.includes(tok)).slice(0, 6);
 
     const fusedScore = alpha * dScore + (1 - alpha) * sScore;
     let source: 'hybrid' | 'dense' | 'sparse' = 'hybrid';
@@ -710,6 +750,12 @@ export function executeHybridCatalogSearch(
       source,
       retrievalMode: source === 'sparse' ? 'lexical-bm25' : 'hybrid-384d',
       whyRecommended,
+      denseRank: dRank,
+      sparseRank: sRank,
+      rrfScore,
+      rrfDenseContribution,
+      rrfSparseContribution,
+      matchedTokens,
     });
   }
 

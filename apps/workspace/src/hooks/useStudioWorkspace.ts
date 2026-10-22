@@ -285,6 +285,24 @@ export function useStudioWorkspace() {
       const crossCatOnly = Boolean(rules?.crossCategoryOnly);
       const minRating = rules?.minRating ?? 0;
 
+      // Multi-objective business weights (normalized so sum = 1.0)
+      const wSem = rules?.semanticWeight ?? 0.55;
+      const wPop = rules?.popularityWeight ?? 0.2;
+      const wFresh = rules?.freshnessWeight ?? 0.15;
+      const wMargin = rules?.marginWeight ?? 0.1;
+      const totalObjWeight = Math.max(0.01, wSem + wPop + wFresh + wMargin);
+      const normSem = wSem / totalObjWeight;
+      const normPop = wPop / totalObjWeight;
+      const normFresh = wFresh / totalObjWeight;
+      const normMargin = wMargin / totalObjWeight;
+
+      const parseNumericPrice = (p?: number | string): number => {
+        if (typeof p === 'number') return p;
+        if (!p) return 50;
+        const m = String(p).replace(/\s/g, '').match(/[\d.]+/);
+        return m ? parseFloat(m[0]) || 50 : 50;
+      };
+
       const candidates = catalog
         .filter((item) => {
           const idStr = String(item.id);
@@ -294,12 +312,53 @@ export function useStudioWorkspace() {
           if (minRating > 0 && (item.rating ?? 5.0) < minRating) return false;
           return embeddings.has(idStr);
         })
-        .map((item) => {
+        .map((item, idx) => {
           const vec = embeddings.get(String(item.id))!;
           const rawSim = cosineSimilarity(targetVec, vec);
           const isBoosted = Boolean(boostCat && item.category === boostCat);
-          const boostedSim = isBoosted ? Math.min(0.999, rawSim * boostFactor) : rawSim;
-          return { item, sim: rawSim, boostedSim, vec, isBoosted };
+
+          // Deterministic normalized business features in [0, 1]
+          const ratingNorm = Math.min(1, Math.max(0, ((item.rating ?? 4.7) - 3.8) / 1.2));
+          const reviewsNorm = Math.min(1, Math.log10(Math.max(10, item.reviews ?? 120)) / 4.2);
+          const popSignal = 0.6 * ratingNorm + 0.4 * reviewsNorm;
+
+          const idNum = parseInt(String(item.id).replace(/\D/g, ''), 10) || idx + 1;
+          const freshSignal = Math.min(
+            1,
+            Math.max(
+              0.25,
+              item.badge && /(new|новинк|2026|prime|4k|hit|хит)/i.test(item.badge)
+                ? 0.92
+                : 0.45 + ((idNum * 17) % 50) / 100
+            )
+          );
+
+          const priceVal = parseNumericPrice(item.price);
+          const marginSignal = Math.min(1, Math.max(0.2, Math.log10(Math.max(10, priceVal)) / 4.5));
+
+          const semanticContribution = normSem * rawSim;
+          const popularityContribution = normPop * popSignal;
+          const freshnessContribution = normFresh * freshSignal;
+          const marginContribution = normMargin * marginSignal;
+
+          const rawComposite =
+            semanticContribution +
+            popularityContribution +
+            freshnessContribution +
+            marginContribution;
+          const boostedSim = isBoosted ? Math.min(0.999, rawComposite * boostFactor) : rawComposite;
+
+          return {
+            item,
+            sim: rawSim,
+            boostedSim,
+            vec,
+            isBoosted,
+            semanticContribution,
+            popularityContribution,
+            freshnessContribution,
+            marginContribution,
+          };
         })
         .sort((a, b) => b.boostedSim - a.boostedSim)
         .slice(0, 48);
@@ -312,6 +371,10 @@ export function useStudioWorkspace() {
         vec: Float32Array;
         isPinned?: boolean;
         isBoosted?: boolean;
+        semanticContribution: number;
+        popularityContribution: number;
+        freshnessContribution: number;
+        marginContribution: number;
       }> = [];
 
       for (const pinId of rules?.pinnedIds || []) {
@@ -319,14 +382,19 @@ export function useStudioWorkspace() {
         const pinnedItem = catalog.find((c) => String(c.id) === String(pinId));
         const pinnedVec = embeddings.get(String(pinId));
         if (pinnedItem && pinnedVec && selected.length < limit) {
+          const pinSim = cosineSimilarity(targetVec, pinnedVec);
           selected.push({
             item: pinnedItem,
-            sim: cosineSimilarity(targetVec, pinnedVec),
+            sim: pinSim,
             mmrScore: 1.0,
             noveltyBonus: 1.0,
             vec: pinnedVec,
             isPinned: true,
             isBoosted: Boolean(boostCat && pinnedItem.category === boostCat),
+            semanticContribution: normSem * pinSim,
+            popularityContribution: normPop * 0.85,
+            freshnessContribution: normFresh * 0.85,
+            marginContribution: normMargin * 0.8,
           });
         }
       }
@@ -353,7 +421,11 @@ export function useStudioWorkspace() {
           }
         }
 
-        const chosen = candidates.splice(bestIdx, 1)[0];
+        // O(1) swap-and-pop candidate removal
+        const chosen = candidates[bestIdx];
+        candidates[bestIdx] = candidates[candidates.length - 1];
+        candidates.pop();
+
         selected.push({
           item: chosen.item,
           sim: chosen.sim,
@@ -362,6 +434,10 @@ export function useStudioWorkspace() {
           vec: chosen.vec,
           isPinned: false,
           isBoosted: chosen.isBoosted,
+          semanticContribution: chosen.semanticContribution,
+          popularityContribution: chosen.popularityContribution,
+          freshnessContribution: chosen.freshnessContribution,
+          marginContribution: chosen.marginContribution,
         });
       }
 
@@ -374,6 +450,14 @@ export function useStudioWorkspace() {
         isPinned: s.isPinned,
         isBoosted: s.isBoosted,
         whyRecommended: generateSemanticExplanation(target, s.item),
+        featureBreakdown: {
+          semanticContribution: Number(s.semanticContribution.toFixed(4)),
+          popularityContribution: Number(s.popularityContribution.toFixed(4)),
+          freshnessContribution: Number(s.freshnessContribution.toFixed(4)),
+          marginContribution: Number(s.marginContribution.toFixed(4)),
+          noveltyContribution: Number((diversityLambda * s.noveltyBonus * 0.55).toFixed(4)),
+          compositeScore: s.mmrScore,
+        },
       }));
     },
     [catalog, embeddings]

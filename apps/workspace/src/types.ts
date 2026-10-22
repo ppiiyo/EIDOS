@@ -98,6 +98,15 @@ export interface CatalogItem {
   custom?: boolean;
 }
 
+export interface MultiObjectiveBreakdown {
+  semanticContribution: number;
+  popularityContribution: number;
+  freshnessContribution: number;
+  marginContribution: number;
+  noveltyContribution: number;
+  compositeScore: number;
+}
+
 export interface CatalogRecommendation {
   item: CatalogItem;
   sim: number;
@@ -107,6 +116,7 @@ export interface CatalogRecommendation {
   isPinned?: boolean;
   isBoosted?: boolean;
   whyRecommended?: string;
+  featureBreakdown?: MultiObjectiveBreakdown;
 }
 
 export interface MerchandisingRules {
@@ -116,6 +126,10 @@ export interface MerchandisingRules {
   boostFactor: number;
   crossCategoryOnly: boolean;
   minRating: number;
+  semanticWeight?: number;
+  popularityWeight?: number;
+  freshnessWeight?: number;
+  marginWeight?: number;
 }
 
 export interface RankingEvaluationMetrics {
@@ -132,6 +146,12 @@ export interface HybridSearchHit {
   bm25Score: number;
   source: 'hybrid' | 'dense' | 'sparse';
   whyRecommended: string;
+  denseRank?: number;
+  sparseRank?: number;
+  rrfScore?: number;
+  rrfDenseContribution?: number;
+  rrfSparseContribution?: number;
+  matchedTokens?: string[];
 }
 
 export interface CatalogEdge {

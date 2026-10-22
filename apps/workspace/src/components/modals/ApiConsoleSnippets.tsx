@@ -7,6 +7,8 @@ interface ApiConsoleSnippetsProps {
   limit: number;
   selectedId: string;
   diversityLambda: number;
+  strategy?: 'adaptive' | 'simple' | 'user';
+  filterCategory?: string;
   copiedSnippet: string | null;
   onCopy: (code: string, key: string) => void;
 }
@@ -17,45 +19,77 @@ export const ApiConsoleSnippets: React.FC<ApiConsoleSnippetsProps> = ({
   limit,
   selectedId,
   diversityLambda,
+  strategy = 'adaptive',
+  filterCategory = '',
   copiedSnippet,
   onCopy,
 }) => {
+  const filtersBlock = filterCategory
+    ? `,\n  filters: { category: ${JSON.stringify(filterCategory)} }`
+    : '';
+
   const tsSdkSnippet = `import { EidosClient } from '@eidos/sdk';
 
 const eidos = new EidosClient({
-  endpoint: 'http://localhost:3001',
-  apiKey: process.env.EIDOS_API_KEY,
+  baseUrl: 'http://localhost:3000',
+  apiKey: process.env.EIDOS_API_KEY ?? 'eidos_dev_key',
 });
 
-// 1. Hybrid Search (384-d Dense E5 + Sparse BM25 RRF)
+// 1. Hybrid Search (384-d Dense HNSW + Sparse BM25 RRF)
 const hits = await eidos.search({
   query: ${JSON.stringify(query)},
   alpha: ${alpha.toFixed(2)},
   limit: ${limit},
 });
 
-// 2. MMR Diversified Recommendations
+// 2. Unified Recommendations (strategy: '${strategy}')
 const recs = await eidos.recommend({
-  seedItemId: ${JSON.stringify(selectedId)},
-  diversityLambda: ${diversityLambda.toFixed(2)},
-  limit: ${limit},
+  itemId: ${JSON.stringify(selectedId)},
+  strategy: ${JSON.stringify(strategy)},
+  diversityFactor: ${diversityLambda.toFixed(2)},
+  limit: ${limit}${filtersBlock}
 });`;
 
-  const curlSnippet = `curl -X POST http://localhost:3001/v1/search/hybrid \\
+  const pythonSdkSnippet = `from eidos import EidosClient
+
+client = EidosClient(
+    base_url="http://localhost:3000",
+    api_key="eidos_dev_key"
+)
+
+# 1. Hybrid Multilingual & CJK Search
+hits = client.search(
+    query=${JSON.stringify(query)},
+    mode="hybrid",
+    alpha=${alpha.toFixed(2)},
+    limit=${limit}
+)
+
+# 2. Unified Recommendations (${strategy} strategy + MMR)
+recs = client.recommend(
+    item_id=${JSON.stringify(selectedId)},
+    strategy=${JSON.stringify(strategy)},
+    diversity_factor=${diversityLambda.toFixed(2)},
+    limit=${limit}${filterCategory ? `,\n    filters={"category": ${JSON.stringify(filterCategory)}}` : ''}
+)`;
+
+  const curlSnippet = `# Unified Recommendation Endpoint (returns x-cache: HIT|MISS)
+curl -i -X POST http://localhost:3000/v1/recommend \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer eidos_live_98f2a..." \\
+  -H "x-api-key: eidos_dev_key" \\
   -d '{
-    "query": ${JSON.stringify(query)},
-    "alpha": ${alpha.toFixed(2)},
-    "limit": ${limit},
-    "model": "Xenova/multilingual-e5-small"
+    "item_id": ${JSON.stringify(selectedId)},
+    "strategy": ${JSON.stringify(strategy)},
+    "diversity_factor": ${diversityLambda.toFixed(2)},
+    "limit": ${limit}${filterCategory ? `,\n    "filters": { "category": ${JSON.stringify(filterCategory)} }` : ''}
   }'`;
 
   return (
     <div className="flex flex-col gap-4">
       {[
         { key: 'ts', title: 'TypeScript / Node.js (@eidos/sdk)', code: tsSdkSnippet },
-        { key: 'curl', title: 'REST API (cURL)', code: curlSnippet },
+        { key: 'py', title: 'Python 3.10+ (eidos-sdk)', code: pythonSdkSnippet },
+        { key: 'curl', title: 'REST API (cURL — Unified /v1/recommend)', code: curlSnippet },
       ].map((block) => (
         <div
           key={block.key}

@@ -105,43 +105,83 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
       </p>
 
       {showXray && (
-        <div className="grid grid-cols-3 gap-2.5 px-3 py-2 bg-[var(--bg-alt)] rounded-md text-[0.6875rem] mb-2.5">
-          <div>
-            <div className="flex justify-between mb-1">
-              <span className="text-[var(--text-sec)]">{t.cosineLabel}</span>
-              <span className="mono font-semibold">{cosinePct.toFixed(1)}%</span>
+        <div
+          data-testid="recommendation-xray-bars"
+          className="px-3 py-2.5 bg-[var(--bg-alt)] border border-[var(--border)] rounded-md text-[0.6875rem] mb-2.5"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-2">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-[var(--text-sec)]">{t.cosineLabel}</span>
+                <span className="mono font-semibold">{cosinePct.toFixed(1)}%</span>
+              </div>
+              <div className="h-1 bg-[var(--border)] rounded">
+                <div
+                  className="h-full bg-[var(--accent)] rounded"
+                  style={{ width: `${cosinePct}%` }}
+                />
+              </div>
             </div>
-            <div className="h-1 bg-[var(--border)] rounded">
-              <div
-                className="h-full bg-[var(--accent)] rounded"
-                style={{ width: `${cosinePct}%` }}
-              />
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-[var(--text-sec)]">{t.noveltyLabel}</span>
+                <span className="mono font-semibold">{noveltyPct.toFixed(1)}%</span>
+              </div>
+              <div className="h-1 bg-[var(--border)] rounded">
+                <div
+                  className="h-full bg-[var(--success)] rounded"
+                  style={{ width: `${noveltyPct}%` }}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-[var(--text-sec)]">{t.mmrScoreLabel}</span>
+                <span className="mono font-semibold">{mmrTotalPct.toFixed(1)}</span>
+              </div>
+              <div className="h-1 bg-[var(--border)] rounded">
+                <div
+                  className="h-full bg-[var(--text)] rounded"
+                  style={{ width: `${mmrTotalPct}%` }}
+                />
+              </div>
             </div>
           </div>
-          <div>
-            <div className="flex justify-between mb-1">
-              <span className="text-[var(--text-sec)]">{t.noveltyLabel}</span>
-              <span className="mono font-semibold">{noveltyPct.toFixed(1)}%</span>
+
+          {rec.featureBreakdown && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-[var(--border)] mono text-[var(--text-sec)]">
+              <span>
+                α Sem:{' '}
+                <strong className="text-[var(--accent)]">
+                  +{(rec.featureBreakdown.semanticContribution * 100).toFixed(1)}
+                </strong>
+              </span>
+              <span>
+                β Pop:{' '}
+                <strong className="text-[var(--success)]">
+                  +{(rec.featureBreakdown.popularityContribution * 100).toFixed(1)}
+                </strong>
+              </span>
+              <span>
+                γ Fresh:{' '}
+                <strong className="text-[var(--warning)]">
+                  +{(rec.featureBreakdown.freshnessContribution * 100).toFixed(1)}
+                </strong>
+              </span>
+              <span>
+                δ Margin:{' '}
+                <strong className="text-[var(--text)]">
+                  +{(rec.featureBreakdown.marginContribution * 100).toFixed(1)}
+                </strong>
+              </span>
+              <span>
+                λ Novelty:{' '}
+                <strong className="text-[var(--success)]">
+                  +{(rec.featureBreakdown.noveltyContribution * 100).toFixed(1)}
+                </strong>
+              </span>
             </div>
-            <div className="h-1 bg-[var(--border)] rounded">
-              <div
-                className="h-full bg-[var(--success)] rounded"
-                style={{ width: `${noveltyPct}%` }}
-              />
-            </div>
-          </div>
-          <div>
-            <div className="flex justify-between mb-1">
-              <span className="text-[var(--text-sec)]">{t.mmrScoreLabel}</span>
-              <span className="mono font-semibold">{mmrTotalPct.toFixed(1)}</span>
-            </div>
-            <div className="h-1 bg-[var(--border)] rounded">
-              <div
-                className="h-full bg-[var(--text)] rounded"
-                style={{ width: `${mmrTotalPct}%` }}
-              />
-            </div>
-          </div>
+          )}
         </div>
       )}
 

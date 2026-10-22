@@ -241,6 +241,7 @@ textarea.input {
 }
 
 /* ── Studio Shell & Sidebar ──────────────────── */
+.app-shell,
 .studio-shell {
   display: flex;
   min-height: 100vh;
@@ -248,6 +249,7 @@ textarea.input {
   color: var(--text);
 }
 
+.main-area,
 .studio-main {
   flex: 1;
   min-width: 0;

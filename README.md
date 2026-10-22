@@ -21,10 +21,10 @@
 ## 🚀 Live Demo & Quick Start
 
 > ### 🌐 Interactive Workbench & API Sandbox
-> **[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80%20Launch%20Interactive%20Studio-Live%20Demo%20Placeholder-10B981?style=for-the-badge)](#)**
+> **[![Live Demo](https://img.shields.io/badge/%F0%9F%9A%80%20Launch%20Interactive%20Studio-eidos--semantic--ideation--platform.ai.studio-10B981?style=for-the-badge)](https://eidos-semantic-ideation-platform.ai.studio/)**
 >
-> **`[Live Demo Placeholder - Link will be added soon]`**
-> *Explore 384-dimensional HNSW vector neighborhoods in 3D, tune dense/sparse RRF $\alpha$ weights in real time, and inspect per-feature X-Ray explanations across Russian, English, and Japanese catalog presets.*
+> **🔗 Live Demo:** [**https://eidos-semantic-ideation-platform.ai.studio/**](https://eidos-semantic-ideation-platform.ai.studio/)
+> *Explore 384-dimensional HNSW vector neighborhoods in 3D, tune dense/sparse RRF $\alpha$ weights and Multi-Objective Business Reranking sliders in real time, execute live `/v1/*` API calls, and inspect per-feature X-Ray explanations across Russian, English, and Japanese catalog presets.*
 
 ### Run Locally in 3 Commands
 
@@ -38,7 +38,7 @@ pnpm install
 pnpm dev
 ```
 
-Once started, the interactive **EIDOS Studio Workbench** and local API routes are available at `http://localhost:3000`.
+Once started, the interactive **EIDOS Studio Workbench** and unified Fastify API routes (`/v1/*`, `/docs`, `/metrics`) are available at `http://localhost:3000`.
 
 ---
 
@@ -154,7 +154,7 @@ Standard whitespace tokenizers fail completely on unsegmented Chinese, Japanese,
 ### 1. Hybrid Search (`cURL` — Multilingual / CJK + Semantic RRF)
 
 ```bash
-curl -X POST http://localhost:3001/v1/search \
+curl -X POST http://localhost:3000/v1/search \
   -H "Authorization: Bearer eidos_dev_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -166,18 +166,22 @@ curl -X POST http://localhost:3001/v1/search \
   }'
 ```
 
-### 2. Diversified Recommendations (`cURL` — MMR + Category Entropy)
+### 2. Unified Diversified Recommendations (`cURL` — Adaptive / Simple / User + MMR)
 
 ```bash
-curl -X POST http://localhost:3001/v1/recommend \
+curl -X POST http://localhost:3000/v1/recommend \
   -H "Authorization: Bearer eidos_dev_key" \
   -H "Content-Type: application/json" \
   -d '{
-    "itemId": "sku-audio-wh1000xm5",
+    "item_id": "item-0",
+    "strategy": "adaptive",
     "limit": 5,
-    "diversityFactor": 0.7,
-    "minSimilarity": 0.35,
-    "excludeIds": ["sku-old-model-01"]
+    "diversity_factor": 0.7,
+    "filters": {
+      "category": "Electronics",
+      "min_price": 50,
+      "exclude_ids": ["item-99"]
+    }
   }'
 ```
 
@@ -189,7 +193,7 @@ import { Ranker, tokenizeCJK } from '@eidos/core';
 
 // 1. Initialize the official TypeScript client
 const client = new EidosClient({
-  baseUrl: 'http://localhost:3001',
+  baseUrl: 'http://localhost:3000',
   apiKey: process.env.EIDOS_API_KEY ?? 'eidos_dev_key',
   timeoutMs: 5000,
 });

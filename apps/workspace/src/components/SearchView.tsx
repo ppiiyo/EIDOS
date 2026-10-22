@@ -74,6 +74,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [query, setQuery] = useState(sampleQueries[0].label);
   const [alpha, setAlpha] = useState<number>(0.7);
   const [compareMode, setCompareMode] = useState<boolean>(true);
+  const [showXray, setShowXray] = useState<boolean>(true);
   const [hybridHits, setHybridHits] = useState<HybridSearchHit[]>([]);
   const [keywordHits, setKeywordHits] = useState<Array<{ item: CatalogItem; matchedWords: string[] }>>([]);
   const [latencyMs, setLatencyMs] = useState<number>(0);
@@ -152,6 +153,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
               {t.corpusScript} {dominantLang.toUpperCase()}
             </span>
           </span>
+          <button
+            type="button"
+            data-testid="toggle-search-xray"
+            onClick={() => setShowXray((v) => !v)}
+            className={showXray ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+          >
+            <span>{showXray ? 'X-Ray Formula: ON' : 'X-Ray Formula: OFF'}</span>
+          </button>
           <button
             type="button"
             onClick={() => setCompareMode((v) => !v)}
@@ -259,6 +268,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
       <SearchResultsColumns
         compareMode={compareMode}
+        showXray={showXray}
         hybridHits={hybridHits}
         keywordHits={keywordHits}
         latencyMs={latencyMs}

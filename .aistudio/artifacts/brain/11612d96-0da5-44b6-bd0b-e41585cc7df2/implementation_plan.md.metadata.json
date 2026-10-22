@@ -1,6 +1,6 @@
 {
-  "summary":  "Flagship 10k+-star Open-Source README.md blueprint for EIDOS (github.com/ppiiyo/EIDOS), detailing the visual design, algorithmic guarantees, Mermaid architecture diagram, Live Demo CTA banner, cURL & TypeScript SDK examples with explainability, benchmark & complexity matrices, test suite coverage, and engineering roadmap.",
-  "updatedAt":  "2026-10-20T23:26:06.522294843Z",
+  "summary":  "Updated implementation plan: removed any master prompt files from README/repo; README.md will only be updated with the live demo URL (https://eidos-semantic-ideation-platform.ai.studio/) and accurate project documentation, while the audit and master prompt will be delivered in chat alongside the live code upgrades.",
+  "updatedAt":  "2026-10-22T19:43:59.613633190Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

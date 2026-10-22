@@ -1,10 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Sliders, Boxes, Eye } from 'lucide-react';
-import {
-  CatalogItem,
-  CatalogRecommendation,
-  MerchandisingRules,
-} from '../types';
+import { CatalogItem, CatalogRecommendation, MerchandisingRules } from '../types';
 import { trackEvent } from '../lib/analytics/tracker';
 import { computeRankingEvaluationMetrics } from '../utils/recommenderEngine';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
@@ -16,12 +12,7 @@ interface RecommendationsViewProps {
   embeddings: Map<string, Float32Array>;
   selectedItem: CatalogItem | null;
   onSelectItem: (item: CatalogItem) => void;
-  onRecommend: (
-    itemId: string,
-    diversityLambda?: number,
-    limit?: number,
-    rules?: MerchandisingRules
-  ) => CatalogRecommendation[];
+  onRecommend: (itemId: string, diversityLambda?: number, limit?: number, rules?: MerchandisingRules) => CatalogRecommendation[];
   onInspectIn3D: (item: CatalogItem) => void;
   uiLang?: UiLanguage;
 }
@@ -50,11 +41,13 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
   const [crossCategoryOnly, setCrossCategoryOnly] = useState<boolean>(false);
   const [minRating, setMinRating] = useState<number>(0);
 
+  const [semanticWeight, setSemanticWeight] = useState<number>(0.55);
+  const [popularityWeight, setPopularityWeight] = useState<number>(0.2);
+  const [freshnessWeight, setFreshnessWeight] = useState<number>(0.15);
+  const [marginWeight, setMarginWeight] = useState<number>(0.1);
+
   const activeSeed = selectedItem || catalog[0] || null;
-  const categories = useMemo(
-    () => Array.from(new Set(catalog.map((i) => i.category))).sort(),
-    [catalog]
-  );
+  const categories = useMemo(() => Array.from(new Set(catalog.map((i) => i.category))).sort(), [catalog]);
 
   const activeRules: MerchandisingRules = useMemo(
     () => ({
@@ -64,8 +57,12 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
       boostFactor,
       crossCategoryOnly,
       minRating,
+      semanticWeight,
+      popularityWeight,
+      freshnessWeight,
+      marginWeight,
     }),
-    [pinnedIds, excludedIds, boostCategory, boostFactor, crossCategoryOnly, minRating]
+    [pinnedIds, excludedIds, boostCategory, boostFactor, crossCategoryOnly, minRating, semanticWeight, popularityWeight, freshnessWeight, marginWeight]
   );
 
   const recs = useMemo(() => {
@@ -86,9 +83,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
   const filteredSeedList = useMemo(() => {
     const q = catalogFilter.toLowerCase().trim();
     const list = q
-      ? catalog.filter(
-          (i) => i.title.toLowerCase().includes(q) || i.category.toLowerCase().includes(q)
-        )
+      ? catalog.filter((i) => i.title.toLowerCase().includes(q) || i.category.toLowerCase().includes(q))
       : catalog;
     return list.slice(0, 60);
   }, [catalog, catalogFilter]);
@@ -114,6 +109,10 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
     setBoostFactor(1.35);
     setCrossCategoryOnly(false);
     setMinRating(0);
+    setSemanticWeight(0.55);
+    setPopularityWeight(0.2);
+    setFreshnessWeight(0.15);
+    setMarginWeight(0.1);
   };
 
   const hasActiveRules =
@@ -121,7 +120,11 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
     excludedIds.length > 0 ||
     boostCategory !== 'none' ||
     crossCategoryOnly ||
-    minRating > 0;
+    minRating > 0 ||
+    Math.abs(semanticWeight - 0.55) > 0.01 ||
+    Math.abs(popularityWeight - 0.2) > 0.01 ||
+    Math.abs(freshnessWeight - 0.15) > 0.01 ||
+    Math.abs(marginWeight - 0.1) > 0.01;
 
   return (
     <div className="page">
@@ -151,8 +154,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
             onClick={() => setShowXray((v) => !v)}
             className={showXray ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
           >
-            <Eye size={14} />
-            <span>{showXray ? t.xrayOn : t.xrayOff}</span>
+            <Eye size={14} /> <span>{showXray ? t.xrayOn : t.xrayOff}</span>
           </button>
 
           <div className="card px-3.5 py-2 flex items-center gap-2.5 min-w-[260px]">
@@ -167,9 +169,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
               onChange={(e) => setDiversityLambda(parseFloat(e.target.value))}
               className="flex-1 accent-[var(--accent)]"
             />
-            <span className="mono text-xs font-bold text-[var(--accent)]">
-              {diversityLambda.toFixed(2)}
-            </span>
+            <span className="mono text-xs font-bold text-[var(--accent)]">{diversityLambda.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -185,6 +185,21 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
         minRating={minRating}
         boostCategory={boostCategory}
         boostFactor={boostFactor}
+        semanticWeight={semanticWeight}
+        popularityWeight={popularityWeight}
+        freshnessWeight={freshnessWeight}
+        marginWeight={marginWeight}
+        onChangeSemanticWeight={setSemanticWeight}
+        onChangePopularityWeight={setPopularityWeight}
+        onChangeFreshnessWeight={setFreshnessWeight}
+        onChangeMarginWeight={setMarginWeight}
+        onApplyObjectivePreset={(s, p, f, m, d) => {
+          setSemanticWeight(s);
+          setPopularityWeight(p);
+          setFreshnessWeight(f);
+          setMarginWeight(m);
+          setDiversityLambda(d);
+        }}
         onToggleCrossCategory={setCrossCategoryOnly}
         onChangeMinRating={setMinRating}
         onChangeBoostCategory={setBoostCategory}
@@ -213,9 +228,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                   type="button"
                   onClick={() => onSelectItem(item)}
                   className={`text-left px-3 py-2 rounded-md border cursor-pointer ${
-                    active
-                      ? 'border-[var(--accent)] bg-[var(--accent-bg)]'
-                      : 'border-[var(--border)] bg-[var(--bg)]'
+                    active ? 'border-[var(--accent)] bg-[var(--accent-bg)]' : 'border-[var(--border)] bg-[var(--bg)]'
                   }`}
                 >
                   <div className="font-semibold text-[0.8125rem] text-[var(--text)]">
@@ -232,26 +245,20 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
 
         {activeSeed && (
           <div data-testid="recommendations-panel">
-            <div className="card p-4 mb-4 border-l-4 border-l-[var(--accent)] flex justify-between items-center gap-4">
+            <div className="card p-4 mb-4 bg-[var(--bg-alt)] flex justify-between items-center gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="badge badge-accent">{t.activeAnchorBadge}</span>
-                  <span className="text-xs text-[var(--text-sec)]">{activeSeed.category}</span>
+                <div className="flex items-center gap-2 mb-1 text-xs text-[var(--text-sec)]">
+                  <span className="font-semibold text-[var(--accent)]">{t.activeAnchorBadge}</span>
+                  <span>· {activeSeed.category} ·</span>
+                  <span className="mono">#{activeSeed.id}</span>
                 </div>
                 <div className="text-lg font-bold text-[var(--text)]">
                   {activeSeed.icon} {activeSeed.title}
                 </div>
-                <p className="text-[0.8125rem] text-[var(--text-sec)] mt-1">
-                  {activeSeed.description}
-                </p>
+                <p className="text-[0.8125rem] text-[var(--text-sec)] mt-1">{activeSeed.description}</p>
               </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => onInspectIn3D(activeSeed)}
-              >
-                <Boxes size={14} />
-                <span>{t.locate3DBtn}</span>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => onInspectIn3D(activeSeed)}>
+                <Boxes size={14} /> <span>{t.locate3DBtn}</span>
               </button>
             </div>
 

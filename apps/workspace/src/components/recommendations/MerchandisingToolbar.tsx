@@ -17,6 +17,21 @@ interface MerchandisingToolbarProps {
   minRating: number;
   boostCategory: string;
   boostFactor: number;
+  semanticWeight?: number;
+  popularityWeight?: number;
+  freshnessWeight?: number;
+  marginWeight?: number;
+  onChangeSemanticWeight?: (val: number) => void;
+  onChangePopularityWeight?: (val: number) => void;
+  onChangeFreshnessWeight?: (val: number) => void;
+  onChangeMarginWeight?: (val: number) => void;
+  onApplyObjectivePreset?: (
+    sem: number,
+    pop: number,
+    fresh: number,
+    margin: number,
+    diversity: number
+  ) => void;
   onToggleCrossCategory: (val: boolean) => void;
   onChangeMinRating: (val: number) => void;
   onChangeBoostCategory: (cat: string) => void;
@@ -24,6 +39,13 @@ interface MerchandisingToolbarProps {
   onResetRules: () => void;
   t: Record<string, string>;
 }
+
+const SLIDER_DEFS = [
+  { key: 'sem', label: 'α Semantic Similarity', min: 0.05, color: 'var(--accent)' },
+  { key: 'pop', label: 'β Popularity & Reviews', min: 0.0, color: 'var(--success)' },
+  { key: 'fresh', label: 'γ Release Freshness', min: 0.0, color: 'var(--warning)' },
+  { key: 'margin', label: 'δ Margin & Price Tier', min: 0.0, color: 'var(--text)' },
+] as const;
 
 export const MerchandisingToolbar: React.FC<MerchandisingToolbarProps> = ({
   recsCount,
@@ -36,6 +58,15 @@ export const MerchandisingToolbar: React.FC<MerchandisingToolbarProps> = ({
   minRating,
   boostCategory,
   boostFactor,
+  semanticWeight = 0.55,
+  popularityWeight = 0.2,
+  freshnessWeight = 0.15,
+  marginWeight = 0.1,
+  onChangeSemanticWeight,
+  onChangePopularityWeight,
+  onChangeFreshnessWeight,
+  onChangeMarginWeight,
+  onApplyObjectivePreset,
   onToggleCrossCategory,
   onChangeMinRating,
   onChangeBoostCategory,
@@ -43,9 +74,21 @@ export const MerchandisingToolbar: React.FC<MerchandisingToolbarProps> = ({
   onResetRules,
   t,
 }) => {
+  const sliderValues = {
+    sem: semanticWeight,
+    pop: popularityWeight,
+    fresh: freshnessWeight,
+    margin: marginWeight,
+  };
+  const sliderHandlers = {
+    sem: onChangeSemanticWeight,
+    pop: onChangePopularityWeight,
+    fresh: onChangeFreshnessWeight,
+    margin: onChangeMarginWeight,
+  };
+
   return (
     <>
-      {/* Live IR Evaluation Metrics Bar */}
       <div className="card px-4 py-3 mb-4 grid grid-cols-2 lg:grid-cols-4 gap-3.5 bg-[var(--bg-alt)]">
         <div title={t.ndcgTooltip}>
           <div className="flex items-center gap-1.5 text-xs text-[var(--text-sec)]">
@@ -56,7 +99,6 @@ export const MerchandisingToolbar: React.FC<MerchandisingToolbarProps> = ({
             {irMetrics.ndcgAtK.toFixed(3)}
           </div>
         </div>
-
         <div title={t.recallTooltip}>
           <div className="flex items-center gap-1.5 text-xs text-[var(--text-sec)]">
             <TrendingUp size={13} color="var(--success)" />
@@ -66,7 +108,6 @@ export const MerchandisingToolbar: React.FC<MerchandisingToolbarProps> = ({
             {(irMetrics.recallAtK * 100).toFixed(1)}%
           </div>
         </div>
-
         <div title={t.mrrTooltip}>
           <div className="flex items-center gap-1.5 text-xs text-[var(--text-sec)]">
             <Filter size={13} color="var(--accent)" />
@@ -76,7 +117,6 @@ export const MerchandisingToolbar: React.FC<MerchandisingToolbarProps> = ({
             {irMetrics.mrr.toFixed(3)}
           </div>
         </div>
-
         <div title={t.diversityTooltip}>
           <div className="flex items-center gap-1.5 text-xs text-[var(--text-sec)]">
             <Layers size={13} color="var(--warning)" />
@@ -88,35 +128,87 @@ export const MerchandisingToolbar: React.FC<MerchandisingToolbarProps> = ({
         </div>
       </div>
 
-      {/* Enterprise Merchandising & Business Rules Bar */}
-      <div className="card px-4 py-3.5 mb-5">
+      <div className="card px-4 py-3.5 mb-5" data-testid="multi-objective-toolbar">
         <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
           <div>
             <div className="text-[0.8125rem] font-bold text-[var(--text)]">
-              {t.merchandisingTitle}
+              {t.merchandisingTitle} · Multi-Objective Business Reranker
             </div>
-            <div className="text-xs text-[var(--text-sec)]">
-              {t.merchandisingSubtitle}
-            </div>
+            <div className="text-xs text-[var(--text-sec)]">{t.merchandisingSubtitle}</div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            {onApplyObjectivePreset && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => onApplyObjectivePreset(0.55, 0.2, 0.15, 0.1, 0.35)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Balanced E-Commerce
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onApplyObjectivePreset(0.35, 0.15, 0.1, 0.4, 0.25)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  High-Margin GMV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onApplyObjectivePreset(0.4, 0.1, 0.4, 0.1, 0.6)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Viral Discovery
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onApplyObjectivePreset(1.0, 0.0, 0.0, 0.0, 0.15)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Pure 384-d Semantic
+                </button>
+              </div>
+            )}
             <span className="mono text-xs text-[var(--text-sec)]">
               {t.pinnedCountLabel} <strong>{pinnedCount}</strong> · {t.excludedCountLabel}{' '}
               <strong>{excludedCount}</strong>
             </span>
             {hasActiveRules && (
-              <button
-                type="button"
-                onClick={onResetRules}
-                className="btn btn-secondary btn-sm"
-              >
+              <button type="button" onClick={onResetRules} className="btn btn-secondary btn-sm">
                 <RotateCcw size={12} />
                 <span>{t.resetRulesBtn}</span>
               </button>
             )}
           </div>
         </div>
+
+        {onChangeSemanticWeight && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 py-2.5 border-t border-[var(--border)] text-xs">
+            {SLIDER_DEFS.map((s) => (
+              <div
+                key={s.key}
+                className="px-2.5 py-2 rounded bg-[var(--bg-alt)] border border-[var(--border)]"
+              >
+                <div className="flex justify-between mb-1">
+                  <span className="font-semibold text-[var(--text)]">{s.label}</span>
+                  <span className="mono font-bold" style={{ color: s.color }}>
+                    {sliderValues[s.key].toFixed(2)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={s.min}
+                  max={1.0}
+                  step={0.05}
+                  value={sliderValues[s.key]}
+                  onChange={(e) => sliderHandlers[s.key]?.(parseFloat(e.target.value))}
+                  className="w-full accent-[var(--accent)]"
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-3.5 pt-2.5 border-t border-[var(--border)] text-xs">
           <label className="inline-flex items-center gap-1.5 cursor-pointer font-semibold">
