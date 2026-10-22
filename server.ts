@@ -4,7 +4,25 @@ import * as path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { buildServer } from './apps/api/src/server';
 
-const PORT = Number(process.env.PORT || 3000);
+function resolvePort(): number {
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    const cliPort = Number(process.argv[portArgIdx + 1]);
+    if (!Number.isNaN(cliPort) && cliPort > 0) return cliPort;
+  }
+  if (process.env.EIDOS_PORT) {
+    return Number(process.env.EIDOS_PORT);
+  }
+  if (process.env.DEFAULT_APP_PORT) {
+    return Number(process.env.DEFAULT_APP_PORT);
+  }
+  if (process.env.PORT && process.env.PORT !== process.env.NGINX_PORT) {
+    return Number(process.env.PORT);
+  }
+  return 3000;
+}
+
+const PORT = resolvePort();
 const isProduction = process.env.NODE_ENV === 'production';
 
 const MIME_TYPES: Record<string, string> = {
@@ -33,16 +51,15 @@ function isApiOrTelemetryRoute(url: string): boolean {
 }
 
 async function startUnifiedServer() {
-  const fastifyApp = await buildServer();
-  await fastifyApp.ready();
-
+  let fastifyApp: Awaited<ReturnType<typeof buildServer>> | null = null;
   let vite: Awaited<ReturnType<typeof createViteServer>> | null = null;
 
   const server = http.createServer(async (req, res) => {
+    await initPromise;
     const url = req.url || '/';
 
     // Route all /v1/*, /docs*, and /metrics requests directly through Fastify API
-    if (isApiOrTelemetryRoute(url)) {
+    if (fastifyApp && isApiOrTelemetryRoute(url)) {
       fastifyApp.routing(req, res);
       return;
     }
@@ -75,28 +92,38 @@ async function startUnifiedServer() {
       return;
     }
 
-    fastifyApp.routing(req, res);
+    if (fastifyApp) {
+      fastifyApp.routing(req, res);
+    }
   });
 
-  if (!isProduction) {
-    vite = await createViteServer({
-      configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
-      server: {
-        middlewareMode: true,
-        hmr: {
-          server,
-        },
-        watch: null,
-      },
-      appType: 'spa',
-    });
-  }
-
+  // Bind to port 3000 immediately so readiness checks pass without waiting for full catalog seed
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
       `🚀 Eidos Unified Server (Fastify API /v1/* + Studio UI) listening on http://0.0.0.0:${PORT}`
     );
   });
+
+  const initPromise = (async () => {
+    fastifyApp = await buildServer();
+    await fastifyApp.ready();
+
+    if (!isProduction) {
+      vite = await createViteServer({
+        configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
+        server: {
+          middlewareMode: true,
+          hmr: {
+            server,
+          },
+          watch: null,
+        },
+        appType: 'spa',
+      });
+    }
+  })();
+
+  await initPromise;
 }
 
 startUnifiedServer().catch((err) => {
