@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { X, Globe, Database, CheckCircle2, FileJson } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { X, Globe, Database, CheckCircle2, FileJson, ArrowRightLeft } from 'lucide-react';
 import { SecurityGuardrails } from '@eidos/core';
 import { CatalogItem } from '../types';
 import {
@@ -7,7 +7,7 @@ import {
   PlatformDomainId,
   PlatformDomainPreset,
 } from '../data/domainDatabases';
-import { CustomJsonConnectorTab } from './modals/DatabaseConnectorTabs';
+import { CustomJsonConnectorTab, DbSyncConnectorsTab } from './modals/DatabaseConnectorTabs';
 
 interface DatabaseConnectorModalProps {
   isOpen: boolean;
@@ -53,9 +53,18 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
   onSelectDomainPreset,
   onImportCustomDatabase,
 }) => {
-  const [tab, setTab] = useState<'presets' | 'json'>('presets');
+  const [tab, setTab] = useState<'presets' | 'json' | 'connectors'>('presets');
   const [jsonInput, setJsonInput] = useState(SAMPLE_CUSTOM_JSON);
   const [jsonError, setJsonError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -125,7 +134,7 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
             <Globe size={18} className="text-[var(--accent)]" />
             <div>
               <div className="font-bold text-base text-[var(--text)]">
-                Platform Domain & Browser-First Catalog Connector
+                Platform Domain, Live JSON & DB Sync Connector
               </div>
               <div className="text-xs text-[var(--text-sec)]">
                 Active Index: {catalogCount.toLocaleString()} items in IndexedDB + 384-d HNSW
@@ -150,6 +159,14 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
               <FileJson size={13} />
               <span>Import JSON</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setTab('connectors')}
+              className={tab === 'connectors' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+            >
+              <ArrowRightLeft size={13} />
+              <span>PG / Mongo / Migrate</span>
+            </button>
             <button type="button" onClick={onClose} className="btn btn-secondary btn-sm">
               <X size={14} />
             </button>
@@ -157,7 +174,7 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
         </div>
 
         <div className="p-5 overflow-y-auto flex-1">
-          {tab === 'presets' ? (
+          {tab === 'presets' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {PLATFORM_DOMAIN_PRESETS.map((preset) => {
                 const isSelected = activeDomain === preset.id;
@@ -189,7 +206,9 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
                 );
               })}
             </div>
-          ) : (
+          )}
+
+          {tab === 'json' && (
             <CustomJsonConnectorTab
               jsonInput={jsonInput}
               jsonError={jsonError}
@@ -199,6 +218,8 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
               onApplyJson={() => parseAndImportJson(jsonInput)}
             />
           )}
+
+          {tab === 'connectors' && <DbSyncConnectorsTab />}
         </div>
       </div>
     </div>

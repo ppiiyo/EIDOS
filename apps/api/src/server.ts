@@ -10,6 +10,7 @@ import { ServerEmbedder } from './services/embedder';
 import { AILManager } from './services/ail';
 import { getPrecomputedSeedCatalog } from './services/seed-catalog';
 import { initTracing } from './tracing';
+import { recommendSchema, simpleRecommend } from './routes/recommend';
 
 export async function buildServer(): Promise<FastifyInstance> {
   initTracing();
@@ -61,9 +62,13 @@ export async function buildServer(): Promise<FastifyInstance> {
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
 
   // Warm up V8 JIT for search & recommend hot paths without populating ApiQueryCache
-  const warmupItem = vectorStore.get('item-10');
-  if (warmupItem) {
-    vectorStore.search(warmupItem.normalizedVector || warmupItem.embedding, 20, 0.35, 'item-10');
+  const parsedWarmup = recommendSchema.safeParse({
+    item_id: 'item-10',
+    strategy: 'simple',
+    limit: 10,
+  });
+  if (parsedWarmup.success) {
+    await simpleRecommend(parsedWarmup.data, vectorStore);
   }
 
   // Attach vectorStore cleanup on Fastify close

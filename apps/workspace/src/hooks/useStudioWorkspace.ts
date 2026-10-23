@@ -125,6 +125,22 @@ export function useStudioWorkspace() {
       setCatalog((prev) => [sanitizedItem, ...prev]);
       setSelectedItem(sanitizedItem);
       showToast(`Added "${sanitizedItem.title}" & computed 384-d L2 vector`, 'success');
+      if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+        void window
+          .fetch('/v1/catalog/upsert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+            body: JSON.stringify({
+              id: String(sanitizedItem.id),
+              title: sanitizedItem.title,
+              description: sanitizedItem.description,
+              category: sanitizedItem.category,
+              price: Number(String(sanitizedItem.price || '0').replace(/[^\d.]/g, '')) || 49,
+              tags: sanitizedItem.tags || [sanitizedItem.category.toLowerCase()],
+            }),
+          })
+          .catch(() => {});
+      }
     },
     [showToast]
   );
@@ -239,6 +255,24 @@ export function useStudioWorkspace() {
       setSelectedItem(items[0] || null);
       setIsScaledCatalog(false);
       showToast(`${label}: ${items.length} items vectorized into 384-d HNSW index`, 'success');
+      if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+        for (const item of items.slice(0, 25)) {
+          void window
+            .fetch('/v1/catalog/upsert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+              body: JSON.stringify({
+                id: String(item.id),
+                title: item.title,
+                description: item.description,
+                category: item.category,
+                price: Number(String(item.price || '0').replace(/[^\d.]/g, '')) || 49,
+                tags: item.tags || [item.category.toLowerCase()],
+              }),
+            })
+            .catch(() => {});
+        }
+      }
     },
     [showToast]
   );

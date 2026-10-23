@@ -1,6 +1,6 @@
 {
-  "summary":  "Updated implementation plan: removed any master prompt files from README/repo; README.md will only be updated with the live demo URL (https://eidos-semantic-ideation-platform.ai.studio/) and accurate project documentation, while the audit and master prompt will be delivered in chat alongside the live code upgrades.",
-  "updatedAt":  "2026-10-22T19:43:59.613633190Z",
+  "summary":  "Расширенный проактивный план финальной огранки EIDOS v3.0: интерактивный импорт своих товаров в браузере (Live Upsert + DB Sync Studio), клавиатурная навигация и UX-полировка без единого бага, стресс-проверка всех граничных случаев API/SDK и эталонный двуязычный README.md (EN + RU) с FAQ и траблшутингом.",
+  "updatedAt":  "2026-10-23T17:56:34.039282571Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
