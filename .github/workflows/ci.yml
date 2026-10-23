@@ -21,6 +21,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -53,6 +55,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -117,6 +121,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -166,6 +172,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -175,6 +183,11 @@ jobs:
 
       - name: Install Workspace Dependencies
         run: pnpm install -r --no-frozen-lockfile
+
+      - name: Build Core & SDK Packages
+        run: |
+          pnpm --filter @eidos/core build
+          pnpm --filter @eidos/sdk build
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium

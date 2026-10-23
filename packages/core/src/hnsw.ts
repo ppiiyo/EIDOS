@@ -105,14 +105,23 @@ export class BinaryHeap<T> {
  */
 function normalizeL2(vec: Float32Array): Float32Array {
   let sumSq = 0;
-  for (let i = 0; i < vec.length; i++) {
+  const len = vec.length;
+  let i = 0;
+  const len8 = len - (len % 8);
+  for (; i < len8; i += 8) {
+    const v0 = vec[i], v1 = vec[i + 1], v2 = vec[i + 2], v3 = vec[i + 3];
+    const v4 = vec[i + 4], v5 = vec[i + 5], v6 = vec[i + 6], v7 = vec[i + 7];
+    sumSq += v0 * v0 + v1 * v1 + v2 * v2 + v3 * v3 + v4 * v4 + v5 * v5 + v6 * v6 + v7 * v7;
+  }
+  for (; i < len; i++) {
     sumSq += vec[i] * vec[i];
   }
   const norm = Math.sqrt(sumSq);
-  if (norm <= 1e-12) return vec;
-  const out = new Float32Array(vec.length);
-  for (let i = 0; i < vec.length; i++) {
-    out[i] = vec[i] / norm;
+  if (norm <= 1e-12 || Math.abs(norm - 1.0) < 1e-6) return vec;
+  const out = new Float32Array(len);
+  const inv = 1.0 / norm;
+  for (let j = 0; j < len; j++) {
+    out[j] = vec[j] * inv;
   }
   return out;
 }
@@ -122,17 +131,28 @@ function normalizeL2(vec: Float32Array): Float32Array {
  * Guaranteed to be >= 0. Throws RangeError on dimension mismatch.
  */
 function cosineDistance(a: Float32Array, b: Float32Array): number {
-  if (a.length !== b.length) {
+  const len = a.length;
+  if (len !== b.length) {
     throw new RangeError(
-      `HNSW vector dimension mismatch: expected ${a.length}, got ${b.length}`
+      `HNSW vector dimension mismatch: expected ${len}, got ${b.length}`
     );
   }
   let dot = 0;
   let normA = 0;
   let normB = 0;
-  const len = a.length;
+  let i = 0;
+  const len8 = len - (len % 8);
 
-  for (let i = 0; i < len; i++) {
+  for (; i < len8; i += 8) {
+    const a0 = a[i], a1 = a[i + 1], a2 = a[i + 2], a3 = a[i + 3];
+    const a4 = a[i + 4], a5 = a[i + 5], a6 = a[i + 6], a7 = a[i + 7];
+    const b0 = b[i], b1 = b[i + 1], b2 = b[i + 2], b3 = b[i + 3];
+    const b4 = b[i + 4], b5 = b[i + 5], b6 = b[i + 6], b7 = b[i + 7];
+    dot += a0 * b0 + a1 * b1 + a2 * b2 + a3 * b3 + a4 * b4 + a5 * b5 + a6 * b6 + a7 * b7;
+    normA += a0 * a0 + a1 * a1 + a2 * a2 + a3 * a3 + a4 * a4 + a5 * a5 + a6 * a6 + a7 * a7;
+    normB += b0 * b0 + b1 * b1 + b2 * b2 + b3 * b3 + b4 * b4 + b5 * b5 + b6 * b6 + b7 * b7;
+  }
+  for (; i < len; i++) {
     const valA = a[i];
     const valB = b[i];
     dot += valA * valB;
@@ -140,7 +160,7 @@ function cosineDistance(a: Float32Array, b: Float32Array): number {
     normB += valB * valB;
   }
 
-  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+  const denominator = Math.sqrt(normA * normB);
   if (denominator <= 1e-12) return 1.0;
   const cos = dot / denominator;
   return Math.max(0.0, 1.0 - cos);

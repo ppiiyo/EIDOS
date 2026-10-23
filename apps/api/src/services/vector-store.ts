@@ -74,7 +74,7 @@ export class VectorStore {
    */
   public bulkSeed(items: StoredItem[]): void {
     const categoryAnchors = new Map<string, string>();
-    const fullHnswLimit = 40;
+    const fullHnswLimit = 20;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -93,15 +93,16 @@ export class VectorStore {
 
       if (i < fullHnswLimit || !categoryAnchors.has(item.category)) {
         this.hnsw.insert(id, normalized);
-        if (!categoryAnchors.has(item.category)) {
-          categoryAnchors.set(item.category, id);
-        }
+        categoryAnchors.set(item.category, id);
       } else {
         const anchorId = categoryAnchors.get(item.category);
         this.hnsw.fastInsertLeaf(id, normalized, anchorId);
+        if (i % 16 === 0) {
+          categoryAnchors.set(item.category, id);
+        }
       }
 
-      if (i < 500) {
+      if (i < 200) {
         const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
         this.bm25.addDocument(id, docText);
       }
@@ -180,8 +181,8 @@ export class VectorStore {
     }
 
     // Large collections: HNSW + post-filter with adaptive overfetch
-    const efSearch = Math.max(limit * 4, 64);
-    const overfetchMultiplier = filterCategory ? 5 : 3;
+    const efSearch = Math.max(limit * 2, 32);
+    const overfetchMultiplier = filterCategory ? 4 : 2;
     const annResults = this.hnsw.search(
       qVec,
       Math.min(this.items.size, limit * overfetchMultiplier),
@@ -197,8 +198,7 @@ export class VectorStore {
       if (!stored) continue;
       if (filterCategory && stored.category !== filterCategory) continue;
 
-      const vector = stored.normalizedVector || stored.embedding;
-      const score = cosineSimilarity(qVec, vector);
+      const score = ann.score;
 
       if (score >= minSimilarity) {
         seenIds.add(ann.id);

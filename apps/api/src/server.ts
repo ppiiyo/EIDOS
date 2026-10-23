@@ -60,6 +60,12 @@ export async function buildServer(): Promise<FastifyInstance> {
   // 4. Register API routes and 404/SPA fallback handler
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
 
+  // Warm up V8 JIT for search & recommend hot paths without populating ApiQueryCache
+  const warmupItem = vectorStore.get('item-10');
+  if (warmupItem) {
+    vectorStore.search(warmupItem.normalizedVector || warmupItem.embedding, 20, 0.35, 'item-10');
+  }
+
   // Attach vectorStore cleanup on Fastify close
   fastify.addHook('onClose', async () => {
     await vectorStore.getWAL().flush();

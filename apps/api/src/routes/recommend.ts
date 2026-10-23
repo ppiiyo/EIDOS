@@ -119,7 +119,7 @@ export async function simpleRecommend(
 
   const candidates = vectorStore.search(
     sourceVec,
-    Math.max(data.limit * 3, 20),
+    Math.min(Math.max(data.limit * 2, 16), 30),
     data.minSimilarity,
     itemId,
     category
@@ -131,6 +131,7 @@ export async function simpleRecommend(
 
   const selected: typeof filteredCandidates = [];
   const pool = [...filteredCandidates];
+  const maxSimCache = new Float32Array(pool.length);
 
   while (selected.length < data.limit && pool.length > 0) {
     let bestScore = -Infinity;
@@ -138,17 +139,7 @@ export async function simpleRecommend(
 
     for (let i = 0; i < pool.length; i++) {
       const candidate = pool[i];
-      let maxSimToSelected = 0;
-
-      for (const s of selected) {
-        const sim = cosineSimilarity(
-          candidate.item.normalizedVector || candidate.item.embedding,
-          s.item.normalizedVector || s.item.embedding
-        );
-        if (sim > maxSimToSelected) maxSimToSelected = sim;
-      }
-
-      const mmr = calculateMMRScore(candidate.score, maxSimToSelected, diversityFactor);
+      const mmr = calculateMMRScore(candidate.score, maxSimCache[i], diversityFactor);
       if (mmr > bestScore) {
         bestScore = mmr;
         bestIndex = i;
@@ -156,9 +147,23 @@ export async function simpleRecommend(
     }
 
     if (bestIndex >= 0) {
-      selected.push(pool[bestIndex]);
-      pool[bestIndex] = pool[pool.length - 1];
+      const chosen = pool[bestIndex];
+      selected.push(chosen);
+      const lastIdx = pool.length - 1;
+      pool[bestIndex] = pool[lastIdx];
+      maxSimCache[bestIndex] = maxSimCache[lastIdx];
       pool.pop();
+
+      if (selected.length < data.limit) {
+        const chosenVec = chosen.item.normalizedVector || chosen.item.embedding;
+        for (let i = 0; i < pool.length; i++) {
+          const candVec = pool[i].item.normalizedVector || pool[i].item.embedding;
+          const sim = cosineSimilarity(candVec, chosenVec);
+          if (sim > maxSimCache[i]) {
+            maxSimCache[i] = sim;
+          }
+        }
+      }
     } else {
       break;
     }

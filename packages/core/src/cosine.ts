@@ -21,18 +21,17 @@ export function assertValidVector(
 /**
  * Computes cosine similarity between two numeric or typed array vectors.
  * Returns a value normalized between -1.0 and 1.0 (or 0.0 for orthogonal/zero vectors).
- *
- * @param a - First vector
- * @param b - Second vector
- * @returns Cosine similarity score
  */
 export function cosineSimilarity(
   a: number[] | Float32Array,
   b: number[] | Float32Array
 ): number {
-  assertValidVector(a, 'Vector A');
-  assertValidVector(b, 'Vector B');
-
+  if (!a || a.length === 0) {
+    throw new RangeError('Vector A must be a non-empty vector');
+  }
+  if (!b || b.length === 0) {
+    throw new RangeError('Vector B must be a non-empty vector');
+  }
   if (a.length !== b.length) {
     throw new RangeError(
       `Vector dimension mismatch: vector A has length ${a.length}, vector B has length ${b.length}`
@@ -52,6 +51,11 @@ export function cosineSimilarity(
     normB += valB * valB;
   }
 
+  if (!Number.isFinite(normA) || !Number.isFinite(normB) || !Number.isFinite(dotProduct)) {
+    assertValidVector(a, 'Vector A');
+    assertValidVector(b, 'Vector B');
+  }
+
   const denominator = Math.sqrt(normA) * Math.sqrt(normB);
   if (denominator <= 1e-12 || !Number.isFinite(denominator)) {
     return 0;
@@ -61,24 +65,27 @@ export function cosineSimilarity(
   if (!Number.isFinite(similarity) || Number.isNaN(similarity)) {
     return 0;
   }
-  // Guard against slight floating point overshoot
   return Math.max(-1, Math.min(1, similarity));
 }
 
 /**
  * Normalizes a vector to unit length (L2 norm).
- *
- * @param vector - Input vector
- * @returns Unit normalized vector
  */
 export function normalizeVector(vector: number[] | Float32Array): Float32Array {
-  assertValidVector(vector, 'Vector');
+  if (!vector || vector.length === 0) {
+    throw new RangeError('Vector must be a non-empty vector');
+  }
   const length = vector.length;
   const result = new Float32Array(length);
 
   let sumSquares = 0;
   for (let i = 0; i < length; i++) {
-    sumSquares += vector[i] * vector[i];
+    const v = vector[i];
+    sumSquares += v * v;
+  }
+
+  if (!Number.isFinite(sumSquares)) {
+    assertValidVector(vector, 'Vector');
   }
 
   const norm = Math.sqrt(sumSquares);

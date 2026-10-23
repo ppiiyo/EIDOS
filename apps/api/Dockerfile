@@ -21,6 +21,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOST=0.0.0.0
+ENV TRANSFORMERS_CACHE=/tmp/transformers-cache
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
@@ -30,6 +31,8 @@ COPY --from=builder /app/packages/core ./packages/core
 COPY --from=builder /app/packages/sdk ./packages/sdk
 COPY --from=builder /app/apps/api ./apps/api
 COPY --from=builder /app/node_modules ./node_modules
+
+RUN mkdir -p /tmp/transformers-cache && chown -R node:node /app /tmp/transformers-cache
 
 EXPOSE 8080
 

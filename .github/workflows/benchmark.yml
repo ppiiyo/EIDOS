@@ -21,6 +21,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -30,6 +32,9 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install -r --no-frozen-lockfile
+
+      - name: Build Core Package
+        run: pnpm --filter @eidos/core build
 
       - name: Execute Vector Engine Benchmarks & Regression Gates
         run: pnpm run benchmark
