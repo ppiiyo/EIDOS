@@ -17,11 +17,19 @@
         "out/**"
       ]
     },
+    "@eidos/api#build": {
+      "dependsOn": ["@eidos/core#build"],
+      "outputs": ["dist/**"]
+    },
+    "@eidos/workspace#build": {
+      "dependsOn": ["@eidos/core#build", "@eidos/sdk#build"],
+      "outputs": ["../../dist/**"]
+    },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "@eidos/core#build"]
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@eidos/core#build"],
       "outputs": ["coverage/**"]
     },
     "dev": {

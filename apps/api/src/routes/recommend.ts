@@ -278,16 +278,17 @@ export async function adaptiveRecommend(
     const userProfile = await ail.userTower.buildProfile(
       uId,
       history,
-      async (id) => {
+      async (id: string) => {
         const it = vectorStore.get(id);
         return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
       },
-      (id) => vectorStore.get(id)?.category || 'General'
+      (id: string) => vectorStore.get(id)?.category || 'General'
     );
-    userEmbedding = userProfile.embedding;
+    const userVec: Float32Array = userProfile.embedding;
+    userEmbedding = userVec;
 
     const userCandidates = vectorStore
-      .search(userEmbedding, 100, 0.0, itemId, category)
+      .search(userVec, 100, 0.0, itemId, category)
       .filter((c) => matchesFilters(c.item, category, minPrice, maxPrice, excludeSet));
     sources.set(
       'user_affinity',
@@ -301,23 +302,26 @@ export async function adaptiveRecommend(
   }
 
   const fusedCandidates = ail.candidateFusion.fuse(sources, 100);
-  const enrichedCandidates = fusedCandidates.map((cand) => {
-    const enrichedVec = ail.kgEnricher.enrich(cand.id, cand.embedding, (id) => {
-      const it = vectorStore.get(id);
-      return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
-    });
-    return {
-      ...cand,
-      embedding: enrichedVec,
-    };
-  });
+  const enrichedCandidates = fusedCandidates.map(
+    (cand: { id: string; fusedScore: number; embedding: Float32Array }) => {
+      const enrichedVec = ail.kgEnricher.enrich(cand.id, cand.embedding, (id: string) => {
+        const it = vectorStore.get(id);
+        return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
+      });
+      return {
+        ...cand,
+        embedding: enrichedVec,
+      };
+    }
+  );
 
   const reqContext = data.context
     ? { timestamp: data.context.timestamp ?? Date.now(), ...data.context }
     : { timestamp: Date.now() };
 
-  const candidatesWithFeatures = enrichedCandidates.map((c) => {
-    const stored = vectorStore.get(c.id);
+  const candidatesWithFeatures = enrichedCandidates.map(
+    (c: { id: string; fusedScore: number; embedding: Float32Array }) => {
+      const stored = vectorStore.get(c.id);
     const similarity = stored
       ? cosineSimilarity(sourceItem.normalizedVector || sourceItem.embedding, c.embedding)
       : 0;
@@ -356,7 +360,7 @@ export async function adaptiveRecommend(
 
   const candMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
   const smmrPool = ranked
-    .map((r) => {
+    .map((r: { id: string; score: number }) => {
       const item = candMap.get(r.id);
       if (!item) return null;
       return {
@@ -365,13 +369,13 @@ export async function adaptiveRecommend(
         embedding: item.embedding,
       };
     })
-    .filter((x): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+    .filter((x: { id: string; score: number; embedding: Float32Array } | null): x is { id: string; score: number; embedding: Float32Array } => x !== null);
 
   const finalSelected = ail.smmr.rerank(smmrPool, data.limit);
   const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
   const selectedCategories = finalSelected
-    .map((s) => candMap.get(s.id)?.stored?.category)
-    .filter((c): c is string => Boolean(c));
+    .map((s: { id: string; score: number }) => candMap.get(s.id)?.stored?.category)
+    .filter((c: string | undefined): c is string => Boolean(c));
   const entropy = calculateCategoryEntropy(selectedCategories);
 
   return {
@@ -381,7 +385,7 @@ export async function adaptiveRecommend(
       item_id: itemId,
       sourceItemId: itemId,
       user_id: userId,
-      recommendations: finalSelected.map((s) => {
+      recommendations: finalSelected.map((s: { id: string; score: number }) => {
         const itemInfo = candMap.get(s.id)?.stored;
         return {
           id: s.id,
@@ -469,11 +473,11 @@ export async function userRecommend(
   const profile = await ail.userTower.buildProfile(
     userId,
     history,
-    async (itemId) => {
+    async (itemId: string) => {
       const item = vectorStore.get(itemId);
       return item ? new Float32Array(item.normalizedVector || item.embedding) : new Float32Array(384);
     },
-    (itemId) => vectorStore.get(itemId)?.category || 'General'
+    (itemId: string) => vectorStore.get(itemId)?.category || 'General'
   );
 
   const topCandidates = vectorStore.search(profile.embedding, 100, 0.0, undefined, category);
@@ -524,7 +528,7 @@ export async function userRecommend(
 
   const candidateMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
   const smmrPool = ranked
-    .map((r) => {
+    .map((r: { id: string; score: number }) => {
       const orig = candidateMap.get(r.id);
       if (!orig) return null;
       return {
@@ -533,13 +537,13 @@ export async function userRecommend(
         embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),
       };
     })
-    .filter((x): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+    .filter((x: { id: string; score: number; embedding: Float32Array } | null): x is { id: string; score: number; embedding: Float32Array } => x !== null);
 
   const finalSelected = ail.smmr.rerank(smmrPool, data.limit);
   const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
   const selectedCategories = finalSelected
-    .map((s) => candidateMap.get(s.id)?.item.category)
-    .filter((c): c is string => Boolean(c));
+    .map((s: { id: string; score: number }) => candidateMap.get(s.id)?.item.category)
+    .filter((c: string | undefined): c is string => Boolean(c));
   const entropy = calculateCategoryEntropy(selectedCategories);
 
   return {
@@ -547,7 +551,7 @@ export async function userRecommend(
     payload: {
       strategy: 'user' as const,
       user_id: userId,
-      recommendations: finalSelected.map((s) => {
+      recommendations: finalSelected.map((s: { id: string; score: number }) => {
         const itemInfo = candidateMap.get(s.id)?.item;
         return {
           id: s.id,

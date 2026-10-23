@@ -37,6 +37,8 @@ jobs:
 
       - name: Build Monorepo Artifacts
         run: |
+          pnpm --filter @eidos/core build
+          pnpm --filter @eidos/sdk build
           pnpm turbo run build
           pnpm run build
 

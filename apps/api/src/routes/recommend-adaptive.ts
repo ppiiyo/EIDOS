@@ -98,15 +98,16 @@ export async function recommendAdaptiveRoutes(
       const userProfile = await ail.userTower.buildProfile(
         uId,
         history,
-        async (id) => {
+        async (id: string) => {
           const it = opts.vectorStore.get(id);
           return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
         },
-        (id) => opts.vectorStore.get(id)?.category || 'General'
+        (id: string) => opts.vectorStore.get(id)?.category || 'General'
       );
-      userEmbedding = userProfile.embedding;
+      const userVec: Float32Array = userProfile.embedding;
+      userEmbedding = userVec;
 
-      const userCandidates = opts.vectorStore.search(userEmbedding, 100, 0.0, item_id);
+      const userCandidates = opts.vectorStore.search(userVec, 100, 0.0, item_id);
       sources.set(
         'user_affinity',
         userCandidates.map((c) => ({
@@ -121,26 +122,29 @@ export async function recommendAdaptiveRoutes(
     const fusedCandidates = ail.candidateFusion.fuse(sources, 100);
 
     // 4. KG Enrichment on candidate embeddings
-    const enrichedCandidates = fusedCandidates.map((cand) => {
-      const enrichedVec = ail.kgEnricher.enrich(
-        cand.id,
-        cand.embedding,
-        (id) => {
-          const it = opts.vectorStore.get(id);
-          return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
-        }
-      );
-      return {
-        ...cand,
-        embedding: enrichedVec,
-      };
-    });
+    const enrichedCandidates = fusedCandidates.map(
+      (cand: { id: string; fusedScore: number; embedding: Float32Array }) => {
+        const enrichedVec = ail.kgEnricher.enrich(
+          cand.id,
+          cand.embedding,
+          (id: string) => {
+            const it = opts.vectorStore.get(id);
+            return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
+          }
+        );
+        return {
+          ...cand,
+          embedding: enrichedVec,
+        };
+      }
+    );
 
     // 5. Multi-Feature Ranking
     const reqContext = context ? { timestamp: context.timestamp ?? Date.now(), ...context } : { timestamp: Date.now() };
 
-    const candidatesWithFeatures = enrichedCandidates.map((c) => {
-      const stored = opts.vectorStore.get(c.id);
+    const candidatesWithFeatures = enrichedCandidates.map(
+      (c: { id: string; fusedScore: number; embedding: Float32Array }) => {
+        const stored = opts.vectorStore.get(c.id);
       const similarity = stored
         ? cosineSimilarity(sourceItem.normalizedVector || sourceItem.embedding, c.embedding)
         : 0;
@@ -177,7 +181,7 @@ export async function recommendAdaptiveRoutes(
 
     const candMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
     const smmrPool = ranked
-      .map((r) => {
+      .map((r: { id: string; score: number }) => {
         const item = candMap.get(r.id);
         if (!item) return null;
         return {
@@ -186,7 +190,7 @@ export async function recommendAdaptiveRoutes(
           embedding: item.embedding,
         };
       })
-      .filter((x): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+      .filter((x: { id: string; score: number; embedding: Float32Array } | null): x is { id: string; score: number; embedding: Float32Array } => x !== null);
 
     // 6. SMMR diversity re-ranking
     const finalSelected = ail.smmr.rerank(smmrPool, limit);
@@ -194,7 +198,7 @@ export async function recommendAdaptiveRoutes(
     return {
       item_id,
       user_id,
-      recommendations: finalSelected.map((s) => {
+      recommendations: finalSelected.map((s: { id: string; score: number }) => {
         const itemInfo = candMap.get(s.id)?.stored;
         return {
           id: s.id,

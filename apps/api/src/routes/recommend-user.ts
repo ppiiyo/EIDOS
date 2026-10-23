@@ -75,11 +75,11 @@ export async function recommendUserRoutes(
     const profile = await ail.userTower.buildProfile(
       user_id,
       history,
-      async (itemId) => {
+      async (itemId: string) => {
         const item = opts.vectorStore.get(itemId);
         return item ? new Float32Array(item.normalizedVector || item.embedding) : new Float32Array(384);
       },
-      (itemId) => opts.vectorStore.get(itemId)?.category || 'General'
+      (itemId: string) => opts.vectorStore.get(itemId)?.category || 'General'
     );
 
     // 3. Retrieval top-100 candidates by user embedding
@@ -126,7 +126,7 @@ export async function recommendUserRoutes(
     // Map ranked items for SMMR
     const candidateMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
     const smmrPool = ranked
-      .map((r) => {
+      .map((r: { id: string; score: number }) => {
         const orig = candidateMap.get(r.id);
         if (!orig) return null;
         return {
@@ -135,14 +135,14 @@ export async function recommendUserRoutes(
           embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),
         };
       })
-      .filter((x): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+      .filter((x: { id: string; score: number; embedding: Float32Array } | null): x is { id: string; score: number; embedding: Float32Array } => x !== null);
 
     // 5. SMMR diversity re-ranking
     const finalSelected = ail.smmr.rerank(smmrPool, limit);
 
     return {
       user_id,
-      recommendations: finalSelected.map((s) => {
+      recommendations: finalSelected.map((s: { id: string; score: number }) => {
         const itemInfo = candidateMap.get(s.id)?.item;
         return {
           id: s.id,
