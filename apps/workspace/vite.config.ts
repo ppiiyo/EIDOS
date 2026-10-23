@@ -67,6 +67,7 @@ function aistudioMediaPlugin(): Plugin {
 export default defineConfig(() => {
   return {
     root: path.resolve(__dirname),
+    cacheDir: path.resolve(__dirname, '../../node_modules/.vite'),
     publicDir: path.resolve(__dirname, '../../public'),
     base: process.env.VITE_BASE_PATH || '/',
     build: {
