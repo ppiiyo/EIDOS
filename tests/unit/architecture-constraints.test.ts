@@ -89,6 +89,7 @@ describe('Phase 5: Architectural Constraints & Quality Invariants', () => {
       const content = fs.readFileSync(wf, 'utf-8');
       expect(content).not.toContain('|| true');
       expect(content).not.toContain("'src/**'");
+      expect(content).not.toMatch(/pnpm\s+--filter\s+\S+\s+pack/);
       expect(content).toContain('pnpm/action-setup@v4');
     }
 

@@ -51,16 +51,16 @@ jobs:
       - name: Pack Release Tarballs
         run: |
           mkdir -p release-artifacts
-          pnpm --filter @eidos/core pack --pack-destination release-artifacts
-          pnpm --filter @eidos/sdk pack --pack-destination release-artifacts
+          pnpm --dir packages/core pack --pack-destination "$(pwd)/release-artifacts"
+          pnpm --dir packages/sdk pack --pack-destination "$(pwd)/release-artifacts"
 
       - name: Publish Packages to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -n "$NODE_AUTH_TOKEN" ]; then
-            pnpm publish --filter @eidos/core --access public --no-git-checks
-            pnpm publish --filter @eidos/sdk --access public --no-git-checks
+            pnpm --dir packages/core publish --access public --no-git-checks
+            pnpm --dir packages/sdk publish --access public --no-git-checks
           else
             echo "NPM_TOKEN not configured; skipping npm registry publish."
           fi
