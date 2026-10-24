@@ -609,8 +609,6 @@ If EIDOS saves your company money on Algolia/Pinecone bills or accelerates your 
 
 ---
 
-#### 2. **Open Collective (Transparent Open-Source Funding)**
-[![Open Collective](https://img.shields.io/badge/Open_Collective-7FADF2?style=for-the-badge&logo=opencollective&logoColor=white)](https://opencollective.com/eidos)
 
 All funds go directly toward:
 - 🖥️ **Cloud infrastructure for public benchmarks** (testing 10M+ vector datasets on multi-node clusters)
@@ -625,9 +623,8 @@ For anonymous or crypto-native contributions:
 
 | Network | Address |
 | :--- | :--- |
-| **Ethereum (ETH / USDT / USDC - ERC20)** | `0x0000000000000000000000000000000000000000` |
-| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
-| **Solana (SOL / USDC)** | `11111111111111111111111111111111` |
+| **Ethereum (ETH / USDT / USDC - ERC20)** | `0xcE1A54138F32fa141BA38FFB988a63Ae8ABF0D2A` |
+| **TON/GRAM** | `UQB6D0__lPQdU04lGfZ15sZ65hzAzPgCwZwJ6KFlpsvEN70O` |
 
 *(If you donate via crypto, feel free to open a PR or email us to add your name/logo to the backers list!)*
 
