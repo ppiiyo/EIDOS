@@ -1,7 +1,7 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
-import { buildServer } from './apps/api/src/server';
+import type { buildServer as BuildServerFn } from './apps/api/src/server';
 
 function resolvePort(): number {
   const portArgIdx = process.argv.indexOf('--port');
@@ -52,7 +52,7 @@ function isApiOrTelemetryRoute(url: string): boolean {
 }
 
 async function startUnifiedServer() {
-  let fastifyApp: Awaited<ReturnType<typeof buildServer>> | null = null;
+  let fastifyApp: Awaited<ReturnType<typeof BuildServerFn>> | null = null;
   let viteMiddlewares: ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void) | null = null;
 
   const server = http.createServer(async (req, res) => {
@@ -79,39 +79,41 @@ async function startUnifiedServer() {
       }
     }
 
-    await initPromise;
-
-    // Route all /v1/*, /docs*, and /metrics requests directly through Fastify API
-    if (fastifyApp && isApiOrTelemetryRoute(url)) {
-      fastifyApp.routing(req, res);
-      return;
+    // Route all /v1/*, /health, /api/health, /docs*, and /metrics requests through Fastify API
+    if (isApiOrTelemetryRoute(url)) {
+      await apiPromise;
+      if (fastifyApp) {
+        fastifyApp.routing(req, res);
+        return;
+      }
     }
 
-    // In development mode, delegate frontend assets & SPA routes to Vite middleware
-    if (viteMiddlewares) {
-      viteMiddlewares(req, res, () => {
-        res.statusCode = 404;
-        res.end('Not Found');
-      });
-      return;
+    // In development mode, delegate frontend assets & SPA routes to Vite middleware without waiting for HNSW seed
+    if (!isProduction) {
+      await vitePromise;
+      if (viteMiddlewares) {
+        viteMiddlewares(req, res, () => {
+          res.statusCode = 404;
+          res.end('Not Found');
+        });
+        return;
+      }
     }
 
+    await apiPromise;
     if (fastifyApp) {
       fastifyApp.routing(req, res);
     }
   });
 
-  // Bind immediately so readiness checks pass without waiting for full catalog seed
+  // Bind immediately (<50ms) so readiness checks pass without waiting for module imports or catalog seed
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
       `🚀 Eidos Unified Server (Fastify API /v1/* + Studio UI) listening on http://0.0.0.0:${PORT}`
     );
   });
 
-  const initPromise = (async () => {
-    fastifyApp = await buildServer();
-    await fastifyApp.ready();
-
+  const vitePromise = (async () => {
     if (!isProduction) {
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
@@ -129,7 +131,15 @@ async function startUnifiedServer() {
     }
   })();
 
-  await initPromise;
+  const apiPromise = (async () => {
+    await vitePromise;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const { buildServer } = await import('./apps/api/src/server');
+    fastifyApp = await buildServer();
+    await fastifyApp.ready();
+  })();
+
+  await Promise.all([vitePromise, apiPromise]);
 }
 
 startUnifiedServer().catch((err) => {
