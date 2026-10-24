@@ -1,3 +1,6 @@
+export { RedisCache, getCache } from './cache/redis-cache';
+export { CacheKeys } from './cache/cache-keys';
+
 export class CacheService<T> {
   private cache = new Map<string, { value: T; expiresAt: number }>();
   private readonly defaultTtlMs: number;
@@ -30,3 +33,4 @@ export class CacheService<T> {
     this.cache.clear();
   }
 }
+

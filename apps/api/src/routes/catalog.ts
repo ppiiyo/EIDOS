@@ -6,6 +6,7 @@ import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
 import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
+import { getCache, CacheKeys } from '../services/cache';
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -35,6 +36,17 @@ export async function catalogRoutes(
   fastify: FastifyInstance,
   opts: { vectorStore: VectorStore; embedder: ServerEmbedder }
 ): Promise<void> {
+  const cache = getCache();
+
+  async function invalidateCatalogCaches(): Promise<void> {
+    ApiQueryCache.invalidateAll();
+    await Promise.all([
+      cache.invalidate('search:*'),
+      cache.invalidate('recommend:*'),
+      cache.del(CacheKeys.catalogStats()),
+    ]);
+  }
+
   /**
    * Catalog statistics & diagnostics endpoint.
    */
@@ -45,12 +57,17 @@ export async function catalogRoutes(
       categories[item.category] = (categories[item.category] || 0) + 1;
     }
 
+    const redisStats = await cache.getStats();
+
     return {
       totalItems: opts.vectorStore.count(),
       hnswIndexed: opts.vectorStore.getHNSW().size(),
       walPending: opts.vectorStore.getWAL().size(),
       categories,
-      cache: ApiQueryCache.getInstance().stats(),
+      cache: {
+        ...ApiQueryCache.getInstance().stats(),
+        redis: redisStats,
+      },
     };
   });
 
@@ -76,7 +93,7 @@ export async function catalogRoutes(
         embedding,
       });
 
-      ApiQueryCache.invalidateAll();
+      await invalidateCatalogCaches();
       Metrics.vectorStoreSize.set(opts.vectorStore.count());
 
       if (AILManager.isEnabled()) {
@@ -107,6 +124,85 @@ export async function catalogRoutes(
       throw err;
     }
   });
+
+  /**
+   * Add/upsert item(s) via POST /v1/catalog/items and invalidate search & recommend caches
+   */
+  fastify.post('/v1/catalog/items', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const body = request.body as Record<string, any>;
+      const rawItems = Array.isArray(body?.items) ? body.items : [body];
+      const parsedItems = z.array(catalogItemSchema).min(1).max(500).parse(rawItems);
+
+      let indexedCount = 0;
+      for (const item of parsedItems) {
+        let embedding = item.embedding;
+        if (!embedding || embedding.length === 0) {
+          const text = `${item.title}. ${item.category}. ${(item.tags || []).join(', ')}. ${item.description}`;
+          const vec = await opts.embedder.embed(text);
+          embedding = Array.from(vec);
+        }
+
+        opts.vectorStore.upsert({
+          ...item,
+          description: item.description || '',
+          category: item.category || 'General',
+          tags: item.tags || [],
+          embedding,
+        });
+        indexedCount++;
+      }
+
+      // Invalidate search and recommend caches when catalog changes
+      await invalidateCatalogCaches();
+      Metrics.vectorStoreSize.set(opts.vectorStore.count());
+
+      return reply.status(201).send({
+        success: true,
+        indexedCount,
+        item: parsedItems.length === 1 ? { id: parsedItems[0].id, title: parsedItems[0].title, category: parsedItems[0].category } : undefined,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Validation Error',
+          message: err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
+          issues: err.errors,
+        });
+      }
+      throw err;
+    }
+  });
+
+  /**
+   * Delete item by ID via DELETE /v1/catalog/items/:id and invalidate caches
+   */
+  fastify.delete<{ Params: { id: string } }>(
+    '/v1/catalog/items/:id',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { id } = request.params;
+      const deleted = opts.vectorStore.delete(id);
+
+      // Invalidate caches on deletion
+      await invalidateCatalogCaches();
+      Metrics.vectorStoreSize.set(opts.vectorStore.count());
+
+      if (!deleted) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Item '${id}' not found in catalog`,
+        });
+      }
+
+      return reply.status(200).send({
+        success: true,
+        deletedId: id,
+      });
+    }
+  );
 
   /**
    * Batch catalog ingestion using batch embedding inference (BUG #4).
@@ -164,7 +260,7 @@ export async function catalogRoutes(
       indexed++;
     }
 
-    ApiQueryCache.invalidateAll();
+    await invalidateCatalogCaches();
     Metrics.vectorStoreSize.set(opts.vectorStore.count());
 
     const durationMs = Date.now() - start;
@@ -175,3 +271,4 @@ export async function catalogRoutes(
     });
   });
 }
+

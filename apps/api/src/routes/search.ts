@@ -5,12 +5,21 @@ import { authenticate } from '../middleware/auth';
 import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
 import { ApiQueryCache } from '../services/query-cache';
+import { getCache, CacheKeys } from '../services/cache';
 
 const searchRequestSchema = z.object({
   query: z.string().min(1, 'query is required').max(500),
   limit: z.number().int().min(1).max(100).default(10),
   minSimilarity: z.number().min(0).max(1).default(0.25),
   filterCategory: z.string().optional(),
+  filters: z
+    .object({
+      category: z.string().optional(),
+      min_price: z.number().optional(),
+      max_price: z.number().optional(),
+    })
+    .passthrough()
+    .optional(),
   mode: z.enum(['dense', 'sparse', 'hybrid']).default('hybrid'),
   alpha: z.number().min(0).max(1).default(0.5),
 });
@@ -24,6 +33,8 @@ export async function searchRoutes(
   fastify: FastifyInstance,
   opts: { vectorStore: VectorStore; embedder: ServerEmbedder }
 ): Promise<void> {
+  const redisCache = getCache();
+
   fastify.post('/v1/search', { preHandler: authenticate }, async (request, reply) => {
     const startTime = performance.now();
 
@@ -36,7 +47,8 @@ export async function searchRoutes(
       });
     }
 
-    const { query, limit, minSimilarity, filterCategory, mode, alpha } = parseResult.data;
+    const { query, limit, minSimilarity, filterCategory, filters, mode, alpha } = parseResult.data;
+    const effectiveCategory = filterCategory ?? filters?.category;
 
     // Security Guardrail: Scan and sanitize user query against prompt injection and XSS
     const securityScan = SecurityGuardrails.scanAndSanitize(query);
@@ -50,9 +62,21 @@ export async function searchRoutes(
     }
 
     const safeQuery = securityScan.sanitizedInput;
-    const cacheKey = `search:${safeQuery}:${limit}:${minSimilarity}:${filterCategory || '*'}:${mode}:${alpha}:${opts.vectorStore.count()}`;
-    const cache = ApiQueryCache.getInstance();
-    const cachedResponse = cache.get(cacheKey) as Record<string, unknown> | undefined;
+
+    // 1. Check Redis Cache first
+    const normalizedFilters: Record<string, any> = {
+      ...(filters || {}),
+    };
+    if (effectiveCategory) normalizedFilters.category = effectiveCategory;
+    if (minSimilarity !== 0.25) normalizedFilters.minSimilarity = minSimilarity;
+    if (mode !== 'hybrid') normalizedFilters.mode = mode;
+    if (alpha !== 0.5) normalizedFilters.alpha = alpha;
+
+    const cacheKey = CacheKeys.search(safeQuery, normalizedFilters, limit);
+    const l1Cache = ApiQueryCache.getInstance();
+    const cachedResponse =
+      (await redisCache.get<Record<string, any>>(cacheKey)) ||
+      (l1Cache.get(cacheKey) as Record<string, any> | undefined);
     ApiQueryCache.syncMetrics();
 
     if (cachedResponse) {
@@ -60,6 +84,8 @@ export async function searchRoutes(
       return {
         ...cachedResponse,
         cached: true,
+        cacheHit: true,
+        cachedAt: cachedResponse.cachedAt || new Date().toISOString(),
         latencyMs: Math.round((performance.now() - startTime) * 100) / 100,
       };
     }
@@ -98,24 +124,35 @@ export async function searchRoutes(
         limit,
         denseW,
         sparseW,
-        filterCategory
+        effectiveCategory
       );
     } else if (mode === 'dense') {
       results = opts.vectorStore
-        .search(cleanVector, limit, minSimilarity, undefined, filterCategory)
+        .search(cleanVector, limit, minSimilarity, undefined, effectiveCategory)
         .map((r) => ({ ...r, source: 'dense' }));
     } else {
       const bm25Hits = opts.vectorStore.getBM25().search(safeQuery, limit * 2);
       for (const hit of bm25Hits) {
         const item = opts.vectorStore.get(hit.id);
         if (!item) continue;
-        if (filterCategory && item.category !== filterCategory) continue;
+        if (effectiveCategory && item.category !== effectiveCategory) continue;
         results.push({ item, score: hit.score, source: 'sparse' });
         if (results.length >= limit) break;
       }
     }
 
+    // Apply optional price filters if provided in filters object
+    if (filters?.min_price !== undefined || filters?.max_price !== undefined) {
+      results = results.filter((r) => {
+        if (typeof r.item.price !== 'number') return false;
+        if (filters.min_price !== undefined && r.item.price < filters.min_price) return false;
+        if (filters.max_price !== undefined && r.item.price > filters.max_price) return false;
+        return true;
+      });
+    }
+
     const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+    const cachedAt = new Date().toISOString();
     const responsePayload = {
       query: safeQuery,
       mode,
@@ -130,9 +167,15 @@ export async function searchRoutes(
         source: r.source,
       })),
       latencyMs,
+      cacheHit: false,
     };
 
-    cache.set(cacheKey, responsePayload);
+    // 3. Store in Redis cache (5 minutes TTL) and L1 cache
+    const cacheEntry = { ...responsePayload, cachedAt };
+    await redisCache.set(cacheKey, cacheEntry, 300);
+    l1Cache.set(cacheKey, cacheEntry);
+
     return responsePayload;
   });
 }
+

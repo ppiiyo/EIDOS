@@ -23,6 +23,7 @@
     "clean": "rm -rf dist node_modules .turbo packages/*/dist apps/*/dist coverage benchmark-results.json",
     "embeddings:generate": "tsx scripts/generate-embeddings.ts",
     "benchmark": "tsx scripts/benchmark.ts",
+    "benchmark:cache": "tsx scripts/benchmark-cache.ts",
     "test:integration": "tsx scripts/test-real-integration.ts"
   },
   "dependencies": {
@@ -42,6 +43,7 @@
     "fake-indexeddb": "^6.2.6",
     "fastify": "^4.26.2",
     "idb-keyval": "^6.3.0",
+    "ioredis": "^6.0.0",
     "lucide-react": "^0.546.0",
     "pino": "^8.19.0",
     "pino-pretty": "^10.3.1",

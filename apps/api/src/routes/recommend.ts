@@ -12,6 +12,7 @@ import { VectorStore } from '../services/vector-store';
 import { StoredItem } from '../types';
 import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
+import { getCache, CacheKeys } from '../services/cache';
 
 export const recommendSchema = z
   .object({
@@ -577,6 +578,8 @@ export async function recommendRoutes(
   fastify: FastifyInstance,
   opts: { vectorStore: VectorStore }
 ): Promise<void> {
+  const redisCache = getCache();
+
   fastify.post('/v1/recommend', { preHandler: authenticate }, async (request, reply) => {
     const parseResult = recommendSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -591,17 +594,59 @@ export async function recommendRoutes(
 
     const data = parseResult.data;
     const ail = AILManager.getInstance();
-    const cacheKey = `rec:${JSON.stringify(data)}:${AILManager.isEnabled()}:${opts.vectorStore.count()}`;
-    const cache = ApiQueryCache.getInstance();
-    const cached = cache.get(cacheKey) as Record<string, unknown> | undefined;
-    ApiQueryCache.syncMetrics();
 
-    if (cached) {
-      reply.header('x-cache', 'HIT');
-      return {
-        ...cached,
-        cached: true,
-      };
+    // Only cache if no dynamic filters (like exclude_ids)
+    const hasDynamicExclusions = Boolean(
+      (data.filters?.exclude_ids && data.filters.exclude_ids.length > 0) ||
+        (data.excludeIds && data.excludeIds.length > 0)
+    );
+
+    const resolvedItemId = data.item_id || data.itemId || '';
+    const resolvedUserId = data.user_id || data.userId || '';
+    const extraCacheParams: Record<string, any> = {};
+    if (data.filters?.category || data.filterCategory) {
+      extraCacheParams.category = data.filters?.category ?? data.filterCategory;
+    }
+    if (data.filters?.min_price !== undefined) extraCacheParams.minPrice = data.filters.min_price;
+    if (data.filters?.max_price !== undefined) extraCacheParams.maxPrice = data.filters.max_price;
+    if (data.diversity_factor !== undefined || data.diversityFactor !== undefined) {
+      extraCacheParams.diversity = data.diversity_factor ?? data.diversityFactor;
+    }
+    if (data.minSimilarity !== 0.35) extraCacheParams.minSimilarity = data.minSimilarity;
+    if (resolvedUserId && data.strategy !== 'user') extraCacheParams.userId = resolvedUserId;
+    if (data.history && data.history.length > 0) extraCacheParams.history = data.history;
+    if (!AILManager.isEnabled() && data.strategy !== 'simple') extraCacheParams.ailDisabled = true;
+
+    const cacheKey =
+      data.strategy === 'user'
+        ? CacheKeys.userRecommend(
+            `${resolvedUserId}${Object.keys(extraCacheParams).length ? ':' + JSON.stringify(extraCacheParams) : ''}`,
+            data.limit
+          )
+        : CacheKeys.recommend(
+            resolvedItemId,
+            data.strategy,
+            data.limit,
+            Object.keys(extraCacheParams).length > 0 ? extraCacheParams : undefined
+          );
+
+    const l1Cache = ApiQueryCache.getInstance();
+
+    if (!hasDynamicExclusions) {
+      const cached =
+        (await redisCache.get<Record<string, any>>(cacheKey)) ||
+        (l1Cache.get(cacheKey) as Record<string, any> | undefined);
+      ApiQueryCache.syncMetrics();
+
+      if (cached) {
+        reply.header('x-cache', 'HIT');
+        return {
+          ...cached,
+          cached: true,
+          cacheHit: true,
+          cachedAt: cached.cachedAt || new Date().toISOString(),
+        };
+      }
     }
 
     reply.header('x-cache', 'MISS');
@@ -627,7 +672,22 @@ export async function recommendRoutes(
       });
     }
 
-    cache.set(cacheKey, result.payload);
-    return result.payload;
+    const responsePayload = {
+      ...result.payload,
+      cacheHit: false,
+    };
+
+    // Store in Redis cache (10 minutes TTL = 600s) if no dynamic filters
+    if (!hasDynamicExclusions) {
+      const cacheEntry = {
+        ...responsePayload,
+        cachedAt: new Date().toISOString(),
+      };
+      await redisCache.set(cacheKey, cacheEntry, 600);
+      l1Cache.set(cacheKey, cacheEntry);
+    }
+
+    return responsePayload;
   });
 }
+

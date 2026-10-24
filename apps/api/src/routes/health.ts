@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { authenticate } from '../middleware/auth';
+import { getCache } from '../services/cache';
 
 export interface ComponentCheck {
   status: 'ok' | 'warning' | 'degraded' | 'error';
@@ -87,6 +88,7 @@ export async function healthRoutes(
   opts: { vectorStore: VectorStore; embedder?: ServerEmbedder }
 ): Promise<void> {
   const bootTime = Date.now();
+  const cache = getCache();
 
   fastify.get(
     '/v1/health',
@@ -100,10 +102,20 @@ export async function healthRoutes(
     async (_request, reply) => {
       const startTime = Date.now();
 
+      const [redisHealthy, cacheStats] = await Promise.all([
+        cache.healthCheck(),
+        cache.getStats(),
+      ]);
+
       const checks = {
         vectorStore: await checkVectorStore(opts.vectorStore),
         database: await checkDatabase(opts.vectorStore),
         embeddingModel: await checkEmbeddingModel(opts.embedder),
+        redis: {
+          status: (redisHealthy ? 'ok' : 'degraded') as ComponentCheck['status'],
+          connected: redisHealthy,
+          stats: cacheStats,
+        },
         memory: checkMemory(),
         uptime: checkUptime(),
       };

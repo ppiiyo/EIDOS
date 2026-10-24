@@ -1,4 +1,5 @@
 import { LRUQueryCache, Metrics } from '@eidos/core';
+import { getCache } from './cache';
 
 /**
  * Singleton API-level L1 Query Cache for /v1/search and /v1/recommend.
@@ -21,6 +22,8 @@ export class ApiQueryCache {
 
   public static invalidateAll(): void {
     ApiQueryCache.getInstance().clear();
+    getCache().clearMemorySync();
     ApiQueryCache.syncMetrics();
   }
 }
+
