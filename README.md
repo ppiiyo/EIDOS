@@ -1221,7 +1221,8 @@ CACHE_TTL_SECONDS=300
 | Сеть | Адрес кошелька |
 | :--- | :--- |
 | **Ethereum (ETH / USDT / USDC - ERC20)** | `0xcE1A54138F32fa141BA38FFB988a63Ae8ABF0D2A` |
-| **TON/GRAM** | 'UQB6D0__lPQdU04lGfZ15sZ65hzAzPgCwZwJ6KFlpsvEN70O' |
+| **TON/GRAM** | `UQB6D0__lPQdU04lGfZ15sZ65hzAzPgCwZwJ6KFlpsvEN70O` |
+
 *(После перевода напишите нам или откройте PR, чтобы мы добавили ваше имя или логотип компании в Зал славы спонсоров!)*
 
 ---
