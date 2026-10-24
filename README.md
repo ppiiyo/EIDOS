@@ -116,6 +116,8 @@ Copy `.env.example` to `.env` to customize your deployment:
 | :--- | :--- | :--- |
 | `PORT` | `3000` | Unified HTTP port serving both REST API (`/v1/*`) and Studio UI (`/`) |
 | `EIDOS_API_KEY` | `eidos_dev_key` | Comma-separated list of valid API keys for `X-API-Key` authentication |
+| `EIDOS_PUBLIC_DEMO_KEY` | `eidos_demo_key` | Public read-only demo API key (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_demo_key_2026_public`) for `/v1/search`, `/v1/recommend`, and `/v1/catalog/stats` |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection URL for O(1) distributed caching (`SCAN + UNLINK`, `SingleFlight`) |
 | `EIDOS_RATE_LIMIT_MAX` | `300` | Maximum requests per minute per client IP |
 | `EIDOS_SNAPSHOT_PATH` | `./data/catalog.snapshot.json` | Optional disk persistence path for zero-data-loss restarts |
 
@@ -324,18 +326,25 @@ All `/v1/*` write and query endpoints accept `X-API-Key: <your_key>` (defaults t
 ### Public Demo API Key (Production & Live Testing)
 
 For live testing of Search, Recommendations, and Redis Caching in production without provisioning a private admin key:
-- **Public Demo API Key (Read-Only):** `eidos_demo_key` (or `eidos_public_demo_key`)
+- **Public Demo API Keys (Read-Only):** `eidos_demo_key`, `eidos_public_demo_key`, or `eidos_demo_key_2026_public`
+- **Supported Read-Only Endpoints:** `POST /v1/search`, `POST /v1/recommend`, `GET /v1/catalog/stats`
 - **Keyless Public Demo Endpoints:** `POST /v1/demo/search` and `POST /v1/demo/recommend`
 
 ```bash
-# Option A: Using Public Demo API Key on /v1/search
-curl -X POST https://your-eidos-url/v1/search \
+# Option A: Using Public Demo API Key on /v1/search (check x-cache: MISS -> HIT)
+curl -i -X POST http://localhost:3000/v1/search \
   -H "Content-Type: application/json" \
   -H "x-api-key: eidos_demo_key" \
   -d '{"query": "wireless headphones", "limit": 5}'
 
-# Option B: Keyless Demo Endpoint (/v1/demo/search)
-curl -X POST https://your-eidos-url/v1/demo/search \
+# Option B: Using Public Demo API Key on /v1/recommend
+curl -i -X POST http://localhost:3000/v1/recommend \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: eidos_demo_key_2026_public" \
+  -d '{"item_id": "item-10", "strategy": "adaptive", "limit": 5}'
+
+# Option C: Keyless Demo Endpoint (/v1/demo/search)
+curl -X POST http://localhost:3000/v1/demo/search \
   -H "Content-Type: application/json" \
   -d '{"query": "wireless headphones", "limit": 5}'
 ```
@@ -952,13 +961,14 @@ const { results, latencyMs } = await eidos.search({
 
 ### Public Demo API Key (Публичный демо-ключ для Production)
 
-Для мгновенного тестирования поиска, рекомендаций и Redis-кэша в Production окружении без приватного админ-ключа используйте:
-- **Публичный демо-ключ (Read-Only):** `eidos_demo_key` (или `eidos_public_demo_key`)
+Для мгновенного тестирования поиска, рекомендаций и Redis-кэша в Production окружении (и для прогона нагрузочных `k6` тестов) без приватного админ-ключа используйте:
+- **Публичные демо-ключи (Read-Only):** `eidos_demo_key`, `eidos_public_demo_key` или `eidos_demo_key_2026_public`
+- **Доступные эндпоинты по демо-ключу:** `POST /v1/search`, `POST /v1/recommend`, `GET /v1/catalog/stats`
 - **Публичные эндпоинты без авторизации:** `POST /v1/demo/search` и `POST /v1/demo/recommend`
 
 ```bash
 # Вариант 1: Запрос к /v1/search с публичным демо-ключом eidos_demo_key
-curl -X POST http://localhost:3000/v1/search \
+curl -i -X POST http://localhost:3000/v1/search \
   -H "Content-Type: application/json" \
   -H "x-api-key: eidos_demo_key" \
   -d '{
@@ -968,7 +978,17 @@ curl -X POST http://localhost:3000/v1/search \
     "limit": 5
   }'
 
-# Вариант 2: Публичный демо-эндпоинт /v1/demo/search (без заголовка x-api-key)
+# Вариант 2: Запрос к /v1/recommend с публичным демо-ключом eidos_demo_key_2026_public
+curl -i -X POST http://localhost:3000/v1/recommend \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: eidos_demo_key_2026_public" \
+  -d '{
+    "item_id": "item-10",
+    "strategy": "adaptive",
+    "limit": 5
+  }'
+
+# Вариант 3: Публичный демо-эндпоинт /v1/demo/search (без заголовка x-api-key)
 curl -X POST http://localhost:3000/v1/demo/search \
   -H "Content-Type: application/json" \
   -d '{

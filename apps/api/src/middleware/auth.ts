@@ -118,6 +118,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         process.env.EIDOS_PUBLIC_DEMO_KEY,
         'eidos_demo_key',
         'eidos_public_demo_key',
+        'eidos_demo_key_2026_public',
         // If no custom EIDOS_API_KEY was provisioned in production, also allow documented quickstart keys
         ...(!configuredProdKey ? ['eidos_dev_key', 'test-key'] : []),
       ]
@@ -130,6 +131,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         process.env.EIDOS_PUBLIC_DEMO_KEY,
         'eidos_demo_key',
         'eidos_public_demo_key',
+        'eidos_demo_key_2026_public',
         'eidos_dev_key',
         'test-key',
       ].filter((k): k is string => Boolean(k));

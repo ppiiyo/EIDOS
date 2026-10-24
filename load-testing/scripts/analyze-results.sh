@@ -5,24 +5,26 @@ echo "📊 EIDOS LOAD TEST RESULTS ANALYSIS"
 echo "=========================================="
 echo ""
 
-RESULTS_FILE="${1:-results/baseline.json}"
-if [ ! -f "$RESULTS_FILE" ] && [ -f "load-testing/results/baseline.json" ]; then
-  RESULTS_FILE="load-testing/results/baseline.json"
-fi
+print_report() {
+  local title="$1"
+  local file="$2"
 
-if [ -f "$RESULTS_FILE" ]; then
-  echo "=== BASELINE TEST (100 VU) ==="
+  if [ ! -f "$file" ]; then
+    return
+  fi
+
+  echo "=== $title ==="
   if command -v jq >/dev/null 2>&1; then
     jq -r '
       "Total Requests:   \(.metrics.http_reqs.values.count)",
       "Throughput (QPS): \(.metrics.http_reqs.values.rate | floor)",
-      "Latency P50:      \(.metrics.http_req_duration.values["p(50)"] | floor)ms",
-      "Latency P95:      \(.metrics.http_req_duration.values["p(95)"] | floor)ms",
-      "Latency P99:      \(.metrics.http_req_duration.values["p(99)"] | floor)ms",
-      "Latency Max:      \(.metrics.http_req_duration.values.max | floor)ms",
-      "Error Rate:       \((.metrics.errors.values.rate * 100) | floor)%",
-      "Cache Hit Rate:   \((.metrics.cache_hits.values.rate * 100) | floor)%"
-    ' "$RESULTS_FILE"
+      "Latency P50:      \(.metrics.http_req_duration.values["p(50)"])ms",
+      "Latency P95:      \(.metrics.http_req_duration.values["p(95)"])ms",
+      "Latency P99:      \(.metrics.http_req_duration.values["p(99)"])ms",
+      "Latency Max:      \(.metrics.http_req_duration.values.max)ms",
+      "Error Rate:       \((.metrics.errors.values.rate * 10000 | round) / 100)%",
+      "Cache Hit Rate:   \((.metrics.cache_hits.values.rate * 10000 | round) / 100)%"
+    ' "$file"
   else
     node -e '
       const fs = require("fs");
@@ -30,16 +32,28 @@ if [ -f "$RESULTS_FILE" ]; then
       const m = data.metrics;
       console.log(`Total Requests:   ${m.http_reqs.values.count}`);
       console.log(`Throughput (QPS): ${Math.floor(m.http_reqs.values.rate)}`);
-      console.log(`Latency P50:      ${Math.floor(m.http_req_duration.values["p(50)"])}ms`);
-      console.log(`Latency P95:      ${Math.floor(m.http_req_duration.values["p(95)"])}ms`);
-      console.log(`Latency P99:      ${Math.floor(m.http_req_duration.values["p(99)"])}ms`);
-      console.log(`Latency Max:      ${Math.floor(m.http_req_duration.values.max)}ms`);
-      console.log(`Error Rate:       ${Math.floor(m.errors.values.rate * 100)}%`);
-      console.log(`Cache Hit Rate:   ${Math.floor(m.cache_hits.values.rate * 100)}%`);
-    ' "$RESULTS_FILE"
+      console.log(`Latency P50:      ${m.http_req_duration.values["p(50)"]}ms`);
+      console.log(`Latency P95:      ${m.http_req_duration.values["p(95)"]}ms`);
+      console.log(`Latency P99:      ${m.http_req_duration.values["p(99)"]}ms`);
+      console.log(`Latency Max:      ${m.http_req_duration.values.max}ms`);
+      console.log(`Error Rate:       ${(m.errors.values.rate * 100).toFixed(2)}%`);
+      console.log(`Cache Hit Rate:   ${(m.cache_hits.values.rate * 100).toFixed(2)}%`);
+    ' "$file"
   fi
   echo ""
-else
-  echo "Results file not found: $RESULTS_FILE"
-  exit 1
+}
+
+if [ -n "$1" ] && [ -f "$1" ]; then
+  print_report "CUSTOM REPORT ($1)" "$1"
+  exit 0
 fi
+
+RESULTS_DIR="load-testing/results"
+if [ ! -d "$RESULTS_DIR" ] && [ -d "results" ]; then
+  RESULTS_DIR="results"
+fi
+
+print_report "1. BASELINE TEST (70% Search / 30% Recommend)" "$RESULTS_DIR/baseline.json"
+print_report "2. STRESS TEST (High Concurrency Ramp)" "$RESULTS_DIR/stress.json"
+print_report "3. SPIKE TEST (SingleFlight Hot-Key Surge)" "$RESULTS_DIR/spike.json"
+print_report "4. SOAK TEST (80% Popular / 20% Unique Eviction)" "$RESULTS_DIR/soak.json"

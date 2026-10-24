@@ -1,0 +1,67 @@
+{
+  "scenario": "SOAK TEST (80% Popular + 20% Unique Eviction Profile)",
+  "apiKeyUsed": "eidos_demo_key_2026_public",
+  "timestamp": "2026-10-24T22:34:47.636Z",
+  "metrics": {
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 500,
+        "rate": 421.2
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 70.21,
+        "min": 17.57,
+        "med": 70.19,
+        "max": 184.67,
+        "p(50)": 70.19,
+        "p(90)": 118.53,
+        "p(95)": 139.15,
+        "p(99)": 175.52
+      }
+    },
+    "search_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 70.21,
+        "p(50)": 70.19,
+        "p(95)": 139.15,
+        "p(99)": 175.52
+      }
+    },
+    "recommend_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0,
+        "p(50)": 0,
+        "p(95)": 0,
+        "p(99)": 0
+      }
+    },
+    "cache_hits": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.806,
+        "passes": 403,
+        "fails": 97
+      }
+    },
+    "errors": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 500
+      }
+    }
+  }
+}

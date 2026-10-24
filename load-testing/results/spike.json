@@ -1,0 +1,67 @@
+{
+  "scenario": "SPIKE TEST (SingleFlight Hot-Key Surge)",
+  "apiKeyUsed": "eidos_demo_key_2026_public",
+  "timestamp": "2026-10-24T22:34:46.448Z",
+  "metrics": {
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 600,
+        "rate": 1049.17
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 73.24,
+        "min": 25.88,
+        "med": 74.06,
+        "max": 134.68,
+        "p(50)": 74.06,
+        "p(90)": 100.07,
+        "p(95)": 125.55,
+        "p(99)": 130.77
+      }
+    },
+    "search_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 73.24,
+        "p(50)": 74.06,
+        "p(95)": 125.55,
+        "p(99)": 130.77
+      }
+    },
+    "recommend_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0,
+        "p(50)": 0,
+        "p(95)": 0,
+        "p(99)": 0
+      }
+    },
+    "cache_hits": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 1,
+        "passes": 600,
+        "fails": 0
+      }
+    },
+    "errors": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 600
+      }
+    }
+  }
+}

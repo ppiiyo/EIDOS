@@ -1,0 +1,67 @@
+{
+  "scenario": "STRESS TEST (High Concurrency Profile)",
+  "apiKeyUsed": "eidos_demo_key_2026_public",
+  "timestamp": "2026-10-24T22:34:45.876Z",
+  "metrics": {
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 800,
+        "rate": 901.79
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 65.26,
+        "min": 22.03,
+        "med": 57.96,
+        "max": 149.91,
+        "p(50)": 57.96,
+        "p(90)": 97.52,
+        "p(95)": 112.76,
+        "p(99)": 144.93
+      }
+    },
+    "search_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 65.26,
+        "p(50)": 57.96,
+        "p(95)": 112.76,
+        "p(99)": 144.93
+      }
+    },
+    "recommend_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0,
+        "p(50)": 0,
+        "p(95)": 0,
+        "p(99)": 0
+      }
+    },
+    "cache_hits": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 1,
+        "passes": 800,
+        "fails": 0
+      }
+    },
+    "errors": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 800
+      }
+    }
+  }
+}
