@@ -12,7 +12,7 @@ import { VectorStore } from '../services/vector-store';
 import { StoredItem } from '../types';
 import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
-import { getCache, CacheKeys } from '../services/cache';
+import { getCache, CacheKeys, getSingleFlight } from '../services/cache';
 
 export const recommendSchema = z
   .object({
@@ -579,6 +579,7 @@ export async function recommendRoutes(
   opts: { vectorStore: VectorStore }
 ): Promise<void> {
   const redisCache = getCache();
+  const singleFlight = getSingleFlight();
 
   fastify.post('/v1/recommend', { preHandler: authenticate }, async (request, reply) => {
     const parseResult = recommendSchema.safeParse(request.body);
@@ -634,7 +635,7 @@ export async function recommendRoutes(
 
     if (!hasDynamicExclusions) {
       const cached =
-        (await redisCache.get<Record<string, any>>(cacheKey)) ||
+        (await redisCache.get<Record<string, any>>(cacheKey, 'recommend')) ||
         (l1Cache.get(cacheKey) as Record<string, any> | undefined);
       ApiQueryCache.syncMetrics();
 
@@ -651,18 +652,20 @@ export async function recommendRoutes(
 
     reply.header('x-cache', 'MISS');
 
-    let result;
-    switch (data.strategy) {
-      case 'simple':
-        result = await simpleRecommend(data, opts.vectorStore);
-        break;
-      case 'adaptive':
-        result = await adaptiveRecommend(data, opts.vectorStore, ail);
-        break;
-      case 'user':
-        result = await userRecommend(data, opts.vectorStore, ail);
-        break;
-    }
+    const computeRecommendation = async () => {
+      switch (data.strategy) {
+        case 'simple':
+          return await simpleRecommend(data, opts.vectorStore);
+        case 'adaptive':
+          return await adaptiveRecommend(data, opts.vectorStore, ail);
+        case 'user':
+          return await userRecommend(data, opts.vectorStore, ail);
+      }
+    };
+
+    const result = !hasDynamicExclusions
+      ? await singleFlight.do(cacheKey, computeRecommendation, 10_000)
+      : await computeRecommendation();
 
     if (result.notFound) {
       return reply.status(404).send({
@@ -683,7 +686,7 @@ export async function recommendRoutes(
         ...responsePayload,
         cachedAt: new Date().toISOString(),
       };
-      await redisCache.set(cacheKey, cacheEntry, 600);
+      await redisCache.set(cacheKey, cacheEntry, 600, 'recommend');
       l1Cache.set(cacheKey, cacheEntry);
     }
 

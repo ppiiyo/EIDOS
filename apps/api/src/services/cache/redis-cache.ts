@@ -1,28 +1,40 @@
 import Redis from 'ioredis';
-
-interface MemoryCacheEntry {
-  raw: string;
-  expiresAt: number;
-}
+import { InMemoryCache } from './in-memory-cache';
+import {
+  recordCacheHit,
+  recordCacheMiss,
+  recordCacheOperation,
+  recordCacheError,
+  recordCacheKeysTotal,
+} from './cache-metrics';
 
 /**
- * High-performance Redis cache layer for EIDOS API
- * Provides O(1) lookups with automatic TTL and cache invalidation.
- * Automatically utilizes live Redis when reachable and seamlessly falls back
- * to an in-memory TTL store when running in serverless/CI environments without a local Redis daemon.
+ * High-performance Redis cache layer for EIDOS API.
+ * - Uses non-blocking SCAN + UNLINK for pattern invalidation (never KEYS or blocking DEL).
+ * - Uses InMemoryCache with TTL + maxKeys leak protection when Redis is unavailable.
+ * - Records Prometheus cache metrics on every operation.
  */
 export class RedisCache {
   private redis: Redis | null = null;
+  private fallbackCache: InMemoryCache | null = null;
+  private useFallback = false;
   private isRedisConnected = false;
   private defaultTTL: number;
-  private memoryStore = new Map<string, MemoryCacheEntry>();
 
-  constructor() {
+  constructor(customRedis?: Redis) {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     const password = process.env.REDIS_PASSWORD || undefined;
     const db = parseInt(process.env.REDIS_DB || '0', 10);
 
     this.defaultTTL = parseInt(process.env.CACHE_TTL_SECONDS || '300', 10);
+    this.initFallback();
+
+    if (customRedis) {
+      this.redis = customRedis;
+      this.isRedisConnected = true;
+      this.useFallback = false;
+      return;
+    }
 
     try {
       this.redis = new Redis(redisUrl, {
@@ -30,12 +42,12 @@ export class RedisCache {
         db,
         lazyConnect: true,
         enableOfflineQueue: false,
-        connectTimeout: 1500,
-        maxRetriesPerRequest: 1,
+        connectTimeout: 5000,
+        maxRetriesPerRequest: 3,
         enableReadyCheck: true,
         retryStrategy: (times) => {
           if (times > 3) {
-            return null; // Stop background reconnect loop if no local Redis daemon is running
+            return null;
           }
           return Math.min(times * 50, 2000);
         },
@@ -43,81 +55,89 @@ export class RedisCache {
 
       this.redis.on('connect', () => {
         this.isRedisConnected = true;
+        this.useFallback = false;
       });
 
       this.redis.on('ready', () => {
         this.isRedisConnected = true;
+        this.useFallback = false;
       });
 
       this.redis.on('error', () => {
         this.isRedisConnected = false;
+        this.useFallback = true;
+        this.initFallback();
       });
 
       this.redis.on('close', () => {
         this.isRedisConnected = false;
+        this.useFallback = true;
+        this.initFallback();
       });
 
-      // Attempt non-blocking connection
       this.redis.connect().catch(() => {
         this.isRedisConnected = false;
+        this.useFallback = true;
+        this.initFallback();
       });
     } catch {
-      this.isRedisConnected = false;
+      this.useFallback = true;
+      this.initFallback();
     }
   }
 
-  /**
-   * Convert a Redis glob pattern (e.g. `search:*`) into a RegExp
-   */
-  private patternToRegExp(pattern: string): RegExp {
-    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
-    return new RegExp(`^${escaped}$`);
-  }
-
-  /**
-   * Prune expired keys from fallback memory store
-   */
-  private pruneExpiredMemoryKeys(): void {
-    const now = Date.now();
-    for (const [k, entry] of this.memoryStore.entries()) {
-      if (entry.expiresAt <= now) {
-        this.memoryStore.delete(k);
-      }
+  private initFallback(): void {
+    if (!this.fallbackCache) {
+      this.fallbackCache = new InMemoryCache({
+        maxKeys: 10_000,
+        cleanupIntervalMs: 60_000,
+        defaultTTLSeconds: this.defaultTTL,
+      });
     }
   }
 
   /**
    * Get value from cache
    * @param key Cache key
+   * @param endpoint Endpoint name for Prometheus metrics
    * @returns Parsed object or null if not found/expired
    */
-  async get<T>(key: string): Promise<T | null> {
-    if (this.redis && this.isRedisConnected) {
+  async get<T>(key: string, endpoint: string = 'unknown'): Promise<T | null> {
+    const start = process.hrtime.bigint();
+    const activeType = !this.useFallback && this.redis && this.isRedisConnected ? 'redis' : 'in-memory';
+
+    if (activeType === 'redis' && this.redis) {
       try {
-        const value = await this.redis.get(key);
-        if (value) {
-          return JSON.parse(value) as T;
+        const data = await this.redis.get(key);
+        const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+        recordCacheOperation('get', durationMs, 'redis');
+
+        if (data) {
+          recordCacheHit(endpoint, 'redis');
+          return JSON.parse(data) as T;
         }
-      } catch {
-        // Fall through to memory store on transient Redis error
+
+        recordCacheMiss(endpoint, 'redis');
+        return null;
+      } catch (error: any) {
+        recordCacheError('get', error?.name || 'RedisError');
+        this.useFallback = true;
+        this.initFallback();
       }
     }
 
-    const entry = this.memoryStore.get(key);
-    if (!entry) {
-      return null;
+    this.initFallback();
+    const fallbackVal = await this.fallbackCache!.get<T>(key);
+    const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+    recordCacheOperation('get', durationMs, 'in-memory');
+
+    if (fallbackVal !== null) {
+      recordCacheHit(endpoint, 'in-memory');
+      return fallbackVal;
     }
 
-    if (Date.now() >= entry.expiresAt) {
-      this.memoryStore.delete(key);
-      return null;
-    }
-
-    try {
-      return JSON.parse(entry.raw) as T;
-    } catch {
-      return null;
-    }
+    recordCacheMiss(endpoint, 'in-memory');
+    return null;
   }
 
   /**
@@ -125,24 +145,34 @@ export class RedisCache {
    * @param key Cache key
    * @param value Value to cache (will be JSON stringified)
    * @param ttlSeconds TTL in seconds (optional, uses default if not provided)
+   * @param endpoint Endpoint name for Prometheus metrics
    */
-  async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
+  async set<T>(
+    key: string,
+    value: T,
+    ttlSeconds?: number,
+    _endpoint: string = 'unknown'
+  ): Promise<void> {
+    const start = process.hrtime.bigint();
     const ttl = ttlSeconds ?? this.defaultTTL;
-    const serialized = JSON.stringify(value);
 
-    // Always write to memory store for ultra-fast local reads & fallback resilience
-    this.memoryStore.set(key, {
-      raw: serialized,
-      expiresAt: Date.now() + ttl * 1000,
-    });
+    this.initFallback();
+    await this.fallbackCache!.set(key, value, ttl);
 
-    if (this.redis && this.isRedisConnected) {
+    if (!this.useFallback && this.redis && this.isRedisConnected) {
       try {
-        await this.redis.setex(key, ttl, serialized);
-      } catch {
-        // Ignore Redis write error; fallback memory store already holds the entry
+        await this.redis.setex(key, ttl, JSON.stringify(value));
+        const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+        recordCacheOperation('set', durationMs, 'redis');
+        return;
+      } catch (error: any) {
+        recordCacheError('set', error?.name || 'RedisError');
+        this.useFallback = true;
       }
     }
+
+    const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+    recordCacheOperation('set', durationMs, 'in-memory');
   }
 
   /**
@@ -150,54 +180,109 @@ export class RedisCache {
    * @param key Cache key to delete
    */
   async del(key: string): Promise<void> {
-    this.memoryStore.delete(key);
+    const start = process.hrtime.bigint();
+    this.initFallback();
+    await this.fallbackCache!.del(key);
 
-    if (this.redis && this.isRedisConnected) {
+    if (!this.useFallback && this.redis && this.isRedisConnected) {
       try {
-        await this.redis.del(key);
-      } catch {
-        // Ignore Redis delete error
+        if (typeof (this.redis as any).unlink === 'function') {
+          await this.redis.unlink(key);
+        } else {
+          await this.redis.del(key);
+        }
+        const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+        recordCacheOperation('del', durationMs, 'redis');
+        return;
+      } catch (error: any) {
+        recordCacheError('del', error?.name || 'RedisError');
+        this.useFallback = true;
       }
     }
+
+    const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+    recordCacheOperation('del', durationMs, 'in-memory');
   }
 
   /**
-   * Invalidate all keys matching pattern
-   * WARNING: Uses KEYS in dev, should use SCAN in production with large datasets
-   * @param pattern Redis key pattern (e.g., "search:*", "recommend:*")
+   * Invalidate all keys matching pattern using SCAN (non-blocking).
+   * Uses UNLINK for async deletion to prevent server blocking.
+   *
+   * IMPORTANT: Never use KEYS in production - it blocks the entire Redis server.
+   * SCAN iterates incrementally without blocking.
+   *
+   * @param pattern - Glob-style pattern (e.g., "search:*", "recommend:*")
+   * @param batchSize - Number of keys to scan per iteration (default: 100)
+   * @returns Total number of deleted keys
    */
-  async invalidate(pattern: string): Promise<number> {
-    let deletedCount = 0;
-    const regex = this.patternToRegExp(pattern);
+  async invalidate(pattern: string, batchSize: number = 100): Promise<number> {
+    const start = process.hrtime.bigint();
+    this.initFallback();
+    const fallbackDeleted = await this.fallbackCache!.invalidate(pattern);
 
-    for (const key of Array.from(this.memoryStore.keys())) {
-      if (regex.test(key)) {
-        this.memoryStore.delete(key);
-        deletedCount++;
-      }
-    }
-
-    if (this.redis && this.isRedisConnected) {
+    if (!this.useFallback && this.redis && this.isRedisConnected) {
       try {
-        const keys = await this.redis.keys(pattern);
-        if (keys.length > 0) {
-          const redisDeleted = await this.redis.del(...keys);
-          deletedCount = Math.max(deletedCount, redisDeleted);
-        }
-      } catch {
-        // Fallback count already tracked
+        let deleted = 0;
+        let cursor = '0';
+        let iterations = 0;
+        const maxIterations = 1000; // Safety limit to prevent infinite loops
+
+        do {
+          // SCAN is non-blocking and iterates incrementally
+          const [nextCursor, keys] = await this.redis.scan(
+            cursor,
+            'MATCH',
+            pattern,
+            'COUNT',
+            batchSize
+          );
+
+          cursor = nextCursor;
+          iterations++;
+
+          if (keys.length > 0) {
+            // UNLINK is async deletion - doesn't block the server
+            // Unlike DEL which blocks until memory is freed
+            const unlinked = await this.redis.unlink(...keys);
+            deleted += unlinked;
+
+            // Log for debugging (only in development)
+            if (process.env.NODE_ENV === 'development' && keys.length > 0) {
+              console.log(`Cache invalidate: ${keys.length} keys unlinked (pattern: ${pattern})`);
+            }
+          }
+
+          // Safety check
+          if (iterations >= maxIterations) {
+            console.warn(
+              `Cache invalidate: reached max iterations (${maxIterations}) for pattern ${pattern}`
+            );
+            break;
+          }
+        } while (cursor !== '0');
+
+        const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+        recordCacheOperation('invalidate', durationMs, 'redis');
+        return Math.max(deleted, fallbackDeleted);
+      } catch (error: any) {
+        recordCacheError('invalidate', error?.name || 'RedisError');
+        console.error(`Cache INVALIDATE error for pattern ${pattern}:`, error);
+        return fallbackDeleted;
       }
     }
 
-    return deletedCount;
+    const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
+    recordCacheOperation('invalidate', durationMs, 'in-memory');
+    return fallbackDeleted;
   }
 
   /**
    * Clear all cached entries immediately
    */
   async clear(): Promise<void> {
-    this.memoryStore.clear();
-    if (this.redis && this.isRedisConnected) {
+    this.initFallback();
+    this.fallbackCache!.clearSync();
+    if (!this.useFallback && this.redis && this.isRedisConnected) {
       try {
         await this.redis.flushdb();
       } catch {
@@ -210,65 +295,69 @@ export class RedisCache {
    * Synchronous clear of in-memory cache layer (used by test setup hooks)
    */
   clearMemorySync(): void {
-    this.memoryStore.clear();
+    this.initFallback();
+    this.fallbackCache!.clearSync();
   }
 
   /**
    * Check if cache layer is operational
    */
   async healthCheck(): Promise<boolean> {
-    if (this.redis && this.isRedisConnected) {
+    if (!this.useFallback && this.redis && this.isRedisConnected) {
       try {
         const result = await this.redis.ping();
         if (result === 'PONG') {
           return true;
         }
       } catch {
-        // Fall through to local cache check
+        this.useFallback = true;
       }
     }
-    return true;
+    this.initFallback();
+    return this.fallbackCache!.healthCheck();
   }
 
   /**
    * Get cache statistics
    */
-  async getStats(): Promise<{ keys: number; memory: string }> {
-    this.pruneExpiredMemoryKeys();
+  async getStats(): Promise<{ keys: number; memory: string; type?: string }> {
+    this.initFallback();
+    const fallbackStats = await this.fallbackCache!.getStats();
 
-    if (this.redis && this.isRedisConnected) {
+    if (!this.useFallback && this.redis && this.isRedisConnected) {
       try {
         const dbsize = await this.redis.dbsize();
         const info = await this.redis.info('memory');
         const memoryMatch = info.match(/used_memory_human:(.+)/);
         const memory = memoryMatch ? memoryMatch[1].trim() : 'unknown';
+        const keys = Math.max(dbsize, fallbackStats.keys);
+        recordCacheKeysTotal(keys, 'redis');
 
         return {
-          keys: Math.max(dbsize, this.memoryStore.size),
+          type: 'redis',
+          keys,
           memory,
         };
       } catch {
-        // Fallback to memory store stats
+        this.useFallback = true;
       }
     }
 
-    let totalBytes = 0;
-    for (const [k, v] of this.memoryStore.entries()) {
-      totalBytes += (k.length + v.raw.length) * 2;
-    }
-    const kb = (totalBytes / 1024).toFixed(2);
-
+    recordCacheKeysTotal(fallbackStats.keys, 'in-memory');
     return {
-      keys: this.memoryStore.size,
-      memory: `${kb}K`,
+      type: fallbackStats.type,
+      keys: fallbackStats.keys,
+      memory: fallbackStats.memory,
     };
   }
 
   /**
-   * Gracefully close Redis connection
+   * Gracefully close Redis and fallback connections
    */
   async disconnect(): Promise<void> {
-    this.memoryStore.clear();
+    if (this.fallbackCache) {
+      await this.fallbackCache.disconnect();
+    }
     if (this.redis) {
       try {
         if (this.isRedisConnected) {

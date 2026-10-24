@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import * as crypto from 'crypto';
 import { Metrics } from '@eidos/core';
+import { cacheMetrics } from '../services/cache/cache-metrics';
 
 const MAX_LATENCY_SAMPLES = 1000;
 const latencySamplesMs: number[] = [];
@@ -35,6 +36,33 @@ export function getLatencyQuantiles() {
 }
 
 export async function observabilityPlugin(fastify: FastifyInstance): Promise<void> {
+  // Periodically update hit rate gauge
+  const hitRateTimer = setInterval(async () => {
+    try {
+      const hits = await cacheMetrics.hits.get();
+      const misses = await cacheMetrics.misses.get();
+
+      const totalHits = hits.values.reduce((sum, v) => sum + v.value, 0);
+      const totalMisses = misses.values.reduce((sum, v) => sum + v.value, 0);
+      const total = totalHits + totalMisses;
+
+      if (total > 0) {
+        const hitRate = totalHits / total;
+        cacheMetrics.hitRate.set({ endpoint: 'all' }, hitRate);
+      }
+    } catch {
+      // Ignore timer metric errors
+    }
+  }, 60_000);
+
+  if (hitRateTimer.unref) {
+    hitRateTimer.unref();
+  }
+
+  fastify.addHook('onClose', async () => {
+    clearInterval(hitRateTimer);
+  });
+
   fastify.addHook('onRequest', async (request, reply) => {
     const incomingId = request.headers['x-request-id'] as string | undefined;
     const requestId = incomingId || `req_${crypto.randomBytes(6).toString('hex')}`;
@@ -79,3 +107,4 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
 }
 
 (observabilityPlugin as any)[Symbol.for('skip-override')] = true;
+

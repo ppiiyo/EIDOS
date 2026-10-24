@@ -110,7 +110,7 @@ async function benchmarkSearch(baseUrl: string, iterations: number = 100): Promi
 }
 
 async function benchmarkRecommend(baseUrl: string, iterations: number = 100): Promise<BenchmarkResult> {
-  const itemIds = Array.from({ length: 20 }, (_, i) => String((i % 15) + 1));
+  const itemIds = Array.from({ length: 20 }, (_, i) => `item-${i + 10}`);
   const latencies: number[] = [];
   let cacheHits = 0;
   let cacheMisses = 0;
@@ -199,6 +199,13 @@ async function main() {
   }
 
   try {
+    // Warm up embedder model initialization before measuring latency
+    await fetch(`${baseUrl}/v1/search`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': API_KEY },
+      body: JSON.stringify({ query: 'warmup embedder model', limit: 1 }),
+    });
+
     const searchResult = await benchmarkSearch(baseUrl, 100);
     printResult(searchResult);
 

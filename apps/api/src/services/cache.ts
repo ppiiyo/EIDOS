@@ -1,5 +1,21 @@
 export { RedisCache, getCache } from './cache/redis-cache';
 export { CacheKeys } from './cache/cache-keys';
+export { SingleFlight, getSingleFlight } from './cache/singleflight';
+export { InMemoryCache } from './cache/in-memory-cache';
+export {
+  isCacheKeySafe,
+  isResponseCacheable,
+  sanitizeHeadersForCache,
+  generateSafeCacheKey,
+} from './cache/cache-validator';
+export {
+  cacheMetrics,
+  recordCacheHit,
+  recordCacheMiss,
+  recordCacheOperation,
+  recordCacheError,
+  recordCacheKeysTotal,
+} from './cache/cache-metrics';
 
 export class CacheService<T> {
   private cache = new Map<string, { value: T; expiresAt: number }>();
@@ -33,4 +49,3 @@ export class CacheService<T> {
     this.cache.clear();
   }
 }
-
