@@ -21,8 +21,10 @@ export const recommendSchema = z
     user_id: z.string().min(1).optional(),
     userId: z.string().min(1).optional(),
     history: z.array(z.string()).default([]),
-    strategy: z.enum(['simple', 'adaptive', 'user']).default('adaptive'),
-    limit: z.number().int().min(1).max(100).default(10),
+    recentItemIds: z.array(z.string()).optional(),
+    strategy: z.enum(['simple', 'adaptive', 'user']).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+    topK: z.number().int().min(1).max(100).optional(),
     diversity_factor: z.number().min(0).max(1).optional(),
     diversityFactor: z.number().min(0).max(1).optional(),
     minSimilarity: z.number().min(0).max(1).default(0.35),
@@ -46,6 +48,22 @@ export const recommendSchema = z
         language: z.string().optional(),
       })
       .optional(),
+  })
+  .transform((data) => {
+    const resolvedItemId = data.item_id || data.itemId;
+    const resolvedUserId = data.user_id || data.userId;
+    const mergedHistory =
+      data.history && data.history.length > 0
+        ? data.history
+        : data.recentItemIds || [];
+    const inferredStrategy: 'simple' | 'adaptive' | 'user' =
+      data.strategy ?? (!resolvedItemId && (resolvedUserId || mergedHistory.length > 0) ? 'user' : 'adaptive');
+    return {
+      ...data,
+      history: mergedHistory,
+      strategy: inferredStrategy,
+      limit: data.limit ?? data.topK ?? 10,
+    };
   })
   .superRefine((data, ctx) => {
     const resolvedItemId = data.item_id || data.itemId;
@@ -427,14 +445,16 @@ export async function userRecommend(
   ]);
 
   if (!AILManager.isEnabled()) {
-    const fallbackItemId = history.length > 0 ? history[0] : '1';
-    const fallbackSource = vectorStore.get(fallbackItemId);
+    const rawFallbackId = history.length > 0 ? history[0] : '1';
+    const fallbackSource =
+      vectorStore.get(rawFallbackId) || vectorStore.get(rawFallbackId.replace(/^item_/, 'item-'));
     if (!fallbackSource) {
       return {
         notFound: true as const,
-        message: `Fallback item '${fallbackItemId}' not found in index.`,
+        message: `Fallback item '${rawFallbackId}' not found in index.`,
       };
     }
+    const fallbackItemId = fallbackSource.id;
 
     const results = vectorStore
       .search(
@@ -475,10 +495,11 @@ export async function userRecommend(
     userId,
     history,
     async (itemId: string) => {
-      const item = vectorStore.get(itemId);
+      const item = vectorStore.get(itemId) || vectorStore.get(itemId.replace(/^item_/, 'item-'));
       return item ? new Float32Array(item.normalizedVector || item.embedding) : new Float32Array(384);
     },
-    (itemId: string) => vectorStore.get(itemId)?.category || 'General'
+    (itemId: string) =>
+      (vectorStore.get(itemId) || vectorStore.get(itemId.replace(/^item_/, 'item-')))?.category || 'General'
   );
 
   const topCandidates = vectorStore.search(profile.embedding, 100, 0.0, undefined, category);
@@ -615,7 +636,9 @@ export async function recommendRoutes(
     }
     if (data.minSimilarity !== 0.35) extraCacheParams.minSimilarity = data.minSimilarity;
     if (resolvedUserId && data.strategy !== 'user') extraCacheParams.userId = resolvedUserId;
-    if (data.history && data.history.length > 0) extraCacheParams.history = data.history;
+    if (data.history && data.history.length > 0 && !data.recentItemIds) {
+      extraCacheParams.history = data.history;
+    }
     if (!AILManager.isEnabled() && data.strategy !== 'simple') extraCacheParams.ailDisabled = true;
 
     const cacheKey =

@@ -15,7 +15,8 @@ import {
 
 const searchRequestSchema = z.object({
   query: z.string().min(1, 'query is required').max(500),
-  limit: z.number().int().min(1).max(100).default(10),
+  limit: z.number().int().min(1).max(100).optional(),
+  topK: z.number().int().min(1).max(100).optional(),
   minSimilarity: z.number().min(0).max(1).default(0.25),
   filterCategory: z.string().optional(),
   filters: z
@@ -54,7 +55,8 @@ export async function searchRoutes(
       });
     }
 
-    const { query, limit, minSimilarity, filterCategory, filters, mode, alpha } = parseResult.data;
+    const { query, limit: rawLimit, topK, minSimilarity, filterCategory, filters, mode, alpha } = parseResult.data;
+    const limit = rawLimit ?? topK ?? 10;
     const effectiveCategory = filterCategory ?? filters?.category;
 
     // Security Guardrail: Scan and sanitize user query against prompt injection and XSS

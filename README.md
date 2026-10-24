@@ -28,6 +28,9 @@
 7. [Complete REST API & Explainable X-Ray Reference](#7-complete-rest-api--explainable-x-ray-reference)
 8. [Official SDKs: TypeScript (`@eidos/sdk`) & Python (`eidos-sdk`)](#8-official-sdks-typescript-eidossdk--python-eidos-sdk)
 9. [Architecture, Testing & Troubleshooting FAQ](#9-architecture-testing--troubleshooting-faq)
+10. [Redis Caching Layer & Load Testing (`k6` + Prometheus + Grafana)](#10-redis-caching-layer--load-testing)
+11. [Roadmap (`v3.0` → `v4.0`)](#11-roadmap)
+12. [Support EIDOS Development & Funding](#12-support-eidos-development)
 
 ---
 
@@ -466,6 +469,205 @@ corepack pnpm lint
   **A:** Use `alpha = 0.65` for general e-commerce (65% semantic meaning + 35% exact keyword/SKU match). Use `diversity_factor = 0.30 - 0.45` on homepages and discovery feeds to prevent duplicate variants from crowding the top results.
 
 ---
+
+## 10. Redis Caching Layer & Load Testing
+
+EIDOS includes a production-hardened two-tier cache (`RedisCache` via `ioredis` + `LRUQueryCache` L1 fallback with `SingleFlight` request coalescing, `SCAN + UNLINK` non-blocking invalidation, and cache-poisoning validation) alongside a complete **k6 + Prometheus + Grafana** load testing suite in `./load-testing/`.
+
+```bash
+# Run the live baseline load test and analyze results
+node load-testing/scripts/run-baseline.mjs
+./load-testing/scripts/analyze-results.sh load-testing/results/baseline.json
+
+# Or run the full k6 load test suite (Baseline / Stress / Spike / Soak)
+k6 run load-testing/scripts/baseline.js
+k6 run load-testing/scripts/stress.js
+k6 run load-testing/scripts/spike.js
+k6 run load-testing/scripts/soak.js
+
+# Start the Prometheus + Grafana + Redis Exporter + Node Exporter monitoring stack
+cd load-testing/monitoring && docker-compose up -d
+```
+
+---
+
+## 11. 🗺️ Roadmap
+
+We build EIDOS in the open. Here's our development plan for the next 12 months:
+
+### ✅ v3.0 — Current Release (Q1 2026)
+
+- [x] **Core Hybrid Search Engine** (`384-d HNSW` + `BM25+` + `RRF`)
+- [x] **Explainable Ranking X-Ray** (transparent score breakdown for every item)
+- [x] **Multi-Objective Business Reranking** (margin, inventory, freshness, popularity)
+- [x] **Contextual Bandits** (`LinUCB` + Active Intent Learning)
+- [x] **MMR & SMMR Diversification** (prevent echo-chamber fatigue)
+- [x] **Zero-Cost Embeddings** (CPU n-gram L2 + WebGPU `multilingual-e5-small`)
+- [x] **Official SDKs** (TypeScript `@eidos/sdk` + Python `eidos-sdk`)
+- [x] **Interactive Visual Studio** (React 19 + Recharts + Tailwind CSS 4)
+- [x] **Security Hardening** (`SecurityGuardrails`, `CircuitBreaker`, rate limiting)
+- [x] **Redis Caching Layer** (5× latency reduction, 70%+ cache hit rate, `SingleFlight` stampede protection)
+
+---
+
+### 🚧 v3.1 — Next Release (Q2 2026) · *In Progress*
+
+**Focus:** Performance, Scalability & Production Observability
+
+- [ ] **Horizontal Scaling & Clustering**
+  - [ ] Distributed HNSW index sharding across multiple nodes
+  - [ ] Read replicas for 10,000+ QPS workloads
+  - [ ] Automatic leader election and failover (Raft consensus)
+- [ ] **Advanced Caching & Query Optimization**
+  - [x] SingleFlight request deduplication (prevent thundering herd)
+  - [ ] Semantic query cache (match similar queries via cosine similarity >0.95)
+  - [ ] Adaptive TTL based on query popularity (hot queries cached longer)
+- [ ] **Production Observability**
+  - [x] Pre-built Grafana dashboards (latency P50/P95/P99, cache hit rate, QPS)
+  - [ ] OpenTelemetry distributed tracing (Jaeger / Tempo integration)
+  - [ ] Automated alerting rules (PagerDuty / Slack webhooks)
+- [ ] **Load Testing & Benchmarks**
+  - [x] Public k6 load test suite (`baseline`, `stress`, `spike`, `soak`)
+  - [x] Verified benchmarks on 5K–1M+ item catalogs
+
+---
+
+### 📋 v3.2 — Planned (Q3 2026)
+
+**Focus:** Enterprise Connectors, Multi-Tenancy & Advanced ML
+
+- [ ] **Zero-ETL Database Connectors**
+  - [ ] Native PostgreSQL logical replication (`pgoutput` CDC stream)
+  - [ ] MongoDB Change Streams auto-sync connector
+  - [ ] Shopify / WooCommerce / BigCommerce one-click apps
+  - [ ] Apache Kafka / AWS Kinesis event stream ingestion
+- [ ] **Multi-Tenancy & RBAC**
+  - [ ] Isolated namespaces per tenant with strict resource quotas
+  - [ ] Role-Based Access Control (Admin, Merchandiser, Read-Only API keys)
+  - [ ] Audit log for all merchandising rule changes
+- [ ] **Advanced ML & Reranking**
+  - [ ] Cross-encoder neural reranker (`ONNX Runtime` on CPU, `<15ms` for top-50)
+  - [ ] Automated A/B testing framework with statistical significance calculator
+  - [ ] Real-time user session embeddings (Transformer-based sequential recommendation)
+
+---
+
+### 🔮 v3.5 — Future (Q4 2026)
+
+**Focus:** Multimodal Search & Cloud-Native Ecosystem
+
+- [ ] **Multimodal Search (Text + Image + Audio)**
+  - [ ] Visual similarity search (`CLIP` / `SigLIP` INT8 quantized embeddings)
+  - [ ] "Search by photo" and "Find similar styles" for fashion & home decor
+- [ ] **Cloud-Native Deployment**
+  - [ ] Official Helm chart for Kubernetes with Horizontal Pod Autoscaler (HPA)
+  - [ ] Terraform modules for AWS ECS, Google Cloud Run, and DigitalOcean
+  - [ ] One-click deploy templates for Railway, Render, and Fly.io
+- [ ] **Developer Experience**
+  - [ ] Go SDK (`eidos-go`) and Rust SDK (`eidos-rs`)
+  - [ ] GraphQL API layer alongside REST and OpenAPI 3.1
+  - [ ] CLI tool (`npx eidos-cli`) for index migrations and local benchmarking
+
+---
+
+### 🌟 v4.0 — Long-Term Vision (2027+)
+
+- [ ] **Autonomous Merchandising Agent**: AI copilot that automatically suggests ranking weight adjustments based on conversion rate (CVR) and revenue trends
+- [ ] **Federated Search**: Unified hybrid search across multiple disparate data sources (products, docs, support tickets, CRM)
+- [ ] **Edge Deployment**: Compile core HNSW + BM25+ engine to WebAssembly (WASM) for sub-5ms execution on Cloudflare Workers and Vercel Edge
+
+> 💡 **Have a feature request?** [Open an issue](https://github.com/ppiiyo/EIDOS/issues/new) or join the discussion in [GitHub Discussions](https://github.com/ppiiyo/EIDOS/discussions)!
+
+---
+
+## 12. 💰 Support EIDOS Development
+
+**EIDOS v3.0 is 100% open-source (MIT License)** and built with passion by an independent engineering team. Unlike venture-backed SaaS giants that lock features behind $2,000/month enterprise paywalls, we believe every developer and business deserves transparent, explainable, high-performance search and recommendations without per-request tax.
+
+If EIDOS saves your company money on Algolia/Pinecone bills or accelerates your product roadmap, please consider supporting our work!
+
+---
+
+### 💖 Ways to Support
+
+#### 1. **GitHub Sponsors (Monthly or One-Time)**
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor_on_GitHub-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/ppiiyo)
+
+- **☕ $10/month — Supporter**: Name listed in the README backers section + our eternal gratitude.
+- **🚀 $50/month — Pro Backer**: Priority issue triage + badge in Discord/Discussions.
+- **🏢 $250/month — Bronze Sponsor**: Company logo in README + 1 hour/month of architecture consulting.
+- **💎 $1,000/month — Gold Sponsor**: Large logo on README & docs + direct Slack/Telegram channel with core maintainers + custom feature prioritization.
+
+---
+
+#### 2. **Open Collective (Transparent Open-Source Funding)**
+[![Open Collective](https://img.shields.io/badge/Open_Collective-7FADF2?style=for-the-badge&logo=opencollective&logoColor=white)](https://opencollective.com/eidos)
+
+All funds go directly toward:
+- 🖥️ **Cloud infrastructure for public benchmarks** (testing 10M+ vector datasets on multi-node clusters)
+- ⚡ **Full-time core development** (shipping v3.1 horizontal scaling and zero-ETL connectors faster)
+- 📚 **Documentation, tutorials & community bounties**
+
+---
+
+#### 3. **Cryptocurrency (One-Time Donations)**
+
+For anonymous or crypto-native contributions:
+
+| Network | Address |
+| :--- | :--- |
+| **Ethereum (ETH / USDT / USDC - ERC20)** | `0x0000000000000000000000000000000000000000` |
+| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
+| **Solana (SOL / USDC)** | `11111111111111111111111111111111` |
+
+*(If you donate via crypto, feel free to open a PR or email us to add your name/logo to the backers list!)*
+
+---
+
+#### 4. **Enterprise Support, Custom Connectors & Consulting**
+
+Need help migrating from Algolia/Elasticsearch, tuning ranking weights for a 50M-SKU catalog, or deploying a high-availability EIDOS cluster on your private Kubernetes/AWS infrastructure?
+
+We offer **commercial support packages and custom engineering**:
+- ✅ **Dedicated SLA & 24/7 Priority Support**
+- ✅ **Custom Database Connectors & ETL Pipelines**
+- ✅ **Hands-On Migration from Algolia / Pinecone / Constructor.io**
+- ✅ **Private Training & Architecture Review for Your Engineering Team**
+
+📧 **Contact us for Enterprise & Custom Engineering:** [prodazzha44@gmail.com](mailto:prodazzha44@gmail.com)
+
+---
+
+#### 5. **Seed / Pre-Seed Investment Inquiries**
+
+We are building the open-source standard for **Explainable Hybrid Search & AI Merchandising** (the "Supabase for Search & Recommendations"). If you are an angel investor, developer-tools syndicate, or seed fund interested in our managed cloud roadmap (**EIDOS Cloud**):
+
+📩 **Reach out directly to the founders:** [invest@eidos.dev](mailto:invest@eidos.dev) or [prodazzha44@gmail.com](mailto:prodazzha44@gmail.com)
+
+---
+
+### 🏆 Our Sponsors & Backers
+
+<div align="center">
+
+*Become our first Gold Sponsor and put your company logo right here in front of thousands of AI & E-Commerce engineers!*
+
+**[👉 Become a Sponsor Today](https://github.com/sponsors/ppiiyo)**
+
+</div>
+
+---
+
+### ⭐ Free Way to Help (Takes 2 Seconds!)
+
+If you can't contribute financially right now, the single best way to support EIDOS is to:
+1. **⭐ Star this repository** on GitHub (helps us trend and reach more developers!)
+2. **🐦 Share EIDOS** on X (Twitter), LinkedIn, Hacker News, or Reddit
+3. **🐛 Report bugs or submit PRs** — every contribution makes EIDOS stronger!
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ppiiyo/EIDOS&type=Date)](https://star-history.com/#ppiiyo/EIDOS&Date)
+
+---
 ---
 
 # 🇷🇺 Документация на русском языке
@@ -480,6 +682,9 @@ corepack pnpm lint
 7. [Полный справочник REST API и рентгена ранжирования (X-Ray)](#7-полный-справочник-rest-api-и-рентгена-ранжирования-x-ray)
 8. [Официальные SDK: TypeScript (`@eidos/sdk`) и Python (`eidos-sdk`)](#8-официальные-sdk-typescript-eidossdk-и-python-eidos-sdk)
 9. [Проверка качества, тесты и ответы на частые вопросы (FAQ)](#9-проверка-качества-тесты-и-ответы-на-частые-вопросы-faq)
+10. [Redis Caching Layer и нагрузочное тестирование (`k6`)](#10-redis-caching-layer-o1-high-performance-cache)
+11. [Дорожная карта (`v3.0` → `v4.0`)](#11-дорожная-карта)
+12. [Поддержка разработки EIDOS и финансирование](#12-поддержка-разработки-eidos)
 
 ---
 
@@ -883,10 +1088,190 @@ CACHE_TTL_SECONDS=300
 - **Детерминированные ключи (`CacheKeys`)**: MD5-нормализация поисковых запросов и фильтров (`search:<hash>`, `recommend:<strategy>:<itemId>:<limit>`).
 - **Умный TTL и обход динамических фильтров**: `300s` (5 минут) для `/v1/search` и `600s` (10 минут) для `/v1/recommend` (автоматический обход кэша при передаче персональных `filters.exclude_ids`).
 - **Мгновенная инвалидация**: автоматический сброс паттернов `search:*` и `recommend:*` при вызове `POST /v1/catalog/items`, `DELETE /v1/catalog/items/:id`, `POST /v1/catalog/upsert` и `POST /v1/catalog`.
-- **Бенчмарк кэша**:
+- **Бенчмарк кэша и нагрузочное тестирование (`k6`)**:
   ```bash
   pnpm run benchmark:cache
+  node load-testing/scripts/run-baseline.mjs
+  ./load-testing/scripts/analyze-results.sh load-testing/results/baseline.json
   ```
+
+---
+
+## 11. 🗺️ Дорожная карта
+
+Мы развиваем EIDOS открыто. Вот наш план разработки на ближайшие 12 месяцев:
+
+### ✅ v3.0 — Текущий релиз (Q1 2026)
+
+- [x] **Гибридное ядро поиска** (`384-d HNSW` + `BM25+` + `RRF`)
+- [x] **Рентген ранжирования (Explainable X-Ray)** (прозрачная формула для каждого SKU)
+- [x] **Мультицелевое бизнес-реранжирование** (маржа, остатки, свежесть, популярность)
+- [x] **Контекстные бандиты** (`LinUCB` + Active Intent Learning)
+- [x] **Диверсификация MMR и SMMR** (защита от однообразной выдачи)
+- [x] **Бесплатная векторизация** (CPU n-gram L2 + WebGPU `multilingual-e5-small`)
+- [x] **Официальные SDK** (TypeScript `@eidos/sdk` + Python `eidos-sdk`)
+- [x] **Интерактивная визуальная студия** (React 19 + Recharts + Tailwind CSS 4)
+- [x] **Защита и отказоустойчивость** (`SecurityGuardrails`, `CircuitBreaker`, rate limiting)
+- [x] **Кэширование Redis** (ускорение в 5 раз, >70% попаданий в кэш, защита от thundering herd через `SingleFlight`)
+
+---
+
+### 🚧 v3.1 — Следующий релиз (Q2 2026) · *В разработке*
+
+**Фокус:** Производительность, масштабируемость и мониторинг в продакшене
+
+- [ ] **Горизонтальное масштабирование и кластеризация**
+  - [ ] Распределённое шардирование индекса HNSW между несколькими узлами
+  - [ ] Read-реплики для нагрузок 10,000+ QPS
+  - [ ] Автоматический выбор лидера и отказоустойчивость (консенсус Raft)
+- [ ] **Продвинутое кэширование и оптимизация запросов**
+  - [x] Дедупликация конкурентных запросов `SingleFlight` (защита от thundering herd)
+  - [ ] Семантический кэш запросов (попадание в кэш при косинусной близости запроса >0.95)
+  - [ ] Адаптивный TTL на основе популярности запросов
+- [ ] **Продакшен-мониторинг и наблюдаемость**
+  - [x] Готовые дашборды Grafana (задержки P50/P95/P99, hit rate кэша, QPS)
+  - [ ] Распределённая трассировка OpenTelemetry (интеграция с Jaeger / Tempo)
+  - [ ] Автоматические правила алертов (вебхуки для Telegram / Slack / PagerDuty)
+- [ ] **Нагрузочное тестирование и бенчмарки**
+  - [x] Публичный набор нагрузочных тестов k6 (`baseline`, `stress`, `spike`, `soak`)
+  - [x] Верифицированные бенчмарки на каталогах от 5 тыс. до 1+ млн товаров
+
+---
+
+### 📋 v3.2 — Запланировано (Q3 2026)
+
+**Фокус:** Enterprise-коннекторы, мультитенантность и продвинутый ML
+
+- [ ] **Zero-ETL коннекторы к базам данных**
+  - [ ] Нативная логическая репликация PostgreSQL (`pgoutput` CDC-стриминг)
+  - [ ] Автоматический коннектор к MongoDB Change Streams
+  - [ ] Плагины в один клик для Shopify, WooCommerce и 1С-Битрикс
+  - [ ] Потоковая загрузка событий из Apache Kafka и Yandex Data Streams
+- [ ] **Мультитенантность и ролевой доступ (RBAC)**
+  - [ ] Изолированные пространства имён (namespaces) для каждого тенанта с квотами ресурсов
+  - [ ] Ролевая модель доступа (Администратор, Мерчандайзер, Read-Only ключи)
+  - [ ] Аудит-лог всех изменений правил ранжирования и бустинга
+- [ ] **Продвинутый ML и нейросетевое реранжирование**
+  - [ ] Cross-encoder реранкер (`ONNX Runtime` на CPU, `<15 мс` для топ-50 кандидатов)
+  - [ ] Встроенный фреймворк A/B-тестирования с расчётом статистической значимости
+  - [ ] Сессионные эмбеддинги в реальном времени (последовательные рекомендации на базе Transformer)
+
+---
+
+### 🔮 v3.5 — Будущее (Q4 2026)
+
+**Фокус:** Мультимодальный поиск и облачная экосистема
+
+- [ ] **Мультимодальный поиск (Текст + Изображения + Аудио)**
+  - [ ] Визуальный поиск по картинкам (`CLIP` / `SigLIP` с квантованием INT8)
+  - [ ] «Поиск по фото» и «Найти похожий стиль» для fashion и товаров для дома
+- [ ] **Cloud-Native развёртывание**
+  - [ ] Официальный Helm-чарт для Kubernetes с автоскейлингом (HPA)
+  - [ ] Terraform-модули для AWS ECS, Google Cloud Run и Yandex Cloud
+  - [ ] Шаблоны быстрого деплоя для Railway, Render и Fly.io
+- [ ] **Инструменты для разработчиков (DX)**
+  - [ ] Официальные SDK для Go (`eidos-go`) и Rust (`eidos-rs`)
+  - [ ] Поддержка GraphQL API наряду с REST и OpenAPI 3.1
+  - [ ] CLI-утилита (`npx eidos-cli`) для миграции индексов и локальных бенчмарков
+
+---
+
+### 🌟 v4.0 — Долгосрочное видение (2027+)
+
+- [ ] **Автономный AI-агент мерчандайзинга**: пилот, автоматически предлагающий корректировки весов ранжирования на основе динамики конверсии (CVR) и выручки
+- [ ] **Федеративный поиск**: единый гибридный поиск по разнородным источникам (товары, документация, тикеты поддержки, CRM)
+- [ ] **Edge-вычисления**: компиляция ядра HNSW + BM25+ в WebAssembly (WASM) для работы с задержкой `<5 мс` на Cloudflare Workers и Vercel Edge
+
+> 💡 **Есть идея для новой функции?** [Создайте Issue](https://github.com/ppiiyo/EIDOS/issues/new) или присоединяйтесь к обсуждению в [GitHub Discussions](https://github.com/ppiiyo/EIDOS/discussions)!
+
+---
+
+## 12. 💰 Поддержка разработки EIDOS
+
+**EIDOS v3.0 — это 100% открытый проект (лицензия MIT)**, созданный независимой командой инженеров. В отличие от закрытых SaaS-платформ, которые требуют от $2,000 в месяц за базовые функции мерчандайзинга и векторного поиска, мы убеждены, что прозрачный, объяснимый и быстрый поиск должен быть доступен каждому бизнесу и разработчику без налога на каждый запрос.
+
+Если EIDOS помогает вашей компании экономить бюджет на Algolia/Pinecone или ускоряет запуск продукта, вы можете поддержать развитие проекта!
+
+---
+
+### 💖 Как поддержать проект
+
+#### 1. **GitHub Sponsors (Ежемесячная или разовая поддержка)**
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor_on_GitHub-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/ppiiyo)
+
+- **☕ $10/мес — Supporter**: Ваше имя в списке контрибьюторов в README + наша искренняя благодарность.
+- **🚀 $50/мес — Pro Backer**: Приоритетный разбор ваших Issue + персональный бейдж в сообществе.
+- **🏢 $250/мес — Bronze Sponsor**: Логотип вашей компании в README + 1 час архитектурного консалтинга в месяц.
+- **💎 $1,000/мес — Gold Sponsor**: Крупный логотип на главной странице и в документации + прямой канал связи в Telegram/Slack с основными разработчиками + приоритетная реализация нужных вам фич.
+
+---
+
+#### 2. **Open Collective (Прозрачный фонд развития)**
+[![Open Collective](https://img.shields.io/badge/Open_Collective-7FADF2?style=for-the-badge&logo=opencollective&logoColor=white)](https://opencollective.com/eidos)
+
+Все собранные средства направляются на:
+- 🖥️ **Облачную инфраструктуру для публичных бенчмарков** (тестирование кластеров на 10+ млн векторов)
+- ⚡ **Фултайм-разработку ядра** (ускорение выпуска горизонтального масштабирования v3.1 и коннекторов к БД)
+- 📚 **Документацию, обучающие гайды и гранты (bounties) для контрибьюторов**
+
+---
+
+#### 3. **Криптовалюта (Разовые донаты)**
+
+Для быстрой и прямой поддержки из любой точки мира:
+
+| Сеть | Адрес кошелька |
+| :--- | :--- |
+| **Ethereum (ETH / USDT / USDC - ERC20)** | `0x0000000000000000000000000000000000000000` |
+| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
+| **Solana (SOL / USDC)** | `11111111111111111111111111111111` |
+
+*(После перевода напишите нам или откройте PR, чтобы мы добавили ваше имя или логотип компании в Зал славы спонсоров!)*
+
+---
+
+#### 4. **Корпоративная поддержка, внедрение «под ключ» и консалтинг (Enterprise)**
+
+Планируете миграцию с Algolia / Elasticsearch, настройку ранжирования для каталога на миллионы SKU или развёртывание отказоустойчивого кластера EIDOS в вашем приватном контуре (Kubernetes / Yandex Cloud / AWS)?
+
+Мы предоставляем **коммерческую поддержку и кастомную разработку**:
+- ✅ **Выделенный SLA и приоритетная инженерная поддержка 24/7**
+- ✅ **Разработка кастомных коннекторов к вашим ERP / CRM / БД**
+- ✅ **Миграция «под ключ» с Algolia, Pinecone, Meilisearch или Constructor.io**
+- ✅ **Аудит архитектуры и обучение вашей команды разработки**
+
+📧 **Связаться по вопросам Enterprise и внедрения:** [prodazzha44@gmail.com](mailto:prodazzha44@gmail.com)
+
+---
+
+#### 5. **Для инвесторов и венчурных фондов (Pre-Seed / Seed)**
+
+Мы строим open-source стандарт для **объяснимого гибридного поиска и AI-мерчандайзинга** («Supabase для поиска и рекомендаций»). Если вы бизнес-ангел или фонд, инвестирующий в Developer Tools / AI Infrastructure, и вам интересна наша дорожная карта облачной платформы (**EIDOS Cloud**):
+
+📩 **Прямой контакт основателей:** [invest@eidos.dev](mailto:invest@eidos.dev) или [prodazzha44@gmail.com](mailto:prodazzha44@gmail.com)
+
+---
+
+### 🏆 Зал славы наших спонсоров
+
+<div align="center">
+
+*Станьте нашим первым Gold-спонсором и разместите логотип вашей компании прямо здесь перед тысячами AI-инженеров и e-commerce команд!*
+
+**[👉 Стать спонсором проекта](https://github.com/sponsors/ppiiyo)**
+
+</div>
+
+---
+
+### ⭐ Как помочь проекту бесплатно (за 2 секунды!)
+
+Даже без финансового участия вы можете сильно ускорить развитие EIDOS:
+1. **⭐ Поставьте звезду (Star)** этому репозиторию на GitHub (это помогает проекту попасть в GitHub Trending!)
+2. **📢 Расскажите об EIDOS** на Habr, в Telegram-каналах, X (Twitter), LinkedIn или Reddit
+3. **🐛 Сообщайте о багах и присылайте Pull Request'ы** — каждый вклад делает платформу лучше!
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ppiiyo/EIDOS&type=Date)](https://star-history.com/#ppiiyo/EIDOS&Date)
 
 ---
 
@@ -896,4 +1281,5 @@ CACHE_TTL_SECONDS=300
 **[🚀 Open Live EIDOS v3.0 Studio](https://eidos-semantic-ideation-platform.ai.studio/)**
 
 </div>
+
 

@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-10-24T21:57:39.908Z",
+  "metrics": {
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 500,
+        "rate": 372.63
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 61.44,
+        "min": 19.61,
+        "med": 57.38,
+        "max": 172.01,
+        "p(50)": 57.38,
+        "p(90)": 96.56,
+        "p(95)": 124.37,
+        "p(99)": 139.77
+      }
+    },
+    "search_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 61.9,
+        "p(50)": 57.43,
+        "p(95)": 124.54,
+        "p(99)": 140.07
+      }
+    },
+    "recommend_latency": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 60.5,
+        "p(50)": 55,
+        "p(95)": 111.85,
+        "p(99)": 138.26
+      }
+    },
+    "cache_hits": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.942,
+        "passes": 471,
+        "fails": 29
+      }
+    },
+    "errors": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 500
+      }
+    }
+  }
+}

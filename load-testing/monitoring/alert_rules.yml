@@ -1,0 +1,59 @@
+groups:
+  - name: eidos_load_test_alerts
+    interval: 10s
+    rules:
+      # Alert: P95 latency > 100ms
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, rate(eidos_http_request_duration_seconds_bucket[1m])) > 0.1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency above 100ms"
+          description: "Current P95: {{ $value }}s"
+
+      # Alert: Error rate > 1%
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(eidos_http_requests_total{status=~"5.."}[1m]))
+          /
+          sum(rate(eidos_http_requests_total[1m])) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate above 1%"
+          description: "Current error rate: {{ $value | humanizePercentage }}"
+
+      # Alert: Cache hit rate < 50%
+      - alert: LowCacheHitRate
+        expr: |
+          sum(rate(eidos_cache_operations_total{operation="get",result="hit"}[5m]))
+          /
+          sum(rate(eidos_cache_operations_total{operation="get",result=~"hit|miss"}[5m])) < 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cache hit rate below 50%"
+          description: "Current hit rate: {{ $value | humanizePercentage }}"
+
+      # Alert: High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU usage above 80%"
+          description: "Current CPU: {{ $value }}%"
+
+      # Alert: High Memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory usage above 85%"
+          description: "Current Memory: {{ $value }}%"
