@@ -1206,8 +1206,6 @@ CACHE_TTL_SECONDS=300
 
 ---
 
-#### 2. **Open Collective (Прозрачный фонд развития)**
-[![Open Collective](https://img.shields.io/badge/Open_Collective-7FADF2?style=for-the-badge&logo=opencollective&logoColor=white)](https://opencollective.com/eidos)
 
 Все собранные средства направляются на:
 - 🖥️ **Облачную инфраструктуру для публичных бенчмарков** (тестирование кластеров на 10+ млн векторов)
@@ -1222,10 +1220,8 @@ CACHE_TTL_SECONDS=300
 
 | Сеть | Адрес кошелька |
 | :--- | :--- |
-| **Ethereum (ETH / USDT / USDC - ERC20)** | `0x0000000000000000000000000000000000000000` |
-| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
-| **Solana (SOL / USDC)** | `11111111111111111111111111111111` |
-
+| **Ethereum (ETH / USDT / USDC - ERC20)** | `0xcE1A54138F32fa141BA38FFB988a63Ae8ABF0D2A` |
+| **TON/GRAM** | 'UQB6D0__lPQdU04lGfZ15sZ65hzAzPgCwZwJ6KFlpsvEN70O' |
 *(После перевода напишите нам или откройте PR, чтобы мы добавили ваше имя или логотип компании в Зал славы спонсоров!)*
 
 ---
@@ -1248,7 +1244,7 @@ CACHE_TTL_SECONDS=300
 
 Мы строим open-source стандарт для **объяснимого гибридного поиска и AI-мерчандайзинга** («Supabase для поиска и рекомендаций»). Если вы бизнес-ангел или фонд, инвестирующий в Developer Tools / AI Infrastructure, и вам интересна наша дорожная карта облачной платформы (**EIDOS Cloud**):
 
-📩 **Прямой контакт основателей:** [invest@eidos.dev](mailto:invest@eidos.dev) или [prodazzha44@gmail.com](mailto:prodazzha44@gmail.com)
+📩 **Прямой контакт основателей:**[prodazzha44@gmail.com](mailto:prodazzha44@gmail.com)
 
 ---
 
