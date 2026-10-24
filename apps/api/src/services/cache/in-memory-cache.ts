@@ -80,22 +80,25 @@ export class InMemoryCache {
     this.store.delete(key);
   }
 
-  async invalidate(pattern: string): Promise<number> {
-    // Convert glob pattern to regex safely
+  keysMatching(pattern: string): string[] {
+    this.cleanup();
     const regexPattern = pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
       .replace(/\*/g, '.*')
       .replace(/\?/g, '.');
     const regex = new RegExp(`^${regexPattern}$`);
 
-    const keysToDelete: string[] = [];
-
+    const matched: string[] = [];
     for (const key of this.store.keys()) {
       if (regex.test(key)) {
-        keysToDelete.push(key);
+        matched.push(key);
       }
     }
+    return matched;
+  }
 
+  async invalidate(pattern: string): Promise<number> {
+    const keysToDelete = this.keysMatching(pattern);
     keysToDelete.forEach((key) => this.store.delete(key));
     return keysToDelete.length;
   }

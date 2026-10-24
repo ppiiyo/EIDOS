@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   calculateCategoryEntropy,
@@ -581,7 +581,7 @@ export async function recommendRoutes(
   const redisCache = getCache();
   const singleFlight = getSingleFlight();
 
-  fastify.post('/v1/recommend', { preHandler: authenticate }, async (request, reply) => {
+  const handleRecommend = async (request: FastifyRequest, reply: FastifyReply) => {
     const parseResult = recommendSchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -691,6 +691,9 @@ export async function recommendRoutes(
     }
 
     return responsePayload;
-  });
+  };
+
+  fastify.post('/v1/recommend', { preHandler: authenticate }, handleRecommend);
+  fastify.post('/v1/demo/recommend', handleRecommend);
 }
 

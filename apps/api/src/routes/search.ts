@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { SecurityGuardrails, CircuitBreaker } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
@@ -42,7 +42,7 @@ export async function searchRoutes(
   const redisCache = getCache();
   const singleFlight = getSingleFlight();
 
-  fastify.post('/v1/search', { preHandler: authenticate }, async (request, reply) => {
+  const handleSearch = async (request: FastifyRequest, reply: FastifyReply) => {
     const startTime = performance.now();
 
     const parseResult = searchRequestSchema.safeParse(request.body);
@@ -216,7 +216,10 @@ export async function searchRoutes(
     }
 
     return responsePayload;
-  });
+  };
+
+  fastify.post('/v1/search', { preHandler: authenticate }, handleSearch);
+  fastify.post('/v1/demo/search', handleSearch);
 }
 
 

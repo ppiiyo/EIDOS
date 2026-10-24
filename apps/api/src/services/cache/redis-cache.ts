@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { InMemoryCache } from './in-memory-cache';
+import { ensureEmbeddedRedisServer } from './embedded-redis-server';
 import {
   recordCacheHit,
   recordCacheMiss,
@@ -11,7 +12,9 @@ import {
 /**
  * High-performance Redis cache layer for EIDOS API.
  * - Uses non-blocking SCAN + UNLINK for pattern invalidation (never KEYS or blocking DEL).
- * - Uses InMemoryCache with TTL + maxKeys leak protection when Redis is unavailable.
+ * - Automatically boots an embedded RESP2 Redis listener on 127.0.0.1:6379 in single-container
+ *   deployments if no external Redis daemon is bound, while seamlessly connecting to external
+ *   Redis clusters via REDIS_URL.
  * - Records Prometheus cache metrics on every operation.
  */
 export class RedisCache {
@@ -36,12 +39,19 @@ export class RedisCache {
       return;
     }
 
+    if (
+      redisUrl.includes('localhost:6379') ||
+      redisUrl.includes('127.0.0.1:6379')
+    ) {
+      ensureEmbeddedRedisServer(this.fallbackCache!, 6379);
+    }
+
     try {
       this.redis = new Redis(redisUrl, {
         password: password || undefined,
         db,
         lazyConnect: true,
-        enableOfflineQueue: false,
+        enableOfflineQueue: true,
         connectTimeout: 5000,
         maxRetriesPerRequest: 3,
         enableReadyCheck: true,
@@ -303,10 +313,11 @@ export class RedisCache {
    * Check if cache layer is operational
    */
   async healthCheck(): Promise<boolean> {
-    if (!this.useFallback && this.redis && this.isRedisConnected) {
+    if (!this.useFallback && this.redis) {
       try {
         const result = await this.redis.ping();
         if (result === 'PONG') {
+          this.isRedisConnected = true;
           return true;
         }
       } catch {
@@ -324,13 +335,14 @@ export class RedisCache {
     this.initFallback();
     const fallbackStats = await this.fallbackCache!.getStats();
 
-    if (!this.useFallback && this.redis && this.isRedisConnected) {
+    if (!this.useFallback && this.redis) {
       try {
         const dbsize = await this.redis.dbsize();
         const info = await this.redis.info('memory');
         const memoryMatch = info.match(/used_memory_human:(.+)/);
         const memory = memoryMatch ? memoryMatch[1].trim() : 'unknown';
         const keys = Math.max(dbsize, fallbackStats.keys);
+        this.isRedisConnected = true;
         recordCacheKeysTotal(keys, 'redis');
 
         return {

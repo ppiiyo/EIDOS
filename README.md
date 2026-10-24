@@ -308,13 +308,34 @@ All `/v1/*` write and query endpoints accept `X-API-Key: <your_key>` (defaults t
 | Method & Path | Description | Auth Required |
 | :--- | :--- | :--- |
 | `POST /v1/recommend` | Unified recommendations (`strategy: 'simple' \| 'adaptive' \| 'user'`) with MMR & Explainable X-Ray | ✅ `X-API-Key` |
-| `POST /v1/search` | Hybrid RRF Search (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) with X-Ray breakdown | ✅ `X-API-Key` |
+| `POST /v1/search` | Hybrid RRF Search (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) with X-Ray breakdown | ✅ `X-API-Key` (`eidos_demo_key` supported) |
+| `POST /v1/demo/search` | Public live demo endpoint for Hybrid Search & Redis Cache testing | Public |
+| `POST /v1/demo/recommend` | Public live demo endpoint for MMR & Adaptive Recommendations testing | Public |
 | `POST /v1/catalog/upsert` | Real-time item ingestion, XSS/SQLi sanitization, 384-d embedding & cache invalidation | ✅ `X-API-Key` |
-| `GET /v1/catalog/stats` | Returns total indexed items, categories, vector dimension (`384`), and HNSW status | ✅ `X-API-Key` |
+| `GET /v1/catalog/stats` | Returns total indexed items, categories, vector dimension (`384`), and HNSW status | ✅ `X-API-Key` (`eidos_demo_key` supported) |
 | `POST /v1/feedback` | Online learning feedback (`click`, `like`, `purchase`, `dislike`) updating LinUCB & User Profile | ✅ `X-API-Key` |
-| `GET /v1/health` | Liveness & readiness probe with memory, uptime, and index diagnostics | Public |
-| `GET /metrics` | Prometheus metrics (`http_request_duration_ms`, `eidos_recommendation_entropy`, cache hits) | Public |
+| `GET /v1/health` | Public liveness & readiness probe with Redis cache stats, memory, uptime, and HNSW diagnostics | Public |
+| `GET /metrics` | Prometheus metrics (`http_request_duration_ms`, `eidos_cache_*`, entropy) | Public |
 | `GET /docs` | Interactive OpenAPI 3.1 Swagger UI | Public |
+
+### Public Demo API Key (Production & Live Testing)
+
+For live testing of Search, Recommendations, and Redis Caching in production without provisioning a private admin key:
+- **Public Demo API Key (Read-Only):** `eidos_demo_key` (or `eidos_public_demo_key`)
+- **Keyless Public Demo Endpoints:** `POST /v1/demo/search` and `POST /v1/demo/recommend`
+
+```bash
+# Option A: Using Public Demo API Key on /v1/search
+curl -X POST https://your-eidos-url/v1/search \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: eidos_demo_key" \
+  -d '{"query": "wireless headphones", "limit": 5}'
+
+# Option B: Keyless Demo Endpoint (/v1/demo/search)
+curl -X POST https://your-eidos-url/v1/demo/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "wireless headphones", "limit": 5}'
+```
 
 ### Example: `POST /v1/recommend` with Explainable Ranking X-Ray
 
@@ -713,25 +734,40 @@ const { results, latencyMs } = await eidos.search({
 
 | Метод и URL | Назначение | Авторизация |
 | :--- | :--- | :--- |
-| `POST /v1/recommend` | Единый эндпоинт рекомендаций (`strategy: 'simple' \| 'adaptive' \| 'user'`) с MMR и X-Ray | ✅ `X-API-Key` |
-| `POST /v1/search` | Гибридный поиск (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) с X-Ray формулой | ✅ `X-API-Key` |
-| `POST /v1/catalog/upsert` | Добавление/обновление товара, авто-векторизация 384-d и сброс кэша `LRUQueryCache` | ✅ `X-API-Key` |
-| `GET /v1/catalog/stats` | Статистика каталога: число товаров, категории, размерность (`384`) и статус HNSW | ✅ `X-API-Key` |
+| `POST /v1/recommend` | Единый эндпоинт рекомендаций (`strategy: 'simple' \| 'adaptive' \| 'user'`) с MMR и X-Ray | ✅ `X-API-Key` (поддерживается `eidos_demo_key`) |
+| `POST /v1/search` | Гибридный поиск (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) с X-Ray формулой | ✅ `X-API-Key` (поддерживается `eidos_demo_key`) |
+| `POST /v1/demo/search` | Публичный демо-эндпоинт гибридного поиска и проверки Redis-кэширования | Публичный |
+| `POST /v1/demo/recommend` | Публичный демо-эндпоинт рекомендаций | Публичный |
+| `POST /v1/catalog/upsert` | Добавление/обновление товара, авто-векторизация 384-d и сброс кэша | ✅ `X-API-Key` |
+| `GET /v1/catalog/stats` | Статистика каталога: число товаров, категории, размерность (`384`) и статус HNSW | ✅ `X-API-Key` (поддерживается `eidos_demo_key`) |
 | `POST /v1/feedback` | Запись событий (`click`, `like`, `purchase`, `dislike`) для онлайн-обучения `LinUCB` | ✅ `X-API-Key` |
-| `GET /v1/health` | Проверка работоспособности сервера, памяти и готовности HNSW-ядра | Публичный |
-| `GET /metrics` | Метрики в формате Prometheus (`http_request_duration_ms`, энтропия рекомендаций, кэш) | Публичный |
+| `GET /v1/health` | Публичная проверка работоспособности сервера, Redis-кэша, памяти и HNSW-ядра | Публичный |
+| `GET /metrics` | Метрики в формате Prometheus (`http_request_duration_ms`, `eidos_cache_*`, энтропия) | Публичный |
 | `GET /docs` | Интерактивная документация OpenAPI 3.1 (Swagger UI) | Публичный |
 
-### Пример запроса гибридного поиска `POST /v1/search` с рентгеном X-Ray
+### Public Demo API Key (Публичный демо-ключ для Production)
+
+Для мгновенного тестирования поиска, рекомендаций и Redis-кэша в Production окружении без приватного админ-ключа используйте:
+- **Публичный демо-ключ (Read-Only):** `eidos_demo_key` (или `eidos_public_demo_key`)
+- **Публичные эндпоинты без авторизации:** `POST /v1/demo/search` и `POST /v1/demo/recommend`
 
 ```bash
+# Вариант 1: Запрос к /v1/search с публичным демо-ключом eidos_demo_key
 curl -X POST http://localhost:3000/v1/search \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: eidos_dev_key" \
+  -H "x-api-key: eidos_demo_key" \
   -d '{
     "query": "квантовый синтезатор и звук",
     "mode": "hybrid",
     "alpha": 0.65,
+    "limit": 5
+  }'
+
+# Вариант 2: Публичный демо-эндпоинт /v1/demo/search (без заголовка x-api-key)
+curl -X POST http://localhost:3000/v1/demo/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "квантовый синтезатор и звук",
     "limit": 5
   }'
 ```

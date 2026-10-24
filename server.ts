@@ -39,13 +39,15 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 function isApiOrTelemetryRoute(url: string): boolean {
+  const cleanUrl = url.split('?')[0];
   return (
-    url === '/v1' ||
-    url.startsWith('/v1/') ||
-    url === '/docs' ||
-    url.startsWith('/docs/') ||
-    url === '/metrics' ||
-    url.startsWith('/metrics?')
+    cleanUrl === '/v1' ||
+    cleanUrl.startsWith('/v1/') ||
+    cleanUrl === '/health' ||
+    cleanUrl === '/api/health' ||
+    cleanUrl === '/docs' ||
+    cleanUrl.startsWith('/docs/') ||
+    cleanUrl === '/metrics'
   );
 }
 

@@ -1,7 +1,6 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
-import { authenticate } from '../middleware/auth';
 import { getCache } from '../services/cache';
 
 export interface ComponentCheck {
@@ -90,51 +89,46 @@ export async function healthRoutes(
   const bootTime = Date.now();
   const cache = getCache();
 
-  fastify.get(
-    '/v1/health',
-    {
-      preHandler: async (request, reply) => {
-        if (process.env.NODE_ENV === 'production') {
-          return authenticate(request, reply);
-        }
+  const handleHealthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
+    const startTime = Date.now();
+
+    const [redisHealthy, cacheStats] = await Promise.all([
+      cache.healthCheck(),
+      cache.getStats(),
+    ]);
+
+    const checks = {
+      vectorStore: await checkVectorStore(opts.vectorStore),
+      database: await checkDatabase(opts.vectorStore),
+      embeddingModel: await checkEmbeddingModel(opts.embedder),
+      redis: {
+        status: (redisHealthy ? 'ok' : 'degraded') as ComponentCheck['status'],
+        connected: redisHealthy,
+        stats: cacheStats,
       },
-    },
-    async (_request, reply) => {
-      const startTime = Date.now();
+      memory: checkMemory(),
+      uptime: checkUptime(),
+    };
 
-      const [redisHealthy, cacheStats] = await Promise.all([
-        cache.healthCheck(),
-        cache.getStats(),
-      ]);
+    const isHealthy = Object.values(checks).every((c) => c.status === 'ok');
+    const responseTime = Date.now() - startTime;
 
-      const checks = {
-        vectorStore: await checkVectorStore(opts.vectorStore),
-        database: await checkDatabase(opts.vectorStore),
-        embeddingModel: await checkEmbeddingModel(opts.embedder),
-        redis: {
-          status: (redisHealthy ? 'ok' : 'degraded') as ComponentCheck['status'],
-          connected: redisHealthy,
-          stats: cacheStats,
-        },
-        memory: checkMemory(),
-        uptime: checkUptime(),
-      };
+    return reply.status(isHealthy ? 200 : 503).send({
+      status: isHealthy ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      responseTimeMs: responseTime,
+      version: process.env.npm_package_version || '1.0.0',
+      itemsCount: opts.vectorStore.count(),
+      uptimeSeconds: Math.floor((Date.now() - bootTime) / 1000),
+      model: 'all-MiniLM-L6-v2',
+      checks,
+    });
+  };
 
-      const isHealthy = Object.values(checks).every((c) => c.status === 'ok');
-      const responseTime = Date.now() - startTime;
-
-      return reply.status(isHealthy ? 200 : 503).send({
-        status: isHealthy ? 'healthy' : 'degraded',
-        timestamp: new Date().toISOString(),
-        responseTimeMs: responseTime,
-        version: process.env.npm_package_version || '1.0.0',
-        itemsCount: opts.vectorStore.count(),
-        uptimeSeconds: Math.floor((Date.now() - bootTime) / 1000),
-        model: 'all-MiniLM-L6-v2',
-        checks,
-      });
-    }
-  );
+  // Public health check endpoints (no authentication required in any environment)
+  fastify.get('/v1/health', handleHealthCheck);
+  fastify.get('/health', handleHealthCheck);
+  fastify.get('/api/health', handleHealthCheck);
 
   // Readiness probe for Kubernetes
   fastify.get('/v1/health/ready', async (_request, reply) => {

@@ -100,13 +100,39 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     });
   }
 
-  // В production разрешаем ТОЛЬКО переменную окружения EIDOS_API_KEY
+  // Determine if request is a read-only demo-eligible endpoint (/v1/search, /v1/recommend, /v1/catalog/stats)
+  const cleanPath = request.url.split('?')[0];
+  const isReadOnlyDemoEndpoint =
+    cleanPath === '/v1/search' ||
+    cleanPath === '/v1/recommend' ||
+    (request.method === 'GET' && cleanPath.startsWith('/v1/catalog'));
+
   const isProduction = process.env.NODE_ENV === 'production';
+  const configuredProdKey =
+    process.env.EIDOS_API_KEY && process.env.EIDOS_API_KEY !== 'your_secret_key'
+      ? process.env.EIDOS_API_KEY
+      : undefined;
+
+  const publicDemoKeys = isReadOnlyDemoEndpoint
+    ? [
+        process.env.EIDOS_PUBLIC_DEMO_KEY,
+        'eidos_demo_key',
+        'eidos_public_demo_key',
+        // If no custom EIDOS_API_KEY was provisioned in production, also allow documented quickstart keys
+        ...(!configuredProdKey ? ['eidos_dev_key', 'test-key'] : []),
+      ]
+    : [];
+
   const validKeys = isProduction
-    ? [process.env.EIDOS_API_KEY].filter((k): k is string => Boolean(k))
-    : [process.env.EIDOS_API_KEY, 'eidos_dev_key', 'test-key'].filter((k): k is string =>
-        Boolean(k)
-      );
+    ? [configuredProdKey, ...publicDemoKeys].filter((k): k is string => Boolean(k))
+    : [
+        configuredProdKey,
+        process.env.EIDOS_PUBLIC_DEMO_KEY,
+        'eidos_demo_key',
+        'eidos_public_demo_key',
+        'eidos_dev_key',
+        'test-key',
+      ].filter((k): k is string => Boolean(k));
 
   const jwtSecret =
     process.env.JWT_SECRET ||
