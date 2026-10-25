@@ -134,7 +134,9 @@ async function startUnifiedServer() {
         configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
         server: {
           middlewareMode: true,
-          hmr: false,
+          hmr: {
+            server,
+          },
           watch: null,
         },
         appType: 'spa',

@@ -64,6 +64,29 @@ function aistudioMediaPlugin(): Plugin {
 }
 // LINT.ThenChange(//depot/google3/java/com/google/alkali/boq/makersuite/applet_dev_service/templates/initializers/react_theme/vite.config.ts:aistudio_media_plugin)
 
+function silenceHmrWebsocketErrorPlugin(): Plugin {
+  return {
+    name: 'vite-plugin-silence-hmr-ws-error',
+    transform(code, id) {
+      if (id.includes('vite/dist/client/client.mjs')) {
+        return {
+          code: code
+            .replace(
+              'reject(new Error("WebSocket closed without opened."));',
+              'resolve();'
+            )
+            .replace(
+              'transport.connect(createHMRHandler(handleMessage));',
+              'Promise.resolve(transport.connect(createHMRHandler(handleMessage))).catch(() => {});'
+            ),
+          map: null,
+        };
+      }
+      return null;
+    },
+  };
+}
+
 export default defineConfig(() => {
   return {
     root: path.resolve(__dirname),
@@ -74,7 +97,7 @@ export default defineConfig(() => {
       outDir: path.resolve(__dirname, '../../dist'),
       emptyOutDir: true,
     },
-    plugins: [react(), tailwindcss(), aistudioMediaPlugin()],
+    plugins: [react(), tailwindcss(), aistudioMediaPlugin(), silenceHmrWebsocketErrorPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname),
