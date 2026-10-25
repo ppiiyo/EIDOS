@@ -57,12 +57,26 @@ async function startUnifiedServer() {
 
   const server = http.createServer(async (req, res) => {
     const url = req.url || '/';
+    const cleanUrl = url.split('?')[0];
+
+    // Fast-path readiness check for HEAD probes before Vite/Fastify finish cold-start
+    if (req.method === 'HEAD' && !isApiOrTelemetryRoute(url) && !viteMiddlewares && !isProduction) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end();
+      return;
+    }
+
+    // Fast-path /health probe if Fastify is still hydrating
+    if ((cleanUrl === '/health' || cleanUrl === '/api/health') && !fastifyApp) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
+      return;
+    }
 
     // In production mode, serve static files from dist/ immediately without blocking on API hydration
     if (isProduction && !isApiOrTelemetryRoute(url)) {
-      const cleanPath = url.split('?')[0];
       const distDir = path.resolve(process.cwd(), 'dist');
-      const candidateFile = path.join(distDir, cleanPath === '/' ? 'index.html' : cleanPath);
+      const candidateFile = path.join(distDir, cleanUrl === '/' ? 'index.html' : cleanUrl);
 
       if (fs.existsSync(candidateFile) && fs.statSync(candidateFile).isFile()) {
         const ext = path.extname(candidateFile);
@@ -120,9 +134,7 @@ async function startUnifiedServer() {
         configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
         server: {
           middlewareMode: true,
-          hmr: {
-            server,
-          },
+          hmr: false,
           watch: null,
         },
         appType: 'spa',
@@ -133,7 +145,7 @@ async function startUnifiedServer() {
 
   const apiPromise = (async () => {
     await vitePromise;
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
     const { buildServer } = await import('./apps/api/src/server');
     fastifyApp = await buildServer();
     await fastifyApp.ready();
