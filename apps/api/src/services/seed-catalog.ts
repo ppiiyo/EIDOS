@@ -10,6 +10,7 @@ const CATEGORIES = [
   'Fashion',
   'Home',
   'Toys',
+  'Movies',
 ] as const;
 
 const ADJECTIVES = [
@@ -163,6 +164,22 @@ const CATEGORY_NOUNS: Record<string, { nouns: string[]; tags: string[]; basePric
     ],
     tags: ['toys', 'stem', 'robotics', 'educational', 'building', 'engineering'],
     basePrice: 79.99,
+  },
+  Movies: {
+    nouns: [
+      'Sci-Fi Cybernetic Thriller 4K',
+      'Interstellar Space Odyssey',
+      'Quantum Paradox Documentary',
+      'Dystopian AI Rebellion Epic',
+      'Neon Noir Detective Chronicle',
+      'Artificial Consciousness Drama',
+      'Galactic Fleet Commander Saga',
+      'Virtual Simulation Reality Film',
+      'Deep Time Horizon Cinema',
+      'Neural Network Awakening Special',
+    ],
+    tags: ['movies', 'cinema', 'scifi', 'cyberpunk', 'ai', 'space', '4k'],
+    basePrice: 19.99,
   },
 };
 

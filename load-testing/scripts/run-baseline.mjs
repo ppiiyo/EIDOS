@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:3000';
-const API_KEY = process.env.API_KEY || 'eidos_demo_key_2026_public';
+const API_KEY = process.env.API_KEY || 'eidos_public_demo_key_2026';
 
 const POPULAR_QUERIES = [
   'wireless headphones',

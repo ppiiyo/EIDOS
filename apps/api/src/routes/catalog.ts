@@ -65,6 +65,7 @@ export async function catalogRoutes(
       walPending: opts.vectorStore.getWAL().size(),
       categories,
       cache: {
+        type: redisStats.type || 'in-memory',
         ...ApiQueryCache.getInstance().stats(),
         redis: redisStats,
       },

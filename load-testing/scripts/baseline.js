@@ -27,7 +27,7 @@ export const options = {
 
 // Environment variables
 const API_BASE = __ENV.API_BASE || 'http://localhost:3000';
-const API_KEY = __ENV.API_KEY || 'eidos_demo_key';
+const API_KEY = __ENV.API_KEY || 'eidos_public_demo_key_2026';
 
 // Realistic search queries (top 20 popular + 80 long-tail)
 const POPULAR_QUERIES = [

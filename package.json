@@ -24,7 +24,15 @@
     "embeddings:generate": "tsx scripts/generate-embeddings.ts",
     "benchmark": "tsx scripts/benchmark.ts",
     "benchmark:cache": "tsx scripts/benchmark-cache.ts",
-    "test:integration": "tsx scripts/test-real-integration.ts"
+    "test:integration": "tsx scripts/test-real-integration.ts",
+    "data:seed": "tsx scripts/seed-demo-data.ts",
+    "loadtest:setup": "cd load-testing/monitoring && docker-compose up -d",
+    "loadtest:baseline": "k6 run --out prometheus=http://localhost:9090/api/v1/write load-testing/scripts/baseline.js",
+    "loadtest:stress": "k6 run --out prometheus=http://localhost:9090/api/v1/write load-testing/scripts/stress.js",
+    "loadtest:spike": "k6 run --out prometheus=http://localhost:9090/api/v1/write load-testing/scripts/spike.js",
+    "loadtest:soak": "k6 run --out prometheus=http://localhost:9090/api/v1/write load-testing/scripts/soak.js",
+    "loadtest:analyze": "chmod +x load-testing/scripts/analyze-results.sh && ./load-testing/scripts/analyze-results.sh",
+    "loadtest:report": "node load-testing/scripts/generate-report.js"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

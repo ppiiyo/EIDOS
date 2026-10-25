@@ -1,5 +1,17 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import * as crypto from 'crypto';
+import { demoRateLimit } from './rate-limit-demo';
+
+const PUBLIC_ENDPOINTS = [
+  '/v1/health',
+  '/v1/health/live',
+  '/v1/health/ready',
+  '/v1/catalog/stats',
+  '/health',
+  '/api/health',
+  '/metrics',
+  '/docs',
+];
 
 /**
  * Constant-time string comparison to prevent timing side-channel attacks on API tokens.
@@ -73,7 +85,15 @@ export function signJwtToken(
   return `${header}.${body}.${signature}`;
 }
 
+
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<unknown> {
+  const cleanPath = request.url.split('?')[0];
+
+  // Whitelist public endpoints (no auth required)
+  if (PUBLIC_ENDPOINTS.includes(cleanPath) || cleanPath.startsWith('/docs')) {
+    return;
+  }
+
   const apiKeyHeader = (request.headers['x-api-key'] as string) || '';
   const authHeader = request.headers.authorization || '';
 
@@ -101,11 +121,28 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   }
 
   // Determine if request is a read-only demo-eligible endpoint (/v1/search, /v1/recommend, /v1/catalog/stats)
-  const cleanPath = request.url.split('?')[0];
   const isReadOnlyDemoEndpoint =
     cleanPath === '/v1/search' ||
     cleanPath === '/v1/recommend' ||
     (request.method === 'GET' && cleanPath.startsWith('/v1/catalog'));
+
+  // Check if token is a public demo key on read-only demo endpoints
+  const configuredDemoKey = process.env.EIDOS_PUBLIC_DEMO_KEY;
+  const demoKeys = [
+    configuredDemoKey,
+    'eidos_public_demo_key_2026',
+    'eidos_demo_key',
+    'eidos_public_demo_key',
+    'eidos_demo_key_2026_public',
+  ].filter(Boolean) as string[];
+
+  const isDemoKey = demoKeys.some((k) => timingSafeEqual(token, k));
+  if (isDemoKey && isReadOnlyDemoEndpoint) {
+    (request as any).demoMode = true;
+    (request as any).demoRateLimit = 10;
+    await demoRateLimit(request, reply);
+    return;
+  }
 
   const isProduction = process.env.NODE_ENV === 'production';
   const configuredProdKey =
