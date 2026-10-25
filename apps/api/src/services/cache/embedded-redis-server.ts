@@ -4,7 +4,8 @@ import { InMemoryCache } from './in-memory-cache';
 /**
  * Lightweight RESP2-compatible embedded Redis server for single-container production
  * deployments (e.g., Cloud Run / AI Studio) when no external Redis daemon is bound to 6379.
- * If an external redis-server is already listening on 6379, this server gracefully no-ops.
+ * If an external redis-server is already listening on 6379, this server gracefully no-ops
+ * and can automatically take over if the previous listener exits.
  */
 export class EmbeddedRedisServer {
   private server: net.Server | null = null;
@@ -16,7 +17,17 @@ export class EmbeddedRedisServer {
   }
 
   public start(port: number = 6379, host: string = '127.0.0.1'): void {
-    if (this.server) return;
+    if (this.server && this.listening) return;
+
+    if (this.server && !this.listening) {
+      try {
+        this.server.removeAllListeners();
+        this.server.close();
+      } catch {
+        // Ignore cleanup errors
+      }
+      this.server = null;
+    }
 
     const srv = net.createServer((socket) => {
       let buffer = Buffer.alloc(0);
@@ -34,8 +45,14 @@ export class EmbeddedRedisServer {
     });
 
     srv.on('error', () => {
-      // Port 6379 is already occupied by an external redis-server or unavailable; no-op gracefully
+      // Port 6379 is already occupied by an external redis-server or sibling worker; allow future re-bind
       this.listening = false;
+      this.server = null;
+    });
+
+    srv.on('close', () => {
+      this.listening = false;
+      this.server = null;
     });
 
     srv.listen(port, host, () => {
@@ -254,6 +271,8 @@ let embeddedServerInstance: EmbeddedRedisServer | null = null;
 export function ensureEmbeddedRedisServer(store: InMemoryCache, port: number = 6379): EmbeddedRedisServer {
   if (!embeddedServerInstance) {
     embeddedServerInstance = new EmbeddedRedisServer(store);
+  }
+  if (!embeddedServerInstance.isListening()) {
     embeddedServerInstance.start(port);
   }
   return embeddedServerInstance;

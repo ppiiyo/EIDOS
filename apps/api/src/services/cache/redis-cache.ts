@@ -39,10 +39,10 @@ export class RedisCache {
       return;
     }
 
-    if (
-      redisUrl.includes('localhost:6379') ||
-      redisUrl.includes('127.0.0.1:6379')
-    ) {
+    const isLocalRedis =
+      redisUrl.includes('localhost:6379') || redisUrl.includes('127.0.0.1:6379');
+
+    if (isLocalRedis) {
       ensureEmbeddedRedisServer(this.fallbackCache!, 6379);
     }
 
@@ -52,14 +52,18 @@ export class RedisCache {
         db,
         lazyConnect: true,
         enableOfflineQueue: true,
-        connectTimeout: 5000,
-        maxRetriesPerRequest: 3,
+        connectTimeout: 400,
+        commandTimeout: 300,
+        maxRetriesPerRequest: 1,
         enableReadyCheck: true,
         retryStrategy: (times) => {
-          if (times > 3) {
+          if (isLocalRedis && this.fallbackCache) {
+            ensureEmbeddedRedisServer(this.fallbackCache, 6379);
+          }
+          if (times > 2) {
             return null;
           }
-          return Math.min(times * 50, 2000);
+          return Math.min(times * 25, 100);
         },
       });
 
@@ -77,12 +81,18 @@ export class RedisCache {
         this.isRedisConnected = false;
         this.useFallback = true;
         this.initFallback();
+        if (isLocalRedis && this.fallbackCache) {
+          ensureEmbeddedRedisServer(this.fallbackCache, 6379);
+        }
       });
 
       this.redis.on('close', () => {
         this.isRedisConnected = false;
         this.useFallback = true;
         this.initFallback();
+        if (isLocalRedis && this.fallbackCache) {
+          ensureEmbeddedRedisServer(this.fallbackCache, 6379);
+        }
       });
 
       this.redis.connect().catch(() => {
@@ -334,6 +344,22 @@ export class RedisCache {
   async getStats(): Promise<{ keys: number; memory: string; type?: string }> {
     this.initFallback();
     const fallbackStats = await this.fallbackCache!.getStats();
+
+    if (this.redis) {
+      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      if (redisUrl.includes('localhost:6379') || redisUrl.includes('127.0.0.1:6379')) {
+        ensureEmbeddedRedisServer(this.fallbackCache!, 6379);
+        if (this.useFallback || !this.isRedisConnected) {
+          try {
+            await this.redis.connect();
+            this.useFallback = false;
+            this.isRedisConnected = true;
+          } catch {
+            // Already connecting or connected
+          }
+        }
+      }
+    }
 
     if (!this.useFallback && this.redis) {
       try {

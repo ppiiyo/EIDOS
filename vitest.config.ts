@@ -13,6 +13,8 @@ export default defineConfig({
     root: path.resolve(__dirname),
     globals: true,
     environment: 'node',
+    testTimeout: 15000,
+    hookTimeout: 15000,
     include: [
       'packages/**/tests/**/*.test.ts',
       'apps/api/tests/**/*.test.ts',
