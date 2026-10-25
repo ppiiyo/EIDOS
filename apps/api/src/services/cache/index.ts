@@ -11,8 +11,16 @@ export {
 export {
   cacheMetrics,
   recordCacheHit,
+  recordSemanticCacheHit,
   recordCacheMiss,
   recordCacheOperation,
   recordCacheError,
   recordCacheKeysTotal,
 } from './cache-metrics';
+export {
+  SemanticQueryCache,
+  getSemanticCache,
+  type SemanticCacheEntry,
+  type SemanticLookupResult,
+} from './semantic-cache';
+

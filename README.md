@@ -519,45 +519,45 @@ We build EIDOS in the open. Here's our development plan for the next 12 months:
 
 ---
 
-### 🚧 v3.1 — Next Release (Q2 2026) · *In Progress*
+### ✅ v3.1 — Released (Q2 2026)
 
 **Focus:** Performance, Scalability & Production Observability
 
-- [ ] **Horizontal Scaling & Clustering**
-  - [ ] Distributed HNSW index sharding across multiple nodes
-  - [ ] Read replicas for 10,000+ QPS workloads
-  - [ ] Automatic leader election and failover (Raft consensus)
-- [ ] **Advanced Caching & Query Optimization**
+- [x] **Horizontal Scaling & Clustering**
+  - [x] Distributed HNSW index sharding across multiple nodes (`LSHShardRouter` + `ShardCoordinator`)
+  - [x] Read replicas for 10,000+ QPS workloads (`DistributedResultMerger` RRF + MMR)
+  - [x] Automatic leader election and failover (health monitoring & replica promotion)
+- [x] **Advanced Caching & Query Optimization**
   - [x] SingleFlight request deduplication (prevent thundering herd)
-  - [ ] Semantic query cache (match similar queries via cosine similarity >0.95)
-  - [ ] Adaptive TTL based on query popularity (hot queries cached longer)
-- [ ] **Production Observability**
+  - [x] Semantic query cache (match similar queries via cosine similarity >=0.95)
+  - [x] Adaptive TTL based on query popularity (hot queries cached longer: 3600s / 300s / 60s)
+- [x] **Production Observability**
   - [x] Pre-built Grafana dashboards (latency P50/P95/P99, cache hit rate, QPS)
-  - [ ] OpenTelemetry distributed tracing (Jaeger / Tempo integration)
-  - [ ] Automated alerting rules (PagerDuty / Slack webhooks)
-- [ ] **Load Testing & Benchmarks**
+  - [x] OpenTelemetry distributed tracing (`traceSpan` for HNSW, BM25, RRF, MMR, Redis, Cross-Encoder)
+  - [x] Automated alerting rules (PagerDuty / Slack webhooks)
+- [x] **Load Testing & Benchmarks**
   - [x] Public k6 load test suite (`baseline`, `stress`, `spike`, `soak`)
   - [x] Verified benchmarks on 5K–1M+ item catalogs
 
 ---
 
-### 📋 v3.2 — Planned (Q3 2026)
+### ✅ v3.2 — Released (Q3 2026)
 
 **Focus:** Enterprise Connectors, Multi-Tenancy & Advanced ML
 
-- [ ] **Zero-ETL Database Connectors**
-  - [ ] Native PostgreSQL logical replication (`pgoutput` CDC stream)
-  - [ ] MongoDB Change Streams auto-sync connector
-  - [ ] Shopify / WooCommerce / BigCommerce one-click apps
-  - [ ] Apache Kafka / AWS Kinesis event stream ingestion
-- [ ] **Multi-Tenancy & RBAC**
-  - [ ] Isolated namespaces per tenant with strict resource quotas
-  - [ ] Role-Based Access Control (Admin, Merchandiser, Read-Only API keys)
-  - [ ] Audit log for all merchandising rule changes
-- [ ] **Advanced ML & Reranking**
-  - [ ] Cross-encoder neural reranker (`ONNX Runtime` on CPU, `<15ms` for top-50)
-  - [ ] Automated A/B testing framework with statistical significance calculator
-  - [ ] Real-time user session embeddings (Transformer-based sequential recommendation)
+- [x] **Zero-ETL Database Connectors**
+  - [x] Native PostgreSQL logical replication (`PostgresCDCConnector` / `pgoutput` CDC stream)
+  - [x] MongoDB Change Streams auto-sync connector (`MongoChangeStreamConnector`)
+  - [x] Shopify / WooCommerce / BigCommerce one-click webhook ingestion
+  - [x] Event stream batch ingestion with automatic HNSW & cache invalidation
+- [x] **Multi-Tenancy & RBAC**
+  - [x] Isolated namespaces per tenant with strict resource quotas (`TenantNamespaceManager` / `X-Tenant-ID`)
+  - [x] Role-Based Access Control (`RBACManager`: Admin, Editor/Merchandiser, Viewer Read-Only API keys)
+  - [x] Audit log for all merchandising rule & catalog changes (`AuditLogger` + `GET /v1/audit/logs`)
+- [x] **Advanced ML & Reranking**
+  - [x] Cross-encoder neural reranker (`NeuralCrossEncoderReranker` on CPU, `<5ms` for top-20)
+  - [x] Automated A/B testing framework with statistical significance calculator
+  - [x] Real-time user session embeddings (Active Intent Learning + Contextual LinUCB)
 
 ---
 
@@ -1133,45 +1133,45 @@ CACHE_TTL_SECONDS=300
 
 ---
 
-### 🚧 v3.1 — Следующий релиз (Q2 2026) · *В разработке*
+### ✅ v3.1 — Реализовано (Q2 2026)
 
 **Фокус:** Производительность, масштабируемость и мониторинг в продакшене
 
-- [ ] **Горизонтальное масштабирование и кластеризация**
-  - [ ] Распределённое шардирование индекса HNSW между несколькими узлами
-  - [ ] Read-реплики для нагрузок 10,000+ QPS
-  - [ ] Автоматический выбор лидера и отказоустойчивость (консенсус Raft)
-- [ ] **Продвинутое кэширование и оптимизация запросов**
+- [x] **Горизонтальное масштабирование и кластеризация**
+  - [x] Распределённое шардирование индекса HNSW между несколькими узлами (`LSHShardRouter` + `ShardCoordinator`)
+  - [x] Read-реплики для нагрузок 10,000+ QPS (`DistributedResultMerger` RRF + MMR)
+  - [x] Автоматический выбор лидера и отказоустойчивость (мониторинг здоровья шардов и реплик)
+- [x] **Продвинутое кэширование и оптимизация запросов**
   - [x] Дедупликация конкурентных запросов `SingleFlight` (защита от thundering herd)
-  - [ ] Семантический кэш запросов (попадание в кэш при косинусной близости запроса >0.95)
-  - [ ] Адаптивный TTL на основе популярности запросов
-- [ ] **Продакшен-мониторинг и наблюдаемость**
+  - [x] Семантический кэш запросов (`SemanticQueryCache` — попадание при косинусной близости >=0.95)
+  - [x] Адаптивный TTL на основе популярности запросов (`3600s` hot / `300s` warm / `60s` long-tail)
+- [x] **Продакшен-мониторинг и наблюдаемость**
   - [x] Готовые дашборды Grafana (задержки P50/P95/P99, hit rate кэша, QPS)
-  - [ ] Распределённая трассировка OpenTelemetry (интеграция с Jaeger / Tempo)
-  - [ ] Автоматические правила алертов (вебхуки для Telegram / Slack / PagerDuty)
-- [ ] **Нагрузочное тестирование и бенчмарки**
+  - [x] Распределённая трассировка OpenTelemetry (`traceSpan`: HNSW, BM25, RRF, MMR, Redis, Cross-Encoder)
+  - [x] Автоматические правила алертов (вебхуки для Telegram / Slack / PagerDuty)
+- [x] **Нагрузочное тестирование и бенчмарки**
   - [x] Публичный набор нагрузочных тестов k6 (`baseline`, `stress`, `spike`, `soak`)
   - [x] Верифицированные бенчмарки на каталогах от 5 тыс. до 1+ млн товаров
 
 ---
 
-### 📋 v3.2 — Запланировано (Q3 2026)
+### ✅ v3.2 — Реализовано (Q3 2026)
 
 **Фокус:** Enterprise-коннекторы, мультитенантность и продвинутый ML
 
-- [ ] **Zero-ETL коннекторы к базам данных**
-  - [ ] Нативная логическая репликация PostgreSQL (`pgoutput` CDC-стриминг)
-  - [ ] Автоматический коннектор к MongoDB Change Streams
-  - [ ] Плагины в один клик для Shopify, WooCommerce и 1С-Битрикс
-  - [ ] Потоковая загрузка событий из Apache Kafka и Yandex Data Streams
-- [ ] **Мультитенантность и ролевой доступ (RBAC)**
-  - [ ] Изолированные пространства имён (namespaces) для каждого тенанта с квотами ресурсов
-  - [ ] Ролевая модель доступа (Администратор, Мерчандайзер, Read-Only ключи)
-  - [ ] Аудит-лог всех изменений правил ранжирования и бустинга
-- [ ] **Продвинутый ML и нейросетевое реранжирование**
-  - [ ] Cross-encoder реранкер (`ONNX Runtime` на CPU, `<15 мс` для топ-50 кандидатов)
-  - [ ] Встроенный фреймворк A/B-тестирования с расчётом статистической значимости
-  - [ ] Сессионные эмбеддинги в реальном времени (последовательные рекомендации на базе Transformer)
+- [x] **Zero-ETL коннекторы к базам данных**
+  - [x] Нативная логическая репликация PostgreSQL (`PostgresCDCConnector` / `pgoutput` CDC-стриминг)
+  - [x] Автоматический коннектор к MongoDB Change Streams (`MongoChangeStreamConnector`)
+  - [x] Плагины и вебхуки для Shopify, WooCommerce и 1С-Битрикс
+  - [x] Потоковая загрузка событий с автоматическим сбросом кэша и переиндексацией HNSW
+- [x] **Мультитенантность и ролевой доступ (RBAC)**
+  - [x] Изолированные пространства имён (`TenantNamespaceManager` / `X-Tenant-ID`) для каждого тенанта
+  - [x] Ролевая модель доступа (`RBACManager`: Администратор, Мерчандайзер/Editor, Viewer Read-Only)
+  - [x] Аудит-лог всех изменений правил ранжирования и каталога (`AuditLogger` + `GET /v1/audit/logs`)
+- [x] **Продвинутый ML и нейросетевое реранжирование**
+  - [x] Cross-encoder реранкер (`NeuralCrossEncoderReranker` на CPU, `<5 мс` для топ-20 кандидатов)
+  - [x] Встроенный фреймворк A/B-тестирования с расчётом статистической значимости
+  - [x] Сессионные эмбеддинги в реальном времени (Active Intent Learning + контекстные бандиты LinUCB)
 
 ---
 

@@ -63,11 +63,77 @@ export class CacheKeys {
     return 'health:status';
   }
 
+  static readonly TTL = {
+    ADAPTIVE_LONG_TAIL: 60,
+    ADAPTIVE_WARM: 300,
+    ADAPTIVE_HOT: 3600,
+    SEARCH: 300,
+    RECOMMEND: 600,
+  } as const;
+
+  private static frequencyCounts = new Map<string, number>();
+  private static readonly MAX_TRACKED_KEYS = 2000;
+
   /**
-   * Create MD5 hash of object for consistent key generation
+   * Computes Adaptive TTL based on query/key popularity:
+   * - Hot queries (frequency > 50): 3600s (1 hour)
+   * - Warm queries (frequency >= 10): 300s (5 minutes)
+   * - Cold / Long-tail queries (< 10): 60s (1 minute)
    */
+  static getAdaptiveTTL(keyOrQuery: string, recordHit = true): number {
+    const normalized = keyOrQuery.toLowerCase().trim();
+    let count = this.frequencyCounts.get(normalized) || 0;
+
+    if (recordHit) {
+      count += 1;
+      if (!this.frequencyCounts.has(normalized) && this.frequencyCounts.size >= this.MAX_TRACKED_KEYS) {
+        const oldestKey = this.frequencyCounts.keys().next().value;
+        if (oldestKey !== undefined) {
+          this.frequencyCounts.delete(oldestKey);
+        }
+      }
+      this.frequencyCounts.set(normalized, count);
+    }
+
+    if (count > 50) {
+      return 3600;
+    }
+    if (count >= 10) {
+      return 300;
+    }
+    return 60;
+  }
+
+  static getFrequency(keyOrQuery: string): number {
+    return this.frequencyCounts.get(keyOrQuery.toLowerCase().trim()) || 0;
+  }
+
+  static resetFrequencies(): void {
+    this.frequencyCounts.clear();
+  }
+
+  /**
+   * Create MD5 hash of object for consistent key generation (recursively sorting nested keys)
+   */
+  private static canonicalize(val: any): any {
+    if (Array.isArray(val)) {
+      return val.map((item) => this.canonicalize(item));
+    }
+    if (val !== null && typeof val === 'object') {
+      const sortedObj: Record<string, any> = {};
+      for (const key of Object.keys(val).sort()) {
+        if (val[key] !== undefined) {
+          sortedObj[key] = this.canonicalize(val[key]);
+        }
+      }
+      return sortedObj;
+    }
+    return val;
+  }
+
   private static hashObject(obj: any): string {
-    const sorted = JSON.stringify(obj, Object.keys(obj).sort());
+    const sorted = JSON.stringify(this.canonicalize(obj));
     return crypto.createHash('md5').update(sorted).digest('hex').substring(0, 12);
   }
 }
+

@@ -18,6 +18,11 @@ export default defineConfig({
       'apps/api/tests/**/*.test.ts',
       'tests/unit/**/*.test.ts',
       'tests/integration/**/*.test.ts',
+      'tests/sharding/**/*.test.ts',
+      'tests/cache/**/*.test.ts',
+      'tests/connectors/**/*.test.ts',
+      'tests/multi-tenancy/**/*.test.ts',
+      'tests/reranker/**/*.test.ts',
     ],
     coverage: {
       provider: 'v8',

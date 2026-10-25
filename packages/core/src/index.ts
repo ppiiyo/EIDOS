@@ -17,3 +17,5 @@ export * from './bm25';
 export * from './cache';
 export * from './metrics';
 export * from './csv';
+export * from './sharding';
+

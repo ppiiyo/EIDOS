@@ -81,6 +81,12 @@ export const cacheMetrics = {
     help: 'Total number of cache errors',
     labelNames: ['operation', 'error_type'] as const,
   }),
+
+  semanticHits: getOrCreateCounter({
+    name: 'eidos_cache_semantic_hits_total',
+    help: 'Total number of semantic query cache hits (cosine similarity >= threshold)',
+    labelNames: ['endpoint'] as const,
+  }),
 };
 
 // Also register extended cache metrics in @eidos/core Metrics.registry so /metrics exposes them seamlessly
@@ -100,6 +106,11 @@ const coreCacheErrors = new CounterMetric(
   'Total number of cache errors',
   ['operation', 'error_type']
 );
+const coreSemanticHits = new CounterMetric(
+  'eidos_cache_semantic_hits_total',
+  'Total number of semantic query cache hits (cosine similarity >= threshold)',
+  ['endpoint']
+);
 
 let coreRegistered = false;
 function ensureCoreRegistered(): void {
@@ -108,6 +119,7 @@ function ensureCoreRegistered(): void {
     Metrics.registry.register(coreOperationDuration);
     Metrics.registry.register(coreKeysTotal);
     Metrics.registry.register(coreCacheErrors);
+    Metrics.registry.register(coreSemanticHits);
   }
 }
 ensureCoreRegistered();
@@ -128,6 +140,15 @@ export function recordCacheHit(endpoint: string = 'unknown', cacheType: string =
     cacheMetrics.hitRate.set({ endpoint: 'all' }, rate);
     Metrics.cacheHitRate.set(rate);
   }
+}
+
+/**
+ * Record semantic cache hit
+ */
+export function recordSemanticCacheHit(endpoint: string = 'search'): void {
+  cacheMetrics.semanticHits.inc({ endpoint });
+  coreSemanticHits.inc({ endpoint });
+  recordCacheHit(endpoint, 'semantic');
 }
 
 /**
@@ -173,3 +194,4 @@ export function recordCacheError(operation: string, errorType: string): void {
   cacheMetrics.errors.inc({ operation, error_type: errorType });
   coreCacheErrors.inc({ operation, error_type: errorType });
 }
+

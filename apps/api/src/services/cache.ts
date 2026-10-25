@@ -2,6 +2,8 @@ export { RedisCache, getCache } from './cache/redis-cache';
 export { CacheKeys } from './cache/cache-keys';
 export { SingleFlight, getSingleFlight } from './cache/singleflight';
 export { InMemoryCache } from './cache/in-memory-cache';
+export { SemanticQueryCache, getSemanticCache } from './cache/semantic-cache';
+export type { SemanticCacheEntry, SemanticLookupResult } from './cache/semantic-cache';
 export {
   isCacheKeySafe,
   isResponseCacheable,
@@ -11,6 +13,7 @@ export {
 export {
   cacheMetrics,
   recordCacheHit,
+  recordSemanticCacheHit,
   recordCacheMiss,
   recordCacheOperation,
   recordCacheError,

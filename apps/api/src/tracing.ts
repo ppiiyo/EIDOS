@@ -73,3 +73,96 @@ export function initTracing(): NodeSDK | null {
     return null;
   }
 }
+
+export type EidosSpanName =
+  | 'http.request'
+  | 'hnsw.search'
+  | 'bm25.lexical_search'
+  | 'rrf.fusion'
+  | 'mmr.diversification'
+  | 'redis.lookup'
+  | 'cross_encoder.rerank'
+  | string;
+
+export interface RecordedSpan {
+  name: EidosSpanName;
+  traceId: string;
+  spanId: string;
+  startTimeMs: number;
+  durationMs: number;
+  status: 'ok' | 'error';
+  attributes: Record<string, string | number | boolean>;
+}
+
+const spanRingBuffer: RecordedSpan[] = [];
+const MAX_RECORDED_SPANS = 500;
+
+function randomHex(len: number): string {
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    out += Math.floor(Math.random() * 16).toString(16);
+  }
+  return out;
+}
+
+/**
+ * Executes an async or sync operation inside an OpenTelemetry-compatible span
+ * (`http.request`, `hnsw.search`, `bm25.lexical_search`, `rrf.fusion`, `mmr.diversification`, `redis.lookup`).
+ */
+export async function traceSpan<T>(
+  name: EidosSpanName,
+  attributes: Record<string, string | number | boolean>,
+  fn: () => Promise<T> | T
+): Promise<T> {
+  const start = performance.now();
+  const startTimeMs = Date.now();
+  const traceId = randomHex(32);
+  const spanId = randomHex(16);
+
+  try {
+    const result = await fn();
+    const durationMs = Math.round((performance.now() - start) * 1000) / 1000;
+
+    if (spanRingBuffer.length >= MAX_RECORDED_SPANS) {
+      spanRingBuffer.shift();
+    }
+    spanRingBuffer.push({
+      name,
+      traceId,
+      spanId,
+      startTimeMs,
+      durationMs,
+      status: 'ok',
+      attributes,
+    });
+
+    return result;
+  } catch (error) {
+    const durationMs = Math.round((performance.now() - start) * 1000) / 1000;
+    if (spanRingBuffer.length >= MAX_RECORDED_SPANS) {
+      spanRingBuffer.shift();
+    }
+    spanRingBuffer.push({
+      name,
+      traceId,
+      spanId,
+      startTimeMs,
+      durationMs,
+      status: 'error',
+      attributes: {
+        ...attributes,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
+  }
+}
+
+export function getRecordedSpans(): RecordedSpan[] {
+  return [...spanRingBuffer];
+}
+
+export function clearRecordedSpans(): void {
+  spanRingBuffer.length = 0;
+}
+

@@ -7,9 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.2.0] - 2026-10-25
+
+### Added
+- **Zero-ETL Database Connectors** (`apps/api/src/connectors/`):
+  - `PostgresCDCConnector` for logical replication (`wal2json` / `pgoutput`) `INSERT`, `UPDATE`, and `DELETE` batch ingestion with automatic 384-d vectorization and cache invalidation.
+  - `MongoChangeStreamConnector` for MongoDB Change Streams (`insert`, `update`, `replace`, `delete`) with resume-token idempotency.
+- **Multi-Tenancy, RBAC & Audit Logging** (`apps/api/src/services/multi-tenancy.ts`, `apps/api/src/routes/enterprise.ts`):
+  - `TenantNamespaceManager` providing isolated `VectorStore` namespaces per tenant (`X-Tenant-ID` or `eidos_tenant_<id>_<key>`).
+  - `RBACManager` enforcing `admin`, `editor`, and `viewer` permissions across API mutations and administrative endpoints.
+  - `AuditLogger` with immutable audit trail (`GET /v1/audit/logs`, `POST /v1/merchandising/rules`, `GET /v1/tenants`).
+- **Stage-2 Neural Cross-Encoder Reranker** (`apps/api/src/services/reranker.ts`):
+  - `NeuralCrossEncoderReranker` performing sub-5ms CPU batched cross-attention token alignment and 384-d Hadamard/L1 interaction scoring (`rerank: true`, `rerankGamma`).
+
+---
+
 ## [3.1.0] - 2026-10-24
 
 ### Added
+- **Distributed HNSW Sharding & Query Router** (`packages/core/src/sharding/`):
+  - `LSHShardRouter` with random hyperplane projections and Consistent Hashing virtual node ring.
+  - `ShardCoordinator` and `DistributedResultMerger` (multi-shard RRF and MMR scatter-gather fusion).
+- **Semantic Query Cache & Adaptive TTL** (`apps/api/src/services/cache/semantic-cache.ts`, `cache-keys.ts`):
+  - `SemanticQueryCache` returning `x-cache: SEMANTIC_HIT` when query embedding cosine similarity `>= 0.95` (`eidos_cache_semantic_hits_total` metric).
+  - `CacheKeys.getAdaptiveTTL()` dynamically scaling TTL (`3600s` hot, `300s` warm, `60s` long-tail) via sliding-window frequency tracking.
+- **OpenTelemetry Tracing Spans** (`apps/api/src/tracing.ts`):
+  - `traceSpan` instrumentation for `http.request`, `hnsw.search`, `bm25.lexical_search`, `rrf.fusion`, `mmr.diversification`, `redis.lookup`, and `cross_encoder.rerank`.
 - Public demo API key for testing (`eidos_public_demo_key_2026`)
 - Load testing infrastructure with k6, Prometheus, Grafana
 - 4 test scenarios: baseline, stress, spike, soak

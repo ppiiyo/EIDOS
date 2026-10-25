@@ -8,8 +8,10 @@ import { recommendRoutes } from '../routes/recommend';
 import { recommendUserRoutes } from '../routes/recommend-user';
 import { recommendAdaptiveRoutes } from '../routes/recommend-adaptive';
 import { feedbackRoutes } from '../routes/feedback';
+import { enterpriseRoutes } from '../routes/enterprise';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
+import { TenantNamespaceManager } from '../services/multi-tenancy';
 
 export interface ApiRoutesPluginOptions {
   vectorStore: VectorStore;
@@ -20,6 +22,8 @@ export async function apiRoutesPlugin(
   fastify: FastifyInstance,
   opts: ApiRoutesPluginOptions
 ): Promise<void> {
+  TenantNamespaceManager.getInstance().setDefaultStore(opts.vectorStore);
+
   // Ensure reply.sendFile is available even if @fastify/static is not mounted
   if (!fastify.hasReplyDecorator('sendFile')) {
     fastify.decorateReply('sendFile', function (this: FastifyReply, filename: string) {
@@ -65,6 +69,7 @@ export async function apiRoutesPlugin(
     vectorStore: opts.vectorStore,
   });
   await fastify.register(feedbackRoutes);
+  await fastify.register(enterpriseRoutes);
 
   // 404 JSON handler for unknown /v1/* API endpoints; SPA fallback ONLY for non-API routes
   fastify.setNotFoundHandler((request, reply) => {

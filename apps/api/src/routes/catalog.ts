@@ -6,7 +6,8 @@ import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
 import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
-import { getCache, CacheKeys } from '../services/cache';
+import { getCache, CacheKeys, getSemanticCache } from '../services/cache';
+import { TenantNamespaceManager, RBACManager, AuditLogger } from '../services/multi-tenancy';
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -37,9 +38,18 @@ export async function catalogRoutes(
   opts: { vectorStore: VectorStore; embedder: ServerEmbedder }
 ): Promise<void> {
   const cache = getCache();
+  const semanticCache = getSemanticCache();
+  const tenantManager = TenantNamespaceManager.getInstance();
+
+  function resolveStore(request: any): { store: VectorStore; tenantId: string } {
+    const tenantId = tenantManager.resolveTenantId(request);
+    const store = tenantId === 'default' ? opts.vectorStore : tenantManager.getStore(tenantId);
+    return { store, tenantId };
+  }
 
   async function invalidateCatalogCaches(): Promise<void> {
     ApiQueryCache.invalidateAll();
+    semanticCache.clear();
     await Promise.all([
       cache.invalidate('search:*'),
       cache.invalidate('recommend:*'),
@@ -50,8 +60,9 @@ export async function catalogRoutes(
   /**
    * Catalog statistics & diagnostics endpoint.
    */
-  fastify.get('/v1/catalog/stats', async () => {
-    const allItems = opts.vectorStore.getAll();
+  fastify.get('/v1/catalog/stats', async (request) => {
+    const { store } = resolveStore(request);
+    const allItems = store.getAll();
     const categories: Record<string, number> = {};
     for (const item of allItems) {
       categories[item.category] = (categories[item.category] || 0) + 1;
@@ -60,9 +71,9 @@ export async function catalogRoutes(
     const redisStats = await cache.getStats();
 
     return {
-      totalItems: opts.vectorStore.count(),
-      hnswIndexed: opts.vectorStore.getHNSW().size(),
-      walPending: opts.vectorStore.getWAL().size(),
+      totalItems: store.count(),
+      hnswIndexed: store.getHNSW().size(),
+      walPending: store.getWAL().size(),
       categories,
       cache: {
         type: redisStats.type || 'in-memory',
@@ -77,6 +88,16 @@ export async function catalogRoutes(
    */
   fastify.post('/v1/catalog/upsert', { preHandler: authenticate }, async (request, reply) => {
     try {
+      const role = RBACManager.resolveRole(request);
+      if (!RBACManager.hasPermission(role, 'write')) {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: `Role '${role}' is not permitted to perform catalog mutations`,
+        });
+      }
+
+      const { store, tenantId } = resolveStore(request);
       const validated = upsertItemSchema.parse(request.body);
 
       let embedding = validated.embedding;
@@ -86,7 +107,7 @@ export async function catalogRoutes(
         embedding = Array.from(vec);
       }
 
-      opts.vectorStore.upsert({
+      store.upsert({
         ...validated,
         description: validated.description || '',
         category: validated.category || 'General',
@@ -95,7 +116,7 @@ export async function catalogRoutes(
       });
 
       await invalidateCatalogCaches();
-      Metrics.vectorStoreSize.set(opts.vectorStore.count());
+      Metrics.vectorStoreSize.set(store.count());
 
       if (AILManager.isEnabled()) {
         const ail = AILManager.getInstance();
@@ -104,6 +125,13 @@ export async function catalogRoutes(
           freshness: 1.0,
         });
       }
+
+      AuditLogger.getInstance().record({
+        tenantId,
+        actorRole: role,
+        action: 'catalog.upsert',
+        resourceId: validated.id,
+      });
 
       return reply.status(200).send({
         success: true,
@@ -131,6 +159,16 @@ export async function catalogRoutes(
    */
   fastify.post('/v1/catalog/items', { preHandler: authenticate }, async (request, reply) => {
     try {
+      const role = RBACManager.resolveRole(request);
+      if (!RBACManager.hasPermission(role, 'write')) {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: `Role '${role}' is not permitted to perform catalog mutations`,
+        });
+      }
+
+      const { store, tenantId } = resolveStore(request);
       const body = request.body as Record<string, any>;
       const rawItems = Array.isArray(body?.items) ? body.items : [body];
       const parsedItems = z.array(catalogItemSchema).min(1).max(500).parse(rawItems);
@@ -144,7 +182,7 @@ export async function catalogRoutes(
           embedding = Array.from(vec);
         }
 
-        opts.vectorStore.upsert({
+        store.upsert({
           ...item,
           description: item.description || '',
           category: item.category || 'General',
@@ -156,7 +194,14 @@ export async function catalogRoutes(
 
       // Invalidate search and recommend caches when catalog changes
       await invalidateCatalogCaches();
-      Metrics.vectorStoreSize.set(opts.vectorStore.count());
+      Metrics.vectorStoreSize.set(store.count());
+
+      AuditLogger.getInstance().record({
+        tenantId,
+        actorRole: role,
+        action: 'catalog.items.upsert',
+        metadata: { indexedCount },
+      });
 
       return reply.status(201).send({
         success: true,
@@ -183,12 +228,22 @@ export async function catalogRoutes(
     '/v1/catalog/items/:id',
     { preHandler: authenticate },
     async (request, reply) => {
+      const role = RBACManager.resolveRole(request);
+      if (!RBACManager.hasPermission(role, 'write')) {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: `Role '${role}' is not permitted to delete catalog items`,
+        });
+      }
+
+      const { store, tenantId } = resolveStore(request);
       const { id } = request.params;
-      const deleted = opts.vectorStore.delete(id);
+      const deleted = store.delete(id);
 
       // Invalidate caches on deletion
       await invalidateCatalogCaches();
-      Metrics.vectorStoreSize.set(opts.vectorStore.count());
+      Metrics.vectorStoreSize.set(store.count());
 
       if (!deleted) {
         return reply.status(404).send({
@@ -197,6 +252,13 @@ export async function catalogRoutes(
           message: `Item '${id}' not found in catalog`,
         });
       }
+
+      AuditLogger.getInstance().record({
+        tenantId,
+        actorRole: role,
+        action: 'catalog.delete',
+        resourceId: id,
+      });
 
       return reply.status(200).send({
         success: true,
@@ -209,6 +271,16 @@ export async function catalogRoutes(
    * Batch catalog ingestion using batch embedding inference (BUG #4).
    */
   fastify.post('/v1/catalog', { preHandler: authenticate }, async (request, reply) => {
+    const role = RBACManager.resolveRole(request);
+    if (!RBACManager.hasPermission(role, 'write')) {
+      return reply.status(403).send({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: `Role '${role}' is not permitted to ingest catalog items`,
+      });
+    }
+
+    const { store, tenantId } = resolveStore(request);
     const parseResult = ingestPayloadSchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply.status(400).send({
@@ -242,7 +314,7 @@ export async function catalogRoutes(
 
     let indexed = 0;
     for (const item of items) {
-      opts.vectorStore.upsert({
+      store.upsert({
         ...item,
         description: item.description || '',
         category: item.category || 'General',
@@ -262,7 +334,14 @@ export async function catalogRoutes(
     }
 
     await invalidateCatalogCaches();
-    Metrics.vectorStoreSize.set(opts.vectorStore.count());
+    Metrics.vectorStoreSize.set(store.count());
+
+    AuditLogger.getInstance().record({
+      tenantId,
+      actorRole: role,
+      action: 'catalog.batch_ingest',
+      metadata: { indexedCount: indexed },
+    });
 
     const durationMs = Date.now() - start;
     return reply.status(201).send({

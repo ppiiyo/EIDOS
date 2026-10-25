@@ -1,0 +1,259 @@
+import crypto from 'crypto';
+import { FastifyRequest } from 'fastify';
+import { VectorStore } from './vector-store';
+
+export type EidosRole = 'admin' | 'merchandiser' | 'editor' | 'readonly' | 'viewer';
+
+export interface TenantQuota {
+  maxItems: number;
+  rateLimitPerMin: number;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  tenantId: string;
+  actorRole: EidosRole;
+  action: string;
+  resourceId?: string;
+  details: Record<string, unknown>;
+  integrityHash: string;
+}
+
+/**
+ * Multi-Tenancy Namespace Manager, RBAC Access Control, and Tamper-Evident Audit Logger.
+ * Ensures 100% vector & lexical index isolation between tenants while maintaining backward
+ * compatibility with the default namespace ('default').
+ */
+export class TenantNamespaceManager {
+  private static instance: TenantNamespaceManager | null = null;
+  private readonly tenantStores = new Map<string, VectorStore>();
+  private readonly tenantQuotas = new Map<string, TenantQuota>();
+  private readonly defaultQuota: TenantQuota = {
+    maxItems: 100_000,
+    rateLimitPerMin: 5_000,
+  };
+
+  public static getInstance(): TenantNamespaceManager {
+    if (!TenantNamespaceManager.instance) {
+      TenantNamespaceManager.instance = new TenantNamespaceManager();
+    }
+    return TenantNamespaceManager.instance;
+  }
+
+  /**
+   * Registers the default shared VectorStore so existing single-tenant requests
+   * operate with zero overhead or behavior change.
+   */
+  public setDefaultStore(store: VectorStore): void {
+    this.tenantStores.set('default', store);
+  }
+
+  public reset(): void {
+    const def = this.tenantStores.get('default');
+    this.tenantStores.clear();
+    this.tenantQuotas.clear();
+    if (def) {
+      this.tenantStores.set('default', def);
+    }
+  }
+
+  /**
+   * Resolves the tenant namespace ID from `X-Tenant-ID` header or API key prefix (`eidos_tenant_<tenant>_<key>`).
+   */
+  public resolveTenantId(request?: FastifyRequest | { headers?: Record<string, any> }): string {
+    if (!request || !request.headers) return 'default';
+
+    const headerTenant = request.headers['x-tenant-id'];
+    if (typeof headerTenant === 'string' && headerTenant.trim().length > 0) {
+      return headerTenant.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    }
+
+    const apiKey = String(request.headers['x-api-key'] || '');
+    const prefixMatch = apiKey.match(/^eidos_tenant_([a-z0-9_-]+)_/i);
+    if (prefixMatch && prefixMatch[1]) {
+      return prefixMatch[1].toLowerCase();
+    }
+
+    return 'default';
+  }
+
+  /**
+   * Retrieves or creates an isolated VectorStore for the given tenant namespace.
+   */
+  public getStore(tenantId = 'default'): VectorStore {
+    const cleanId = (tenantId || 'default').toLowerCase().trim();
+    let store = this.tenantStores.get(cleanId);
+    if (!store) {
+      store = new VectorStore();
+      this.tenantStores.set(cleanId, store);
+    }
+    return store;
+  }
+
+  public setTenantQuota(tenantId: string, quota: Partial<TenantQuota>): void {
+    const cleanId = tenantId.toLowerCase().trim();
+    const current = this.getTenantQuota(cleanId);
+    this.tenantQuotas.set(cleanId, { ...current, ...quota });
+  }
+
+  public getTenantQuota(tenantId: string): TenantQuota {
+    return this.tenantQuotas.get(tenantId.toLowerCase().trim()) || this.defaultQuota;
+  }
+
+  public checkItemQuota(tenantId: string): { allowed: boolean; currentCount: number; maxItems: number } {
+    const store = this.getStore(tenantId);
+    const quota = this.getTenantQuota(tenantId);
+    const currentCount = store.count();
+    return {
+      allowed: currentCount < quota.maxItems,
+      currentCount,
+      maxItems: quota.maxItems,
+    };
+  }
+
+  public listTenants(): Array<{ tenantId: string; itemCount: number; quota: TenantQuota }> {
+    const out: Array<{ tenantId: string; itemCount: number; quota: TenantQuota }> = [];
+    for (const [tenantId, store] of this.tenantStores.entries()) {
+      out.push({
+        tenantId,
+        itemCount: store.count(),
+        quota: this.getTenantQuota(tenantId),
+      });
+    }
+    return out;
+  }
+}
+
+/**
+ * Role-Based Access Control (RBAC) Evaluator for Admin, Merchandiser/Editor, and Read-Only/Viewer roles.
+ */
+export class RBACManager {
+  public static resolveRole(
+    request?: FastifyRequest | { headers?: Record<string, any>; demoMode?: boolean }
+  ): EidosRole {
+    if (!request || !request.headers) return 'readonly';
+    if ((request as any).demoMode) return 'readonly';
+
+    const apiKey = String(request.headers['x-api-key'] || '');
+    if (
+      apiKey.includes('demo_key') ||
+      apiKey.startsWith('eidos_readonly_') ||
+      apiKey.startsWith('eidos_viewer_')
+    ) {
+      return 'readonly';
+    }
+
+    const explicitRole = String(request.headers['x-eidos-role'] || '').toLowerCase();
+    if (
+      explicitRole === 'merchandiser' ||
+      explicitRole === 'editor' ||
+      apiKey.startsWith('eidos_merch_') ||
+      apiKey.startsWith('eidos_editor_')
+    ) {
+      return explicitRole === 'editor' ? 'editor' : 'merchandiser';
+    }
+    if (explicitRole === 'readonly' || explicitRole === 'viewer') {
+      return explicitRole === 'viewer' ? 'viewer' : 'readonly';
+    }
+
+    return 'admin';
+  }
+
+  public static hasPermission(
+    role: EidosRole,
+    permission: 'read' | 'write' | 'admin'
+  ): boolean {
+    if (permission === 'read') return this.canRead(role);
+    if (permission === 'write') return this.canUpdateMerchandising(role);
+    return this.canManageCatalogAndConfig(role);
+  }
+
+  public static canRead(role: EidosRole): boolean {
+    return (
+      role === 'admin' ||
+      role === 'merchandiser' ||
+      role === 'editor' ||
+      role === 'readonly' ||
+      role === 'viewer'
+    );
+  }
+
+  public static canUpdateMerchandising(role: EidosRole): boolean {
+    return role === 'admin' || role === 'merchandiser' || role === 'editor';
+  }
+
+  public static canManageCatalogAndConfig(role: EidosRole): boolean {
+    return role === 'admin';
+  }
+}
+
+/**
+ * Tamper-Evident Ring-Buffer Audit Logger for Merchandising & RBAC Governance.
+ */
+export class AuditLogger {
+  private static instance: AuditLogger | null = null;
+  private readonly logs: AuditLogEntry[] = [];
+  private readonly maxEntries: number;
+  private lastHash = '0000000000000000';
+
+  constructor(maxEntries = 1000) {
+    this.maxEntries = maxEntries;
+  }
+
+  public static getInstance(): AuditLogger {
+    if (!AuditLogger.instance) {
+      AuditLogger.instance = new AuditLogger();
+    }
+    return AuditLogger.instance;
+  }
+
+  public record(params: {
+    tenantId: string;
+    actorRole: EidosRole;
+    action: string;
+    resourceId?: string;
+    details?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  }): AuditLogEntry {
+    const timestamp = new Date().toISOString();
+    const id = `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const detailsObj = {
+      ...(params.details || {}),
+      ...(params.metadata || {}),
+      ...(params.resourceId ? { resourceId: params.resourceId } : {}),
+    };
+    const payload = `${this.lastHash}|${id}|${timestamp}|${params.tenantId}|${params.actorRole}|${params.action}|${JSON.stringify(detailsObj)}`;
+    const integrityHash = crypto.createHash('sha256').update(payload).digest('hex').slice(0, 24);
+    this.lastHash = integrityHash;
+
+    const entry: AuditLogEntry = {
+      id,
+      timestamp,
+      tenantId: params.tenantId,
+      actorRole: params.actorRole,
+      action: params.action,
+      resourceId: params.resourceId,
+      details: detailsObj,
+      integrityHash,
+    };
+
+    if (this.logs.length >= this.maxEntries) {
+      this.logs.shift();
+    }
+    this.logs.push(entry);
+    return entry;
+  }
+
+  public getLogs(tenantId?: string, limit = 100): AuditLogEntry[] {
+    const filtered = tenantId
+      ? this.logs.filter((l) => l.tenantId === tenantId.toLowerCase().trim())
+      : this.logs;
+    return filtered.slice(-limit).reverse();
+  }
+
+  public clear(): void {
+    this.logs.length = 0;
+    this.lastHash = '0000000000000000';
+  }
+}
