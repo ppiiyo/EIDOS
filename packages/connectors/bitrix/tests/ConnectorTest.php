@@ -196,7 +196,7 @@ final class ConnectorTest extends AbstractConnectorContractTest
                             return true;
                         }
                         $itemTs = strtotime((string) $item['TIMESTAMP_X']);
-                        return $itemTs >= $since->getTimestamp();
+                        return $itemTs > $since->getTimestamp();
                     }
                 ));
 
@@ -238,6 +238,8 @@ final class ConnectorTest extends AbstractConnectorContractTest
         $this->assertArrayHasKey('ID', $item);
         $this->assertArrayHasKey('NAME', $item);
         $this->assertArrayHasKey('DETAIL_PAGE_URL', $item);
+        $this->assertArrayHasKey('URL', $item);
+        $this->assertArrayHasKey('BODY_FORMATED', $item);
         $this->assertArrayHasKey('PRICE', $item);
         $this->assertArrayHasKey('PREVIEW_PICTURE', $item);
         $this->assertNotEmpty($item['ID']);
@@ -249,9 +251,13 @@ final class ConnectorTest extends AbstractConnectorContractTest
      * - очистку HTML и обрезку описания до 5000 символов в mapFields()
      * - постановку в фоновую очередь при > 500 товаров из веб-админки
      * - кнопку Health-check в Settings::handleAdminAction -> "EIDOS доступен, 1000 товаров"
+     * - возврат точного TIMESTAMP_X последнего товара в syncDelta (не now())
+     * - работу tools/eidos_feedback.php (sendBeacon) и include.php
      */
     public function testBitrixAdminHealthButtonAndHtmlSanitization(): void
     {
+        require_once dirname(__DIR__) . '/include.php';
+
         $connector = $this->createConnectorWithCatalog(1000);
 
         // В веб-режиме (forceSync = false) при 1000 товаров (> 500) синхронизация ставится в очередь
@@ -263,6 +269,24 @@ final class ConnectorTest extends AbstractConnectorContractTest
         $adminResp = Settings::handleAdminAction(['action_health_check' => '1'], $connector);
         $this->assertSame('ok', $adminResp['status']);
         $this->assertStringContainsString('EIDOS доступен, 1000 товаров', $adminResp['message']);
+
+        // Проверяем, что syncDelta возвращает точный TIMESTAMP_X последнего товара, а не now()
+        $since = new DateTimeImmutable('2026-10-25 10:00:00');
+        $exactItemModifiedAt = new DateTimeImmutable('2026-10-25 11:45:12');
+        $this->touchCatalogItems(3, $exactItemModifiedAt);
+        $deltaRes = $connector->syncDelta($since, 100);
+        $this->assertSame(3, $deltaRes['synced']);
+        $this->assertSame($exactItemModifiedAt->getTimestamp(), $deltaRes['since']->getTimestamp());
+
+        // Проверяем обработчик sendBeacon (tools/eidos_feedback.php)
+        $GLOBALS['__EIDOS_TEST_CONNECTOR'] = $connector;
+        $GLOBALS['__EIDOS_TEST_RAW_BODY'] = json_encode([
+            'itemId' => '1001',
+            'query' => 'тормозные колодки камри',
+            'eventType' => 'click',
+        ]);
+        require dirname(__DIR__) . '/tools/eidos_feedback.php';
+        unset($GLOBALS['__EIDOS_TEST_CONNECTOR'], $GLOBALS['__EIDOS_TEST_RAW_BODY']);
 
         // Проверяем mapFields: удаление HTML и обрезку до 5000 символов
         $longHtml = '<div><p>Тестовое описание</p>' . str_repeat('<span>АБВГД</span>', 1200) . '</div>';

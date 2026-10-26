@@ -207,9 +207,10 @@ class Connector implements ConnectorInterface
             }
         }
 
-        // Сдвигаем watermark на +1 секунду от максимального TIMESTAMP_X при наличии изменений
+        // Возвращаем точный TIMESTAMP_X последнего синхронизированного товара (а не now()),
+        // чтобы не пропустить товары, обновлённые во время работы синхронизации.
         $nextSince = $synced > 0
-            ? (new DateTimeImmutable())->setTimestamp($maxTimestamp + 1)
+            ? (new DateTimeImmutable())->setTimestamp($maxTimestamp)
             : DateTimeImmutable::createFromInterface($since);
 
         return [
@@ -223,7 +224,7 @@ class Connector implements ConnectorInterface
      *
      * @param string $query
      * @param array<string, mixed> $options
-     * @return array<int, array{ID: string, NAME: string, DETAIL_PAGE_URL: string, PRICE: float, PREVIEW_PICTURE: ?string}>
+     * @return array<int, array{ID: string, NAME: string, DETAIL_PAGE_URL: string, URL: string, BODY_FORMATED: string, PRICE: float, PREVIEW_PICTURE: ?string, EXPLANATION?: ?string}>
      */
     public function replaceSearch(string $query, array $options = []): array
     {
@@ -233,7 +234,7 @@ class Connector implements ConnectorInterface
     /**
      * 4. Неблокирующая отправка сигнала обратной связи (click, like, purchase, dislike) в POST /v1/feedback.
      *
-     * @param array{userId: string, itemId: string, eventType: string, query?: ?string, timestamp: DateTimeInterface} $event
+     * @param array{userId: string, itemId: string, eventType: string, query?: ?string, timestamp?: DateTimeInterface|string|int} $event
      * @return bool
      */
     public function pushFeedback(array $event): bool
@@ -249,9 +250,17 @@ class Connector implements ConnectorInterface
                 return false;
             }
 
-            $ts = $event['timestamp'] instanceof DateTimeInterface
-                ? $event['timestamp']->getTimestamp() * 1000
-                : (int) round(microtime(true) * 1000);
+            $rawTs = $event['timestamp'] ?? null;
+            if ($rawTs instanceof DateTimeInterface) {
+                $ts = $rawTs->getTimestamp() * 1000;
+            } elseif (is_int($rawTs) || is_float($rawTs)) {
+                $ts = $rawTs < 10_000_000_000 ? (int) round($rawTs * 1000) : (int) $rawTs;
+            } elseif (is_string($rawTs) && $rawTs !== '') {
+                $parsed = strtotime($rawTs);
+                $ts = $parsed !== false ? $parsed * 1000 : (int) round(microtime(true) * 1000);
+            } else {
+                $ts = (int) round(microtime(true) * 1000);
+            }
 
             $payload = [
                 'userId' => $userId,
@@ -261,8 +270,10 @@ class Connector implements ConnectorInterface
             ];
 
             if (!empty($event['query'])) {
+                $cleanQuery = $this->mapper->cleanPlainText((string) $event['query'], 200);
+                $payload['query'] = $cleanQuery;
                 $payload['context'] = [
-                    'sessionId' => $this->mapper->cleanPlainText((string) $event['query'], 200),
+                    'sessionId' => $cleanQuery,
                     'timestamp' => $ts,
                 ];
             }
@@ -310,6 +321,7 @@ class Connector implements ConnectorInterface
         $data = $resp['data'];
         $itemsIndexed = (int) (
             $data['itemsIndexed']
+            ?? $data['itemsCount']
             ?? $data['checks']['vectorStore']['itemCount']
             ?? $data['checks']['vectorStore']['itemsCount']
             ?? 0
@@ -341,6 +353,63 @@ class Connector implements ConnectorInterface
     }
 
     /**
+     * Создаёт экземпляр коннектора из настроек модуля 1С-Битрикс (COption / b_option).
+     */
+    public static function fromBitrixOptions(bool $enforceHttps = true): self
+    {
+        $apiUrl = Settings::getOption('api_url', Settings::getOption(Settings::OPT_API_URL, 'https://localhost:3000'));
+        $apiKey = Settings::getOption('api_key', Settings::getOption(Settings::OPT_API_KEY, ''));
+
+        $httpClient = new HttpClient($apiUrl, $apiKey, 2.5, 1, $enforceHttps);
+        return new self($httpClient);
+    }
+
+    /**
+     * Агент 1С-Битрикс (CAgent) для ежечасного запуска syncDelta.
+     * Возвращает строку вызова агента для повторного выполнения через 3600 сек.
+     */
+    public static function syncDeltaAgent(): string
+    {
+        try {
+            $defaultSince = date('Y-m-d H:i:s', strtotime('-1 hour'));
+            $lastSync = Settings::getOption(
+                'last_sync',
+                Settings::getOption(Settings::OPT_LAST_DELTA_SYNC, $defaultSince)
+            );
+
+            $connector = self::fromBitrixOptions(false);
+            $result = $connector->syncDelta(new DateTimeImmutable($lastSync));
+
+            $nextSinceStr = $result['since']->format('Y-m-d H:i:s');
+            Settings::setOption('last_sync', $nextSinceStr);
+            Settings::setOption(Settings::OPT_LAST_DELTA_SYNC, $nextSinceStr);
+        } catch (Throwable $e) {
+            if (function_exists('AddMessage2Log')) {
+                AddMessage2Log('[EIDOS] syncDeltaAgent error: ' . $e->getMessage(), 'eidos.connector');
+            }
+        }
+
+        return 'EidosConnector::syncDeltaAgent();';
+    }
+
+    /**
+     * Одноразовый фоновый агент для полной синхронизации каталога > 500 товаров.
+     */
+    public static function runFullSyncAgent(): string
+    {
+        try {
+            $connector = self::fromBitrixOptions(false);
+            $connector->syncCatalog(['batchSize' => 100, 'forceSync' => true]);
+        } catch (Throwable $e) {
+            if (function_exists('AddMessage2Log')) {
+                AddMessage2Log('[EIDOS] runFullSyncAgent error: ' . $e->getMessage(), 'eidos.connector');
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Регистрирует одноразовый фоновый агент в 1С-Битрикс для полной синхронизации каталога > 500 товаров.
      */
     private function scheduleBitrixBackgroundSync(): void
@@ -358,7 +427,7 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Чтение элементов инфоблока 1С-Битрикс (b_iblock_element.TIMESTAMP_X).
+     * Чтение элементов инфоблока 1С-Битрикс (b_iblock_element + b_catalog_price + b_catalog_product).
      *
      * @param int $offset
      * @param int $limit
@@ -367,13 +436,24 @@ class Connector implements ConnectorInterface
      */
     private function fetchFromBitrixIBlock(int $offset, int $limit, ?DateTimeInterface $since): array
     {
+        if (class_exists('\CModule')) {
+            /** @phpstan-ignore-next-line */
+            \CModule::IncludeModule('iblock');
+            /** @phpstan-ignore-next-line */
+            \CModule::IncludeModule('catalog');
+        }
+
         if (!class_exists('\CIBlockElement')) {
             return ['items' => [], 'total' => 0];
         }
 
+        $iblockId = (int) Settings::getOption('iblock_id', Settings::getOption(Settings::OPT_IBLOCK_ID, '0'));
         $arFilter = ['ACTIVE' => 'Y'];
+        if ($iblockId > 0) {
+            $arFilter['IBLOCK_ID'] = $iblockId;
+        }
         if ($since !== null) {
-            $arFilter['>=TIMESTAMP_X'] = $since->format('d.m.Y H:i:s');
+            $arFilter['>TIMESTAMP_X'] = $since->format('d.m.Y H:i:s');
         }
 
         /** @phpstan-ignore-next-line */
@@ -385,19 +465,64 @@ class Connector implements ConnectorInterface
             ['TIMESTAMP_X' => 'ASC', 'ID' => 'ASC'],
             $arFilter,
             false,
-            ['iNumPage' => $pageNumber, 'nPageSize' => $limit, 'checkOutOfRange' => true],
-            ['ID', 'NAME', 'DETAIL_TEXT', 'PREVIEW_TEXT', 'DETAIL_PAGE_URL', 'PREVIEW_PICTURE', 'TAGS', 'TIMESTAMP_X', 'CATALOG_PRICE_1', 'CATALOG_QUANTITY']
+            ['iNumPage' => $pageNumber, 'nPageSize' => $limit, 'nTopCount' => $limit, 'checkOutOfRange' => true],
+            [
+                'ID',
+                'NAME',
+                'DETAIL_TEXT',
+                'PREVIEW_TEXT',
+                'IBLOCK_SECTION_ID',
+                'DETAIL_PAGE_URL',
+                'PREVIEW_PICTURE',
+                'TAGS',
+                'TIMESTAMP_X',
+                'CATALOG_PRICE_1',
+                'CATALOG_QUANTITY',
+            ]
         );
 
         $items = [];
         while ($row = $rsElements->GetNext()) {
+            $itemId = (int) $row['ID'];
+
+            // Получаем базовую цену из модуля торгового каталога (b_catalog_price)
+            $priceVal = (float) ($row['CATALOG_PRICE_1'] ?? 0.0);
+            if (class_exists('\CPrice')) {
+                /** @phpstan-ignore-next-line */
+                $basePrice = \CPrice::GetBasePrice($itemId);
+                if (is_array($basePrice) && isset($basePrice['PRICE'])) {
+                    $priceVal = (float) $basePrice['PRICE'];
+                }
+            }
+
+            // Получаем остаток товара из b_catalog_product
+            $quantityVal = (float) ($row['CATALOG_QUANTITY'] ?? 0.0);
+            if (class_exists('\CCatalogProduct')) {
+                /** @phpstan-ignore-next-line */
+                $catalogProduct = \CCatalogProduct::GetByID($itemId);
+                if (is_array($catalogProduct) && isset($catalogProduct['QUANTITY'])) {
+                    $quantityVal = (float) $catalogProduct['QUANTITY'];
+                }
+            }
+
+            // Получаем название раздела инфоблока
+            $sectionName = (string) ($row['IBLOCK_SECTION_NAME'] ?? '');
+            if ($sectionName === '' && !empty($row['IBLOCK_SECTION_ID']) && class_exists('\CIBlockSection')) {
+                /** @phpstan-ignore-next-line */
+                $rsSection = \CIBlockSection::GetByID((int) $row['IBLOCK_SECTION_ID']);
+                if ($rsSection && ($arSection = $rsSection->GetNext())) {
+                    $sectionName = (string) ($arSection['NAME'] ?? 'General');
+                }
+            }
+
             $items[] = [
                 'ID' => $row['ID'],
                 'NAME' => $row['NAME'],
                 'DETAIL_TEXT' => $row['DETAIL_TEXT'] ?: $row['PREVIEW_TEXT'],
-                'SECTION_NAME' => $row['IBLOCK_SECTION_NAME'] ?? 'General',
-                'PRICE' => $row['CATALOG_PRICE_1'] ?? 0,
-                'QUANTITY' => $row['CATALOG_QUANTITY'] ?? 0,
+                'PREVIEW_TEXT' => $row['PREVIEW_TEXT'] ?? '',
+                'SECTION_NAME' => $sectionName !== '' ? $sectionName : 'General',
+                'PRICE' => $priceVal,
+                'QUANTITY' => $quantityVal,
                 'TAGS' => $row['TAGS'] ?? '',
                 'DETAIL_PAGE_URL' => $row['DETAIL_PAGE_URL'] ?? '',
                 'PREVIEW_PICTURE' => $row['PREVIEW_PICTURE'] ?? null,

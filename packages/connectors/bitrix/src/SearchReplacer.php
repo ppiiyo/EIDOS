@@ -118,8 +118,13 @@ class SearchReplacer
             'replaceSearch'
         );
 
-        // Обязательный fallback на стандартный поиск 1С-Битрикс при недоступности EIDOS
-        if (!$response['ok'] || !isset($response['data']['results']) || !is_array($response['data']['results'])) {
+        // Обязательный fallback на стандартный поиск 1С-Битрикс при недоступности EIDOS или пустом ответе
+        if (
+            !$response['ok']
+            || !isset($response['data']['results'])
+            || !is_array($response['data']['results'])
+            || empty($response['data']['results'])
+        ) {
             return $this->executeBitrixFallbackSearch($sanitizedQuery, $options);
         }
 
@@ -127,26 +132,47 @@ class SearchReplacer
         $bitrixItems = [];
 
         foreach ($response['data']['results'] as $hit) {
-            if (!is_array($hit) || empty($hit['id'])) {
+            if (!is_array($hit)) {
                 continue;
             }
 
-            $id = (string) $hit['id'];
-            $tags = is_array($hit['tags'] ?? null) ? $hit['tags'] : [];
+            // Поддерживаем как вложенный формат $hit['item'], так и плоский ответ /v1/search
+            $itemData = isset($hit['item']) && is_array($hit['item']) ? $hit['item'] : $hit;
+            if (empty($itemData['id'])) {
+                continue;
+            }
+
+            $id = (string) $itemData['id'];
+            $tags = is_array($itemData['tags'] ?? null) ? $itemData['tags'] : [];
             $metaFromTags = $this->extractMetaFromTags($tags);
             $localMeta = $this->localCatalogIndex[$id] ?? [];
 
-            $inStock = $metaFromTags['inStock'] ?? ($localMeta['IN_STOCK'] ?? true);
-            if ($filterInStock !== null && $inStock !== $filterInStock) {
+            $inStock = $itemData['inStock'] ?? $metaFromTags['inStock'] ?? ($localMeta['IN_STOCK'] ?? true);
+            if ($filterInStock !== null && (bool) $inStock !== $filterInStock) {
                 continue;
             }
 
+            $url = (string) (
+                $itemData['url']
+                ?? $metaFromTags['url']
+                ?? $localMeta['DETAIL_PAGE_URL']
+                ?? ('/catalog/item/' . rawurlencode($id) . '/')
+            );
+            $description = (string) ($itemData['description'] ?? $localMeta['DESCRIPTION'] ?? '');
+            $price = isset($itemData['price']) ? (float) $itemData['price'] : (float) ($localMeta['PRICE'] ?? 0.0);
+            $explanation = isset($hit['explanation']) && is_string($hit['explanation'])
+                ? $hit['explanation']
+                : null;
+
             $bitrixItems[] = [
                 'ID' => $id,
-                'NAME' => (string) ($hit['title'] ?? $localMeta['NAME'] ?? ''),
-                'DETAIL_PAGE_URL' => (string) ($metaFromTags['url'] ?? $localMeta['DETAIL_PAGE_URL'] ?? ('/catalog/item/' . rawurlencode($id) . '/')),
-                'PRICE' => isset($hit['price']) ? (float) $hit['price'] : (float) ($localMeta['PRICE'] ?? 0.0),
-                'PREVIEW_PICTURE' => $metaFromTags['imageUrl'] ?? ($localMeta['PREVIEW_PICTURE'] ?? null),
+                'NAME' => (string) ($itemData['title'] ?? $localMeta['NAME'] ?? ''),
+                'DETAIL_PAGE_URL' => $url,
+                'URL' => $url,
+                'BODY_FORMATED' => $description,
+                'PRICE' => $price,
+                'PREVIEW_PICTURE' => $itemData['imageUrl'] ?? $metaFromTags['imageUrl'] ?? ($localMeta['PREVIEW_PICTURE'] ?? null),
+                'EXPLANATION' => $explanation,
             ];
 
             if (count($bitrixItems) >= $limit) {
@@ -158,11 +184,11 @@ class SearchReplacer
     }
 
     /**
-     * Fallback на штатный поиск 1С-Битрикс (CIBlockElement::GetList или локальный индекс).
+     * Fallback на штатный поиск 1С-Битрикс (CSearch / CIBlockElement::GetList или локальный индекс).
      *
      * @param string $query
      * @param array<string, mixed> $options
-     * @return array<int, array{ID: string, NAME: string, DETAIL_PAGE_URL: string, PRICE: float, PREVIEW_PICTURE: ?string}>
+     * @return array<int, array{ID: string, NAME: string, DETAIL_PAGE_URL: string, URL: string, BODY_FORMATED: string, PRICE: float, PREVIEW_PICTURE: ?string, EXPLANATION?: ?string}>
      */
     private function executeBitrixFallbackSearch(string $query, array $options = []): array
     {
@@ -189,17 +215,22 @@ class SearchReplacer
                 $arFilter,
                 false,
                 ['nTopCount' => $limit],
-                ['ID', 'NAME', 'DETAIL_PAGE_URL', 'PREVIEW_PICTURE', 'CATALOG_PRICE_1']
+                ['ID', 'NAME', 'PREVIEW_TEXT', 'DETAIL_TEXT', 'DETAIL_PAGE_URL', 'PREVIEW_PICTURE', 'CATALOG_PRICE_1']
             );
 
             $results = [];
             while ($arItem = $rsElements->GetNext()) {
+                $url = (string) ($arItem['DETAIL_PAGE_URL'] ?? '');
+                $desc = strip_tags((string) ($arItem['PREVIEW_TEXT'] ?: ($arItem['DETAIL_TEXT'] ?? '')));
                 $results[] = [
                     'ID' => (string) $arItem['ID'],
                     'NAME' => (string) $arItem['NAME'],
-                    'DETAIL_PAGE_URL' => (string) ($arItem['DETAIL_PAGE_URL'] ?? ''),
+                    'DETAIL_PAGE_URL' => $url,
+                    'URL' => $url,
+                    'BODY_FORMATED' => $desc,
                     'PRICE' => (float) ($arItem['CATALOG_PRICE_1'] ?? 0.0),
                     'PREVIEW_PICTURE' => isset($arItem['PREVIEW_PICTURE']) ? (string) $arItem['PREVIEW_PICTURE'] : null,
+                    'EXPLANATION' => null,
                 ];
             }
             return $results;
@@ -236,14 +267,18 @@ class SearchReplacer
             }
 
             if ($matches > 0 || empty($tokens)) {
+                $url = (string) $meta['DETAIL_PAGE_URL'];
                 $scored[] = [
                     'score' => $matches,
                     'item' => [
                         'ID' => (string) $id,
                         'NAME' => (string) $meta['NAME'],
-                        'DETAIL_PAGE_URL' => (string) $meta['DETAIL_PAGE_URL'],
+                        'DETAIL_PAGE_URL' => $url,
+                        'URL' => $url,
+                        'BODY_FORMATED' => (string) ($meta['DESCRIPTION'] ?? ''),
                         'PRICE' => (float) $meta['PRICE'],
                         'PREVIEW_PICTURE' => $meta['PREVIEW_PICTURE'] ?? null,
+                        'EXPLANATION' => null,
                     ],
                 ];
             }
