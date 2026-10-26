@@ -51,12 +51,15 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
     },
   });
 
-  // Security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, COOP, CORP)
+  // Security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, COOP, CORP).
+  // Note: 'unsafe-inline' is intentionally omitted from scriptSrc to mitigate XSS vectors on API and
+  // SPA fallback responses. Studio UI loads its application bundle via external ES module scripts
+  // ('self'), while styleSrc retains 'unsafe-inline' for runtime Tailwind/CSS style injection.
   await fastify.register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https:'],
         connectSrc: ["'self'", 'https:'],

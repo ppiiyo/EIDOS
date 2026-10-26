@@ -1,3 +1,5 @@
+/// <reference path="./types/fastify.d.ts" />
+
 export interface FastifyEnv {
   PORT?: string;
   HOST?: string;

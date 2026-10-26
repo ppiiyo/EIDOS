@@ -61,8 +61,14 @@ export class TenantNamespaceManager {
   /**
    * Resolves the tenant namespace ID from `X-Tenant-ID` header or API key prefix (`eidos_tenant_<tenant>_<key>`).
    */
-  public resolveTenantId(request?: FastifyRequest | { headers?: Record<string, any> }): string {
-    if (!request || !request.headers) return 'default';
+  public resolveTenantId(
+    request?: FastifyRequest | { headers?: Record<string, unknown>; tenantId?: string }
+  ): string {
+    if (!request) return 'default';
+    if (typeof request.tenantId === 'string' && request.tenantId.trim().length > 0) {
+      return request.tenantId.trim().toLowerCase();
+    }
+    if (!request.headers) return 'default';
 
     const headerTenant = request.headers['x-tenant-id'];
     if (typeof headerTenant === 'string' && headerTenant.trim().length > 0) {
@@ -130,10 +136,10 @@ export class TenantNamespaceManager {
  */
 export class RBACManager {
   public static resolveRole(
-    request?: FastifyRequest | { headers?: Record<string, any>; demoMode?: boolean }
+    request?: FastifyRequest | { headers?: Record<string, unknown>; demoMode?: boolean }
   ): EidosRole {
     if (!request || !request.headers) return 'readonly';
-    if ((request as any).demoMode) return 'readonly';
+    if (request.demoMode) return 'readonly';
 
     const apiKey = String(request.headers['x-api-key'] || '');
     if (

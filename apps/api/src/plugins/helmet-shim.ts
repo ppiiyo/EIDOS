@@ -11,7 +11,7 @@ const helmetPlugin: FastifyPluginAsync<HelmetOptions> = async (
   opts: HelmetOptions = {}
 ) => {
   let cspHeader =
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:";
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:";
 
   if (
     opts.contentSecurityPolicy &&

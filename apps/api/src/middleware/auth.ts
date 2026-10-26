@@ -1,6 +1,8 @@
+/// <reference path="../types/fastify.d.ts" />
 import { FastifyReply, FastifyRequest } from 'fastify';
 import * as crypto from 'crypto';
 import { demoRateLimit } from './rate-limit-demo';
+import { TenantNamespaceManager } from '../services/multi-tenancy';
 
 const PUBLIC_ENDPOINTS = [
   '/v1/health',
@@ -88,6 +90,7 @@ export function signJwtToken(
 
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<unknown> {
   const cleanPath = request.url.split('?')[0];
+  request.tenantId = TenantNamespaceManager.getInstance().resolveTenantId(request);
 
   // Whitelist public endpoints (no auth required)
   if (PUBLIC_ENDPOINTS.includes(cleanPath) || cleanPath.startsWith('/docs')) {
@@ -138,8 +141,8 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 
   const isDemoKey = demoKeys.some((k) => timingSafeEqual(token, k));
   if (isDemoKey && isReadOnlyDemoEndpoint) {
-    (request as any).demoMode = true;
-    (request as any).demoRateLimit = 10;
+    request.demoMode = true;
+    request.demoRateLimit = 10;
     await demoRateLimit(request, reply);
     return;
   }

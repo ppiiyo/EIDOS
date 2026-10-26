@@ -56,6 +56,7 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
       expect(res.headers['content-type']).toContain('application/json');
       // 7+ Security headers
       expect(res.headers['content-security-policy']).toContain("default-src 'self'");
+      expect(res.headers['content-security-policy']).toContain("script-src 'self';");
       expect(res.headers['x-content-type-options']).toBe('nosniff');
       expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
       expect(res.headers['x-xss-protection']).toBeDefined();
