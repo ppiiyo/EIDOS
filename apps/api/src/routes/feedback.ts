@@ -4,9 +4,14 @@ import { authenticate } from '../middleware/auth';
 import { AILManager } from '../services/ail';
 
 const feedbackSchema = z.object({
-  userId: z.string().min(1),
+  userId: z
+    .string()
+    .optional()
+    .default('anonymous')
+    .transform((val) => (val && val.trim().length > 0 ? val.trim() : 'anonymous')),
   itemId: z.string().min(1),
   eventType: z.enum(['click', 'like', 'purchase', 'ignore', 'dislike']),
+  query: z.string().optional(),
   timestamp: z.number().default(() => Date.now()),
   context: z
     .object({
@@ -80,6 +85,7 @@ export async function feedbackRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     return {
+      ok: true,
       accepted: true,
       stats: ail.feedbackLoop.stats(),
     };

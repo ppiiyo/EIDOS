@@ -121,6 +121,8 @@ Copy `.env.example` to `.env` to customize your deployment:
 | `EIDOS_RATE_LIMIT_MAX` | `300` | Maximum requests per minute per client IP |
 | `EIDOS_SNAPSHOT_PATH` | `./data/catalog.snapshot.json` | Optional disk persistence path for zero-data-loss restarts |
 
+> ⚠️ **Security Warning:** In production, always set your own secret `EIDOS_API_KEY` (e.g., `docker run -p 3000:3000 -e EIDOS_API_KEY=your_secret_key -v eidos-data:/app/data eidos/eidos`). The default `eidos_dev_key` is intended for local development and evaluation only.
+
 ---
 
 ## 5. Connecting Your Own Databases (PostgreSQL, MongoDB, CSV, Webhooks)
@@ -768,6 +770,8 @@ NODE_ENV=production PORT=3000 EIDOS_API_KEY=ваш_секретный_ключ n
 ```bash
 docker compose up --build -d
 ```
+
+> ⚠️ **Важно для Production:** В продакшене обязательно задайте свой `EIDOS_API_KEY` (например, `docker run -p 3000:3000 -e EIDOS_API_KEY=ваш_секретный_ключ -v eidos-data:/app/data eidos/eidos`). Ключ по умолчанию `eidos_dev_key` предназначен только для локальной разработки и быстрого старта.
 
 ---
 

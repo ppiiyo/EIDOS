@@ -112,15 +112,19 @@ export async function healthRoutes(
 
     const isHealthy = Object.values(checks).every((c) => c.status === 'ok');
     const responseTime = Date.now() - startTime;
+    const itemCount = opts.vectorStore.count();
 
     return reply.status(isHealthy ? 200 : 503).send({
+      ok: isHealthy,
       status: isHealthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       responseTimeMs: responseTime,
       version: process.env.npm_package_version || '1.0.0',
-      itemsCount: opts.vectorStore.count(),
+      itemsIndexed: itemCount,
+      itemsCount: itemCount,
       uptimeSeconds: Math.floor((Date.now() - bootTime) / 1000),
       model: 'all-MiniLM-L6-v2',
+      ...(isHealthy ? {} : { error: 'One or more health checks reported degraded or error status' }),
       checks,
     });
   };

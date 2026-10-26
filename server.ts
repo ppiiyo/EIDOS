@@ -69,7 +69,7 @@ async function startUnifiedServer() {
     // Fast-path /health probe if Fastify is still hydrating
     if ((cleanUrl === '/health' || cleanUrl === '/api/health') && !fastifyApp) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
+      res.end(JSON.stringify({ ok: true, status: 'healthy', timestamp: new Date().toISOString() }));
       return;
     }
 
@@ -126,6 +126,22 @@ async function startUnifiedServer() {
       `🚀 Eidos Unified Server (Fastify API /v1/* + Studio UI) listening on http://0.0.0.0:${PORT}`
     );
   });
+
+  const gracefulShutdown = async (signal: string) => {
+    console.log(`Received ${signal}. Closing unified server and saving catalog snapshot...`);
+    try {
+      if (fastifyApp) {
+        await fastifyApp.close();
+      }
+      server.close();
+    } catch {
+      // Ignore close errors
+    }
+    process.exit(0);
+  };
+
+  process.once('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+  process.once('SIGINT', () => void gracefulShutdown('SIGINT'));
 
   const vitePromise = (async () => {
     if (!isProduction) {

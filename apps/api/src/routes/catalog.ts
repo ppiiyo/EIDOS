@@ -16,7 +16,9 @@ export const upsertItemSchema = z.object({
   description: z.string().max(2000).optional().default(''),
   category: z.string().max(100).optional().default('General'),
   tags: z.array(z.string()).max(20).optional().default([]),
-  price: z.number().positive().optional(),
+  price: z.number().nonnegative().optional().default(0),
+  inStock: z.boolean().optional().default(true),
+  url: z.string().optional(),
   embedding: z.array(z.number()).length(384).optional(),
 });
 
@@ -26,7 +28,9 @@ const catalogItemSchema = z.object({
   description: z.string().max(2000).optional().default(''),
   category: z.string().max(100).optional().default('General'),
   tags: z.array(z.string()).default([]),
-  price: z.number().optional(),
+  price: z.number().nonnegative().optional().default(0),
+  inStock: z.boolean().optional().default(true),
+  url: z.string().optional(),
   embedding: z.array(z.number()).optional(),
 });
 
@@ -70,9 +74,12 @@ export async function catalogRoutes(
     }
 
     const redisStats = await cache.getStats();
+    const itemCount = store.count();
 
     return {
-      totalItems: store.count(),
+      itemsIndexed: itemCount,
+      totalItems: itemCount,
+      vectorDimension: 384,
       hnswIndexed: store.getHNSW().size(),
       walPending: store.getWAL().size(),
       avgSearchLatencyMs: getAverageSearchLatencyMs(),
@@ -86,7 +93,7 @@ export async function catalogRoutes(
   });
 
   /**
-   * Single item upsert with strict Zod validation schema (BUG #7).
+   * Single item or batch ({"items": [...]}) upsert with strict Zod validation schema.
    */
   fastify.post('/v1/catalog/upsert', { preHandler: authenticate }, async (request, reply) => {
     try {
@@ -100,6 +107,85 @@ export async function catalogRoutes(
       }
 
       const { store, tenantId } = resolveStore(request);
+      const rawBody = request.body as Record<string, unknown> | null;
+
+      // Batch mode: {"items": [...]}
+      if (rawBody && typeof rawBody === 'object' && 'items' in rawBody && Array.isArray(rawBody.items)) {
+        const rawItems = rawBody.items as unknown[];
+        const validItems: Array<z.infer<typeof upsertItemSchema>> = [];
+        const errors: string[] = [];
+        let failed = 0;
+
+        for (let idx = 0; idx < rawItems.length; idx++) {
+          const parsed = upsertItemSchema.safeParse(rawItems[idx]);
+          if (parsed.success) {
+            validItems.push(parsed.data);
+          } else {
+            failed++;
+            const msg = parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
+            errors.push(`items[${idx}]: ${msg}`);
+          }
+        }
+
+        const needingEmbeddings: Array<{ index: number; text: string }> = [];
+        for (let i = 0; i < validItems.length; i++) {
+          const it = validItems[i];
+          if (!it.embedding || it.embedding.length === 0) {
+            const text = `${it.title}. ${it.category}. ${it.tags.join(', ')}. ${it.description}`;
+            needingEmbeddings.push({ index: i, text });
+          }
+        }
+
+        if (needingEmbeddings.length > 0) {
+          const generated = await opts.embedder.embedBatch(needingEmbeddings.map((e) => e.text));
+          for (let j = 0; j < needingEmbeddings.length; j++) {
+            const targetIdx = needingEmbeddings[j].index;
+            validItems[targetIdx].embedding = Array.from(generated[j]);
+          }
+        }
+
+        let upserted = 0;
+        for (const item of validItems) {
+          store.upsert({
+            ...item,
+            description: item.description || '',
+            category: item.category || 'General',
+            tags: item.tags || [],
+            embedding: item.embedding!,
+          });
+          upserted++;
+        }
+
+        if (upserted > 0) {
+          await invalidateCatalogCaches();
+          Metrics.vectorStoreSize.set(store.count());
+
+          if (AILManager.isEnabled()) {
+            const ail = AILManager.getInstance();
+            ail.ranker.updateStatistics({
+              popularity: 1.0,
+              freshness: 1.0,
+            });
+          }
+
+          AuditLogger.getInstance().record({
+            tenantId,
+            actorRole: role,
+            action: 'catalog.upsert',
+            metadata: { upserted, failed },
+          });
+
+          void store.saveSnapshotAsync();
+        }
+
+        return reply.status(200).send({
+          upserted,
+          failed,
+          errors,
+        });
+      }
+
+      // Single item mode: {id, title, ...}
       const validated = upsertItemSchema.parse(request.body);
 
       let embedding = validated.embedding;
@@ -135,8 +221,13 @@ export async function catalogRoutes(
         resourceId: validated.id,
       });
 
+      void store.saveSnapshotAsync();
+
       return reply.status(200).send({
         success: true,
+        upserted: 1,
+        failed: 0,
+        errors: [],
         item: {
           id: validated.id,
           title: validated.title,

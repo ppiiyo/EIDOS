@@ -96,6 +96,24 @@ class HttpClient
     }
 
     /**
+     * Convenience wrapper for POST requests (e.g. batch catalog upsert with 60s timeout).
+     *
+     * @param string $path
+     * @param array<string, mixed> $payload
+     * @param float $timeoutSec
+     * @param string $callerMethod
+     * @return array{ok: bool, status: int, data: array<string, mixed>, error: ?string, latencyMs: float}
+     */
+    public function post(
+        string $path,
+        array $payload,
+        float $timeoutSec = 60.0,
+        string $callerMethod = 'post'
+    ): array {
+        return $this->request('POST', $path, $payload, $timeoutSec, $callerMethod);
+    }
+
+    /**
      * Executes an HTTP request against the EIDOS API (/v1/*).
      *
      * @param string $httpMethod 'GET' | 'POST'

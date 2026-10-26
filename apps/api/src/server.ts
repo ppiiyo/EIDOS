@@ -22,8 +22,26 @@ export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache };
 const DETERMINISTIC_SEED = 42;
 const DETERMINISTIC_EPOCH_MS = 1_700_000_000_000;
 
+let activeShutdownStore: VectorStore | null = null;
+let shutdownHooksRegistered = false;
+
+function ensureProcessShutdownSnapshotHooks(): void {
+  if (shutdownHooksRegistered) return;
+  shutdownHooksRegistered = true;
+
+  const flushSnapshotOnSignal = () => {
+    if (activeShutdownStore) {
+      activeShutdownStore.saveSnapshotSync();
+    }
+  };
+
+  process.on('SIGTERM', flushSnapshotOnSignal);
+  process.on('SIGINT', flushSnapshotOnSignal);
+}
+
 export async function buildServer(): Promise<FastifyInstance> {
   initTracing();
+  ensureProcessShutdownSnapshotHooks();
 
   const fastify = Fastify({
     logger: false,
@@ -42,12 +60,16 @@ export async function buildServer(): Promise<FastifyInstance> {
   await registerOpenAPI(fastify);
 
   const vectorStore = new VectorStore();
+  activeShutdownStore = vectorStore;
   const embedder = ServerEmbedder.getInstance();
   const ail = AILManager.getInstance();
 
   // Seed 5,005 catalog items deterministically with mulberry32(42) 384-d vectors in <35ms
   const seedItems = await getPrecomputedSeedCatalog(embedder, 5005, DETERMINISTIC_SEED);
   vectorStore.bulkSeed(seedItems);
+
+  // Load persisted catalog snapshot (if present on disk) before HTTP server starts
+  await vectorStore.loadSnapshotFromDisk(embedder);
 
   const prng = mulberry32(DETERMINISTIC_SEED);
   for (let i = 0; i < Math.min(seedItems.length, 100); i++) {
@@ -82,8 +104,9 @@ export async function buildServer(): Promise<FastifyInstance> {
     await simpleRecommend(parsedWarmup.data, vectorStore);
   }
 
-  // Attach vectorStore cleanup on Fastify close
+  // Attach vectorStore cleanup & synchronous snapshot persistence on Fastify close
   fastify.addHook('onClose', async () => {
+    vectorStore.saveSnapshotSync();
     await vectorStore.getWAL().flush();
   });
 
@@ -97,7 +120,10 @@ if (require.main === module) {
   buildServer()
     .then(async (app) => {
       const gracefulShutdown = async (signal: string) => {
-        console.log(`Received ${signal}. Flushing WAL and shutting down gracefully...`);
+        console.log(`Received ${signal}. Saving catalog snapshot, flushing WAL and shutting down gracefully...`);
+        if (activeShutdownStore) {
+          activeShutdownStore.saveSnapshotSync();
+        }
         await app.close();
         process.exit(0);
       };

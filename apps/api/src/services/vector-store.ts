@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   cosineSimilarity,
   HNSWIndex,
@@ -7,6 +9,17 @@ import {
   HybridSearch,
 } from '@eidos/core';
 import { StoredItem } from '../types';
+
+export interface SnapshotCatalogItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  price: number;
+  inStock: boolean;
+  tags: string[];
+  url: string;
+}
 
 export interface VectorStoreOptions {
   useQuantization?: boolean;
@@ -159,6 +172,151 @@ export class VectorStore {
    */
   public importBinarySnapshot(snapshot: Uint8Array): void {
     this.hnsw = HNSWIndexSerializer.deserialize(snapshot);
+  }
+
+  public getSnapshotPath(customPath?: string): string {
+    return path.resolve(
+      process.cwd(),
+      customPath || process.env.EIDOS_SNAPSHOT_PATH || './data/catalog.snapshot.json'
+    );
+  }
+
+  public toSnapshotArray(): SnapshotCatalogItem[] {
+    const out: SnapshotCatalogItem[] = [];
+    for (const item of this.items.values()) {
+      out.push({
+        id: String(item.id),
+        title: item.title,
+        description: item.description || '',
+        category: item.category || 'General',
+        price: typeof item.price === 'number' ? item.price : 0,
+        inStock: typeof item.inStock === 'boolean' ? item.inStock : true,
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        url: typeof item.url === 'string' ? item.url : '',
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Non-blocking asynchronous catalog snapshot write triggered on POST /v1/catalog/upsert.
+   */
+  public async saveSnapshotAsync(customPath?: string): Promise<void> {
+    if (process.env.NODE_ENV === 'test' && !process.env.EIDOS_SNAPSHOT_PATH && !customPath) {
+      return;
+    }
+    try {
+      const targetPath = this.getSnapshotPath(customPath);
+      const dir = path.dirname(targetPath);
+      await fs.promises.mkdir(dir, { recursive: true });
+      const payload = JSON.stringify(this.toSnapshotArray());
+      await fs.promises.writeFile(targetPath, payload, 'utf8');
+    } catch (err) {
+      console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
+    }
+  }
+
+  /**
+   * Synchronous catalog snapshot write for graceful shutdown (SIGTERM / SIGINT).
+   */
+  public saveSnapshotSync(customPath?: string): void {
+    if (process.env.NODE_ENV === 'test' && !process.env.EIDOS_SNAPSHOT_PATH && !customPath) {
+      return;
+    }
+    try {
+      const targetPath = this.getSnapshotPath(customPath);
+      const dir = path.dirname(targetPath);
+      fs.mkdirSync(dir, { recursive: true });
+      const payload = JSON.stringify(this.toSnapshotArray());
+      fs.writeFileSync(targetPath, payload, 'utf8');
+    } catch (err) {
+      console.error('[EIDOS] Failed to save catalog snapshot synchronously:', err);
+    }
+  }
+
+  /**
+   * Loads persisted catalog snapshot from disk into VectorStore before HTTP server starts.
+   */
+  public async loadSnapshotFromDisk(
+    embedder: { embedBatch: (texts: string[]) => Promise<Array<Float32Array | number[]>> },
+    customPath?: string
+  ): Promise<number> {
+    if (process.env.NODE_ENV === 'test' && !process.env.EIDOS_SNAPSHOT_PATH && !customPath) {
+      return 0;
+    }
+    const targetPath = this.getSnapshotPath(customPath);
+    if (!fs.existsSync(targetPath)) {
+      return 0;
+    }
+
+    try {
+      const raw = await fs.promises.readFile(targetPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return 0;
+      }
+
+      const toEmbed: Array<{ item: SnapshotCatalogItem; text: string }> = [];
+      let loadedCount = 0;
+
+      for (const entry of parsed) {
+        if (!entry || typeof entry.id !== 'string' || typeof entry.title !== 'string') {
+          continue;
+        }
+        const snapItem: SnapshotCatalogItem = {
+          id: String(entry.id),
+          title: String(entry.title),
+          description: typeof entry.description === 'string' ? entry.description : '',
+          category: typeof entry.category === 'string' ? entry.category : 'General',
+          price: typeof entry.price === 'number' && entry.price >= 0 ? entry.price : 0,
+          inStock: typeof entry.inStock === 'boolean' ? entry.inStock : true,
+          tags: Array.isArray(entry.tags) ? entry.tags.map(String) : [],
+          url: typeof entry.url === 'string' ? entry.url : '',
+        };
+
+        const existing = this.items.get(snapItem.id);
+        if (
+          existing &&
+          existing.title === snapItem.title &&
+          existing.description === snapItem.description &&
+          existing.category === snapItem.category
+        ) {
+          existing.price = snapItem.price;
+          existing.inStock = snapItem.inStock;
+          existing.tags = snapItem.tags;
+          existing.url = snapItem.url;
+          loadedCount++;
+        } else {
+          const text = `${snapItem.title}. ${snapItem.category}. ${snapItem.tags.join(', ')}. ${snapItem.description}`;
+          toEmbed.push({ item: snapItem, text });
+        }
+      }
+
+      if (toEmbed.length > 0) {
+        const vectors = await embedder.embedBatch(toEmbed.map((e) => e.text));
+        for (let i = 0; i < toEmbed.length; i++) {
+          const { item } = toEmbed[i];
+          const vec = Array.from(vectors[i]);
+          this.upsert({
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            price: item.price,
+            inStock: item.inStock,
+            tags: item.tags,
+            url: item.url,
+            embedding: vec,
+          });
+          loadedCount++;
+        }
+      }
+
+      return loadedCount;
+    } catch (err) {
+      console.error('[EIDOS] Failed to load catalog snapshot from disk:', err);
+      return 0;
+    }
   }
 
   /**

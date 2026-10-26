@@ -150,10 +150,16 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   }
 
   const isProduction = process.env.NODE_ENV === 'production';
-  const configuredProdKey =
+  const rawEnvKey =
     process.env.EIDOS_API_KEY && process.env.EIDOS_API_KEY !== 'your_secret_key'
       ? process.env.EIDOS_API_KEY
       : undefined;
+
+  if (!rawEnvKey) {
+    request.log.warn('Using default API key. Set EIDOS_API_KEY in production!');
+  }
+
+  const configuredProdKey = rawEnvKey || 'eidos_dev_key';
 
   const publicDemoKeys = isReadOnlyDemoEndpoint
     ? [
@@ -161,8 +167,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         'eidos_demo_key',
         'eidos_public_demo_key',
         'eidos_demo_key_2026_public',
-        // If no custom EIDOS_API_KEY was provisioned in production, also allow documented quickstart keys
-        ...(!configuredProdKey ? ['eidos_dev_key', 'test-key'] : []),
+        ...(!rawEnvKey ? ['eidos_dev_key', 'test-key'] : []),
       ]
     : [];
 

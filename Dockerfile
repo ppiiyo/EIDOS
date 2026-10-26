@@ -27,6 +27,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV EIDOS_PORT=3000
 ENV HOST=0.0.0.0
+ENV EIDOS_API_KEY=eidos_dev_key
+ENV EIDOS_SNAPSHOT_PATH=/app/data/catalog.snapshot.json
 ENV REDIS_URL=redis://127.0.0.1:6379
 ENV CACHE_TTL_SECONDS=300
 ENV AIL_ENABLED=true
@@ -45,6 +47,8 @@ COPY --from=builder /app/apps/api ./apps/api
 COPY --from=builder /app/node_modules ./node_modules
 
 RUN mkdir -p /app/data /tmp/transformers-cache && chown -R node:node /app /tmp/transformers-cache
+
+VOLUME ["/app/data"]
 
 EXPOSE 3000
 

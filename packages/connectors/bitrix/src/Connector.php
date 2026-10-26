@@ -93,28 +93,52 @@ class Connector implements ConnectorInterface
                 break;
             }
 
+            $batchPayload = [];
             foreach ($items as $rawItem) {
                 try {
                     $mapped = $this->mapFields($rawItem);
                     $this->searchReplacer->registerLocalItemMetadata($mapped);
-                    $wirePayload = $this->mapper->toUpsertPayload($mapped);
+                    $batchPayload[] = $this->mapper->toUpsertPayload($mapped);
+                } catch (Throwable $e) {
+                    $failed++;
+                    $msg = $e->getMessage();
+                    $this->httpClient->logError('syncCatalog', $msg);
+                    $errors[] = $msg;
+                }
+            }
 
-                    $resp = $this->httpClient->request(
-                        'POST',
+            if (!empty($batchPayload)) {
+                try {
+                    $resp = $this->httpClient->post(
                         '/v1/catalog/upsert',
-                        $wirePayload,
-                        5.0,
+                        ['items' => $batchPayload],
+                        60.0,
                         'syncCatalog'
                     );
 
                     if ($resp['ok']) {
-                        $synced++;
+                        $data = $resp['data'];
+                        $batchUpserted = isset($data['upserted'])
+                            ? (int) $data['upserted']
+                            : count($batchPayload);
+                        $batchFailed = isset($data['failed']) ? (int) $data['failed'] : 0;
+                        $synced += $batchUpserted;
+                        $failed += $batchFailed;
+                        if (!empty($data['errors']) && is_array($data['errors'])) {
+                            foreach ($data['errors'] as $errItem) {
+                                $errors[] = is_string($errItem) ? $errItem : (string) json_encode($errItem);
+                            }
+                        }
                     } else {
-                        $failed++;
-                        $errors[] = sprintf('Item %s: %s', $mapped['id'], $resp['error'] ?? 'upsert_failed');
+                        $failed += count($batchPayload);
+                        $errors[] = sprintf(
+                            'Batch offset %d: %s',
+                            $offset,
+                            $resp['error'] ?? 'upsert_failed'
+                        );
                     }
                 } catch (Throwable $e) {
-                    $failed++;
+                    $failed += count($batchPayload);
                     $msg = $e->getMessage();
                     $this->httpClient->logError('syncCatalog', $msg);
                     $errors[] = $msg;
@@ -161,6 +185,9 @@ class Connector implements ConnectorInterface
                 break;
             }
 
+            $batchPayload = [];
+            $batchMeta = [];
+
             foreach ($items as $rawItem) {
                 try {
                     $mapped = $this->mapFields($rawItem);
@@ -179,21 +206,37 @@ class Connector implements ConnectorInterface
                     }
 
                     $this->searchReplacer->registerLocalItemMetadata($mapped);
-                    $wirePayload = $this->mapper->toUpsertPayload($mapped);
+                    $batchPayload[] = $this->mapper->toUpsertPayload($mapped);
+                    $batchMeta[] = [
+                        'id' => $mapped['id'],
+                        'fingerprint' => $fingerprint,
+                        'timestamp' => $itemTimestamp,
+                    ];
+                } catch (Throwable $e) {
+                    $this->httpClient->logError('syncDelta', $e->getMessage());
+                }
+            }
 
-                    $resp = $this->httpClient->request(
-                        'POST',
+            if (!empty($batchPayload)) {
+                try {
+                    $resp = $this->httpClient->post(
                         '/v1/catalog/upsert',
-                        $wirePayload,
-                        5.0,
+                        ['items' => $batchPayload],
+                        60.0,
                         'syncDelta'
                     );
 
                     if ($resp['ok']) {
-                        $synced++;
-                        $this->syncedDeltaFingerprints[$mapped['id']] = $fingerprint;
-                        if ($itemTimestamp > $maxTimestamp) {
-                            $maxTimestamp = $itemTimestamp;
+                        $data = $resp['data'];
+                        $batchUpserted = isset($data['upserted'])
+                            ? (int) $data['upserted']
+                            : count($batchPayload);
+                        $synced += $batchUpserted;
+                        foreach ($batchMeta as $meta) {
+                            $this->syncedDeltaFingerprints[$meta['id']] = $meta['fingerprint'];
+                            if ($meta['timestamp'] > $maxTimestamp) {
+                                $maxTimestamp = $meta['timestamp'];
+                            }
                         }
                     }
                 } catch (Throwable $e) {
@@ -248,18 +291,21 @@ class Connector implements ConnectorInterface
     /**
      * 4. Неблокирующая отправка сигнала обратной связи (click, like, purchase, dislike) в POST /v1/feedback.
      *
-     * @param array{userId: string, itemId: string, eventType: string, query?: ?string, timestamp?: DateTimeInterface|string|int} $event
+     * @param array{userId?: string, itemId: string, eventType: string, query?: ?string, timestamp?: DateTimeInterface|string|int} $event
      * @return bool
      */
     public function pushFeedback(array $event): bool
     {
         try {
             $userId = $this->mapper->cleanPlainText((string) ($event['userId'] ?? ''), 100);
+            if ($userId === '') {
+                $userId = 'anonymous';
+            }
             $itemId = $this->mapper->cleanPlainText((string) ($event['itemId'] ?? ''), 100);
             $eventType = strtolower(trim((string) ($event['eventType'] ?? '')));
 
             $allowedEvents = ['click', 'like', 'purchase', 'dislike', 'ignore'];
-            if ($userId === '' || $itemId === '' || !in_array($eventType, $allowedEvents, true)) {
+            if ($itemId === '' || !in_array($eventType, $allowedEvents, true)) {
                 $this->httpClient->logError('pushFeedback', 'Invalid feedback event parameters');
                 return false;
             }

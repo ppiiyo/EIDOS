@@ -210,6 +210,30 @@ export class EmbeddedRedisServer {
           socket.write('+OK\r\n');
           break;
         }
+        case 'SETNX': {
+          const key = args[1] || '';
+          const val = args[2] || '';
+          const existing = await this.store.get(key);
+          if (existing !== null && existing !== undefined) {
+            socket.write(':0\r\n');
+          } else {
+            await this.store.set(key, val, 300);
+            socket.write(':1\r\n');
+          }
+          break;
+        }
+        case 'EXPIRE': {
+          const key = args[1] || '';
+          const ttl = parseInt(args[2] || '300', 10) || 300;
+          const existing = await this.store.get(key);
+          if (existing !== null && existing !== undefined) {
+            await this.store.set(key, existing, ttl);
+            socket.write(':1\r\n');
+          } else {
+            socket.write(':0\r\n');
+          }
+          break;
+        }
         case 'DEL':
         case 'UNLINK': {
           const keys = args.slice(1);

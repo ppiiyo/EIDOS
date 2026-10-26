@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { SecurityGuardrails, CircuitBreaker } from '@eidos/core';
+import { SecurityGuardrails, CircuitBreaker, cosineSimilarity } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
@@ -151,6 +151,13 @@ export async function searchRoutes(
         price?: number;
         score: number;
         source?: string;
+        explanation: {
+          denseComponent: number;
+          sparseBm25Component: number;
+          rrfScore: number;
+          mmrPenalty: number;
+          businessBoost: number;
+        };
       }>;
       let queryVectorForSemCache: Float32Array | number[] | null = null;
 
@@ -192,7 +199,7 @@ export async function searchRoutes(
             }
             const cleanVector = vectorCheck.corrected || queryVector;
 
-            let results: Array<{ item: any; score: number; source?: string }> = [];
+            let results: Array<{ item: any; score: number; rrfScore?: number; source?: string }> = [];
 
             if (mode === 'hybrid') {
               const denseW = alpha * 2;
@@ -264,6 +271,7 @@ export async function searchRoutes(
                     return {
                       item: orig.item,
                       score: rk.finalScore,
+                      rrfScore: orig.score,
                       source: orig.source ? `${orig.source}+cross_encoder` : 'cross_encoder',
                     };
                   });
@@ -271,16 +279,41 @@ export async function searchRoutes(
               );
             }
 
-            return results.map((r) => ({
-              id: r.item.id,
-              title: r.item.title,
-              description: r.item.description,
-              category: r.item.category,
-              tags: r.item.tags,
-              price: r.item.price,
-              score: r.score,
-              source: r.source,
-            }));
+            const bm25Map = new Map<string, number>();
+            if (mode !== 'dense') {
+              const bm25Hits = activeStore.getBM25().search(safeQuery, Math.max(limit * 3, 25));
+              for (const h of bm25Hits) {
+                bm25Map.set(h.id, h.score);
+              }
+            }
+
+            return results.map((r) => {
+              const itemVec = r.item.normalizedVector || r.item.embedding;
+              const rawDense =
+                mode === 'sparse' || !itemVec ? 0 : Math.max(0, cosineSimilarity(cleanVector, itemVec));
+              const denseComponent = Math.round(rawDense * 10000) / 10000;
+              const rawSparse = mode === 'dense' ? 0 : (bm25Map.get(r.item.id) ?? 0);
+              const sparseBm25Component = Math.round(rawSparse * 10000) / 10000;
+              const rrfScore = Math.round((r.rrfScore ?? r.score) * 10000) / 10000;
+
+              return {
+                id: r.item.id,
+                title: r.item.title,
+                description: r.item.description,
+                category: r.item.category,
+                tags: r.item.tags,
+                price: r.item.price,
+                score: r.score,
+                source: r.source,
+                explanation: {
+                  denseComponent,
+                  sparseBm25Component,
+                  rrfScore,
+                  mmrPenalty: 0,
+                  businessBoost: 0,
+                },
+              };
+            });
           },
           10_000
         );
