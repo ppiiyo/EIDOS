@@ -16,6 +16,7 @@ import {
 import { TenantNamespaceManager } from '../services/multi-tenancy';
 import { NeuralCrossEncoderReranker } from '../services/reranker';
 import { traceSpan } from '../tracing';
+import { recordSearchLatency } from '../plugins/observability';
 
 const searchRequestSchema = z.object({
   query: z.string().min(1, 'query is required').max(500),
@@ -126,13 +127,15 @@ export async function searchRoutes(
       ApiQueryCache.syncMetrics();
 
       if (cachedResponse) {
+        const hitLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+        recordSearchLatency(hitLatencyMs, `${mode}_cache_hit`);
         reply.header('x-cache', 'HIT');
         return {
           ...cachedResponse,
           cached: true,
           cacheHit: true,
           cachedAt: cachedResponse.cachedAt || new Date().toISOString(),
-          latencyMs: Math.round((performance.now() - startTime) * 100) / 100,
+          latencyMs: hitLatencyMs,
         };
       }
 
@@ -160,6 +163,8 @@ export async function searchRoutes(
         if (keySafe) {
           const semHit = semanticCache.lookup(queryVector, filterKey);
           if (semHit.hit && semHit.response) {
+            const semLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+            recordSearchLatency(semLatencyMs, `${mode}_semantic_hit`);
             reply.header('x-cache', 'SEMANTIC_HIT');
             return {
               ...semHit.response,
@@ -168,7 +173,7 @@ export async function searchRoutes(
               semanticSimilarity: Number(semHit.similarity.toFixed(4)),
               matchedQuery: semHit.matchedQuery,
               cachedAt: (semHit.response.cachedAt as string) || new Date().toISOString(),
-              latencyMs: Math.round((performance.now() - startTime) * 100) / 100,
+              latencyMs: semLatencyMs,
             };
           }
         }
@@ -295,6 +300,7 @@ export async function searchRoutes(
       }
 
       const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+      recordSearchLatency(latencyMs, mode);
       const cachedAt = new Date().toISOString();
       const responsePayload = {
         query: safeQuery,

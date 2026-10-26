@@ -14,5 +14,9 @@ declare module 'fastify' {
      * Resolved multi-tenant namespace identifier (defaults to 'default').
      */
     tenantId?: string;
+    /**
+     * High-resolution request start timestamp recorded by observabilityPlugin.
+     */
+    __startTimeHr?: number;
   }
 }

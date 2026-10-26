@@ -8,9 +8,19 @@ import { apiRoutesPlugin } from './plugins/routes';
 import { VectorStore } from './services/vector-store';
 import { ServerEmbedder } from './services/embedder';
 import { AILManager } from './services/ail';
-import { getPrecomputedSeedCatalog } from './services/seed-catalog';
+import {
+  getPrecomputedSeedCatalog,
+  generateDeterministicSeedCatalog,
+  mulberry32,
+  resetSeedCatalogCache,
+} from './services/seed-catalog';
 import { initTracing } from './tracing';
 import { recommendSchema, simpleRecommend } from './routes/recommend';
+
+export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache };
+
+const DETERMINISTIC_SEED = 42;
+const DETERMINISTIC_EPOCH_MS = 1_700_000_000_000;
 
 export async function buildServer(): Promise<FastifyInstance> {
   initTracing();
@@ -35,17 +45,18 @@ export async function buildServer(): Promise<FastifyInstance> {
   const embedder = ServerEmbedder.getInstance();
   const ail = AILManager.getInstance();
 
-  // Seed 5,005 catalog items with 384-d vectors in <35ms
-  const seedItems = await getPrecomputedSeedCatalog(embedder, 5005);
+  // Seed 5,005 catalog items deterministically with mulberry32(42) 384-d vectors in <35ms
+  const seedItems = await getPrecomputedSeedCatalog(embedder, 5005, DETERMINISTIC_SEED);
   vectorStore.bulkSeed(seedItems);
 
+  const prng = mulberry32(DETERMINISTIC_SEED);
   for (let i = 0; i < Math.min(seedItems.length, 100); i++) {
     const item = seedItems[i];
     ail.metadataStore.add({
       id: item.id,
       category: item.category,
-      popularity: 0.75,
-      createdAt: Date.now() - 86400_000,
+      popularity: Math.round((0.65 + prng() * 0.25) * 1000) / 1000,
+      createdAt: DETERMINISTIC_EPOCH_MS - i * 3600_000,
       attributes: {},
     });
   }

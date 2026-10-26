@@ -9,6 +9,8 @@ const PUBLIC_ENDPOINTS = [
   '/v1/health/live',
   '/v1/health/ready',
   '/v1/catalog/stats',
+  '/v1/metrics',
+  '/v1/telemetry',
   '/health',
   '/api/health',
   '/metrics',

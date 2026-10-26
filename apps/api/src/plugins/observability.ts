@@ -1,3 +1,4 @@
+/// <reference path="../types/fastify.d.ts" />
 import { FastifyInstance } from 'fastify';
 import * as crypto from 'crypto';
 import { Metrics } from '@eidos/core';
@@ -5,7 +6,9 @@ import { cacheMetrics } from '../services/cache/cache-metrics';
 
 const MAX_LATENCY_SAMPLES = 1000;
 const latencySamplesMs: number[] = [];
+const searchLatencySamplesMs: number[] = [];
 let totalRequestsCount = 0;
+let totalSearchRequestsCount = 0;
 
 function recordLatencySample(ms: number): void {
   if (latencySamplesMs.length >= MAX_LATENCY_SAMPLES) {
@@ -13,6 +16,35 @@ function recordLatencySample(ms: number): void {
   }
   latencySamplesMs.push(ms);
   totalRequestsCount++;
+}
+
+export function recordSearchLatency(ms: number, searchType = 'hybrid'): void {
+  const safeMs = Number.isFinite(ms) && ms >= 0 ? ms : 0;
+  if (searchLatencySamplesMs.length >= MAX_LATENCY_SAMPLES) {
+    searchLatencySamplesMs.shift();
+  }
+  searchLatencySamplesMs.push(safeMs);
+  totalSearchRequestsCount++;
+  Metrics.searchLatency.observe({ search_type: searchType }, safeMs / 1000);
+}
+
+export function getAverageSearchLatencyMs(): number {
+  if (searchLatencySamplesMs.length === 0) {
+    return 0;
+  }
+  const sum = searchLatencySamplesMs.reduce((acc, val) => acc + val, 0);
+  return Math.round((sum / searchLatencySamplesMs.length) * 100) / 100;
+}
+
+export function getSearchLatencySampleCount(): number {
+  return searchLatencySamplesMs.length;
+}
+
+export function resetObservabilityMetrics(): void {
+  latencySamplesMs.length = 0;
+  searchLatencySamplesMs.length = 0;
+  totalRequestsCount = 0;
+  totalSearchRequestsCount = 0;
 }
 
 function computePercentile(sorted: number[], percentile: number): number {
@@ -68,11 +100,11 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
     const requestId = incomingId || `req_${crypto.randomBytes(6).toString('hex')}`;
     request.headers['x-request-id'] = requestId;
     reply.header('x-request-id', requestId);
-    (request as any).__startTimeHr = performance.now();
+    request.__startTimeHr = performance.now();
   });
 
   fastify.addHook('onResponse', async (request, reply) => {
-    const start = (request as any).__startTimeHr as number | undefined;
+    const start = request.__startTimeHr;
     const elapsedMs = typeof start === 'number' ? Math.max(0, performance.now() - start) : 0;
     recordLatencySample(elapsedMs);
 
@@ -88,7 +120,7 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
   });
 
   fastify.addHook('onSend', async (request, reply, payload) => {
-    const start = (request as any).__startTimeHr as number | undefined;
+    const start = request.__startTimeHr;
     const elapsedMs =
       typeof start === 'number' ? Math.round((performance.now() - start) * 100) / 100 : 0;
     reply.header('x-response-time', `${elapsedMs}ms`);
@@ -99,12 +131,34 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
+      avgSearchLatencyMs: getAverageSearchLatencyMs(),
       latency: getLatencyQuantiles(),
       memory: process.memoryUsage(),
       uptimeSeconds: Math.round(process.uptime() * 100) / 100,
     };
   });
+
+  fastify.get('/v1/metrics', async () => {
+    const searchSorted = [...searchLatencySamplesMs].sort((a, b) => a - b);
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      avgSearchLatencyMs: getAverageSearchLatencyMs(),
+      searchSampleCount: searchLatencySamplesMs.length,
+      totalSearchRequests: totalSearchRequestsCount,
+      searchLatency: {
+        p50Ms: computePercentile(searchSorted, 50),
+        p95Ms: computePercentile(searchSorted, 95),
+        p99Ms: computePercentile(searchSorted, 99),
+      },
+      latency: getLatencyQuantiles(),
+      vectorStoreSize: Metrics.vectorStoreSize.get(),
+      cacheHitRate: Metrics.cacheHitRate.get(),
+      uptimeSeconds: Math.round(process.uptime() * 100) / 100,
+    };
+  });
 }
 
-(observabilityPlugin as any)[Symbol.for('skip-override')] = true;
+(observabilityPlugin as unknown as Record<symbol, boolean>)[Symbol.for('skip-override')] = true;
+
 

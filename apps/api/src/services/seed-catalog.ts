@@ -226,12 +226,27 @@ const CORE_FIVE_ITEMS = [
   },
 ];
 
-function computeFastVector(
+/**
+ * Deterministic 32-bit Mulberry32 PRNG.
+ * Guarantees 100% reproducible sequences across runs and platforms for a given seed.
+ */
+export function mulberry32(seed: number = 42): () => number {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function computeFastVector(
   id: string,
   category: string,
   title: string,
   tags: string[],
-  anchorVec?: Float32Array
+  anchorVec?: Float32Array,
+  seed: number = 42
 ): Float32Array {
   const vec = new Float32Array(384);
   if (anchorVec && anchorVec.length === 384) {
@@ -247,12 +262,13 @@ function computeFastVector(
   }
 
   const text = `${id} ${category} ${title} ${tags.join(' ')}`.toLowerCase();
-  let h = 2166136261 >>> 0;
+  let h = (2166136261 ^ (seed >>> 0)) >>> 0;
   for (let i = 0; i < text.length; i++) {
     h ^= text.charCodeAt(i);
     h = Math.imul(h, 16777619) >>> 0;
+    const prng = mulberry32((h + Math.imul(i, 2654435761)) >>> 0);
     const targetDim = (h + i * 17) % 384;
-    vec[targetDim] += ((h & 0xff) / 255.0 - 0.5) * 0.25;
+    vec[targetDim] += (prng() - 0.5) * 0.25;
   }
 
   let sumSq = 0;
@@ -267,25 +283,26 @@ function computeFastVector(
 }
 
 let cachedCatalogItems: StoredItem[] | null = null;
+let cachedCatalogSeed: number | null = null;
+
+export function resetSeedCatalogCache(): void {
+  cachedCatalogItems = null;
+  cachedCatalogSeed = null;
+}
 
 /**
- * Builds and caches 5,005 catalog items with 384-d embeddings.
- * First 5 items use neural transformer embeddings; remaining 5,000 items use
- * category-aligned 384-d manifold vectors for instant (<25ms) cold-start indexing.
+ * Generates a deterministic seed catalog using mulberry32(seed) without mutating the singleton cache.
  */
-export async function getPrecomputedSeedCatalog(
+export async function generateDeterministicSeedCatalog(
   embedder: ServerEmbedder,
-  targetCount = 5005
+  targetCount = 5005,
+  seed = 42
 ): Promise<StoredItem[]> {
-  if (cachedCatalogItems && cachedCatalogItems.length >= targetCount) {
-    return cachedCatalogItems;
-  }
-
   const items: StoredItem[] = [];
   const categoryAnchorVecs = new Map<string, Float32Array>();
 
   for (const item of CORE_FIVE_ITEMS) {
-    const f32 = computeFastVector(item.id, item.category, item.title, item.tags);
+    const f32 = computeFastVector(item.id, item.category, item.title, item.tags, undefined, seed);
     categoryAnchorVecs.set(item.category, f32);
     embedder.setCachedEmbedding(item.title, f32);
     items.push({
@@ -298,7 +315,14 @@ export async function getPrecomputedSeedCatalog(
   // Pre-seed common benchmark/test search queries for sub-5ms response time
   embedder.setCachedEmbedding(
     'Quantum Spatial Audio Headphones',
-    computeFastVector('item-6', 'Electronics', 'Quantum Spatial Audio Headphones Gen-1', ['quantum', 'electronics', 'hardware', 'tech', 'wireless'])
+    computeFastVector(
+      'item-6',
+      'Electronics',
+      'Quantum Spatial Audio Headphones Gen-1',
+      ['quantum', 'electronics', 'hardware', 'tech', 'wireless'],
+      undefined,
+      seed
+    )
   );
 
   const countToGenerate = Math.max(0, targetCount - CORE_FIVE_ITEMS.length);
@@ -321,7 +345,8 @@ export async function getPrecomputedSeedCatalog(
       category,
       title,
       tags,
-      categoryAnchorVecs.get(category)
+      categoryAnchorVecs.get(category),
+      seed
     );
 
     items.push({
@@ -336,6 +361,29 @@ export async function getPrecomputedSeedCatalog(
     });
   }
 
+  return items;
+}
+
+/**
+ * Builds and caches 5,005 catalog items with 384-d embeddings.
+ * First 5 items use neural transformer embeddings; remaining 5,000 items use
+ * category-aligned 384-d manifold vectors for instant (<25ms) cold-start indexing.
+ */
+export async function getPrecomputedSeedCatalog(
+  embedder: ServerEmbedder,
+  targetCount = 5005,
+  seed = 42
+): Promise<StoredItem[]> {
+  if (
+    cachedCatalogItems &&
+    cachedCatalogItems.length >= targetCount &&
+    cachedCatalogSeed === seed
+  ) {
+    return cachedCatalogItems.slice(0, targetCount);
+  }
+
+  const items = await generateDeterministicSeedCatalog(embedder, targetCount, seed);
   cachedCatalogItems = items;
+  cachedCatalogSeed = seed;
   return items;
 }

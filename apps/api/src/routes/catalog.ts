@@ -8,6 +8,7 @@ import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
 import { getCache, CacheKeys, getSemanticCache } from '../services/cache';
 import { TenantNamespaceManager, RBACManager, AuditLogger } from '../services/multi-tenancy';
+import { getAverageSearchLatencyMs } from '../plugins/observability';
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -74,6 +75,7 @@ export async function catalogRoutes(
       totalItems: store.count(),
       hnswIndexed: store.getHNSW().size(),
       walPending: store.getWAL().size(),
+      avgSearchLatencyMs: getAverageSearchLatencyMs(),
       categories,
       cache: {
         type: redisStats.type || 'in-memory',

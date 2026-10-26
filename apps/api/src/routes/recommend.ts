@@ -13,6 +13,7 @@ import { StoredItem } from '../types';
 import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
 import { getCache, CacheKeys, getSingleFlight } from '../services/cache';
+import { recordSearchLatency } from '../plugins/observability';
 
 export const recommendSchema = z
   .object({
@@ -702,6 +703,8 @@ export async function recommendRoutes(
       ...result.payload,
       cacheHit: false,
     };
+
+    recordSearchLatency(result.payload.latencyMs, `recommend_${data.strategy}`);
 
     // Store in Redis cache (10 minutes TTL = 600s) if no dynamic filters
     if (!hasDynamicExclusions) {
