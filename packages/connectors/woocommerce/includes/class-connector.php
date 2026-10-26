@@ -162,7 +162,12 @@ class Connector implements ConnectorInterface
                 foreach ($expandedItems as $entry) {
                     $processed++;
                     try {
-                        $mapped = $this->mapFields($entry['item'], $entry['parentContext']);
+                        $rawItem = $entry['item'];
+                        $mapped = $this->mapFields($rawItem, $entry['parentContext']);
+                        $itemTimestamp = $this->extractModifiedTimestamp($rawItem, 0);
+                        $this->syncedDeltaFingerprints[$mapped['id']] = sha1(
+                            $mapped['id'] . '|' . $itemTimestamp . '|' . $mapped['title'] . '|' . $mapped['price'] . '|' . ($mapped['inStock'] ? '1' : '0')
+                        );
                         $pendingBatch[] = $this->mapper->toUpsertPayload($mapped);
                     } catch (Throwable $e) {
                         $failed++;
@@ -239,6 +244,13 @@ class Connector implements ConnectorInterface
                         $rawItem = $entry['item'];
                         $mapped = $this->mapFields($rawItem, $entry['parentContext']);
                         $itemTimestamp = $this->extractModifiedTimestamp($rawItem, $since->getTimestamp());
+
+                        $hasExplicitDate = (is_array($rawItem) && (!empty($rawItem['date_modified_gmt']) || !empty($rawItem['date_modified'])))
+                            || (is_object($rawItem) && method_exists($rawItem, 'get_date_modified') && $rawItem->get_date_modified() !== null);
+
+                        if ($hasExplicitDate && $itemTimestamp < $since->getTimestamp()) {
+                            continue;
+                        }
 
                         $fingerprint = sha1(
                             $mapped['id'] . '|' . $itemTimestamp . '|' . $mapped['title'] . '|' . $mapped['price'] . '|' . ($mapped['inStock'] ? '1' : '0')
@@ -342,6 +354,7 @@ class Connector implements ConnectorInterface
 
         $payload = [
             'itemId' => $itemId,
+            'eventType' => $normalizedEvent,
             'event' => $normalizedEvent,
             'query' => $query !== '' ? $query : 'catalog',
         ];

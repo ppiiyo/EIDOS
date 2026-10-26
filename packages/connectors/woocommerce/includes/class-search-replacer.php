@@ -181,8 +181,15 @@ class SearchReplacer
             return;
         }
 
-        // Приводим строковые ID к int для WP_Query post__in
-        $numericIds = array_values(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0));
+        // Оставляем только числовые ID постов WordPress (отбрасывая строковые демо-ID вида item-191)
+        $numericIds = [];
+        foreach ($ids as $rawId) {
+            if (is_int($rawId) && $rawId > 0) {
+                $numericIds[] = $rawId;
+            } elseif (is_string($rawId) && ctype_digit($rawId) && (int) $rawId > 0) {
+                $numericIds[] = (int) $rawId;
+            }
+        }
         if (empty($numericIds)) {
             return;
         }

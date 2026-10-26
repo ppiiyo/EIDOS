@@ -213,7 +213,7 @@ class Settings
 if (!function_exists(__NAMESPACE__ . '\sanitize_key')) {
     function sanitize_key(string $key): string
     {
-        return\function_exists('\sanitize_key')
+        return \function_exists('\sanitize_key')
             ? (string) \sanitize_key($key)
             : preg_replace('/[^a-z0-9_\-]/', '', strtolower($key)) ?? '';
     }
