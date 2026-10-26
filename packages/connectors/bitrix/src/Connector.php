@@ -220,15 +220,29 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * 3. Гибридный поиск с возвратом в формате 1С-Битрикс и автоматическим fallback.
+     * 3. Гибридный поиск с реальной подменой выдачи 1С-Битрикс ($arResult, $GLOBALS['searchFilter'], $GLOBALS['arrFilter'])
+     * и автоматическим fallback на стандартный поиск Битрикса.
      *
      * @param string $query
      * @param array<string, mixed> $options
-     * @return array<int, array{ID: string, NAME: string, DETAIL_PAGE_URL: string, URL: string, BODY_FORMATED: string, PRICE: float, PREVIEW_PICTURE: ?string, EXPLANATION?: ?string}>
+     * @return array<int, array<string, mixed>>
      */
     public function replaceSearch(string $query, array $options = []): array
     {
         return $this->searchReplacer->replaceSearch($query, $options);
+    }
+
+    /**
+     * Напрямую заменяет поисковую выдачу внутри компонента 1С-Битрикс ($arResult['ITEMS'], $arResult['SEARCH'], $arResult['ELEMENTS']).
+     *
+     * @param array<string, mixed> $arResult
+     * @param string $query
+     * @param array<string, mixed> $options
+     * @return array<int, array<string, mixed>>
+     */
+    public function applySearchToComponent(array &$arResult, string $query, array $options = []): array
+    {
+        return $this->searchReplacer->applyToBitrixComponent($arResult, $query, $options);
     }
 
     /**
@@ -365,6 +379,38 @@ class Connector implements ConnectorInterface
     }
 
     /**
+     * Системный обработчик события main:OnBeforeProlog в 1С-Битрикс.
+     * Автоматически перехватывает поисковые запросы (?q=...) на витрине магазина,
+     * выполняет гибридный поиск в EIDOS (с fallback на Битрикс) и заполняет
+     * $GLOBALS['searchFilter'], $GLOBALS['arrFilter'] и $GLOBALS['EIDOS_SEARCH_RESULT'].
+     */
+    public static function onBeforeProlog(): void
+    {
+        if (defined('ADMIN_SECTION') && constant('ADMIN_SECTION') === true) {
+            return;
+        }
+
+        $query = trim((string) ($_GET['q'] ?? $_REQUEST['q'] ?? ''));
+        if ($query === '') {
+            return;
+        }
+
+        try {
+            $connector = isset($GLOBALS['__EIDOS_TEST_CONNECTOR']) && $GLOBALS['__EIDOS_TEST_CONNECTOR'] instanceof self
+                ? $GLOBALS['__EIDOS_TEST_CONNECTOR']
+                : self::fromBitrixOptions(false);
+
+            $connector->replaceSearch($query, [
+                'limit' => (int) ($_GET['limit'] ?? 20),
+            ]);
+        } catch (Throwable $e) {
+            if (function_exists('AddMessage2Log')) {
+                AddMessage2Log('[EIDOS] onBeforeProlog search hook error: ' . $e->getMessage(), 'eidos.connector');
+            }
+        }
+    }
+
+    /**
      * Агент 1С-Битрикс (CAgent) для ежечасного запуска syncDelta.
      * Возвращает строку вызова агента для повторного выполнения через 3600 сек.
      */
@@ -453,7 +499,9 @@ class Connector implements ConnectorInterface
             $arFilter['IBLOCK_ID'] = $iblockId;
         }
         if ($since !== null) {
-            $arFilter['>TIMESTAMP_X'] = $since->format('d.m.Y H:i:s');
+            $arFilter['>TIMESTAMP_X'] = function_exists('ConvertTimeStamp')
+                ? (string) ConvertTimeStamp($since->getTimestamp(), 'FULL')
+                : $since->format('d.m.Y H:i:s');
         }
 
         /** @phpstan-ignore-next-line */
@@ -465,9 +513,10 @@ class Connector implements ConnectorInterface
             ['TIMESTAMP_X' => 'ASC', 'ID' => 'ASC'],
             $arFilter,
             false,
-            ['iNumPage' => $pageNumber, 'nPageSize' => $limit, 'nTopCount' => $limit, 'checkOutOfRange' => true],
+            ['iNumPage' => $pageNumber, 'nPageSize' => $limit, 'checkOutOfRange' => true],
             [
                 'ID',
+                'IBLOCK_ID',
                 'NAME',
                 'DETAIL_TEXT',
                 'PREVIEW_TEXT',

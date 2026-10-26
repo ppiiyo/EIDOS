@@ -118,14 +118,15 @@ class SearchReplacer
             'replaceSearch'
         );
 
-        // Обязательный fallback на стандартный поиск 1С-Битрикс при недоступности EIDOS или пустом ответе
         if (
             !$response['ok']
             || !isset($response['data']['results'])
             || !is_array($response['data']['results'])
             || empty($response['data']['results'])
         ) {
-            return $this->executeBitrixFallbackSearch($sanitizedQuery, $options);
+            $fallbackItems = $this->executeBitrixFallbackSearch($sanitizedQuery, $options);
+            $this->bindBitrixSearchGlobals($sanitizedQuery, $fallbackItems, true, $options);
+            return $fallbackItems;
         }
 
         $filterInStock = isset($rawFilters['inStock']) ? (bool) $rawFilters['inStock'] : null;
@@ -158,6 +159,7 @@ class SearchReplacer
                 ?? $localMeta['DETAIL_PAGE_URL']
                 ?? ('/catalog/item/' . rawurlencode($id) . '/')
             );
+            $title = (string) ($itemData['title'] ?? $localMeta['NAME'] ?? '');
             $description = (string) ($itemData['description'] ?? $localMeta['DESCRIPTION'] ?? '');
             $price = isset($itemData['price']) ? (float) $itemData['price'] : (float) ($localMeta['PRICE'] ?? 0.0);
             $explanation = isset($hit['explanation']) && is_string($hit['explanation'])
@@ -166,7 +168,11 @@ class SearchReplacer
 
             $bitrixItems[] = [
                 'ID' => $id,
-                'NAME' => (string) ($itemData['title'] ?? $localMeta['NAME'] ?? ''),
+                'ITEM_ID' => $id,
+                'MODULE_ID' => 'iblock',
+                'NAME' => $title,
+                'TITLE' => $title,
+                'TITLE_FORMATED' => htmlspecialchars($title, ENT_QUOTES, 'UTF-8'),
                 'DETAIL_PAGE_URL' => $url,
                 'URL' => $url,
                 'BODY_FORMATED' => $description,
@@ -180,11 +186,114 @@ class SearchReplacer
             }
         }
 
+        // Если после фильтрации по наличию список пуст — пробуем резервный поиск Битрикса
+        if (empty($bitrixItems)) {
+            $fallbackItems = $this->executeBitrixFallbackSearch($sanitizedQuery, $options);
+            $this->bindBitrixSearchGlobals($sanitizedQuery, $fallbackItems, true, $options);
+            return $fallbackItems;
+        }
+
+        $this->bindBitrixSearchGlobals($sanitizedQuery, $bitrixItems, false, $options);
+
         return $bitrixItems;
     }
 
     /**
-     * Fallback на штатный поиск 1С-Битрикс (CSearch / CIBlockElement::GetList или локальный индекс).
+     * Напрямую подменяет результаты внутри компонента 1С-Битрикс ($arResult['ITEMS'], $arResult['SEARCH'],
+     * $arResult['ELEMENTS']) и глобального фильтра каталога ($GLOBALS['searchFilter'] / $GLOBALS['arrFilter']).
+     *
+     * @param array<string, mixed> $arResult
+     * @param string $query
+     * @param array<string, mixed> $options
+     * @return array<int, array<string, mixed>>
+     */
+    public function applyToBitrixComponent(array &$arResult, string $query, array $options = []): array
+    {
+        $items = $this->replaceSearch($query, $options);
+        $ids = array_values(array_map(static fn(array $it): string => (string) $it['ID'], $items));
+
+        $arResult['QUERY'] = htmlspecialchars($query, ENT_QUOTES, 'UTF-8');
+        $arResult['ITEMS'] = $items;
+        $arResult['SEARCH'] = $items;
+        $arResult['ELEMENTS'] = !empty($ids) ? array_combine($ids, $ids) : [];
+        $arResult['FALLBACK_USED'] = (bool) ($GLOBALS['EIDOS_SEARCH_RESULT']['FALLBACK_USED'] ?? false);
+        $arResult['EIDOS_REPLACED'] = !$arResult['FALLBACK_USED'];
+
+        return $items;
+    }
+
+    /**
+     * Привязывает результаты поиска EIDOS к глобальному контексту 1С-Битрикс:
+     * - Заполняет $GLOBALS['searchFilter'] и $GLOBALS['arrFilter'] (['=ID' => $ids]) для bitrix:catalog.search
+     * - Заполняет $GLOBALS['arResult']['ITEMS'] и $GLOBALS['arResult']['SEARCH'] для bitrix:search.page
+     * - Подключает JS-маяк navigator.sendBeacon('/bitrix/tools/eidos_feedback.php') через $APPLICATION->AddHeadString
+     *
+     * @param string $query
+     * @param array<int, array<string, mixed>> $items
+     * @param bool $fallbackUsed
+     * @param array<string, mixed> $options
+     */
+    private function bindBitrixSearchGlobals(string $query, array $items, bool $fallbackUsed, array $options = []): void
+    {
+        $ids = array_values(array_map(static fn(array $it): string => (string) ($it['ID'] ?? ''), $items));
+        $ids = array_values(array_filter($ids, static fn(string $id): bool => $id !== ''));
+
+        $GLOBALS['EIDOS_SEARCH_RESULT'] = [
+            'QUERY' => $query,
+            'IDS' => $ids,
+            'ITEMS' => $items,
+            'FALLBACK_USED' => $fallbackUsed,
+            'EIDOS_REPLACED' => !$fallbackUsed,
+        ];
+
+        // Заполняем глобальные фильтры для штатного компонента bitrix:catalog.search / bitrix:catalog.section
+        $filterName = isset($options['filterName']) && is_string($options['filterName']) && $options['filterName'] !== ''
+            ? $options['filterName']
+            : 'searchFilter';
+
+        $idFilter = !empty($ids) ? ['=ID' => $ids] : ['=ID' => -1];
+        $GLOBALS[$filterName] = array_merge(is_array($GLOBALS[$filterName] ?? null) ? $GLOBALS[$filterName] : [], $idFilter);
+        $GLOBALS['arrFilter'] = array_merge(is_array($GLOBALS['arrFilter'] ?? null) ? $GLOBALS['arrFilter'] : [], $idFilter);
+
+        // Если в глобальной области видимости активен $arResult компонента поиска — обновляем его на месте
+        if (isset($GLOBALS['arResult']) && is_array($GLOBALS['arResult'])) {
+            $GLOBALS['arResult']['ITEMS'] = $items;
+            $GLOBALS['arResult']['SEARCH'] = $items;
+            $GLOBALS['arResult']['ELEMENTS'] = !empty($ids) ? array_combine($ids, $ids) : [];
+            $GLOBALS['arResult']['FALLBACK_USED'] = $fallbackUsed;
+            $GLOBALS['arResult']['EIDOS_REPLACED'] = !$fallbackUsed;
+        }
+
+        // Регистрируем неблокирующий скрипт отправки кликов в шапке страницы Битрикса
+        if (isset($GLOBALS['APPLICATION']) && is_object($GLOBALS['APPLICATION']) && method_exists($GLOBALS['APPLICATION'], 'AddHeadString')) {
+            $GLOBALS['APPLICATION']->AddHeadString(self::getTrackingScriptHtml($query), true);
+        }
+    }
+
+    /**
+     * Возвращает HTML/JS код для автоматического неблокирующего трекинга кликов через navigator.sendBeacon.
+     */
+    public static function getTrackingScriptHtml(string $defaultQuery = ''): string
+    {
+        $encodedQuery = json_encode($defaultQuery, JSON_UNESCAPED_UNICODE);
+        return <<<HTML
+<script data-eidos-tracker="1">
+window.eidosTrackClick = window.eidosTrackClick || function(itemId, query) {
+    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        navigator.sendBeacon('/bitrix/tools/eidos_feedback.php', JSON.stringify({
+            itemId: String(itemId),
+            query: String(query || {$encodedQuery} || ''),
+            eventType: 'click'
+        }));
+    }
+};
+</script>
+HTML;
+    }
+
+    /**
+     * Fallback на штатный поиск 1С-Битрикс (CSearch::Search из b_search_content,
+     * затем CIBlockElement::GetList или локальный индекс).
      *
      * @param string $query
      * @param array<string, mixed> $options
@@ -199,7 +308,63 @@ class SearchReplacer
         $limit = max(1, min(100, (int) ($options['limit'] ?? 20)));
         $filters = is_array($options['filters'] ?? null) ? $options['filters'] : [];
 
-        // Если запущено внутри окружения 1С-Битрикс с подключенным модулем iblock
+        // 1. Пробуем штатный поисковый модуль 1С-Битрикс (b_search_content / CSearch::Search)
+        if (class_exists('\CModule')) {
+            /** @phpstan-ignore-next-line */
+            \CModule::IncludeModule('search');
+        }
+        if (class_exists('\CSearch')) {
+            /** @phpstan-ignore-next-line */
+            $obSearch = new \CSearch();
+            $siteId = defined('SITE_ID') ? (string) constant('SITE_ID') : 's1';
+            $searchParams = [
+                'QUERY' => $query,
+                'SITE_ID' => $siteId,
+                'MODULE_ID' => 'iblock',
+            ];
+            $iblockId = (int) Settings::getOption('iblock_id', Settings::getOption(Settings::OPT_IBLOCK_ID, '0'));
+            if ($iblockId > 0) {
+                $searchParams['PARAM2'] = $iblockId;
+            }
+
+            /** @phpstan-ignore-next-line */
+            $obSearch->Search($searchParams, ['CUSTOM_RANK' => 'DESC', 'RANK' => 'DESC']);
+            $csearchResults = [];
+            /** @phpstan-ignore-next-line */
+            while ($arSearch = $obSearch->GetNext()) {
+                $itemId = (string) ($arSearch['ITEM_ID'] ?? $arSearch['ID'] ?? '');
+                if ($itemId === '') {
+                    continue;
+                }
+                $localMeta = $this->localCatalogIndex[$itemId] ?? [];
+                $url = (string) ($arSearch['URL'] ?? $localMeta['DETAIL_PAGE_URL'] ?? '');
+                $title = strip_tags((string) ($arSearch['TITLE'] ?? $localMeta['NAME'] ?? ''));
+
+                $csearchResults[] = [
+                    'ID' => $itemId,
+                    'ITEM_ID' => $itemId,
+                    'MODULE_ID' => 'iblock',
+                    'NAME' => $title,
+                    'TITLE' => $title,
+                    'TITLE_FORMATED' => (string) ($arSearch['TITLE_FORMATED'] ?? htmlspecialchars($title, ENT_QUOTES, 'UTF-8')),
+                    'DETAIL_PAGE_URL' => $url,
+                    'URL' => $url,
+                    'BODY_FORMATED' => strip_tags((string) ($arSearch['BODY_FORMATED'] ?? $localMeta['DESCRIPTION'] ?? '')),
+                    'PRICE' => (float) ($localMeta['PRICE'] ?? 0.0),
+                    'PREVIEW_PICTURE' => $localMeta['PREVIEW_PICTURE'] ?? null,
+                    'EXPLANATION' => null,
+                ];
+                if (count($csearchResults) >= $limit) {
+                    break;
+                }
+            }
+
+            if (!empty($csearchResults)) {
+                return $csearchResults;
+            }
+        }
+
+        // 2. Если модуль search пуст или не индексировал каталог — ищем через CIBlockElement::GetList
         if (class_exists('\CIBlockElement')) {
             $arFilter = [
                 'ACTIVE' => 'Y',
@@ -220,11 +385,17 @@ class SearchReplacer
 
             $results = [];
             while ($arItem = $rsElements->GetNext()) {
+                $id = (string) $arItem['ID'];
+                $title = (string) $arItem['NAME'];
                 $url = (string) ($arItem['DETAIL_PAGE_URL'] ?? '');
                 $desc = strip_tags((string) ($arItem['PREVIEW_TEXT'] ?: ($arItem['DETAIL_TEXT'] ?? '')));
                 $results[] = [
-                    'ID' => (string) $arItem['ID'],
-                    'NAME' => (string) $arItem['NAME'],
+                    'ID' => $id,
+                    'ITEM_ID' => $id,
+                    'MODULE_ID' => 'iblock',
+                    'NAME' => $title,
+                    'TITLE' => $title,
+                    'TITLE_FORMATED' => htmlspecialchars($title, ENT_QUOTES, 'UTF-8'),
                     'DETAIL_PAGE_URL' => $url,
                     'URL' => $url,
                     'BODY_FORMATED' => $desc,
@@ -236,7 +407,7 @@ class SearchReplacer
             return $results;
         }
 
-        // Локальный полнотекстовый fallback по проиндексированным элементам (для CLI/тестов)
+        // 3. Локальный полнотекстовый fallback по проиндексированным элементам (для CLI/тестов)
         $tokens = array_filter(explode(' ', mb_strtolower($query, 'UTF-8')));
         $scored = [];
 
@@ -268,11 +439,16 @@ class SearchReplacer
 
             if ($matches > 0 || empty($tokens)) {
                 $url = (string) $meta['DETAIL_PAGE_URL'];
+                $title = (string) $meta['NAME'];
                 $scored[] = [
                     'score' => $matches,
                     'item' => [
                         'ID' => (string) $id,
-                        'NAME' => (string) $meta['NAME'],
+                        'ITEM_ID' => (string) $id,
+                        'MODULE_ID' => 'iblock',
+                        'NAME' => $title,
+                        'TITLE' => $title,
+                        'TITLE_FORMATED' => htmlspecialchars($title, ENT_QUOTES, 'UTF-8'),
                         'DETAIL_PAGE_URL' => $url,
                         'URL' => $url,
                         'BODY_FORMATED' => (string) ($meta['DESCRIPTION'] ?? ''),

@@ -20,23 +20,28 @@ if (is_file($moduleInclude)) {
 $query = trim((string) ($_GET['q'] ?? $_REQUEST['q'] ?? ''));
 $arResult['QUERY'] = htmlspecialchars($query, ENT_QUOTES, 'UTF-8');
 $arResult['ITEMS'] = [];
+$arResult['SEARCH'] = [];
+$arResult['ELEMENTS'] = [];
 $arResult['FALLBACK_USED'] = false;
+$arResult['EIDOS_REPLACED'] = false;
 
 if ($query !== '') {
     try {
-        $connector = \EidosConnector::fromBitrixOptions(false);
+        $connector = isset($GLOBALS['__EIDOS_TEST_CONNECTOR']) && $GLOBALS['__EIDOS_TEST_CONNECTOR'] instanceof \Eidos\Connectors\Bitrix\Connector
+            ? $GLOBALS['__EIDOS_TEST_CONNECTOR']
+            : \EidosConnector::fromBitrixOptions(false);
         $pageResults = isset($arParams['PAGE_RESULT_COUNT']) ? (int) $arParams['PAGE_RESULT_COUNT'] : 20;
 
-        $items = $connector->replaceSearch($query, [
+        $items = $connector->applySearchToComponent($arResult, $query, [
             'limit' => max(1, $pageResults),
             'alpha' => isset($arParams['ALPHA']) ? (float) $arParams['ALPHA'] : 0.65,
+            'filterName' => isset($arParams['FILTER_NAME']) ? (string) $arParams['FILTER_NAME'] : 'searchFilter',
         ]);
 
-        if (!empty($items)) {
-            $arResult['ITEMS'] = $items;
-        } else {
+        if (empty($items)) {
             // Fallback на стандартный компонент bitrix:search.page
             $arResult['FALLBACK_USED'] = true;
+            $arResult['EIDOS_REPLACED'] = false;
             if (isset($APPLICATION) && is_object($APPLICATION) && method_exists($APPLICATION, 'IncludeComponent')) {
                 $APPLICATION->IncludeComponent(
                     'bitrix:search.page',

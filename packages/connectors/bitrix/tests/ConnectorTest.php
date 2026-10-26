@@ -288,7 +288,7 @@ final class ConnectorTest extends AbstractConnectorContractTest
         require dirname(__DIR__) . '/tools/eidos_feedback.php';
         unset($GLOBALS['__EIDOS_TEST_CONNECTOR'], $GLOBALS['__EIDOS_TEST_RAW_BODY']);
 
-        // Проверяем mapFields: удаление HTML и обрезку до 5000 символов
+        // Проверяем mapFields: удаление HTML, обрезку до 5000 символов и извлечение PROPERTIES
         $longHtml = '<div><p>Тестовое описание</p>' . str_repeat('<span>АБВГД</span>', 1200) . '</div>';
         $mapped = $connector->mapFields([
             'ID' => '777',
@@ -298,11 +298,29 @@ final class ConnectorTest extends AbstractConnectorContractTest
             'PRICE' => 3200,
             'QUANTITY' => 4,
             'DETAIL_PAGE_URL' => '/catalog/777/',
+            'PROPERTIES' => [
+                'BRAND' => ['VALUE' => 'Brembo'],
+                'CML2_ARTICLE' => ['VALUE' => 'BR-777-X'],
+            ],
         ]);
 
         $this->assertSame('Диск тормозной', $mapped['title']);
         $this->assertStringNotContainsString('<', $mapped['description']);
         $this->assertSame(5000, mb_strlen($mapped['description'], 'UTF-8'));
         $this->assertTrue($mapped['inStock']);
+        $this->assertContains('Brembo', $mapped['tags']);
+        $this->assertContains('BR-777-X', $mapped['tags']);
+
+        // Проверяем реальную замену поиска 1С-Битрикс (arResult, searchFilter, arrFilter и OnBeforeProlog)
+        $arResult = [];
+        $items = $connector->applySearchToComponent($arResult, 'тормозные колодки камри', ['limit' => 5]);
+        $this->assertNotEmpty($items);
+        $this->assertTrue($arResult['EIDOS_REPLACED']);
+        $this->assertFalse($arResult['FALLBACK_USED']);
+        $this->assertSame($items, $arResult['ITEMS']);
+        $this->assertSame($items, $arResult['SEARCH']);
+        $this->assertNotEmpty($arResult['ELEMENTS']);
+        $this->assertNotEmpty($GLOBALS['searchFilter']['=ID'] ?? []);
+        $this->assertNotEmpty($GLOBALS['arrFilter']['=ID'] ?? []);
     }
 }

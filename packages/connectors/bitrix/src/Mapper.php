@@ -71,7 +71,15 @@ class Mapper
         $rawQuantity = $item['QUANTITY'] ?? $item['CATALOG_QUANTITY'] ?? ($item['inStock'] ?? false ? 1 : 0);
         $inStock = ((float) $rawQuantity) > 0.0;
 
-        $tags = $this->extractTags($item['TAGS'] ?? $item['tags'] ?? []);
+        $tags = $this->extractTags($item['TAGS'] ?? $item['tags'] ?? [], $item['PROPERTIES'] ?? []);
+        foreach ($item as $k => $v) {
+            if (is_string($k) && str_starts_with($k, 'PROPERTY_') && str_ends_with($k, '_VALUE') && is_scalar($v)) {
+                $propVal = $this->cleanPlainText((string) $v, 80);
+                if ($propVal !== '' && !in_array($propVal, $tags, true) && count($tags) < 17) {
+                    $tags[] = $propVal;
+                }
+            }
+        }
 
         $rawUrl = trim((string) ($item['DETAIL_PAGE_URL'] ?? $item['url'] ?? ('/catalog/item/' . rawurlencode($rawId) . '/')));
         $url = $this->sanitizeUrl($rawUrl);
@@ -151,11 +159,29 @@ class Mapper
 
     /**
      * @param string|array<int, mixed> $rawTags
+     * @param array<string, mixed> $properties
      * @return array<int, string>
      */
-    private function extractTags(string|array $rawTags): array
+    private function extractTags(string|array $rawTags, array $properties = []): array
     {
         $parts = is_array($rawTags) ? $rawTags : explode(',', $rawTags);
+        foreach ($properties as $prop) {
+            if (is_array($prop) && isset($prop['VALUE'])) {
+                $val = $prop['VALUE'];
+                if (is_array($val)) {
+                    foreach ($val as $subVal) {
+                        if (is_scalar($subVal)) {
+                            $parts[] = (string) $subVal;
+                        }
+                    }
+                } elseif (is_scalar($val)) {
+                    $parts[] = (string) $val;
+                }
+            } elseif (is_scalar($prop)) {
+                $parts[] = (string) $prop;
+            }
+        }
+
         $clean = [];
 
         foreach ($parts as $tag) {

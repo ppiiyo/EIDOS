@@ -19,8 +19,11 @@ FROM node:20-slim AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV PORT=3000
 ENV HOST=0.0.0.0
+ENV REDIS_URL=redis://127.0.0.1:6379
+ENV CACHE_TTL_SECONDS=300
+ENV AIL_ENABLED=true
 ENV TRANSFORMERS_CACHE=/tmp/transformers-cache
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
@@ -32,9 +35,12 @@ COPY --from=builder /app/packages/sdk ./packages/sdk
 COPY --from=builder /app/apps/api ./apps/api
 COPY --from=builder /app/node_modules ./node_modules
 
-RUN mkdir -p /tmp/transformers-cache && chown -R node:node /app /tmp/transformers-cache
+RUN mkdir -p /app/data /tmp/transformers-cache && chown -R node:node /app /tmp/transformers-cache
 
-EXPOSE 8080
+EXPOSE 3000
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
 USER node
 

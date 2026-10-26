@@ -1,53 +1,42 @@
 version: '3.8'
 
+# All-in-One EIDOS deployment (REST API /v1/* + Studio UI + Embedded RESP2 Redis in a single container)
+# Quick start:
+#   docker run -p 3000:3000 eidos/eidos
+#   or:
+#   docker compose up -d
+
 services:
-  api:
-    image: ghcr.io/ppiiyo/eidos-api:latest
-    container_name: eidos-api
+  eidos:
+    image: eidos/eidos:latest
+    container_name: eidos
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
-      - PORT=8080
+      - PORT=3000
+      - EIDOS_PORT=3000
       - EIDOS_API_KEY=${EIDOS_API_KEY:-dev-key-min-32-chars}
       - EIDOS_PUBLIC_DEMO_KEY=${EIDOS_PUBLIC_DEMO_KEY:-eidos_demo_key}
       - AIL_ENABLED=true
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL:-redis://127.0.0.1:6379}
       - CACHE_TTL_SECONDS=300
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     volumes:
       - eidos-data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/health || exit 1"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: eidos-redis
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
+    profiles: ["monitoring"]
     ports:
       - "9090:9090"
     volumes:
@@ -57,14 +46,15 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     depends_on:
-      api:
+      eidos:
         condition: service_healthy
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
+    profiles: ["monitoring"]
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     volumes:
@@ -78,6 +68,7 @@ services:
 
   jaeger:
     image: jaegertracing/all-in-one:latest
+    profiles: ["monitoring"]
     ports:
       - "16686:16686"  # Jaeger UI
       - "4318:4318"    # OTLP HTTP
@@ -87,6 +78,5 @@ services:
 
 volumes:
   eidos-data:
-  redis-data:
   prometheus-data:
   grafana-data:

@@ -39,6 +39,7 @@ class eidos_connector extends CModule
         }
 
         $this->InstallFiles();
+        $this->InstallEvents();
         $this->InstallAgents();
 
         return true;
@@ -47,6 +48,7 @@ class eidos_connector extends CModule
     public function DoUninstall(): bool
     {
         $this->UnInstallAgents();
+        $this->UnInstallEvents();
         $this->UnInstallFiles();
 
         if (function_exists('UnRegisterModule')) {
@@ -54,6 +56,33 @@ class eidos_connector extends CModule
         }
 
         return true;
+    }
+
+    public function InstallEvents(): void
+    {
+        if (function_exists('RegisterModuleDependences')) {
+            RegisterModuleDependences(
+                'main',
+                'OnBeforeProlog',
+                $this->MODULE_ID,
+                'EidosConnector',
+                'onBeforeProlog',
+                100
+            );
+        }
+    }
+
+    public function UnInstallEvents(): void
+    {
+        if (function_exists('UnRegisterModuleDependences')) {
+            UnRegisterModuleDependences(
+                'main',
+                'OnBeforeProlog',
+                $this->MODULE_ID,
+                'EidosConnector',
+                'onBeforeProlog'
+            );
+        }
     }
 
     public function InstallAgents(): void
