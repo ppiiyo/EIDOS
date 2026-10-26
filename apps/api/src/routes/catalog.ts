@@ -145,14 +145,18 @@ export async function catalogRoutes(
         }
 
         let upserted = 0;
+        const useFastLeaf = validItems.length >= 100 && store.count() >= 500;
         for (const item of validItems) {
-          store.upsert({
-            ...item,
-            description: item.description || '',
-            category: item.category || 'General',
-            tags: item.tags || [],
-            embedding: item.embedding!,
-          });
+          store.upsert(
+            {
+              ...item,
+              description: item.description || '',
+              category: item.category || 'General',
+              tags: item.tags || [],
+              embedding: item.embedding!,
+            },
+            { fastLeaf: useFastLeaf }
+          );
           upserted++;
         }
 

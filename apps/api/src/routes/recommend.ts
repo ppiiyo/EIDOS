@@ -132,6 +132,7 @@ export async function simpleRecommend(
       message: `Item with id '${itemId}' does not exist in the index.`,
     };
   }
+  excludeSet.add(sourceItem.id);
 
   const rawVec = sourceItem.normalizedVector || sourceItem.embedding;
   const vectorCheck = SecurityGuardrails.validateVectorBounds(rawVec, 384);
@@ -141,7 +142,7 @@ export async function simpleRecommend(
     sourceVec,
     Math.min(Math.max(data.limit * 2, 16), 30),
     data.minSimilarity,
-    itemId,
+    sourceItem.id,
     category
   );
 
@@ -207,6 +208,19 @@ export async function simpleRecommend(
         tags: s.item.tags,
         price: s.item.price,
         score: s.score,
+        item: {
+          id: s.item.id,
+          title: s.item.title,
+          description: s.item.description,
+          category: s.item.category,
+          tags: s.item.tags,
+          price: s.item.price,
+        },
+        explanation: {
+          strategy: 'simple',
+          semanticSimilarity: s.score,
+          diversityFactor,
+        },
       })),
       latencyMs,
       entropy,
@@ -238,6 +252,7 @@ export async function adaptiveRecommend(
       message: `Item '${itemId}' not found in catalog.`,
     };
   }
+  excludeSet.add(sourceItem.id);
 
   if (!AILManager.isEnabled()) {
     const results = vectorStore
@@ -245,7 +260,7 @@ export async function adaptiveRecommend(
         sourceItem.normalizedVector || sourceItem.embedding,
         data.limit * 2,
         0.01,
-        itemId,
+        sourceItem.id,
         category
       )
       .filter((r) => matchesFilters(r.item, category, minPrice, maxPrice, excludeSet))
@@ -270,6 +285,19 @@ export async function adaptiveRecommend(
           tags: r.item.tags,
           price: r.item.price,
           score: r.score,
+          item: {
+            id: r.item.id,
+            title: r.item.title,
+            description: r.item.description,
+            category: r.item.category,
+            tags: r.item.tags,
+            price: r.item.price,
+          },
+          explanation: {
+            strategy: 'adaptive',
+            fallback: true,
+            semanticSimilarity: r.score,
+          },
         })),
         latencyMs,
         entropy,
@@ -406,7 +434,9 @@ export async function adaptiveRecommend(
       sourceItemId: itemId,
       user_id: userId,
       recommendations: finalSelected.map((s: { id: string; score: number }) => {
-        const itemInfo = candMap.get(s.id)?.stored;
+        const candEntry = candMap.get(s.id);
+        const itemInfo = candEntry?.stored;
+        const roundedScore = Math.round(s.score * 10000) / 10000;
         return {
           id: s.id,
           title: itemInfo?.title || s.id,
@@ -414,7 +444,20 @@ export async function adaptiveRecommend(
           category: itemInfo?.category,
           tags: itemInfo?.tags,
           price: itemInfo?.price,
-          score: Math.round(s.score * 10000) / 10000,
+          score: roundedScore,
+          item: {
+            id: s.id,
+            title: itemInfo?.title || s.id,
+            description: itemInfo?.description,
+            category: itemInfo?.category,
+            tags: itemInfo?.tags,
+            price: itemInfo?.price,
+          },
+          explanation: {
+            strategy: 'adaptive',
+            score: roundedScore,
+            features: candEntry?.features,
+          },
         };
       }),
       latencyMs,
@@ -485,6 +528,19 @@ export async function userRecommend(
           tags: r.item.tags,
           price: r.item.price,
           score: r.score,
+          item: {
+            id: r.item.id,
+            title: r.item.title,
+            description: r.item.description,
+            category: r.item.category,
+            tags: r.item.tags,
+            price: r.item.price,
+          },
+          explanation: {
+            strategy: 'user',
+            fallback: true,
+            semanticSimilarity: r.score,
+          },
         })),
         latencyMs,
         entropy,
@@ -575,7 +631,9 @@ export async function userRecommend(
       strategy: 'user' as const,
       user_id: userId,
       recommendations: finalSelected.map((s: { id: string; score: number }) => {
-        const itemInfo = candidateMap.get(s.id)?.item;
+        const candEntry = candidateMap.get(s.id);
+        const itemInfo = candEntry?.item;
+        const roundedScore = Math.round(s.score * 10000) / 10000;
         return {
           id: s.id,
           title: itemInfo?.title || s.id,
@@ -583,7 +641,20 @@ export async function userRecommend(
           category: itemInfo?.category,
           tags: itemInfo?.tags,
           price: itemInfo?.price,
-          score: Math.round(s.score * 10000) / 10000,
+          score: roundedScore,
+          item: {
+            id: s.id,
+            title: itemInfo?.title || s.id,
+            description: itemInfo?.description,
+            category: itemInfo?.category,
+            tags: itemInfo?.tags,
+            price: itemInfo?.price,
+          },
+          explanation: {
+            strategy: 'user',
+            score: roundedScore,
+            features: candEntry?.features,
+          },
         };
       }),
       latencyMs,

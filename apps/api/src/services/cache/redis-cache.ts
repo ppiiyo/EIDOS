@@ -22,6 +22,8 @@ export class RedisCache {
   private fallbackCache: InMemoryCache | null = null;
   private useFallback = false;
   private isRedisConnected = false;
+  private customRedisProvided = false;
+  private isLocalRedis = false;
   private defaultTTL: number;
 
   constructor(customRedis?: Redis) {
@@ -34,6 +36,7 @@ export class RedisCache {
 
     if (customRedis) {
       this.redis = customRedis;
+      this.customRedisProvided = true;
       this.isRedisConnected = true;
       this.useFallback = false;
       return;
@@ -41,6 +44,7 @@ export class RedisCache {
 
     const isLocalRedis =
       redisUrl.includes('localhost:6379') || redisUrl.includes('127.0.0.1:6379');
+    this.isLocalRedis = isLocalRedis;
 
     if (isLocalRedis) {
       ensureEmbeddedRedisServer(this.fallbackCache!, 6379);
@@ -124,9 +128,13 @@ export class RedisCache {
    */
   async get<T>(key: string, endpoint: string = 'unknown'): Promise<T | null> {
     const start = process.hrtime.bigint();
-    const activeType = !this.useFallback && this.redis && this.isRedisConnected ? 'redis' : 'in-memory';
+    const useRemoteRedis =
+      (this.customRedisProvided || !this.isLocalRedis) &&
+      !this.useFallback &&
+      this.redis &&
+      this.isRedisConnected;
 
-    if (activeType === 'redis' && this.redis) {
+    if (useRemoteRedis && this.redis) {
       try {
         const data = await this.redis.get(key);
         const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
@@ -147,16 +155,17 @@ export class RedisCache {
     }
 
     this.initFallback();
+    const metricType = !this.useFallback && this.isRedisConnected ? 'redis' : 'in-memory';
     const fallbackVal = await this.fallbackCache!.get<T>(key);
     const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
-    recordCacheOperation('get', durationMs, 'in-memory');
+    recordCacheOperation('get', durationMs, metricType);
 
     if (fallbackVal !== null) {
-      recordCacheHit(endpoint, 'in-memory');
+      recordCacheHit(endpoint, metricType);
       return fallbackVal;
     }
 
-    recordCacheMiss(endpoint, 'in-memory');
+    recordCacheMiss(endpoint, metricType);
     return null;
   }
 
@@ -179,7 +188,13 @@ export class RedisCache {
     this.initFallback();
     await this.fallbackCache!.set(key, value, ttl);
 
-    if (!this.useFallback && this.redis && this.isRedisConnected) {
+    const useRemoteRedis =
+      (this.customRedisProvided || !this.isLocalRedis) &&
+      !this.useFallback &&
+      this.redis &&
+      this.isRedisConnected;
+
+    if (useRemoteRedis && this.redis) {
       try {
         await this.redis.setex(key, ttl, JSON.stringify(value));
         const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
@@ -191,8 +206,9 @@ export class RedisCache {
       }
     }
 
+    const metricType = !this.useFallback && this.isRedisConnected ? 'redis' : 'in-memory';
     const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
-    recordCacheOperation('set', durationMs, 'in-memory');
+    recordCacheOperation('set', durationMs, metricType);
   }
 
   /**
@@ -204,7 +220,13 @@ export class RedisCache {
     this.initFallback();
     await this.fallbackCache!.del(key);
 
-    if (!this.useFallback && this.redis && this.isRedisConnected) {
+    const useRemoteRedis =
+      (this.customRedisProvided || !this.isLocalRedis) &&
+      !this.useFallback &&
+      this.redis &&
+      this.isRedisConnected;
+
+    if (useRemoteRedis && this.redis) {
       try {
         if (typeof (this.redis as any).unlink === 'function') {
           await this.redis.unlink(key);
@@ -220,8 +242,9 @@ export class RedisCache {
       }
     }
 
+    const metricType = !this.useFallback && this.isRedisConnected ? 'redis' : 'in-memory';
     const durationMs = Number(process.hrtime.bigint() - start) / 1_000_000;
-    recordCacheOperation('del', durationMs, 'in-memory');
+    recordCacheOperation('del', durationMs, metricType);
   }
 
   /**
@@ -240,7 +263,13 @@ export class RedisCache {
     this.initFallback();
     const fallbackDeleted = await this.fallbackCache!.invalidate(pattern);
 
-    if (!this.useFallback && this.redis && this.isRedisConnected) {
+    const useRemoteRedis =
+      (this.customRedisProvided || !this.isLocalRedis) &&
+      !this.useFallback &&
+      this.redis &&
+      this.isRedisConnected;
+
+    if (useRemoteRedis && this.redis) {
       try {
         let deleted = 0;
         let cursor = '0';

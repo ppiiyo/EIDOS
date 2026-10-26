@@ -16,6 +16,7 @@ import {
 } from './services/seed-catalog';
 import { initTracing } from './tracing';
 import { recommendSchema, simpleRecommend } from './routes/recommend';
+import { getCache } from './services/cache';
 
 export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache };
 
@@ -94,7 +95,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   // 4. Register API routes and 404/SPA fallback handler
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
 
-  // Warm up V8 JIT for search & recommend hot paths without populating ApiQueryCache
+  // Warm up V8 JIT and Redis TCP socket for search & recommend hot paths without populating ApiQueryCache
+  await getCache().healthCheck();
+  const warmupQueryVec = await embedder.embed('Quantum Spatial Audio Headphones');
+  vectorStore.hybridSearch('Quantum Spatial Audio Headphones', warmupQueryVec, 10);
   const parsedWarmup = recommendSchema.safeParse({
     item_id: 'item-10',
     strategy: 'simple',

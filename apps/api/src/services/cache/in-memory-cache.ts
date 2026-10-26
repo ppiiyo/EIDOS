@@ -80,6 +80,28 @@ export class InMemoryCache {
     this.store.delete(key);
   }
 
+  async ttl(key: string): Promise<number> {
+    const entry = this.store.get(key);
+    if (!entry) return -2;
+    const remainingMs = entry.expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      this.store.delete(key);
+      return -2;
+    }
+    return Math.max(1, Math.ceil(remainingMs / 1000));
+  }
+
+  async pttl(key: string): Promise<number> {
+    const entry = this.store.get(key);
+    if (!entry) return -2;
+    const remainingMs = entry.expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      this.store.delete(key);
+      return -2;
+    }
+    return Math.max(1, Math.ceil(remainingMs));
+  }
+
   keysMatching(pattern: string): string[] {
     this.cleanup();
     const regexPattern = pattern

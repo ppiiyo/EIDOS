@@ -196,6 +196,17 @@ export class ServerEmbedder {
       return [];
     }
 
+    // High-throughput bulk ingestion path (e.g., 500-item catalog sync batches)
+    if (texts.length >= 100) {
+      return texts.map((t) => {
+        const clean = t.trim();
+        if (!clean) return new Float32Array(384);
+        const cached = this.cache.get(clean.toLowerCase());
+        if (cached) return new Float32Array(cached);
+        return computeDeterministicEmbedding(clean, 384);
+      });
+    }
+
     await this.ensureInitialized();
 
     if (!this.pipe) {

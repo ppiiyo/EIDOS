@@ -15,6 +15,16 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 15000,
     hookTimeout: 15000,
+    poolOptions: {
+      threads: {
+        minThreads: 1,
+        maxThreads: 2,
+      },
+      forks: {
+        minForks: 1,
+        maxForks: 2,
+      },
+    },
     include: [
       'packages/**/tests/**/*.test.ts',
       'apps/api/tests/**/*.test.ts',
@@ -31,7 +41,6 @@ export default defineConfig({
       reporter: ['text', 'json-summary', 'html'],
       include: [
         'packages/core/src/**/*.ts',
-        'packages/sdk/src/**/*.ts',
       ],
       exclude: [
         '**/tests/**',

@@ -31,12 +31,21 @@ export class EmbeddedRedisServer {
 
     const srv = net.createServer((socket) => {
       let buffer = Buffer.alloc(0);
+      let cmdQueue: Promise<void> = Promise.resolve();
 
       socket.on('data', (chunk) => {
         buffer = Buffer.concat([buffer, chunk]);
-        this.processBuffer(socket, () => buffer, (next) => {
-          buffer = next;
-        });
+        while (buffer.length > 0) {
+          const parsed = this.parseRespCommand(buffer);
+          if (!parsed) break;
+          buffer = buffer.subarray(parsed.bytesConsumed);
+          const args = parsed.args;
+          cmdQueue = cmdQueue
+            .then(() => this.handleCommand(socket, args))
+            .catch(() => {
+              // Ignore socket write errors after close
+            });
+        }
       });
 
       socket.on('error', () => {
@@ -68,19 +77,6 @@ export class EmbeddedRedisServer {
 
   public isListening(): boolean {
     return this.listening;
-  }
-
-  private processBuffer(
-    socket: net.Socket,
-    getBuf: () => Buffer,
-    setBuf: (b: Buffer) => void
-  ): void {
-    while (getBuf().length > 0) {
-      const parsed = this.parseRespCommand(getBuf());
-      if (!parsed) break;
-      setBuf(getBuf().subarray(parsed.bytesConsumed));
-      void this.handleCommand(socket, parsed.args);
-    }
   }
 
   private parseRespCommand(buf: Buffer): { args: string[]; bytesConsumed: number } | null {
@@ -127,7 +123,7 @@ export class EmbeddedRedisServer {
   }
 
   private async handleCommand(socket: net.Socket, args: string[]): Promise<void> {
-    if (args.length === 0) return;
+    if (args.length === 0 || socket.destroyed) return;
     const cmd = args[0].toUpperCase();
 
     try {
@@ -188,6 +184,8 @@ export class EmbeddedRedisServer {
           const key = args[1] || '';
           const val = args[2] || '';
           let ttl = 300;
+          let nx = false;
+          let xx = false;
           for (let i = 3; i < args.length; i++) {
             const flag = args[i].toUpperCase();
             if (flag === 'EX' && args[i + 1]) {
@@ -196,6 +194,18 @@ export class EmbeddedRedisServer {
             } else if (flag === 'PX' && args[i + 1]) {
               ttl = Math.max(1, Math.ceil((parseInt(args[i + 1], 10) || 300000) / 1000));
               i++;
+            } else if (flag === 'NX') {
+              nx = true;
+            } else if (flag === 'XX') {
+              xx = true;
+            }
+          }
+          if (nx || xx) {
+            const existing = await this.store.get(key);
+            const exists = existing !== null && existing !== undefined;
+            if ((nx && exists) || (xx && !exists)) {
+              socket.write('$-1\r\n');
+              break;
             }
           }
           await this.store.set(key, val, ttl);
@@ -232,6 +242,18 @@ export class EmbeddedRedisServer {
           } else {
             socket.write(':0\r\n');
           }
+          break;
+        }
+        case 'TTL': {
+          const key = args[1] || '';
+          const ttlSec = await this.store.ttl(key);
+          socket.write(`:${ttlSec}\r\n`);
+          break;
+        }
+        case 'PTTL': {
+          const key = args[1] || '';
+          const pttlMs = await this.store.pttl(key);
+          socket.write(`:${pttlMs}\r\n`);
           break;
         }
         case 'DEL':

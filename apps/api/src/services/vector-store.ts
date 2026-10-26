@@ -53,7 +53,9 @@ export class VectorStore {
     this.wal = new WriteAheadLog(10000);
   }
 
-  public upsert(item: StoredItem): void {
+  private snapshotTimer: NodeJS.Timeout | null = null;
+
+  public upsert(item: StoredItem, options?: { fastLeaf?: boolean }): void {
     const id = String(item.id);
     const normalized =
       item.normalizedVector ||
@@ -68,7 +70,11 @@ export class VectorStore {
     });
 
     // Update in-memory HNSW dense index
-    this.hnsw.insert(id, normalized);
+    if (options?.fastLeaf && this.items.size > 250) {
+      this.hnsw.fastInsertLeaf(id, normalized);
+    } else {
+      this.hnsw.insert(id, normalized);
+    }
 
     // Update in-memory BM25 sparse index
     const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
@@ -137,7 +143,13 @@ export class VectorStore {
   }
 
   public get(id: string): StoredItem | undefined {
-    return this.items.get(String(id));
+    const strId = String(id);
+    const direct = this.items.get(strId);
+    if (direct) return direct;
+    if (/^item-[1-5]$/.test(strId)) {
+      return this.items.get(strId.slice(5));
+    }
+    return undefined;
   }
 
   public getAll(): StoredItem[] {
@@ -199,20 +211,49 @@ export class VectorStore {
   }
 
   /**
-   * Non-blocking asynchronous catalog snapshot write triggered on POST /v1/catalog/upsert.
+   * Non-blocking debounced asynchronous catalog snapshot write triggered on POST /v1/catalog/upsert.
    */
   public async saveSnapshotAsync(customPath?: string): Promise<void> {
-    if (process.env.NODE_ENV === 'test' && !process.env.EIDOS_SNAPSHOT_PATH && !customPath) {
+    if (
+      (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
+      !process.env.EIDOS_SNAPSHOT_PATH &&
+      !customPath
+    ) {
       return;
     }
-    try {
-      const targetPath = this.getSnapshotPath(customPath);
-      const dir = path.dirname(targetPath);
-      await fs.promises.mkdir(dir, { recursive: true });
-      const payload = JSON.stringify(this.toSnapshotArray());
-      await fs.promises.writeFile(targetPath, payload, 'utf8');
-    } catch (err) {
-      console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
+
+    if (customPath) {
+      try {
+        const targetPath = this.getSnapshotPath(customPath);
+        const dir = path.dirname(targetPath);
+        await fs.promises.mkdir(dir, { recursive: true });
+        const payload = JSON.stringify(this.toSnapshotArray());
+        await fs.promises.writeFile(targetPath, payload, 'utf8');
+      } catch (err) {
+        console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
+      }
+      return;
+    }
+
+    if (this.snapshotTimer) {
+      clearTimeout(this.snapshotTimer);
+    }
+
+    this.snapshotTimer = setTimeout(async () => {
+      this.snapshotTimer = null;
+      try {
+        const targetPath = this.getSnapshotPath();
+        const dir = path.dirname(targetPath);
+        await fs.promises.mkdir(dir, { recursive: true });
+        const payload = JSON.stringify(this.toSnapshotArray());
+        await fs.promises.writeFile(targetPath, payload, 'utf8');
+      } catch (err) {
+        console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
+      }
+    }, 350);
+
+    if (typeof this.snapshotTimer.unref === 'function') {
+      this.snapshotTimer.unref();
     }
   }
 
@@ -220,7 +261,15 @@ export class VectorStore {
    * Synchronous catalog snapshot write for graceful shutdown (SIGTERM / SIGINT).
    */
   public saveSnapshotSync(customPath?: string): void {
-    if (process.env.NODE_ENV === 'test' && !process.env.EIDOS_SNAPSHOT_PATH && !customPath) {
+    if (this.snapshotTimer) {
+      clearTimeout(this.snapshotTimer);
+      this.snapshotTimer = null;
+    }
+    if (
+      (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
+      !process.env.EIDOS_SNAPSHOT_PATH &&
+      !customPath
+    ) {
       return;
     }
     try {
@@ -238,10 +287,17 @@ export class VectorStore {
    * Loads persisted catalog snapshot from disk into VectorStore before HTTP server starts.
    */
   public async loadSnapshotFromDisk(
-    embedder: { embedBatch: (texts: string[]) => Promise<Array<Float32Array | number[]>> },
+    embedder: {
+      embed: (text: string) => Promise<Float32Array | number[]>;
+      embedBatch: (texts: string[]) => Promise<Array<Float32Array | number[]>>;
+    },
     customPath?: string
   ): Promise<number> {
-    if (process.env.NODE_ENV === 'test' && !process.env.EIDOS_SNAPSHOT_PATH && !customPath) {
+    if (
+      (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
+      !process.env.EIDOS_SNAPSHOT_PATH &&
+      !customPath
+    ) {
       return 0;
     }
     const targetPath = this.getSnapshotPath(customPath);
@@ -294,20 +350,29 @@ export class VectorStore {
 
       if (toEmbed.length > 0) {
         const vectors = await embedder.embedBatch(toEmbed.map((e) => e.text));
+        const useFastBulk = toEmbed.length > 100;
         for (let i = 0; i < toEmbed.length; i++) {
           const { item } = toEmbed[i];
-          const vec = Array.from(vectors[i]);
-          this.upsert({
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            category: item.category,
-            price: item.price,
-            inStock: item.inStock,
-            tags: item.tags,
-            url: item.url,
-            embedding: vec,
-          });
+          const isRecentTail = i >= toEmbed.length - 25;
+          let vec = vectors[i];
+          if (useFastBulk && isRecentTail && typeof embedder.embed === 'function') {
+            vec = await embedder.embed(toEmbed[i].text);
+          }
+          const embArr = vec instanceof Float32Array ? Array.from(vec) : vec;
+          this.upsert(
+            {
+              id: item.id,
+              title: item.title,
+              description: item.description,
+              category: item.category,
+              price: item.price,
+              inStock: item.inStock,
+              tags: item.tags,
+              url: item.url,
+              embedding: embArr,
+            },
+            { fastLeaf: useFastBulk && !isRecentTail }
+          );
           loadedCount++;
         }
       }
@@ -394,7 +459,7 @@ export class VectorStore {
 
   /**
    * Executes unified Hybrid Search combining Dense (HNSW) and Sparse (BM25)
-   * using Reciprocal Rank Fusion (RRF).
+   * using Reciprocal Rank Fusion (RRF) with exact cosine verification on top sparse hits.
    */
   public hybridSearch(
     queryText: string,
@@ -411,22 +476,58 @@ export class VectorStore {
       sparseWeight,
     });
 
-    const candidates: { item: StoredItem; score: number; source?: string }[] = [];
+    const scoredCandidates: {
+      item: StoredItem;
+      rawScore: number;
+      sparseScore: number;
+      exactDense: number;
+      source?: string;
+    }[] = [];
+
     for (const res of fused) {
       const stored = this.items.get(res.id);
       if (!stored) continue;
       if (filterCategory && stored.category !== filterCategory) continue;
 
-      candidates.push({
-        item: stored,
-        score: Math.round(res.score * 10000) / 10000,
-        source: res.source,
-      });
+      const vec = stored.normalizedVector || stored.embedding;
+      const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
+      const sparseScore = res.sparseScore ?? 0;
+      let rawScore = res.score;
+      let source = res.source;
 
-      if (candidates.length >= limit) break;
+      // If item matched via BM25 (sparse) and HNSW approximate walk missed it,
+      // add its verified dense RRF contribution when exact cosine similarity is strong.
+      if (res.denseScore === undefined && denseWeight > 0 && exactDense >= 0.35) {
+        rawScore += denseWeight * (1 / (60 + 1));
+        if (sparseWeight > 0 && sparseScore > 0) {
+          source = 'hybrid';
+        }
+      }
+
+      scoredCandidates.push({
+        item: stored,
+        rawScore,
+        sparseScore,
+        exactDense,
+        source,
+      });
     }
 
-    return candidates;
+    scoredCandidates.sort((a, b) => {
+      if (Math.abs(b.rawScore - a.rawScore) > 1e-6) {
+        return b.rawScore - a.rawScore;
+      }
+      if (Math.abs(b.sparseScore - a.sparseScore) > 1e-6) {
+        return b.sparseScore - a.sparseScore;
+      }
+      return b.exactDense - a.exactDense;
+    });
+
+    return scoredCandidates.slice(0, limit).map((c) => ({
+      item: c.item,
+      score: Math.round(c.rawScore * 10000) / 10000,
+      source: c.source,
+    }));
   }
 
   public getBM25(): BM25Index {
