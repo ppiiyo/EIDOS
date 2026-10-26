@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://eidos.dev/schemas/connector-item-v1.json",
+  "title": "EIDOS Connector Item Schema v1.0",
+  "description": "Canonical product schema produced by mapFields() across all EIDOS CMS connectors (1C-Bitrix, WooCommerce, etc.)",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "description",
+    "category",
+    "price",
+    "inStock",
+    "tags",
+    "url"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Unique product identifier in the source CMS (e.g. IBLOCK_ELEMENT_ID or WC_Product ID)"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Clean product title without HTML markup"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 5000,
+      "description": "Plain-text product description stripped of HTML tags and truncated to 5000 UTF-8 characters"
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "default": "General",
+      "description": "Primary product category or section name"
+    },
+    "price": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Numeric product price in store base currency"
+    },
+    "inStock": {
+      "type": "boolean",
+      "description": "Whether the product has positive available quantity / is in stock"
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "description": "Product tags, keywords, brand, or OEM part numbers"
+    },
+    "url": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Relative or absolute URL to the product detail page in the CMS"
+    },
+    "imageUrl": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 2048,
+      "description": "Optional URL or path to the product preview image"
+    }
+  }
+}
