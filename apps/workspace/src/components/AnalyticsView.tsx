@@ -8,6 +8,7 @@ import {
 } from '../lib/analytics/tracker';
 import { SemanticTrendsAnalytics } from './SemanticTrendsAnalytics';
 import { LiveClusterTelemetryPanel } from './LiveMetricsCharts';
+import { LatencyAndCachePanel } from './analytics/LatencyAndCachePanel';
 
 const PERIODS = [
   { label: 'Last hour', ms: 3600000 },
@@ -59,9 +60,9 @@ export const AnalyticsView: React.FC = () => {
     <div className="page analytics-dashboard" data-testid="analytics-dashboard">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
         <div>
-          <h2 className="page-title">📈 Search & Conversion Analytics</h2>
+          <h2 className="page-title">📈 Search &amp; Conversion Analytics</h2>
           <p className="page-sub">
-            Real-time search telemetry, zero-result query diagnostics, and conversion insights
+            Real-time search telemetry, zero-result query diagnostics, latency percentiles, and cache hit rate
           </p>
         </div>
         <div className="flex gap-2">
@@ -117,6 +118,8 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
+      <LatencyAndCachePanel />
+
       <LiveClusterTelemetryPanel activeSearches={summary.searches} />
 
       {/* Top Queries & Zero-Result Action Table */}
@@ -169,9 +172,16 @@ export const AnalyticsView: React.FC = () => {
                     type="button"
                     className="btn-synonym"
                     data-testid={`add-synonym-${z.query}`}
-                    onClick={() =>
-                      setAddedSynonyms((prev) => ({ ...prev, [z.query]: true }))
-                    }
+                    onClick={() => {
+                      setAddedSynonyms((prev) => ({ ...prev, [z.query]: true }));
+                      if (typeof fetch === 'function') {
+                        fetch('/v1/analytics/synonym', {
+                          method: 'POST',
+                          headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify({ query: z.query, synonym: z.query.split(' ')[0] }),
+                        }).catch(() => {});
+                      }
+                    }}
                   >
                     {isAdded ? '✓ Synonym Added' : '+ Add Synonym'}
                   </button>

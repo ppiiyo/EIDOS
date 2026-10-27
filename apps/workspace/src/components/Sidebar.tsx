@@ -11,6 +11,8 @@ import {
   Sliders,
   Terminal,
   Scale,
+  Database,
+  Settings,
 } from 'lucide-react';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
@@ -23,9 +25,11 @@ export type ViewId =
   | 'ranking'
   | 'recommendations'
   | 'catalog'
+  | 'indexes'
   | 'analytics'
   | 'abtest'
-  | 'conversational';
+  | 'conversational'
+  | 'settings';
 
 export interface SidebarProps {
   active: ViewId;
@@ -72,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'dashboard', label: t.nav.dashboard, emoji: '📊', icon: LayoutDashboard },
         { id: 'catalog', label: t.nav.catalog, emoji: '📦', icon: Package },
+        { id: 'indexes', label: 'Index Manager', emoji: '🗄️', icon: Database },
         { id: 'search', label: t.nav.search, emoji: '🔍', icon: Search },
         { id: 'recommendations', label: t.nav.recommendations, emoji: '✨', icon: Lightbulb },
       ],
@@ -91,6 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'analytics', label: t.nav.analytics, emoji: '📈', icon: BarChart3 },
         { id: 'seo', label: 'SEO Insights', emoji: '🎯', icon: BarChart3 },
         { id: 'adaptive', label: t.nav.adaptive, emoji: '⚙️', icon: Sliders },
+        { id: 'settings', label: 'Settings & Keys', emoji: '🔐', icon: Settings },
       ],
     },
   ];
