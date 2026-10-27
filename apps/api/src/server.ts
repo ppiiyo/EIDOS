@@ -17,6 +17,7 @@ import {
 import { initTracing } from './tracing';
 import { recommendSchema, simpleRecommend } from './routes/recommend';
 import { getCache } from './services/cache';
+import { ClusterStateCoordinator } from './services/cluster-coordinator';
 
 export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache };
 
@@ -55,6 +56,9 @@ export async function buildServer(): Promise<FastifyInstance> {
     connectionTimeout: 15_000,
     requestTimeout: 10_000,
   });
+
+  const clusterCoordinator = new ClusterStateCoordinator();
+  fastify.clusterCoordinator = clusterCoordinator;
 
   // 1. Register security stack (CORS whitelist, Rate Limit, Helmet CSP)
   await fastify.register(securityPlugin);
@@ -126,8 +130,10 @@ export async function buildServer(): Promise<FastifyInstance> {
     await simpleRecommend(parsedWarmup.data, vectorStore);
   }
 
-  // Attach vectorStore cleanup & synchronous snapshot persistence on Fastify close
+  // Attach vectorStore cleanup, graceful drain & synchronous snapshot persistence on Fastify close
   fastify.addHook('onClose', async () => {
+    clusterCoordinator.setDraining(true);
+    clusterCoordinator.close();
     vectorStore.saveSnapshotSync();
     await vectorStore.getWAL().flush();
   });
@@ -152,7 +158,8 @@ if (require.main === module) {
   buildServer()
     .then(async (app) => {
       const gracefulShutdown = async (signal: string) => {
-        console.log(`Received ${signal}. Saving catalog snapshot, flushing WAL and shutting down gracefully...`);
+        console.log(`Received ${signal}. Entering drain mode, saving catalog snapshot, flushing WAL and shutting down gracefully...`);
+        app.clusterCoordinator?.setDraining(true);
         if (activeShutdownStore) {
           activeShutdownStore.saveSnapshotSync();
         }

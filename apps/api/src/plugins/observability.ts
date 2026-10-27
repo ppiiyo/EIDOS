@@ -173,6 +173,13 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
     const elapsedMs =
       typeof start === 'number' ? Math.round((performance.now() - start) * 100) / 100 : 0;
     reply.header('x-response-time', `${elapsedMs}ms`);
+    if (fastify.clusterCoordinator) {
+      reply.header('x-eidos-node-id', fastify.clusterCoordinator.nodeId);
+      reply.header(
+        'x-eidos-catalog-version',
+        String(fastify.clusterCoordinator.getCatalogVersion())
+      );
+    }
     recordRequestMetricsOnce(request, reply.statusCode);
     return payload;
   });

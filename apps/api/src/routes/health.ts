@@ -134,8 +134,19 @@ export async function healthRoutes(
   fastify.get('/health', handleHealthCheck);
   fastify.get('/api/health', handleHealthCheck);
 
-  // Readiness probe for Kubernetes
-  fastify.get('/v1/health/ready', async (_request, reply) => {
+  // Readiness probe for Kubernetes & Load Balancers
+  const handleReadinessProbe = async (_request: FastifyRequest, reply: FastifyReply) => {
+    const isDraining = Boolean(fastify.clusterCoordinator?.isDraining());
+    if (isDraining) {
+      return reply.status(503).send({
+        status: 'draining',
+        ready: false,
+        draining: true,
+        nodeId: fastify.clusterCoordinator?.nodeId || 'standalone',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const [vectorStore, database, embeddingModel] = await Promise.all([
       checkVectorStore(opts.vectorStore),
       checkDatabase(opts.vectorStore),
@@ -149,6 +160,10 @@ export async function healthRoutes(
 
     return reply.status(isReady ? 200 : 503).send({
       status: isReady ? 'ready' : 'not ready',
+      ready: isReady,
+      draining: false,
+      nodeId: fastify.clusterCoordinator?.nodeId || 'standalone',
+      catalogVersion: fastify.clusterCoordinator?.getCatalogVersion() ?? 1,
       timestamp: new Date().toISOString(),
       checks: {
         vectorStore,
@@ -156,17 +171,74 @@ export async function healthRoutes(
         embeddingModel,
       },
     });
-  });
+  };
 
-  // Liveness probe for Kubernetes
-  fastify.get('/v1/health/live', async (_request, reply) => {
+  fastify.get('/v1/health/ready', handleReadinessProbe);
+  fastify.get('/ready', handleReadinessProbe);
+
+  // Liveness probe for Kubernetes (remains 200 OK during graceful drain so in-flight requests finish)
+  const handleLivenessProbe = async (_request: FastifyRequest, reply: FastifyReply) => {
     return reply.status(200).send({
       status: 'ok',
       alive: true,
+      draining: Boolean(fastify.clusterCoordinator?.isDraining()),
+      nodeId: fastify.clusterCoordinator?.nodeId || 'standalone',
       timestamp: new Date().toISOString(),
+    });
+  };
+
+  fastify.get('/v1/health/live', handleLivenessProbe);
+  fastify.get('/live', handleLivenessProbe);
+
+  // Cluster topology, shard health & graceful drain endpoints (Phase 4 Horizontal Scaling)
+  fastify.get('/v1/cluster/status', async (_request, reply) => {
+    const coordinator = fastify.clusterCoordinator;
+    if (!coordinator) {
+      return reply.status(200).send({
+        nodeId: 'standalone',
+        role: 'standalone',
+        clusterMode: false,
+        draining: false,
+        catalogVersion: 1,
+      });
+    }
+    return reply.status(200).send(coordinator.getClusterStatus());
+  });
+
+  fastify.post('/v1/cluster/drain', async (request, reply) => {
+    const coordinator = fastify.clusterCoordinator;
+    const body = (request.body as { draining?: boolean } | null) || {};
+    const draining = typeof body.draining === 'boolean' ? body.draining : true;
+    coordinator?.setDraining(draining);
+    return reply.status(200).send({
+      ok: true,
+      nodeId: coordinator?.nodeId || 'standalone',
+      draining: coordinator ? coordinator.isDraining() : draining,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  fastify.post('/v1/cluster/shards/:shardId/health', async (request, reply) => {
+    const coordinator = fastify.clusterCoordinator;
+    if (!coordinator) {
+      return reply.status(503).send({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        message: 'Cluster coordinator is not initialized on this instance',
+      });
+    }
+    const params = request.params as { shardId: string };
+    const body = (request.body as { healthy?: boolean } | null) || {};
+    const healthy = typeof body.healthy === 'boolean' ? body.healthy : true;
+    const updated = coordinator.setShardHealth(params.shardId, healthy);
+    return reply.status(200).send({
+      ok: true,
+      nodeId: coordinator.nodeId,
+      ...updated,
     });
   });
 }
 
-(healthRoutes as any)[Symbol.for('skip-override')] = true;
+(healthRoutes as unknown as Record<symbol, boolean>)[Symbol.for('skip-override')] = true;
+
 

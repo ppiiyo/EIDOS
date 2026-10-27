@@ -64,6 +64,7 @@ export async function catalogRoutes(
   async function invalidateCatalogCaches(): Promise<void> {
     ApiQueryCache.invalidateAll();
     semanticCache.clear();
+    fastify.clusterCoordinator?.broadcastInvalidation('catalog.mutation');
     await Promise.all([
       cache.invalidate('search:*'),
       cache.invalidate('recommend:*'),

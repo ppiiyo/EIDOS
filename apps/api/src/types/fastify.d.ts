@@ -1,6 +1,7 @@
 import 'fastify';
 import { ApiKeyManager } from '../services/api-key-manager';
 import { StoreRegistry } from '../services/store-registry';
+import { ClusterStateCoordinator } from '../services/cluster-coordinator';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -12,6 +13,10 @@ declare module 'fastify' {
      * Unified StoreRegistry managing tenant and index VectorStore instances.
      */
     storeRegistry?: StoreRegistry;
+    /**
+     * Multi-node horizontal scaling & cluster state coordinator attached to the server.
+     */
+    clusterCoordinator?: ClusterStateCoordinator;
   }
 
   interface FastifyRequest {
