@@ -35,7 +35,11 @@ export default defineConfig({
       'tests/connectors/**/*.test.ts',
       'tests/multi-tenancy/**/*.test.ts',
       'tests/reranker/**/*.test.ts',
+      'tests/benchmarks/**/*.test.ts',
     ],
+    benchmark: {
+      include: ['tests/benchmarks/**/*.bench.ts'],
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],

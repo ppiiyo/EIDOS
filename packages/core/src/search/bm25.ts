@@ -25,7 +25,9 @@ export class BM25Index {
   private documents: Map<string, string[]> = new Map();
   private documentFrequency: Map<string, number> = new Map();
   private termFrequency: Map<string, Map<string, number>> = new Map();
+  private postings: Map<string, Map<string, number>> = new Map();
   private documentLengths: Map<string, number> = new Map();
+  private totalDocumentLength: number = 0;
   private avgDocumentLength: number = 0;
   private readonly k1: number; // Term frequency saturation parameter (default 1.5)
   private readonly b: number; // Document length normalization parameter (default 0.75)
@@ -107,21 +109,26 @@ export class BM25Index {
 
     this.documents.set(id, tokens);
     this.documentLengths.set(id, tokens.length);
+    this.totalDocumentLength += tokens.length;
 
-    // Compute Term Frequency for this document
+    // Compute Term Frequency for this document and update inverted posting lists
     const tf = new Map<string, number>();
     for (const token of tokens) {
       tf.set(token, (tf.get(token) || 0) + 1);
     }
     this.termFrequency.set(id, tf);
 
-    // Update global Document Frequency
-    const uniqueTokens = new Set(tokens);
-    for (const token of uniqueTokens) {
+    for (const [token, count] of tf.entries()) {
       this.documentFrequency.set(token, (this.documentFrequency.get(token) || 0) + 1);
+      let postingMap = this.postings.get(token);
+      if (!postingMap) {
+        postingMap = new Map<string, number>();
+        this.postings.set(token, postingMap);
+      }
+      postingMap.set(id, count);
     }
 
-    this.recalculateAvgLength();
+    this.avgDocumentLength = this.documents.size > 0 ? this.totalDocumentLength / this.documents.size : 0;
   }
 
   /**
@@ -129,27 +136,36 @@ export class BM25Index {
    */
   public removeDocument(docId: string | number): void {
     const id = String(docId);
-    const tokens = this.documents.get(id);
-    if (!tokens) return;
+    const tf = this.termFrequency.get(id);
+    if (!tf) return;
 
-    const uniqueTokens = new Set(tokens);
-    for (const token of uniqueTokens) {
+    const oldLen = this.documentLengths.get(id) || 0;
+    this.totalDocumentLength = Math.max(0, this.totalDocumentLength - oldLen);
+
+    for (const token of tf.keys()) {
       const currentDf = this.documentFrequency.get(token) || 0;
       if (currentDf <= 1) {
         this.documentFrequency.delete(token);
       } else {
         this.documentFrequency.set(token, currentDf - 1);
       }
+      const postingMap = this.postings.get(token);
+      if (postingMap) {
+        postingMap.delete(id);
+        if (postingMap.size === 0) {
+          this.postings.delete(token);
+        }
+      }
     }
 
     this.documents.delete(id);
     this.documentLengths.delete(id);
     this.termFrequency.delete(id);
-    this.recalculateAvgLength();
+    this.avgDocumentLength = this.documents.size > 0 ? this.totalDocumentLength / this.documents.size : 0;
   }
 
   /**
-   * Searches the BM25 index with a textual query and returns ranked document IDs.
+   * Searches the BM25 index with a textual query and returns ranked document IDs using inverted postings.
    */
   public search(query: string, limit: number = 10): BM25SearchResult[] {
     if (!Number.isFinite(limit) || limit < 1) {
@@ -163,30 +179,58 @@ export class BM25Index {
     const scores = new Map<string, number>();
     const N = this.documents.size;
     const avgdl = this.avgDocumentLength || 1.0;
+    const k1 = this.k1;
+    const b = this.b;
+    const k1Plus1 = k1 + 1.0;
+    const baseNorm = k1 * (1.0 - b);
+    const lenNormFactor = (k1 * b) / avgdl;
 
-    for (const token of queryTokens) {
-      const df = this.documentFrequency.get(token) || 0;
-      if (df === 0) continue;
+    for (let i = 0; i < queryTokens.length; i++) {
+      const token = queryTokens[i];
+      const postingMap = this.postings.get(token);
+      if (!postingMap || postingMap.size === 0) continue;
 
+      const df = postingMap.size;
       // Robertson-Sparck Jones IDF formula with add-1 smoothing
       const idf = Math.log((N - df + 0.5) / (df + 0.5) + 1.0);
 
-      for (const [docId, tfMap] of this.termFrequency.entries()) {
-        const termFreq = tfMap.get(token) || 0;
-        if (termFreq === 0) continue;
-
+      for (const [docId, termFreq] of postingMap.entries()) {
         const docLength = this.documentLengths.get(docId) || avgdl;
-        const denominator = termFreq + this.k1 * (1.0 - this.b + (this.b * docLength) / avgdl);
-        const score = idf * ((termFreq * (this.k1 + 1.0)) / (denominator || 1e-6));
+        const denominator = termFreq + baseNorm + lenNormFactor * docLength;
+        const score = idf * ((termFreq * k1Plus1) / (denominator || 1e-6));
 
         scores.set(docId, (scores.get(docId) || 0) + score);
       }
     }
 
-    return Array.from(scores.entries())
-      .map(([id, score]) => ({ id, score }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+    if (scores.size === 0) return [];
+
+    // Fast Top-K extraction
+    const results: BM25SearchResult[] = [];
+    for (const [id, score] of scores.entries()) {
+      if (results.length < limit) {
+        results.push({ id, score });
+        if (results.length === limit) {
+          results.sort((a, b) => b.score - a.score);
+        }
+      } else if (score > results[limit - 1].score) {
+        results[limit - 1] = { id, score };
+        // Insertion bubble up for small limit
+        let idx = limit - 1;
+        while (idx > 0 && results[idx].score > results[idx - 1].score) {
+          const tmp = results[idx - 1];
+          results[idx - 1] = results[idx];
+          results[idx] = tmp;
+          idx--;
+        }
+      }
+    }
+
+    if (results.length < limit) {
+      results.sort((a, b) => b.score - a.score);
+    }
+
+    return results;
   }
 
   /**
@@ -194,17 +238,5 @@ export class BM25Index {
    */
   public size(): number {
     return this.documents.size;
-  }
-
-  private recalculateAvgLength(): void {
-    if (this.documents.size === 0) {
-      this.avgDocumentLength = 0;
-      return;
-    }
-    let total = 0;
-    for (const len of this.documentLengths.values()) {
-      total += len;
-    }
-    this.avgDocumentLength = total / this.documents.size;
   }
 }

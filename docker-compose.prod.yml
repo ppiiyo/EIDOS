@@ -1,0 +1,123 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: eidos-api-prod
+    restart: always
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      EIDOS_API_KEY: ${EIDOS_API_KEY:?EIDOS_API_KEY is required in production}
+      EIDOS_MASTER_KEY: ${EIDOS_MASTER_KEY:-}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://eidos:eidos_prod_password@postgres:5432/eidos}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      SEMANTIC_CACHE_SIMILARITY_THRESHOLD: ${SEMANTIC_CACHE_SIMILARITY_THRESHOLD:-0.95}
+      HNSW_M: ${HNSW_M:-16}
+      HNSW_EF_CONSTRUCTION: ${HNSW_EF_CONSTRUCTION:-200}
+      HNSW_EF_SEARCH: ${HNSW_EF_SEARCH:-64}
+      RERANKER_ENABLED: ${RERANKER_ENABLED:-true}
+      AIL_ENABLED: ${AIL_ENABLED:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - eidos_data:/app/data
+    networks:
+      - eidos_prod_net
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: eidos-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eidos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eidos_prod_password}
+      POSTGRES_DB: ${POSTGRES_DB:-eidos}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eidos} -d ${POSTGRES_DB:-eidos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eidos_prod_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: eidos-redis-prod
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - eidos_prod_net
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: eidos-prometheus-prod
+    restart: always
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+    networks:
+      - eidos_prod_net
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: eidos-grafana-prod
+    restart: always
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-eidos_admin_2026}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - eidos_prod_net
+
+volumes:
+  eidos_data:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  eidos_prod_net:
+    driver: bridge
