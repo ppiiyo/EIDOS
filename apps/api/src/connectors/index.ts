@@ -397,3 +397,173 @@ export class MongoChangeStreamConnector {
     };
   }
 }
+
+export type ShopifyWebhookTopic = 'products/create' | 'products/update' | 'products/delete';
+
+export interface ShopifyVariantPayload {
+  id: number | string;
+  price?: string | number;
+  inventory_quantity?: number;
+  sku?: string;
+}
+
+export interface ShopifyProductWebhookPayload {
+  id: number | string;
+  title?: string;
+  body_html?: string;
+  product_type?: string;
+  vendor?: string;
+  tags?: string | string[];
+  status?: 'active' | 'draft' | 'archived';
+  variants?: ShopifyVariantPayload[];
+}
+
+/**
+ * Zero-ETL Shopify Webhook Connector (`products/create`, `products/update`, `products/delete`)
+ * with HMAC-SHA256 signature verification, HTML stripping, SecurityGuardrails sanitization,
+ * and automatic multi-tier cache invalidation.
+ */
+export class ShopifyWebhookConnector {
+  private processedEvents = 0;
+  private createdCount = 0;
+  private updatedCount = 0;
+  private deletedCount = 0;
+
+  constructor(
+    private readonly vectorStore: VectorStore,
+    private readonly embedder: ServerEmbedder = ServerEmbedder.getInstance(),
+    private readonly webhookSecret: string = process.env.SHOPIFY_WEBHOOK_SECRET || 'eidos_shopify_secret'
+  ) {}
+
+  /**
+   * Computes base64 HMAC-SHA256 signature for a raw Shopify webhook payload.
+   */
+  public computeHmacSignature(rawBody: string): string {
+    const crypto = require('crypto') as typeof import('crypto');
+    return crypto.createHmac('sha256', this.webhookSecret).update(rawBody, 'utf8').digest('base64');
+  }
+
+  /**
+   * Constant-time verification of X-Shopify-Hmac-Sha256 signature header.
+   */
+  public verifyHmacSignature(rawBody: string, hmacHeader?: string): boolean {
+    if (!hmacHeader) return false;
+    const crypto = require('crypto') as typeof import('crypto');
+    const expected = this.computeHmacSignature(rawBody);
+    const expectedBuf = Buffer.from(expected, 'utf8');
+    const actualBuf = Buffer.from(hmacHeader, 'utf8');
+    if (expectedBuf.length !== actualBuf.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(expectedBuf, actualBuf);
+  }
+
+  /**
+   * Handles a Shopify product webhook event and invalidates search/recommendation caches.
+   */
+  public async handleWebhook(
+    topic: ShopifyWebhookTopic,
+    payload: ShopifyProductWebhookPayload,
+    options?: { rawBody?: string; hmacHeader?: string; requireHmac?: boolean }
+  ): Promise<{
+    handled: boolean;
+    action: 'created' | 'updated' | 'deleted' | 'ignored';
+    itemId: string;
+  }> {
+    if (options?.requireHmac) {
+      const raw = options.rawBody ?? JSON.stringify(payload);
+      if (!this.verifyHmacSignature(raw, options.hmacHeader)) {
+        throw new Error('Invalid Shopify HMAC-SHA256 webhook signature');
+      }
+    }
+
+    const itemId = `shopify-${payload.id}`;
+
+    if (topic === 'products/delete' || payload.status === 'archived') {
+      this.vectorStore.delete(itemId);
+      this.deletedCount++;
+      this.processedEvents++;
+      await this.invalidateCaches();
+      return { handled: true, action: 'deleted', itemId };
+    }
+
+    if (topic === 'products/create' || topic === 'products/update') {
+      if (!payload.title) {
+        return { handled: false, action: 'ignored', itemId };
+      }
+
+      const strippedHtml = String(payload.body_html || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const cleanTitle = SecurityGuardrails.scanAndSanitize(String(payload.title)).sanitizedInput;
+      const cleanDesc = SecurityGuardrails.scanAndSanitize(strippedHtml).sanitizedInput;
+      const category = String(payload.product_type || payload.vendor || 'General');
+
+      const tags = Array.isArray(payload.tags)
+        ? payload.tags.map((t) => String(t).trim()).filter(Boolean)
+        : typeof payload.tags === 'string' && payload.tags.trim().length > 0
+        ? payload.tags.split(',').map((t) => t.trim()).filter(Boolean)
+        : [];
+
+      const primaryVariant = payload.variants?.[0];
+      const price =
+        primaryVariant?.price !== undefined ? Number(primaryVariant.price) : 0;
+      const inStock =
+        primaryVariant?.inventory_quantity !== undefined
+          ? primaryVariant.inventory_quantity > 0
+          : true;
+
+      const textToEmbed = `${cleanTitle}. ${cleanDesc}. Category: ${category}. Tags: ${tags.join(', ')}`;
+      const vec = await this.embedder.embed(textToEmbed);
+
+      this.vectorStore.upsert({
+        id: itemId,
+        title: cleanTitle,
+        description: cleanDesc,
+        category,
+        tags,
+        price,
+        inStock,
+        embedding: Array.from(vec),
+      });
+
+      if (topic === 'products/create') {
+        this.createdCount++;
+      } else {
+        this.updatedCount++;
+      }
+      this.processedEvents++;
+      await this.invalidateCaches();
+
+      return {
+        handled: true,
+        action: topic === 'products/create' ? 'created' : 'updated',
+        itemId,
+      };
+    }
+
+    return { handled: false, action: 'ignored', itemId };
+  }
+
+  private async invalidateCaches(): Promise<void> {
+    ApiQueryCache.invalidateAll();
+    getSemanticCache().clear();
+    const redisCache = getCache();
+    await Promise.all([
+      redisCache.invalidate('search:*'),
+      redisCache.invalidate('recommend:*'),
+    ]);
+  }
+
+  public getMetrics() {
+    return {
+      created: this.createdCount,
+      updated: this.updatedCount,
+      deleted: this.deletedCount,
+      processedEvents: this.processedEvents,
+    };
+  }
+}
+

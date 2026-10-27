@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  eidos-shard-1:
+    image: eidos/eidos:latest
+    container_name: eidos-shard-1
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SHARD_ID=0
+      - CLUSTER_MODE=true
+      - COORDINATOR_URL=http://eidos-coordinator:3000
+      - REDIS_URL=redis://127.0.0.1:6379
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - eidos-cluster-net
+
+  eidos-shard-2:
+    image: eidos/eidos:latest
+    container_name: eidos-shard-2
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SHARD_ID=1
+      - CLUSTER_MODE=true
+      - COORDINATOR_URL=http://eidos-coordinator:3000
+      - REDIS_URL=redis://127.0.0.1:6379
+    ports:
+      - "3002:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - eidos-cluster-net
+
+  eidos-shard-3:
+    image: eidos/eidos:latest
+    container_name: eidos-shard-3
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SHARD_ID=2
+      - CLUSTER_MODE=true
+      - COORDINATOR_URL=http://eidos-coordinator:3000
+      - REDIS_URL=redis://127.0.0.1:6379
+    ports:
+      - "3003:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - eidos-cluster-net
+
+  eidos-coordinator:
+    image: eidos/eidos:latest
+    container_name: eidos-coordinator
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ROLE=coordinator
+      - CLUSTER_MODE=true
+      - EIDOS_SHARD_COUNT=3
+      - SHARD_URLS=http://eidos-shard-1:3000,http://eidos-shard-2:3000,http://eidos-shard-3:3000
+      - REDIS_URL=redis://127.0.0.1:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      - eidos-shard-1
+      - eidos-shard-2
+      - eidos-shard-3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - eidos-cluster-net
+
+networks:
+  eidos-cluster-net:
+    driver: bridge

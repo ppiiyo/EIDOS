@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: eidos-shards-headless
+  namespace: eidos
+  labels:
+    app: eidos-shard
+spec:
+  clusterIP: None
+  selector:
+    app: eidos-shard
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: eidos-shard
+  namespace: eidos
+spec:
+  serviceName: eidos-shards-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: eidos-shard
+  template:
+    metadata:
+      labels:
+        app: eidos-shard
+    spec:
+      containers:
+        - name: eidos-shard
+          image: eidos/eidos:v3.2
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: CLUSTER_MODE
+              value: "true"
+            - name: COORDINATOR_URL
+              value: "http://eidos-coordinator.eidos.svc.cluster.local:3000"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "2Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - name: wal-data
+              mountPath: /app/data
+  volumeClaimTemplates:
+    - metadata:
+        name: wal-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eidos-coordinator
+  namespace: eidos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: eidos-coordinator
+  template:
+    metadata:
+      labels:
+        app: eidos-coordinator
+    spec:
+      containers:
+        - name: eidos-coordinator
+          image: eidos/eidos:v3.2
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: ROLE
+              value: "coordinator"
+            - name: CLUSTER_MODE
+              value: "true"
+            - name: EIDOS_SHARD_COUNT
+              value: "3"
+            - name: SHARD_URLS
+              value: "http://eidos-shard-0.eidos-shards-headless:3000,http://eidos-shard-1.eidos-shards-headless:3000,http://eidos-shard-2.eidos-shards-headless:3000"
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eidos-coordinator
+  namespace: eidos
+spec:
+  type: LoadBalancer
+  selector:
+    app: eidos-coordinator
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: eidos-coordinator-hpa
+  namespace: eidos
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: eidos-coordinator
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

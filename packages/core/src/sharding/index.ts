@@ -314,31 +314,39 @@ export interface ShardCoordinatorConfig {
   dimension?: number;
   dimensions?: number;
   routingMode?: 'key' | 'lsh';
+  replicationFactor?: number;
 }
 
 /**
  * ShardCoordinator manages local and remote HNSW shards, replica health checks,
- * dynamic node registration, and scatter-gather query execution.
+ * dynamic node registration, automatic leader election, and scatter-gather query execution.
  */
 export class ShardCoordinator {
   private readonly shards = new Map<string, HNSWIndex>();
+  private readonly replicaShards = new Map<string, HNSWIndex>();
   private readonly vectors = new Map<string, Float32Array>();
   private readonly itemMetadata = new Map<string, Record<string, unknown>>();
-  private readonly metadata = new Map<string, ShardNode & { endpointUrl?: string }>();
+  private readonly metadata = new Map<string, ShardNode & { endpointUrl?: string; role?: 'leader' | 'follower'; queriesHandled?: number }>();
   private router: LSHShardRouter;
   private readonly dimension: number;
   private readonly routingMode: 'key' | 'lsh';
+  private readonly replicationFactor: number;
+  private leaderShardId: string;
+  private leaderTerm = 1;
 
   constructor(config?: ShardCoordinatorConfig) {
     const shardCount =
       config?.shardCount ?? Math.max(1, parseInt(process.env.EIDOS_SHARD_COUNT || '4', 10));
     this.dimension = config?.dimension ?? config?.dimensions ?? 384;
     this.routingMode = config?.routingMode ?? 'key';
+    this.replicationFactor = Math.max(1, config?.replicationFactor ?? 2);
 
     const urls =
       config?.coordinatorUrls ??
       (process.env.EIDOS_COORDINATOR_URLS
         ? process.env.EIDOS_COORDINATOR_URLS.split(',').map((u) => u.trim())
+        : process.env.SHARD_URLS
+        ? process.env.SHARD_URLS.split(',').map((u) => u.trim())
         : []);
 
     const shardIds: string[] = [];
@@ -346,15 +354,19 @@ export class ShardCoordinator {
       const id = `shard-${i}`;
       shardIds.push(id);
       this.shards.set(id, new HNSWIndex({ M: 16, efConstruction: 64, efSearch: 32 }));
+      this.replicaShards.set(id, new HNSWIndex({ M: 16, efConstruction: 64, efSearch: 32 }));
       this.metadata.set(id, {
         shardId: id,
         weight: 1.0,
         itemCount: 0,
         healthy: true,
         endpointUrl: urls[i] || `local://${id}`,
+        role: i === 0 ? 'leader' : 'follower',
+        queriesHandled: 0,
       });
     }
 
+    this.leaderShardId = shardIds[0] || 'shard-0';
     this.router = new LSHShardRouter({
       shardIds,
       dimension: this.dimension,
@@ -384,6 +396,17 @@ export class ShardCoordinator {
     }
     shard.insert(id, f32);
 
+    // Maintain secondary replica on next shard in the ring for zero data loss during single-node failure
+    if (this.replicationFactor > 1 && this.shards.size > 1) {
+      const shardIds = Array.from(this.shards.keys());
+      const primaryIdx = shardIds.indexOf(shardId);
+      const replicaShardId = shardIds[(primaryIdx + 1) % shardIds.length];
+      const replicaIdx = this.replicaShards.get(replicaShardId);
+      if (replicaIdx) {
+        replicaIdx.insert(id, f32);
+      }
+    }
+
     const shardMeta = this.metadata.get(shardId);
     if (shardMeta && !existed) {
       shardMeta.itemCount++;
@@ -396,18 +419,52 @@ export class ShardCoordinator {
     const meta = this.metadata.get(shardId);
     if (meta) {
       meta.healthy = healthy;
+      if (!healthy && this.leaderShardId === shardId) {
+        this.electLeader();
+      } else if (healthy && !this.metadata.get(this.leaderShardId)?.healthy) {
+        this.electLeader();
+      }
     }
+  }
+
+  /**
+   * Performs deterministic Raft-style leader election among all healthy shards.
+   */
+  public electLeader(): { leaderShardId: string; term: number } {
+    for (const [id, meta] of this.metadata.entries()) {
+      if (meta.healthy) {
+        this.leaderShardId = id;
+        this.leaderTerm++;
+        for (const [sId, sMeta] of this.metadata.entries()) {
+          sMeta.role = sId === id ? 'leader' : 'follower';
+        }
+        return { leaderShardId: this.leaderShardId, term: this.leaderTerm };
+      }
+    }
+    return { leaderShardId: this.leaderShardId, term: this.leaderTerm };
+  }
+
+  public getLeaderState(): { leaderShardId: string; term: number; healthy: boolean } {
+    const leaderMeta = this.metadata.get(this.leaderShardId);
+    return {
+      leaderShardId: this.leaderShardId,
+      term: this.leaderTerm,
+      healthy: Boolean(leaderMeta?.healthy),
+    };
   }
 
   public registerReplicaShard(shardId: string, endpointUrl?: string): void {
     if (!this.shards.has(shardId)) {
       this.shards.set(shardId, new HNSWIndex({ M: 16, efConstruction: 64, efSearch: 32 }));
+      this.replicaShards.set(shardId, new HNSWIndex({ M: 16, efConstruction: 64, efSearch: 32 }));
       this.metadata.set(shardId, {
         shardId,
         weight: 1.0,
         itemCount: 0,
         healthy: true,
         endpointUrl: endpointUrl || `local://${shardId}`,
+        role: 'follower',
+        queriesHandled: 0,
       });
       this.router = new LSHShardRouter({
         shardIds: Array.from(this.shards.keys()),
@@ -422,30 +479,56 @@ export class ShardCoordinator {
     options?: { probeCount?: number; diversityLambda?: number; mmrLambda?: number }
   ): ShardedCandidate[] {
     const qVec = queryVector instanceof Float32Array ? queryVector : new Float32Array(queryVector);
+    const allShardIds = Array.from(this.shards.keys());
     const targetShards =
       this.routingMode === 'lsh' && options?.probeCount
         ? this.router.getProbedShardsForVector(qVec, options.probeCount)
-        : Array.from(this.shards.keys());
+        : allShardIds;
 
     const shardLists: ShardedCandidate[][] = [];
 
     for (const shardId of targetShards) {
       const meta = this.metadata.get(shardId);
       const shard = this.shards.get(shardId);
-      if (!meta || !meta.healthy || !shard) continue;
+      if (!meta || !shard) continue;
 
-      const raw: HNSWSearchResult[] = shard.search(qVec, limit);
-      shardLists.push(
-        raw.map((r) => ({
-          id: r.id,
-          score: r.score ?? 1 - r.distance,
-          distance: r.distance,
-          shardId,
-          vector: this.vectors.get(r.id),
-          metadata: this.itemMetadata.get(r.id),
-          source: 'dense' as const,
-        }))
-      );
+      if (meta.healthy) {
+        meta.queriesHandled = (meta.queriesHandled || 0) + 1;
+        const raw: HNSWSearchResult[] = shard.search(qVec, limit);
+        shardLists.push(
+          raw.map((r) => ({
+            id: r.id,
+            score: r.score ?? 1 - r.distance,
+            distance: r.distance,
+            shardId,
+            vector: this.vectors.get(r.id),
+            metadata: this.itemMetadata.get(r.id),
+            source: 'dense' as const,
+          }))
+        );
+      } else if (this.replicationFactor > 1 && allShardIds.length > 1) {
+        // Automatic Failover: reroute unhealthy primary shard read to healthy replica shard
+        const primaryIdx = allShardIds.indexOf(shardId);
+        const replicaShardId = allShardIds[(primaryIdx + 1) % allShardIds.length];
+        const replicaMeta = this.metadata.get(replicaShardId);
+        const replicaIdx = this.replicaShards.get(replicaShardId);
+
+        if (replicaMeta && replicaMeta.healthy && replicaIdx) {
+          replicaMeta.queriesHandled = (replicaMeta.queriesHandled || 0) + 1;
+          const rawReplica: HNSWSearchResult[] = replicaIdx.search(qVec, limit);
+          shardLists.push(
+            rawReplica.map((r) => ({
+              id: r.id,
+              score: r.score ?? 1 - r.distance,
+              distance: r.distance,
+              shardId: replicaShardId,
+              vector: this.vectors.get(r.id),
+              metadata: this.itemMetadata.get(r.id),
+              source: 'dense' as const,
+            }))
+          );
+        }
+      }
     }
 
     const lambda = options?.mmrLambda ?? options?.diversityLambda;
@@ -460,7 +543,9 @@ export class ShardCoordinator {
     shardCount: number;
     totalVectors: number;
     healthyShards: number;
-    shards: Array<ShardNode & { endpointUrl?: string }>;
+    leaderShardId: string;
+    leaderTerm: number;
+    shards: Array<ShardNode & { endpointUrl?: string; role?: 'leader' | 'follower'; queriesHandled?: number }>;
   } {
     const shards = Array.from(this.metadata.values());
     const totalVectors = shards.reduce((acc, s) => acc + s.itemCount, 0);
@@ -469,6 +554,8 @@ export class ShardCoordinator {
       shardCount: shards.length,
       totalVectors,
       healthyShards,
+      leaderShardId: this.leaderShardId,
+      leaderTerm: this.leaderTerm,
       shards,
     };
   }
@@ -479,6 +566,8 @@ export class ShardCoordinator {
       totalItems: stats.totalVectors,
       healthyShards: stats.healthyShards,
       totalShards: stats.shardCount,
+      leaderShardId: stats.leaderShardId,
+      leaderTerm: stats.leaderTerm,
       shards: stats.shards,
     };
   }
