@@ -1,25 +1,11 @@
-import React, { useState, useMemo, useCallback } from "react";
-import { SecurityGuardrails } from '@eidos/core';
-import { CatalogItem, Project } from './types';
-import { computeTextEmbedding } from './utils/recommenderEngine';
+import React, { useState } from 'react';
 import { Sidebar, ViewId } from './components/Sidebar';
 import { StudioHeader } from './components/StudioHeader';
-import { DashboardView } from './components/DashboardView';
-import { CatalogView } from './components/CatalogView';
-import { SearchView } from './components/SearchView';
-import { RecommendationsView } from './components/RecommendationsView';
-import { ABTestView } from './components/ABTestView';
-import { ConversationalView } from './components/ConversationalView';
-import { AnalyticsView } from './components/AnalyticsView';
-import { VectorSpaceView } from './components/VectorSpaceView';
-import { AdaptivePanel } from './components/AdaptivePanel';
-import { SEODashboard } from './pages/SEODashboard/SEODashboard';
-import { ApiConsoleModal } from './components/ApiConsoleModal';
-import { CsvImporterModal } from './components/CsvImporterModal';
-import { DatabaseConnectorModal } from './components/DatabaseConnectorModal';
+import { StudioViewRouter } from './components/StudioViewRouter';
+import { StudioModals } from './components/StudioModals';
 import { ToastContainer } from './components/ToastContainer';
-import { ConversationalAgent } from './lib/agent/conversational-agent';
 import { useStudioWorkspace } from './hooks/useStudioWorkspace';
+import { useCatalogImportHandlers } from './hooks/useCatalogImportHandlers';
 
 export function App() {
   const [view, setView] = useState<ViewId>('seo');
@@ -28,81 +14,42 @@ export function App() {
   const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);
 
   const {
-    uiLang, setUiLang, catalog, setCatalog, embeddings, setEmbeddings,
-    selectedItem, setSelectedItem, isScaledCatalog, setIsScaledCatalog,
-    activeDomain, toasts, engineState, showToast, dismissToast,
-    handleAddItem, handleDeleteItem, handleScaleCatalog, handleRestoreCuratedCatalog,
-    handleSelectDomainPreset, handleImportCustomDatabase, handleSearch,
-    handleHybridSearch, handleRecommend,
+    uiLang,
+    setUiLang,
+    catalog,
+    setCatalog,
+    embeddings,
+    setEmbeddings,
+    selectedItem,
+    setSelectedItem,
+    isScaledCatalog,
+    setIsScaledCatalog,
+    activeDomain,
+    toasts,
+    engineState,
+    showToast,
+    dismissToast,
+    handleAddItem,
+    handleDeleteItem,
+    handleScaleCatalog,
+    handleRestoreCuratedCatalog,
+    handleSelectDomainPreset,
+    handleImportCustomDatabase,
+    handleSearch,
+    handleHybridSearch,
+    handleRecommend,
   } = useStudioWorkspace();
 
-  const handleImportVectorBundle = useCallback(
-    (importedItems: CatalogItem[], importedEmbeddings: Map<string, Float32Array>) => {
-      if (importedItems.length === 0) return;
-      setEmbeddings(importedEmbeddings);
-      setCatalog(importedItems);
-      setSelectedItem(importedItems[0] || null);
-      setIsScaledCatalog(importedItems.length >= 500);
-      showToast(`Imported ${importedItems.length} items with 0ms pre-computed 384-d vectors`, 'success');
-    },
-    [setCatalog, setEmbeddings, setIsScaledCatalog, setSelectedItem, showToast]
-  );
-
-  const handleCsvImportConcepts = useCallback(
-    (concepts: Array<{ name: string; category?: string; notes?: string }>, replace: boolean) => {
-      const newItems: CatalogItem[] = concepts.map((c, idx) => {
-        const safeTitle = SecurityGuardrails.scanAndSanitize(c.name).sanitizedInput || `Item ${idx + 1}`;
-        const safeCat = SecurityGuardrails.scanAndSanitize(c.category || 'Imported CSV').sanitizedInput || 'Imported CSV';
-        const safeDesc = SecurityGuardrails.scanAndSanitize(c.notes || c.name).sanitizedInput || safeTitle;
-        return {
-          id: `csv_${Date.now()}_${idx}`, title: safeTitle, description: safeDesc,
-          category: safeCat, price: '—', rating: 4.8, reviews: 12,
-          badge: 'CSV Import', icon: '📄', tags: [safeCat.toLowerCase()], custom: true,
-        };
-      });
-
-      const nextCatalog = replace ? newItems : [...newItems, ...catalog];
-      const nextEmbeddings = new Map(replace ? [] : embeddings);
-      for (const item of newItems) {
-        nextEmbeddings.set(
-          String(item.id),
-          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`)
-        );
-      }
-      setEmbeddings(nextEmbeddings);
-      setCatalog(nextCatalog);
-      if (nextCatalog.length > 0) setSelectedItem(nextCatalog[0]);
-      showToast(`Imported ${newItems.length} records from CSV & vectorized to 384d`, 'success');
-    },
-    [catalog, embeddings, setCatalog, setEmbeddings, setSelectedItem, showToast]
-  );
-
-  const handleInspectIn3D = useCallback((item: CatalogItem) => {
-    setSelectedItem(item);
-    setView('vectorspace');
-  }, [setSelectedItem]);
-
-  const handleInspectRecommendations = useCallback((item: CatalogItem) => {
-    setSelectedItem(item);
-    setView('recommendations');
-  }, [setSelectedItem]);
-
-  const agent = useMemo(
-    () => new ConversationalAgent(catalog, embeddings, async (q) => computeTextEmbedding(`query: ${q}`)),
-    [catalog, embeddings]
-  );
-
-  const csvProject: Project = useMemo(
-    () => ({
-      id: 'eidos_catalog_proj',
-      name: 'Eidos Production Catalog',
-      updatedAt: Date.now(),
-      concepts: catalog.map((item) => ({
-        id: String(item.id), name: item.title, category: item.category, notes: item.description,
-      })),
-    }),
-    [catalog]
-  );
+  const { handleImportVectorBundle, handleCsvImportConcepts, csvProject } =
+    useCatalogImportHandlers({
+      catalog,
+      embeddings,
+      setCatalog,
+      setEmbeddings,
+      setSelectedItem,
+      setIsScaledCatalog,
+      showToast,
+    });
 
   return (
     <div className="app-shell">
@@ -128,126 +75,55 @@ export function App() {
           onOpenApiModal={() => setIsApiModalOpen(true)}
         />
 
-        {view === 'dashboard' && (
-          <DashboardView
-            catalog={catalog}
-            embeddings={embeddings}
-            selectedItem={selectedItem}
-            isScaledCatalog={isScaledCatalog}
-            activeDomain={activeDomain}
-            uiLang={uiLang}
-            onNavigate={setView}
-            onSearch={handleSearch}
-            onSelectItem={setSelectedItem}
-            onScaleCatalog={handleScaleCatalog}
-            onRestoreCatalog={handleRestoreCuratedCatalog}
-            onOpenApiConsole={() => setIsApiModalOpen(true)}
-            onSelectDomainPreset={handleSelectDomainPreset}
-            onOpenDatabaseConnector={() => setIsDbConnectorOpen(true)}
-          />
-        )}
-
-        {view === 'vectorspace' && (
-          <VectorSpaceView
-            catalog={catalog}
-            embeddings={embeddings}
-            selectedItem={selectedItem}
-            onSelectItem={setSelectedItem}
-            onInspectRecommendations={handleInspectRecommendations}
-            uiLang={uiLang}
-          />
-        )}
-
-        {view === 'adaptive' && (
-          <AdaptivePanel
-            catalog={catalog}
-            embeddings={embeddings}
-            selectedItem={selectedItem}
-            onSelectItem={setSelectedItem}
-            onShowToast={showToast}
-            uiLang={uiLang}
-          />
-        )}
-
-        {view === 'search' && (
-          <SearchView
-            catalog={catalog}
-            onHybridSearch={handleHybridSearch}
-            onSelectItem={handleInspectRecommendations}
-            onInspectIn3D={handleInspectIn3D}
-            uiLang={uiLang}
-            embeddingState={engineState}
-          />
-        )}
-
-        {view === 'recommendations' && (
-          <RecommendationsView
-            catalog={catalog}
-            embeddings={embeddings}
-            selectedItem={selectedItem}
-            onSelectItem={setSelectedItem}
-            onRecommend={handleRecommend}
-            onInspectIn3D={handleInspectIn3D}
-            uiLang={uiLang}
-          />
-        )}
-
-        {view === 'catalog' && (
-          <CatalogView
-            catalog={catalog}
-            embeddings={embeddings}
-            onAddItem={handleAddItem}
-            onDeleteItem={handleDeleteItem}
-            onSelectItem={handleInspectRecommendations}
-            onInspectIn3D={handleInspectIn3D}
-            onImportVectorBundle={handleImportVectorBundle}
-            onOpenCsvModal={() => setIsCsvModalOpen(true)}
-            uiLang={uiLang}
-          />
-        )}
-
-        {view === 'seo' && <SEODashboard />}
-        {view === 'analytics' && <AnalyticsView />}
-        {view === 'abtest' && <ABTestView />}
-        {view === 'conversational' && (
-          <ConversationalView
-            agent={agent}
-            onSelectItem={handleInspectRecommendations}
-            uiLang={uiLang}
-          />
-        )}
+        <StudioViewRouter
+          view={view}
+          onNavigate={setView}
+          catalog={catalog}
+          embeddings={embeddings}
+          selectedItem={selectedItem}
+          onSelectItem={setSelectedItem}
+          isScaledCatalog={isScaledCatalog}
+          activeDomain={activeDomain}
+          uiLang={uiLang}
+          engineState={engineState}
+          onSearch={handleSearch}
+          onHybridSearch={handleHybridSearch}
+          onRecommend={handleRecommend}
+          onAddItem={handleAddItem}
+          onDeleteItem={handleDeleteItem}
+          onScaleCatalog={handleScaleCatalog}
+          onRestoreCatalog={handleRestoreCuratedCatalog}
+          onSelectDomainPreset={handleSelectDomainPreset}
+          onImportVectorBundle={handleImportVectorBundle}
+          onOpenApiConsole={() => setIsApiModalOpen(true)}
+          onOpenCsvModal={() => setIsCsvModalOpen(true)}
+          onOpenDatabaseConnector={() => setIsDbConnectorOpen(true)}
+          onShowToast={showToast}
+        />
       </main>
 
-      <ApiConsoleModal
-        isOpen={isApiModalOpen}
-        onClose={() => setIsApiModalOpen(false)}
+      <StudioModals
+        isApiModalOpen={isApiModalOpen}
+        onCloseApiModal={() => setIsApiModalOpen(false)}
+        isCsvModalOpen={isCsvModalOpen}
+        onCloseCsvModal={() => setIsCsvModalOpen(false)}
+        isDbConnectorOpen={isDbConnectorOpen}
+        onCloseDbConnector={() => setIsDbConnectorOpen(false)}
         catalog={catalog}
         selectedItem={selectedItem}
-        onHybridSearch={handleHybridSearch}
-        onGetRecommendations={async (item, diversity, limit) =>
-          handleRecommend(String(item.id), diversity, limit)
-        }
-      />
-
-      <CsvImporterModal
-        isOpen={isCsvModalOpen}
-        project={csvProject}
-        onClose={() => setIsCsvModalOpen(false)}
-        onImportConcepts={handleCsvImportConcepts}
-        onShowToast={showToast}
-      />
-
-      <DatabaseConnectorModal
-        isOpen={isDbConnectorOpen}
         activeDomain={activeDomain}
-        catalogCount={catalog.length}
-        onClose={() => setIsDbConnectorOpen(false)}
+        csvProject={csvProject}
+        onHybridSearch={handleHybridSearch}
+        onRecommend={handleRecommend}
+        onImportCsvConcepts={handleCsvImportConcepts}
         onSelectDomainPreset={handleSelectDomainPreset}
         onImportCustomDatabase={handleImportCustomDatabase}
+        onShowToast={showToast}
       />
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
+
 export default App;
