@@ -212,6 +212,7 @@ export class VectorStore {
 
   /**
    * Non-blocking debounced asynchronous catalog snapshot write triggered on POST /v1/catalog/upsert.
+   * Uses atomic write (write to .tmp file, then rename) to prevent snapshot corruption on concurrent shutdown.
    */
   public async saveSnapshotAsync(customPath?: string): Promise<void> {
     if (
@@ -227,8 +228,10 @@ export class VectorStore {
         const targetPath = this.getSnapshotPath(customPath);
         const dir = path.dirname(targetPath);
         await fs.promises.mkdir(dir, { recursive: true });
+        const tempPath = `${targetPath}.tmp-${Date.now()}`;
         const payload = JSON.stringify(this.toSnapshotArray());
-        await fs.promises.writeFile(targetPath, payload, 'utf8');
+        await fs.promises.writeFile(tempPath, payload, 'utf8');
+        await fs.promises.rename(tempPath, targetPath);
       } catch (err) {
         console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
       }
@@ -245,8 +248,10 @@ export class VectorStore {
         const targetPath = this.getSnapshotPath();
         const dir = path.dirname(targetPath);
         await fs.promises.mkdir(dir, { recursive: true });
+        const tempPath = `${targetPath}.tmp-${Date.now()}`;
         const payload = JSON.stringify(this.toSnapshotArray());
-        await fs.promises.writeFile(targetPath, payload, 'utf8');
+        await fs.promises.writeFile(tempPath, payload, 'utf8');
+        await fs.promises.rename(tempPath, targetPath);
       } catch (err) {
         console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
       }
@@ -259,6 +264,7 @@ export class VectorStore {
 
   /**
    * Synchronous catalog snapshot write for graceful shutdown (SIGTERM / SIGINT).
+   * Uses atomic write (write to .tmp file, then rename) to prevent snapshot corruption.
    */
   public saveSnapshotSync(customPath?: string): void {
     if (this.snapshotTimer) {
@@ -276,8 +282,10 @@ export class VectorStore {
       const targetPath = this.getSnapshotPath(customPath);
       const dir = path.dirname(targetPath);
       fs.mkdirSync(dir, { recursive: true });
+      const tempPath = `${targetPath}.tmp-${Date.now()}`;
       const payload = JSON.stringify(this.toSnapshotArray());
-      fs.writeFileSync(targetPath, payload, 'utf8');
+      fs.writeFileSync(tempPath, payload, 'utf8');
+      fs.renameSync(tempPath, targetPath);
     } catch (err) {
       console.error('[EIDOS] Failed to save catalog snapshot synchronously:', err);
     }

@@ -1,6 +1,14 @@
 import 'fastify';
+import { ApiKeyManager } from '../services/api-key-manager';
 
 declare module 'fastify' {
+  interface FastifyInstance {
+    /**
+     * API Key rotation & revocation manager instance attached to the server.
+     */
+    keyManager?: ApiKeyManager;
+  }
+
   interface FastifyRequest {
     /**
      * Indicates that the request is authenticated with a read-only public demo key.

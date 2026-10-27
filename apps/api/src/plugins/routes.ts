@@ -10,13 +10,16 @@ import { recommendAdaptiveRoutes } from '../routes/recommend-adaptive';
 import { feedbackRoutes } from '../routes/feedback';
 import { enterpriseRoutes } from '../routes/enterprise';
 import { analyticsRoutes } from '../routes/analytics';
+import { keyRoutes } from '../routes/keys';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { TenantNamespaceManager } from '../services/multi-tenancy';
+import { ApiKeyManager } from '../services/api-key-manager';
 
 export interface ApiRoutesPluginOptions {
   vectorStore: VectorStore;
   embedder: ServerEmbedder;
+  keyManager?: ApiKeyManager;
 }
 
 export async function apiRoutesPlugin(
@@ -24,6 +27,8 @@ export async function apiRoutesPlugin(
   opts: ApiRoutesPluginOptions
 ): Promise<void> {
   TenantNamespaceManager.getInstance().setDefaultStore(opts.vectorStore);
+  const keyManager = opts.keyManager || ApiKeyManager.getInstance();
+  fastify.keyManager = keyManager;
 
   // Ensure reply.sendFile is available even if @fastify/static is not mounted
   if (!fastify.hasReplyDecorator('sendFile')) {
@@ -74,6 +79,9 @@ export async function apiRoutesPlugin(
   await fastify.register(analyticsRoutes, {
     vectorStore: opts.vectorStore,
     embedder: opts.embedder,
+  });
+  await fastify.register(keyRoutes, {
+    keyManager,
   });
 
   // 404 JSON handler for unknown /v1/* API endpoints; SPA fallback ONLY for non-API routes

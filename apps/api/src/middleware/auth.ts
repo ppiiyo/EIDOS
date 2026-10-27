@@ -3,6 +3,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import * as crypto from 'crypto';
 import { demoRateLimit } from './rate-limit-demo';
 import { TenantNamespaceManager } from '../services/multi-tenancy';
+import { ApiKeyManager } from '../services/api-key-manager';
 
 const PUBLIC_ENDPOINTS = [
   '/v1/health',
@@ -209,6 +210,30 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     if (jwtCheck.isValid) {
       return;
     }
+  }
+
+  const keyManager = request.server?.keyManager || ApiKeyManager.getInstance();
+  if (keyManager && keyManager.isRevokedOrExpired(token)) {
+    request.log.warn({
+      event: 'auth_failed',
+      reason: 'key_revoked_or_expired',
+      ip: request.ip,
+      path: request.url,
+      userAgent: request.headers['user-agent'],
+    });
+    return reply.status(401).send({
+      statusCode: 401,
+      error: 'Unauthorized',
+      message: 'API key has been revoked or expired.',
+    });
+  }
+
+  if (keyManager && keyManager.isValid(token)) {
+    const record = keyManager.getRecord(token);
+    if (record && !request.headers['x-tenant-id']) {
+      request.tenantId = record.tenant_id;
+    }
+    return;
   }
 
   const isValid = validKeys.some((k) => timingSafeEqual(token, k));

@@ -8,6 +8,7 @@
     "dev": "vite --config vite.config.ts --port=3000 --host=0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "lint": "tsc -p ../../tsconfig.json --noEmit",
+    "typecheck": "tsc -p ../../tsconfig.json --noEmit",
     "test": "vitest run --config ../../vitest.config.ts ../../tests/unit"
   }
 }
