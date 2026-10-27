@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from 'react';
 import { CatalogItem } from '../types';
 import {
   RankingConfig,
@@ -133,95 +133,113 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
   }, [currentSeed, catalog, embeddings, rankingConfig, capsuleHistory, uiLang]);
 
   return (
-    <div className="flex flex-col gap-6 bg-[#0E0E12] border border-[#222228] rounded-xl p-6 shadow-xs text-[#F5F5F5]">
-      <div className="flex items-center justify-between pb-4 border-b border-[#222228] flex-wrap gap-3">
-        <div className="flex items-center gap-1 bg-[#141418] p-1 rounded-lg border border-[#26262B]">
-          {[
-            { id: 'ranker' as const, label: 'Multi-Feature Ranker', icon: Sliders },
-            { id: 'capsules' as const, label: 'Multi-Interest Capsules', icon: Layers },
-            { id: 'bandits' as const, label: 'Contextual Bandits (LinUCB)', icon: Zap },
-            { id: 'steering' as const, label: 'Vector Steering', icon: Compass },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveSubTab(id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-                activeSubTab === id ? 'bg-[#2563EB] text-white' : 'text-[#A3A3A3] hover:text-[#F5F5F5]'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{label}</span>
-            </button>
-          ))}
+    <div className="page" data-testid="adaptive-intelligence-lab">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="page-title">⚙️ Adaptive Intelligence Lab</h1>
+          <p className="page-sub">
+            Multi-feature composite ranking, MIND/ComiRec interest capsules, LinUCB contextual bandits, and 384-d vector steering
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-mono text-[#10B981]">
-          <span className="w-2 h-2 rounded-full bg-[#10B981]" />
-          <span>AIL Core Engine Active</span>
-        </div>
+        <span className="badge badge-success mono">● AIL Core Engine Active</span>
+      </div>
+
+      {/* Sub-navigation tabs aligned with studio design system */}
+      <div className="card p-2 mb-6 flex flex-wrap items-center gap-1.5">
+        {[
+          { id: 'ranker' as const, label: 'Multi-Feature Ranker', icon: Sliders },
+          { id: 'capsules' as const, label: 'Multi-Interest Capsules', icon: Layers },
+          { id: 'bandits' as const, label: 'Contextual Bandits (LinUCB)', icon: Zap },
+          { id: 'steering' as const, label: 'Vector Steering', icon: Compass },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveSubTab(id)}
+            className={`btn btn-sm ${activeSubTab === id ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            <Icon size={14} />
+            <span>{label}</span>
+          </button>
+        ))}
       </div>
 
       {activeSubTab === 'ranker' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-[#101020] border border-[#1e1e35] p-5 rounded-2xl flex flex-col gap-4">
-            <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider block">
+        <div className="playground-layout">
+          <div className="controls-panel card">
+            <h3 className="text-sm font-semibold text-[var(--text)] mb-4">
               Ranker Weight Parameters
-            </span>
+            </h3>
             {[
-              { label: 'α Semantic Cosine', val: rankingConfig.alpha, key: 'alpha' as const, color: 'text-cyan-400' },
-              { label: 'δ User History Affinity', val: rankingConfig.delta, key: 'delta' as const, color: 'text-purple-400' },
-              { label: 'β Popularity Score', val: rankingConfig.beta, key: 'beta' as const, color: 'text-emerald-400' },
+              { label: 'α Semantic Cosine', val: rankingConfig.alpha, key: 'alpha' as const },
+              { label: 'δ User History Affinity', val: rankingConfig.delta, key: 'delta' as const },
+              { label: 'β Popularity Score', val: rankingConfig.beta, key: 'beta' as const },
             ].map((s) => (
-              <div key={s.key}>
-                <div className="flex justify-between text-xs font-mono mb-1">
-                  <span className="text-[#a0a0be]">{s.label}</span>
-                  <span className={`${s.color} font-bold`}>{s.val.toFixed(2)}</span>
+              <div key={s.key} className="slider-group">
+                <div className="slider-header">
+                  <span>{s.label}</span>
+                  <span className="slider-value">{s.val.toFixed(2)}</span>
                 </div>
                 <input
-                  type="range" min="0" max="1" step="0.05" value={s.val}
-                  onChange={(e) => setRankingConfig({ ...rankingConfig, [s.key]: parseFloat(e.target.value) })}
-                  className="w-full accent-cyan-400 h-1.5 bg-[#18182e] rounded-lg"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={s.val}
+                  onChange={(e) =>
+                    setRankingConfig({ ...rankingConfig, [s.key]: parseFloat(e.target.value) })
+                  }
                 />
               </div>
             ))}
-            <div>
-              <div className="flex justify-between text-xs font-mono mb-1">
-                <span className="text-[#a0a0be]">λ SMMR Diversity Balance</span>
-                <span className="text-rose-400 font-bold">{smmrConfig.lambda.toFixed(2)}</span>
+            <div className="slider-group mb-0">
+              <div className="slider-header">
+                <span>λ SMMR Diversity Balance</span>
+                <span className="slider-value">{smmrConfig.lambda.toFixed(2)}</span>
               </div>
               <input
-                type="range" min="0.1" max="0.95" step="0.05" value={smmrConfig.lambda}
-                onChange={(e) => setSmmrConfig({ ...smmrConfig, lambda: parseFloat(e.target.value) })}
-                className="w-full accent-rose-400 h-1.5 bg-[#18182e] rounded-lg"
+                type="range"
+                min="0.1"
+                max="0.95"
+                step="0.05"
+                value={smmrConfig.lambda}
+                onChange={(e) =>
+                  setSmmrConfig({ ...smmrConfig, lambda: parseFloat(e.target.value) })
+                }
               />
             </div>
           </div>
 
-          <div className="lg:col-span-2 flex flex-col gap-3">
-            <span className="text-xs font-mono text-[#8a8aa3] uppercase tracking-wider block mb-1">
-              Top Adaptive Recommendations (Composite Scoring)
-            </span>
-            {rankedResults.map((res, idx) => (
-              <div
-                key={res.item.id}
-                className="p-3.5 rounded-xl bg-[#121222] border border-[#1e1e32] hover:border-cyan-500/40 transition-all flex flex-col gap-2"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-mono font-bold text-cyan-400">#{idx + 1}</span>
-                    <span className="text-base">{res.item.icon || '💎'}</span>
-                    <h5 className="text-xs font-semibold text-white">{res.item.title}</h5>
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-[var(--text)]">
+                Top Adaptive Recommendations (Composite Scoring)
+              </h3>
+              {currentSeed && (
+                <span className="badge badge-neutral">Anchor: {currentSeed.title}</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-3">
+              {rankedResults.map((res, idx) => (
+                <div key={res.item.id} className="result-card-live mb-0">
+                  <div className="result-header mb-2">
+                    <span className="rank-badge mono">#{idx + 1}</span>
+                    <span className="text-base">{res.item.icon || '📦'}</span>
+                    <div className="result-info">
+                      <h4>{res.item.title}</h4>
+                      <span className="text-xs text-[var(--text-sec)]">{res.item.category}</span>
+                    </div>
+                    <span className="badge badge-accent mono">
+                      {(res.score * 100).toFixed(1)} pts
+                    </span>
                   </div>
-                  <span className="text-xs font-mono font-bold text-cyan-300">
-                    {(res.score * 100).toFixed(1)} score
-                  </span>
+                  <div className="flex items-center justify-between text-xs text-[var(--text-sec)] pt-2 border-t border-[var(--border)]">
+                    <span>{res.explanation.summary}</span>
+                    <span className="mono font-semibold text-[var(--text)]">{res.item.price}</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-[#8a8aa3] pt-2 border-t border-[#18182a]">
-                  <span className="text-[#9e9ec0]">{res.explanation.summary}</span>
-                  <span className="text-cyan-400">{res.item.price}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}

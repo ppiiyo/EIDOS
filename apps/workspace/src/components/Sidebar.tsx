@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Package,
@@ -10,6 +10,7 @@ import {
   Boxes,
   Sliders,
   Terminal,
+  Scale,
 } from 'lucide-react';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
@@ -19,17 +20,25 @@ export type ViewId =
   | 'vectorspace'
   | 'adaptive'
   | 'search'
+  | 'ranking'
   | 'recommendations'
   | 'catalog'
   | 'analytics'
   | 'abtest'
   | 'conversational';
 
-interface SidebarProps {
+export interface SidebarProps {
   active: ViewId;
   onSelect: (id: ViewId) => void;
   onOpenApiModal?: () => void;
   uiLang?: UiLanguage;
+}
+
+interface NavGroupItem {
+  id: ViewId;
+  label: string;
+  emoji: string;
+  icon: React.FC<{ size?: number }>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,83 +49,149 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const t = UI_TRANSLATIONS[uiLang];
 
-  const NAV_SECTIONS: Array<{
-    title: string;
-    items: Array<{ id: ViewId; label: string; icon: React.FC<{ size?: number }> }>;
-  }> = [
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('eidos_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('eidos_sidebar_collapsed', String(isCollapsed));
+    } catch {
+      // Ignore storage quota errors in restricted environments
+    }
+  }, [isCollapsed]);
+
+  const navGroups: Array<{ title: string; items: NavGroupItem[] }> = [
     {
-      title: t.nav.coreEngine,
+      title: 'Core Engine',
       items: [
-        { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
-        { id: 'seo', label: 'SEO Dashboard (X-Ray)', icon: BarChart3 },
-        { id: 'vectorspace', label: t.nav.vectorspace, icon: Boxes },
-        { id: 'adaptive', label: t.nav.adaptive, icon: Sliders },
-        { id: 'search', label: t.nav.search, icon: Search },
-        { id: 'recommendations', label: t.nav.recommendations, icon: Lightbulb },
+        { id: 'dashboard', label: t.nav.dashboard, emoji: '📊', icon: LayoutDashboard },
+        { id: 'catalog', label: t.nav.catalog, emoji: '📦', icon: Package },
+        { id: 'search', label: t.nav.search, emoji: '🔍', icon: Search },
+        { id: 'recommendations', label: t.nav.recommendations, emoji: '✨', icon: Lightbulb },
       ],
     },
     {
-      title: t.nav.intelligenceOperations,
+      title: 'Playground & Labs',
       items: [
-        { id: 'catalog', label: t.nav.catalog, icon: Package },
-        { id: 'analytics', label: t.nav.analytics, icon: BarChart3 },
-        { id: 'abtest', label: t.nav.abtest, icon: Split },
-        { id: 'conversational', label: t.nav.conversational, icon: MessageSquare },
+        { id: 'ranking', label: 'Ranking Playground', emoji: '⚖️', icon: Scale },
+        { id: 'vectorspace', label: t.nav.vectorspace, emoji: '🌌', icon: Boxes },
+        { id: 'conversational', label: t.nav.conversational, emoji: '💬', icon: MessageSquare },
+        { id: 'abtest', label: t.nav.abtest, emoji: '🧪', icon: Split },
+      ],
+    },
+    {
+      title: 'Analytics & Ops',
+      items: [
+        { id: 'analytics', label: t.nav.analytics, emoji: '📈', icon: BarChart3 },
+        { id: 'seo', label: 'SEO Insights', emoji: '🎯', icon: BarChart3 },
+        { id: 'adaptive', label: t.nav.adaptive, emoji: '⚙️', icon: Sliders },
       ],
     },
   ];
 
   return (
-    <aside className="sidebar" aria-label="Primary Navigation">
-      <div className="sidebar-brand">
-        <div className="sidebar-brand-dot" />
-        <span>Eidos Engine</span>
-        <span className="mono ml-auto text-[0.6875rem] text-[var(--text-sec)] font-medium">
-          v2.5
-        </span>
-      </div>
+    <>
+      <button
+        type="button"
+        className="mobile-menu-toggle"
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        aria-label="Toggle Menu"
+        data-testid="mobile-menu-toggle"
+      >
+        ☰
+      </button>
 
-      <nav className="sidebar-nav">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.title} className="mb-3.5">
-            <div className="px-3 pt-1.5 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-[var(--text-mut)]">
-              {section.title}
-            </div>
-            {section.items.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                data-testid={`nav-${id}`}
-                onClick={() => onSelect(id)}
-                className={`sidebar-item ${active === id ? 'active' : ''}`}
-              >
-                <Icon size={16} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        ))}
-      </nav>
-
-      {onOpenApiModal && (
-        <div className="px-2 pb-2">
-          <button
-            type="button"
-            onClick={onOpenApiModal}
-            className="btn btn-secondary btn-sm w-full justify-start"
-          >
-            <Terminal size={14} />
-            <span>{t.nav.apiButton}</span>
-          </button>
-        </div>
+      {isMobileOpen && (
+        <div
+          className="sidebar-overlay"
+          data-testid="sidebar-overlay"
+          onClick={() => setIsMobileOpen(false)}
+        />
       )}
 
-      <div className="sidebar-footer">
-        <div className="mono font-semibold text-[var(--text)]">
-          {t.nav.engineFooterTitle}
+      <aside
+        className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}
+        aria-label="Primary Navigation"
+        data-testid="studio-sidebar"
+      >
+        <div className="sidebar-header sidebar-brand">
+          <div className="sidebar-logo flex items-center gap-2.5">
+            <span className="logo-icon">⚡</span>
+            {!isCollapsed && <span className="logo-text">EIDOS Engine</span>}
+          </div>
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            aria-label="Toggle Sidebar"
+            data-testid="sidebar-collapse-toggle"
+          >
+            {isCollapsed ? '»' : '«'}
+          </button>
         </div>
-        <div className="mt-0.5">{t.nav.engineFooterSub}</div>
-      </div>
-    </aside>
+
+        <nav className="sidebar-nav">
+          {navGroups.map((group) => (
+            <div key={group.title} className="sidebar-group">
+              {!isCollapsed && (
+                <div className="sidebar-group-title">{group.title}</div>
+              )}
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = active === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    data-testid={`nav-${item.id}`}
+                    className={`nav-item sidebar-item ${isActive ? 'active' : ''}`}
+                    onClick={() => {
+                      onSelect(item.id);
+                      setIsMobileOpen(false);
+                    }}
+                    title={isCollapsed ? item.label : undefined}
+                  >
+                    <span className="nav-icon" aria-hidden="true">
+                      <Icon size={16} />
+                    </span>
+                    {!isCollapsed && <span className="nav-label">{item.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {onOpenApiModal && (
+          <div className="px-2 pb-2">
+            <button
+              type="button"
+              onClick={onOpenApiModal}
+              className="btn btn-secondary btn-sm w-full justify-start"
+              title={isCollapsed ? t.nav.apiButton : undefined}
+            >
+              <Terminal size={14} />
+              {!isCollapsed && <span>{t.nav.apiButton}</span>}
+            </button>
+          </div>
+        )}
+
+        {!isCollapsed && (
+          <div className="sidebar-footer">
+            <div className="mono font-semibold text-[var(--text)]">
+              {t.nav.engineFooterTitle}
+            </div>
+            <div className="mt-0.5">{t.nav.engineFooterSub}</div>
+          </div>
+        )}
+      </aside>
+    </>
   );
 };

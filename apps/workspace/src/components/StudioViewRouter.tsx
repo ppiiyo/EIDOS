@@ -9,6 +9,7 @@ import { ViewId } from './Sidebar';
 import { DashboardView } from './DashboardView';
 import { CatalogView } from './CatalogView';
 import { SearchView } from './SearchView';
+import { RankingPlayground } from './RankingPlayground';
 import { RecommendationsView } from './RecommendationsView';
 import { ABTestView } from './ABTestView';
 import { ConversationalView } from './ConversationalView';
@@ -150,6 +151,8 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
           embeddingState={engineState}
         />
       );
+    case 'ranking':
+      return <RankingPlayground catalog={catalog} />;
     case 'recommendations':
       return (
         <RecommendationsView

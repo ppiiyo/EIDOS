@@ -13,9 +13,9 @@ export * from './enterprise';
 export * from './persistence';
 export * from './security';
 export * from './search';
+export * from './recommender';
 export * from './bm25';
 export * from './cache';
 export * from './metrics';
 export * from './csv';
 export * from './sharding';
-

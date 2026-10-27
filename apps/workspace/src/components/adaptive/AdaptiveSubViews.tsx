@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 import {
   MultiInterestProfile,
   BanditExplorer,
@@ -11,10 +11,15 @@ import { computeTextEmbedding } from '../../utils/recommenderEngine';
 export const CapsulesSubView: React.FC<{
   capsuleProfile: MultiInterestProfile | null;
 }> = ({ capsuleProfile }) => (
-  <div className="flex flex-col gap-4">
-    <p className="text-xs text-[#8a8aa3]">
-      MIND / ComiRec-DR dynamic routing partitions the user&apos;s sequential history into isolated interest vectors instead of blurring them into one single centroid.
-    </p>
+  <div className="card p-5 flex flex-col gap-4">
+    <div>
+      <h3 className="text-sm font-semibold text-[var(--text)]">
+        Multi-Interest Dynamic Routing (MIND / ComiRec-DR)
+      </h3>
+      <p className="text-xs text-[var(--text-sec)] mt-1">
+        Dynamic routing partitions the user&apos;s sequential history into isolated interest vectors instead of blurring them into a single centroid.
+      </p>
+    </div>
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {capsuleProfile?.interestEmbeddings.map((_, idx) => {
@@ -24,28 +29,23 @@ export const CapsulesSubView: React.FC<{
         return (
           <div
             key={idx}
-            className="p-4 rounded-xl border border-purple-500/30 bg-purple-950/15 flex flex-col gap-2.5"
+            className="card p-4 bg-[var(--bg-alt)] flex flex-col gap-2.5"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold text-purple-400">
-                CAPSULE #{idx + 1}
-              </span>
-              <span className="text-xs font-mono text-white font-bold">
+              <span className="badge badge-accent mono">CAPSULE #{idx + 1}</span>
+              <span className="mono text-sm font-bold text-[var(--text)]">
                 {(weight * 100).toFixed(1)}%
               </span>
             </div>
-            <div className="w-full bg-[#141424] rounded-full h-1.5 overflow-hidden">
+            <div className="bar-track">
               <div
-                className="h-full bg-purple-400 rounded-full"
-                style={{ width: `${weight * 100}%` }}
+                className="bar-fill vector"
+                style={{ width: `${Math.min(100, weight * 100)}%` }}
               />
             </div>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1.5 mt-1">
               {cats.map((c) => (
-                <span
-                  key={c}
-                  className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#18182e] text-white"
-                >
+                <span key={c} className="badge badge-neutral">
                   {c}
                 </span>
               ))}
@@ -71,31 +71,28 @@ export const BanditsSubView: React.FC<{
   onChangeStrategy,
   onBanditAction,
 }) => (
-  <div className="flex flex-col gap-4">
-    <div className="flex items-center justify-between flex-wrap gap-2">
-      <p className="text-xs text-[#8a8aa3]">
-        LinUCB & Thompson Sampling dynamically explore unpulled items by adding an exploration bonus (α·σ) to expected reward.
-      </p>
-      <div className="flex items-center gap-1 bg-[#121222] p-1 rounded-lg border border-[#202036]">
+  <div className="card p-5 flex flex-col gap-4">
+    <div className="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--text)]">
+          Contextual Bandits Exploration (LinUCB &amp; Thompson Sampling)
+        </h3>
+        <p className="text-xs text-[var(--text-sec)] mt-0.5">
+          Dynamically explores unpulled catalog items by adding an uncertainty bonus (α·σ) to expected reward.
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => onChangeStrategy('linucb')}
-          className={`px-2.5 py-1 text-xs font-mono rounded cursor-pointer ${
-            banditStrategy === 'linucb'
-              ? 'bg-amber-500/20 text-amber-300 font-bold'
-              : 'text-[#8a8aa3]'
-          }`}
+          className={`btn btn-sm ${banditStrategy === 'linucb' ? 'btn-primary' : 'btn-secondary'}`}
         >
           LinUCB
         </button>
         <button
           type="button"
           onClick={() => onChangeStrategy('thompson')}
-          className={`px-2.5 py-1 text-xs font-mono rounded cursor-pointer ${
-            banditStrategy === 'thompson'
-              ? 'bg-purple-500/20 text-purple-300 font-bold'
-              : 'text-[#8a8aa3]'
-          }`}
+          className={`btn btn-sm ${banditStrategy === 'thompson' ? 'btn-primary' : 'btn-secondary'}`}
         >
           Thompson
         </button>
@@ -111,40 +108,35 @@ export const BanditsSubView: React.FC<{
         const arm = banditExplorer.getArmState(String(it.id));
 
         return (
-          <div
-            key={it.id}
-            className="p-3.5 rounded-xl bg-[#121222] border border-[#1e1e32] flex flex-col gap-2"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-white">
-                {it.title.slice(0, 18)}...
+          <div key={it.id} className="card p-4 bg-[var(--bg-alt)] flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-[var(--text)] truncate">
+                {it.title}
               </span>
-              <span className="text-xs font-mono text-amber-400 font-bold">
-                {score.finalScore.toFixed(2)}
-              </span>
+              <span className="badge badge-accent mono">{score.finalScore.toFixed(2)}</span>
             </div>
-            <div className="text-[10px] font-mono text-[#8a8aa3]">
+            <div className="text-xs mono text-[var(--text-sec)]">
               Expected: {score.expectedReward.toFixed(2)} · Bonus: +{score.explorationBonus.toFixed(2)} · Pulls: {arm?.pulls || 0}
             </div>
-            <div className="grid grid-cols-3 gap-1 mt-2">
+            <div className="grid grid-cols-3 gap-1.5 mt-1">
               <button
                 type="button"
                 onClick={() => onBanditAction(String(it.id), 'click')}
-                className="py-1 px-1 bg-cyan-950/40 text-cyan-400 border border-cyan-800/40 rounded text-[10px] font-mono cursor-pointer"
+                className="btn btn-secondary btn-sm"
               >
                 Click
               </button>
               <button
                 type="button"
                 onClick={() => onBanditAction(String(it.id), 'purchase')}
-                className="py-1 px-1 bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 rounded text-[10px] font-mono cursor-pointer"
+                className="btn btn-primary btn-sm"
               >
                 Buy
               </button>
               <button
                 type="button"
                 onClick={() => onBanditAction(String(it.id), 'dislike')}
-                className="py-1 px-1 bg-rose-950/40 text-rose-400 border border-rose-800/40 rounded text-[10px] font-mono cursor-pointer"
+                className="btn btn-danger btn-sm"
               >
                 Skip
               </button>
@@ -204,10 +196,15 @@ export const SteeringSubView: React.FC<{
   }, [currentSeed, catalog, embeddings, steeringModifiers]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-xs text-[#8a8aa3]">
-        Vector Steering applies real 384-d directional arithmetic (<code>VectorSteering.steer</code>) to shift the anchor vector while enforcing angular deviation bounds.
-      </p>
+    <div className="card p-5 flex flex-col gap-4">
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--text)]">
+          384-d Directional Vector Steering
+        </h3>
+        <p className="text-xs text-[var(--text-sec)] mt-0.5">
+          Applies real 384-d directional arithmetic (<code>VectorSteering.steer</code>) to shift the anchor vector while enforcing angular deviation bounds.
+        </p>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <input
@@ -238,19 +235,22 @@ export const SteeringSubView: React.FC<{
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         {steeringModifiers.map((mod, i) => (
           <div
             key={i}
-            className="p-2.5 rounded-xl bg-[#121222] border border-[#1e1e32] flex items-center justify-between"
+            className="card p-3 bg-[var(--bg-alt)] flex items-center justify-between"
           >
-            <span className="text-xs font-mono text-white">
-              {mod.type === 'positive' ? '🟢 + ' : '🔴 - '} {mod.label} (weight: {mod.weight})
+            <span className="text-xs mono text-[var(--text)]">
+              <span className={`badge mr-2 ${mod.type === 'positive' ? 'badge-success' : 'badge-error'}`}>
+                {mod.type === 'positive' ? '+ Attract' : '- Repel'}
+              </span>
+              {mod.label} (weight: {mod.weight})
             </span>
             <button
               type="button"
               onClick={() => onRemoveModifier(i)}
-              className="text-xs text-[#6c6c88] hover:text-rose-400 cursor-pointer"
+              className="btn btn-danger btn-sm"
             >
               ✕
             </button>
@@ -258,16 +258,16 @@ export const SteeringSubView: React.FC<{
         ))}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
         {steeredTopItems.map(({ item, sim }, idx) => (
           <div
             key={item.id}
-            className="p-3 rounded-xl bg-[#121222] border border-[#1e1e32] flex flex-col justify-between"
+            className="card p-3.5 bg-[var(--bg-alt)] flex flex-col justify-between gap-2"
           >
-            <div className="text-xs font-semibold text-white">
+            <div className="text-xs font-semibold text-[var(--text)]">
               #{idx + 1} · {item.icon} {item.title}
             </div>
-            <div className="text-[11px] font-mono text-cyan-400 mt-2">
+            <div className="badge badge-accent mono self-start">
               Steered Cosine: {(sim * 100).toFixed(1)}%
             </div>
           </div>
