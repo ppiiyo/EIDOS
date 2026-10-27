@@ -95,28 +95,77 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
     clearInterval(hitRateTimer);
   });
 
+  const recordRequestMetricsOnce = (
+    request: {
+      __startTimeHr?: number;
+      __metricsRecorded?: boolean;
+      method: string;
+      url: string;
+      routeOptions?: { url?: string };
+      headers: Record<string, string | string[] | undefined>;
+    },
+    statusCode: number
+  ) => {
+    if (request.__metricsRecorded) {
+      return;
+    }
+    request.__metricsRecorded = true;
+
+    const start = request.__startTimeHr;
+    const elapsedMs = typeof start === 'number' ? Math.max(0, performance.now() - start) : 0;
+    recordLatencySample(elapsedMs);
+
+    const routePath = request.routeOptions?.url || request.url.split('?')[0];
+    const statusStr = String(statusCode);
+
+    Metrics.requestsTotal.inc({
+      method: request.method,
+      endpoint: routePath,
+      status: statusStr,
+    });
+    Metrics.requestDuration.observe(
+      {
+        method: request.method,
+        endpoint: routePath,
+        status: statusStr,
+      },
+      elapsedMs / 1000
+    );
+
+    const contentLengthHeader = request.headers['content-length'];
+    if (typeof contentLengthHeader === 'string') {
+      const parsedBytes = Number(contentLengthHeader);
+      if (Number.isFinite(parsedBytes) && parsedBytes >= 0) {
+        Metrics.requestSize.observe({ endpoint: routePath }, parsedBytes);
+      }
+    }
+
+    if (statusCode >= 400) {
+      const errorType =
+        statusCode === 401 || statusCode === 403
+          ? 'auth_error'
+          : statusCode === 404
+            ? 'not_found'
+            : statusCode === 429
+              ? 'rate_limit'
+              : statusCode >= 500
+                ? 'server_error'
+                : 'client_error';
+      Metrics.errorsTotal.inc({
+        error_type: errorType,
+        endpoint: routePath,
+        status: statusStr,
+      });
+    }
+  };
+
   fastify.addHook('onRequest', async (request, reply) => {
     const incomingId = request.headers['x-request-id'] as string | undefined;
     const requestId = incomingId || `req_${crypto.randomBytes(6).toString('hex')}`;
     request.headers['x-request-id'] = requestId;
     reply.header('x-request-id', requestId);
     request.__startTimeHr = performance.now();
-  });
-
-  fastify.addHook('onResponse', async (request, reply) => {
-    const start = request.__startTimeHr;
-    const elapsedMs = typeof start === 'number' ? Math.max(0, performance.now() - start) : 0;
-    recordLatencySample(elapsedMs);
-
-    const routePath = request.routeOptions?.url || request.url.split('?')[0];
-    Metrics.requestsTotal.inc({
-      endpoint: routePath,
-      status: reply.statusCode,
-    });
-    Metrics.requestDuration.observe(
-      { endpoint: routePath },
-      elapsedMs / 1000
-    );
+    request.__metricsRecorded = false;
   });
 
   fastify.addHook('onSend', async (request, reply, payload) => {
@@ -124,7 +173,12 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
     const elapsedMs =
       typeof start === 'number' ? Math.round((performance.now() - start) * 100) / 100 : 0;
     reply.header('x-response-time', `${elapsedMs}ms`);
+    recordRequestMetricsOnce(request, reply.statusCode);
     return payload;
+  });
+
+  fastify.addHook('onResponse', async (request, reply) => {
+    recordRequestMetricsOnce(request, reply.statusCode);
   });
 
   fastify.get('/v1/telemetry', async () => {
@@ -139,6 +193,10 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
   });
 
   fastify.get('/v1/metrics', async () => {
+    if (fastify.storeRegistry) {
+      Metrics.vectorStoreSize.set(fastify.storeRegistry.getTotalVectorCount());
+      Metrics.activeIndexesTotal.set(fastify.storeRegistry.listIndexes().length);
+    }
     const searchSorted = [...searchLatencySamplesMs].sort((a, b) => a - b);
     return {
       status: 'ok',
@@ -146,6 +204,7 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
       avgSearchLatencyMs: getAverageSearchLatencyMs(),
       searchSampleCount: searchLatencySamplesMs.length,
       totalSearchRequests: totalSearchRequestsCount,
+      totalHttpRequests: Metrics.requestsTotal.get(),
       searchLatency: {
         p50Ms: computePercentile(searchSorted, 50),
         p95Ms: computePercentile(searchSorted, 95),
@@ -153,6 +212,7 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
       },
       latency: getLatencyQuantiles(),
       vectorStoreSize: Metrics.vectorStoreSize.get(),
+      activeIndexesTotal: Metrics.activeIndexesTotal.get(),
       cacheHitRate: Metrics.cacheHitRate.get(),
       uptimeSeconds: Math.round(process.uptime() * 100) / 100,
     };
@@ -160,5 +220,6 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
 }
 
 (observabilityPlugin as unknown as Record<symbol, boolean>)[Symbol.for('skip-override')] = true;
+
 
 

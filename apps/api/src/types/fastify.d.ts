@@ -31,5 +31,9 @@ declare module 'fastify' {
      * High-resolution request start timestamp recorded by observabilityPlugin.
      */
     __startTimeHr?: number;
+    /**
+     * Guards against duplicate HTTP request metric recording across onSend/onResponse hooks.
+     */
+    __metricsRecorded?: boolean;
   }
 }

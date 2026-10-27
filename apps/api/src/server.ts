@@ -91,12 +91,24 @@ export async function buildServer(): Promise<FastifyInstance> {
   }
 
   Metrics.vectorStoreSize.set(vectorStore.count());
+  Metrics.activeIndexesTotal.set(1);
 
-  // Prometheus /metrics endpoint
-  fastify.get('/metrics', async (_request, reply) => {
+  const handlePrometheusMetrics = async (_request: unknown, reply: { header: (k: string, v: string) => void }) => {
+    const totalVectors = fastify.storeRegistry
+      ? fastify.storeRegistry.getTotalVectorCount()
+      : vectorStore.count();
+    const activeIndexes = fastify.storeRegistry
+      ? fastify.storeRegistry.listIndexes().length
+      : 1;
+    Metrics.vectorStoreSize.set(totalVectors);
+    Metrics.activeIndexesTotal.set(activeIndexes);
     reply.header('content-type', Metrics.getContentType());
     return await Metrics.getMetrics();
-  });
+  };
+
+  // Prometheus /metrics and /v1/metrics/prometheus endpoints
+  fastify.get('/metrics', handlePrometheusMetrics);
+  fastify.get('/v1/metrics/prometheus', handlePrometheusMetrics);
 
   // 4. Register API routes and 404/SPA fallback handler
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });

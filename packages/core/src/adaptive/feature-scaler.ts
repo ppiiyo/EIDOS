@@ -13,9 +13,15 @@ export class StreamingQuantileScaler {
   private readonly defaultMin: number;
   private readonly defaultMax: number;
   private buffer: Float64Array;
+  private sortScratch: Float64Array;
   private head: number = 0;
   private count: number = 0;
   private sortedCache: Float64Array | null = null;
+  private cachedP01Idx: number = 0;
+  private cachedP99Idx: number = 0;
+  private cachedP01: number = 0;
+  private cachedP99: number = 0;
+  private cachedInvIdxSpan: number = 1;
   private min: number;
   private max: number;
   private sum: number = 0;
@@ -39,6 +45,7 @@ export class StreamingQuantileScaler {
     this.min = defaultMin;
     this.max = defaultMax;
     this.buffer = new Float64Array(this.windowSize);
+    this.sortScratch = new Float64Array(this.windowSize);
   }
 
   /**
@@ -121,22 +128,43 @@ export class StreamingQuantileScaler {
       return Math.min(1.0, Math.max(0.0, normalized));
     }
 
-    // 2. Build or reuse sorted cache
+    // 2. Build or reuse zero-allocation sorted cache
     if (!this.sortedCache) {
-      const arr = new Float64Array(this.count);
-      if (this.count < this.windowSize) {
-        arr.set(this.buffer.subarray(0, this.count));
+      const total = this.count;
+      const arr = total === this.windowSize
+        ? this.sortScratch
+        : this.sortScratch.subarray(0, total);
+
+      if (total < this.windowSize) {
+        arr.set(this.buffer.subarray(0, total));
       } else {
         arr.set(this.buffer);
       }
-      arr.sort();
+
+      // Fast monotonicity check avoids full sort when stream is already ordered
+      let isSorted = true;
+      for (let i = 1; i < total; i++) {
+        if (arr[i] < arr[i - 1]) {
+          isSorted = false;
+          break;
+        }
+      }
+      if (!isSorted) {
+        arr.sort();
+      }
+
       this.sortedCache = arr;
       this.min = arr[0];
-      this.max = arr[arr.length - 1];
+      this.max = arr[total - 1];
+      this.cachedP01Idx = Math.floor(0.01 * (total - 1));
+      this.cachedP99Idx = Math.ceil(0.99 * (total - 1));
+      this.cachedP01 = arr[this.cachedP01Idx];
+      this.cachedP99 = arr[this.cachedP99Idx];
+      const idxSpan = this.cachedP99Idx - this.cachedP01Idx;
+      this.cachedInvIdxSpan = idxSpan > 0 ? 1.0 / idxSpan : 1.0;
     }
 
     const sorted = this.sortedCache;
-    const total = sorted.length;
 
     // 3. Homogeneous Data Check
     if (this.max - this.min <= 1e-9) {
@@ -144,10 +172,10 @@ export class StreamingQuantileScaler {
     }
 
     // 4. Percentile clipping bounds (p01 and p99)
-    const p01Idx = Math.floor(0.01 * (total - 1));
-    const p99Idx = Math.ceil(0.99 * (total - 1));
-    const p01 = sorted[p01Idx];
-    const p99 = sorted[p99Idx];
+    const p01Idx = this.cachedP01Idx;
+    const p99Idx = this.cachedP99Idx;
+    const p01 = this.cachedP01;
+    const p99 = this.cachedP99;
 
     if (p99 - p01 <= 1e-9) {
       const span = this.max - this.min;
@@ -163,7 +191,7 @@ export class StreamingQuantileScaler {
     let high = p99Idx;
 
     while (low <= high) {
-      const mid = (low + high) >> 1;
+      const mid = (low + high) >>> 1;
       if (sorted[mid] < value) {
         low = mid + 1;
       } else {
@@ -171,7 +199,7 @@ export class StreamingQuantileScaler {
       }
     }
 
-    const rank = (low - p01Idx) / (p99Idx - p01Idx);
+    const rank = (low - p01Idx) * this.cachedInvIdxSpan;
     return Math.min(1.0, Math.max(0.0, rank));
   }
 

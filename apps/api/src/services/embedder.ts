@@ -1,4 +1,5 @@
 import { pipeline, env, FeatureExtractionPipeline } from '@xenova/transformers';
+import { Metrics } from '@eidos/core';
 
 // Disable multi-threaded WASM blob workers in Node.js to avoid
 // `TypeError: The worker script or module filename must be an absolute path... Received "blob:nodedata:..."`
@@ -149,6 +150,7 @@ export class ServerEmbedder {
    * Embed single text (existing API, backward compatible).
    */
   public async embed(text: string): Promise<Float32Array> {
+    const startHr = performance.now();
     const cleanText = text.trim();
     if (!cleanText) {
       return new Float32Array(384);
@@ -157,6 +159,9 @@ export class ServerEmbedder {
     const cacheKey = cleanText.toLowerCase();
     const cached = this.cache.get(cacheKey);
     if (cached) {
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: 'cached' }, elapsedSec);
+      Metrics.embeddingsGenerated.inc();
       return new Float32Array(cached);
     }
 
@@ -165,6 +170,9 @@ export class ServerEmbedder {
     if (!this.pipe) {
       const fallbackVec = computeDeterministicEmbedding(cleanText, 384);
       this.setCachedEmbedding(cleanText, fallbackVec);
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: 'single' }, elapsedSec);
+      Metrics.embeddingsGenerated.inc();
       return fallbackVec;
     }
 
@@ -176,10 +184,16 @@ export class ServerEmbedder {
 
       const vec = new Float32Array(output.data);
       this.setCachedEmbedding(cleanText, vec);
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: 'single' }, elapsedSec);
+      Metrics.embeddingsGenerated.inc();
       return vec;
     } catch {
       const fallbackVec = computeDeterministicEmbedding(cleanText, 384);
       this.setCachedEmbedding(cleanText, fallbackVec);
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: 'single' }, elapsedSec);
+      Metrics.embeddingsGenerated.inc();
       return fallbackVec;
     }
   }
@@ -196,21 +210,31 @@ export class ServerEmbedder {
       return [];
     }
 
+    const startHr = performance.now();
+
     // High-throughput bulk ingestion path (e.g., 500-item catalog sync batches)
     if (texts.length >= 100) {
-      return texts.map((t) => {
+      const vectors = texts.map((t) => {
         const clean = t.trim();
         if (!clean) return new Float32Array(384);
         const cached = this.cache.get(clean.toLowerCase());
         if (cached) return new Float32Array(cached);
         return computeDeterministicEmbedding(clean, 384);
       });
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: 'batch' }, elapsedSec);
+      Metrics.embeddingsGenerated.inc(texts.length);
+      return vectors;
     }
 
     await this.ensureInitialized();
 
     if (!this.pipe) {
-      return texts.map((t) => computeDeterministicEmbedding(t, 384));
+      const vectors = texts.map((t) => computeDeterministicEmbedding(t, 384));
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: 'batch' }, elapsedSec);
+      Metrics.embeddingsGenerated.inc(texts.length);
+      return vectors;
     }
 
     const results: Float32Array[] = [];
@@ -258,6 +282,10 @@ export class ServerEmbedder {
         }
       }
     }
+
+    const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+    Metrics.embeddingLatency.observe({ mode: 'batch' }, elapsedSec);
+    Metrics.embeddingsGenerated.inc(texts.length);
 
     return results;
   }

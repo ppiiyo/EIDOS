@@ -193,6 +193,20 @@ export class StoreRegistry {
     return StoreRegistry.instance;
   }
 
+  public static resetInstance(): void {
+    if (StoreRegistry.instance) {
+      StoreRegistry.instance.reset();
+    }
+  }
+
+  public getTotalVectorCount(): number {
+    let total = 0;
+    for (const meta of this.stores.values()) {
+      total += meta.store.count();
+    }
+    return total;
+  }
+
   public static validateTenantId(tenantId: string): string {
     const clean = (tenantId || '').trim().toLowerCase();
     if (!clean || !IDENTIFIER_REGEX.test(clean)) {

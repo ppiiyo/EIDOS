@@ -6,15 +6,30 @@
  * - Cloudflare Workers / Edge Runtimes
  *
  * Produces standard Prometheus text exposition format (version 0.0.4).
+ * Uses globalThis singleton anchoring so ESM and CJS module graphs always share
+ * a single authoritative registry in memory.
  */
 
 function formatLabels(labels?: Record<string, string | number>): string {
-  if (!labels || Object.keys(labels).length === 0) return '';
-  const entries = Object.entries(labels)
-    .filter(([_, v]) => v !== undefined && v !== null)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}="${String(v).replace(/"/g, '\\"')}"`);
-  return entries.length > 0 ? `{${entries.join(',')}}` : '';
+  if (!labels) return '';
+  const keys = Object.keys(labels);
+  if (keys.length === 0) return '';
+  if (keys.length === 1) {
+    const k = keys[0];
+    const v = labels[k];
+    if (v === undefined || v === null) return '';
+    return `{${k}="${String(v).replace(/"/g, '\\"')}"}`;
+  }
+  keys.sort();
+  const parts: string[] = [];
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    const v = labels[k];
+    if (v !== undefined && v !== null) {
+      parts.push(`${k}="${String(v).replace(/"/g, '\\"')}"`);
+    }
+  }
+  return parts.length > 0 ? `{${parts.join(',')}}` : '';
 }
 
 export class CounterMetric {
@@ -46,6 +61,21 @@ export class CounterMetric {
     this.values.set(key, (this.values.get(key) || 0) + val);
   }
 
+  public get(labels?: Record<string, string | number>): number {
+    if (labels && Object.keys(labels).length > 0) {
+      return this.values.get(formatLabels(labels)) || 0;
+    }
+    let total = 0;
+    for (const val of this.values.values()) {
+      total += val;
+    }
+    return total;
+  }
+
+  public reset(): void {
+    this.values.clear();
+  }
+
   public render(): string {
     const lines = [
       `# HELP ${this.name} ${this.help}`,
@@ -54,8 +84,13 @@ export class CounterMetric {
     if (this.values.size === 0) {
       lines.push(`${this.name} 0`);
     } else {
+      let total = 0;
       for (const [labels, val] of this.values.entries()) {
         lines.push(`${this.name}${labels} ${val}`);
+        total += val;
+      }
+      if (!this.values.has('')) {
+        lines.push(`${this.name} ${total}`);
       }
     }
     return lines.join('\n');
@@ -101,6 +136,11 @@ export class GaugeMetric {
     return this.defaultValue;
   }
 
+  public reset(): void {
+    this.values.clear();
+    this.defaultValue = 0;
+  }
+
   public render(): string {
     const lines = [
       `# HELP ${this.name} ${this.help}`,
@@ -117,8 +157,17 @@ export class GaugeMetric {
   }
 }
 
+interface HistogramSeriesAccumulator {
+  count: number;
+  sum: number;
+  bucketCounts: number[];
+}
+
 export class HistogramMetric {
-  private observations: Array<{ labels: string; val: number }> = [];
+  private series = new Map<string, HistogramSeriesAccumulator>();
+  private totalCount = 0;
+  private totalSum = 0;
+  private totalBucketCounts: number[];
   public readonly buckets: number[];
 
   constructor(
@@ -128,6 +177,7 @@ export class HistogramMetric {
     buckets: number[] = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
   ) {
     this.buckets = [...buckets].sort((a, b) => a - b);
+    this.totalBucketCounts = new Array<number>(this.buckets.length).fill(0);
   }
 
   public observe(
@@ -146,8 +196,44 @@ export class HistogramMetric {
       }
     }
 
+    const safeVal = Number.isFinite(val) && val >= 0 ? val : 0;
     const key = formatLabels(labels);
-    this.observations.push({ labels: key, val });
+
+    let acc = this.series.get(key);
+    if (!acc) {
+      acc = {
+        count: 0,
+        sum: 0,
+        bucketCounts: new Array<number>(this.buckets.length).fill(0),
+      };
+      this.series.set(key, acc);
+    }
+
+    acc.count += 1;
+    acc.sum += safeVal;
+    this.totalCount += 1;
+    this.totalSum += safeVal;
+
+    for (let i = 0; i < this.buckets.length; i++) {
+      if (safeVal <= this.buckets[i]) {
+        acc.bucketCounts[i] += 1;
+        this.totalBucketCounts[i] += 1;
+      }
+    }
+  }
+
+  public getCount(labels?: Record<string, string | number>): number {
+    if (labels && Object.keys(labels).length > 0) {
+      return this.series.get(formatLabels(labels))?.count || 0;
+    }
+    return this.totalCount;
+  }
+
+  public reset(): void {
+    this.series.clear();
+    this.totalCount = 0;
+    this.totalSum = 0;
+    this.totalBucketCounts.fill(0);
   }
 
   public render(): string {
@@ -156,7 +242,7 @@ export class HistogramMetric {
       `# TYPE ${this.name} histogram`,
     ];
 
-    if (this.observations.length === 0) {
+    if (this.totalCount === 0) {
       for (const le of this.buckets) {
         lines.push(`${this.name}_bucket{le="${le}"} 0`);
       }
@@ -166,20 +252,11 @@ export class HistogramMetric {
       return lines.join('\n');
     }
 
-    // Group observations by labels
-    const grouped = new Map<string, number[]>();
-    for (const obs of this.observations) {
-      const list = grouped.get(obs.labels) || [];
-      list.push(obs.val);
-      grouped.set(obs.labels, list);
-    }
-
-    for (const [labelsKey, values] of grouped.entries()) {
-      const count = values.length;
-      const sum = values.reduce((acc, v) => acc + v, 0);
-
-      for (const le of this.buckets) {
-        const bucketCount = values.filter((v) => v <= le).length;
+    for (const [labelsKey, acc] of this.series.entries()) {
+      const roundedSum = Math.round(acc.sum * 1e6) / 1e6;
+      for (let i = 0; i < this.buckets.length; i++) {
+        const le = this.buckets[i];
+        const bucketCount = acc.bucketCounts[i];
         if (labelsKey) {
           const inner = labelsKey.slice(1, -1);
           lines.push(`${this.name}_bucket{${inner},le="${le}"} ${bucketCount}`);
@@ -190,14 +267,24 @@ export class HistogramMetric {
 
       if (labelsKey) {
         const inner = labelsKey.slice(1, -1);
-        lines.push(`${this.name}_bucket{${inner},le="+Inf"} ${count}`);
-        lines.push(`${this.name}_sum{${inner}} ${sum}`);
-        lines.push(`${this.name}_count{${inner}} ${count}`);
+        lines.push(`${this.name}_bucket{${inner},le="+Inf"} ${acc.count}`);
+        lines.push(`${this.name}_sum{${inner}} ${roundedSum}`);
+        lines.push(`${this.name}_count{${inner}} ${acc.count}`);
       } else {
-        lines.push(`${this.name}_bucket{le="+Inf"} ${count}`);
-        lines.push(`${this.name}_sum ${sum}`);
-        lines.push(`${this.name}_count ${count}`);
+        lines.push(`${this.name}_bucket{le="+Inf"} ${acc.count}`);
+        lines.push(`${this.name}_sum ${roundedSum}`);
+        lines.push(`${this.name}_count ${acc.count}`);
       }
+    }
+
+    if (!this.series.has('')) {
+      const roundedTotalSum = Math.round(this.totalSum * 1e6) / 1e6;
+      for (let i = 0; i < this.buckets.length; i++) {
+        lines.push(`${this.name}_bucket{le="${this.buckets[i]}"} ${this.totalBucketCounts[i]}`);
+      }
+      lines.push(`${this.name}_bucket{le="+Inf"} ${this.totalCount}`);
+      lines.push(`${this.name}_sum ${roundedTotalSum}`);
+      lines.push(`${this.name}_count ${this.totalCount}`);
     }
 
     return lines.join('\n');
@@ -209,7 +296,16 @@ export class MetricsRegistry {
   private metricsList: Array<CounterMetric | GaugeMetric | HistogramMetric> = [];
 
   public register(metric: CounterMetric | GaugeMetric | HistogramMetric): void {
-    this.metricsList.push(metric);
+    const existingIdx = this.metricsList.findIndex((m) => m.name === metric.name);
+    if (existingIdx === -1) {
+      this.metricsList.push(metric);
+    }
+  }
+
+  public resetAll(): void {
+    for (const metric of this.metricsList) {
+      metric.reset();
+    }
   }
 
   public metrics(): string {
@@ -230,96 +326,152 @@ export class MetricsRegistry {
   }
 }
 
-export class Metrics {
-  public static readonly registry = new MetricsRegistry();
-  private static initialized = false;
+interface GlobalMetricsSingleton {
+  registry: MetricsRegistry;
+  requestsTotal: CounterMetric;
+  requestDuration: HistogramMetric;
+  requestSize: HistogramMetric;
+  vectorStoreSize: GaugeMetric;
+  activeIndexesTotal: GaugeMetric;
+  searchLatency: HistogramMetric;
+  embeddingLatency: HistogramMetric;
+  embeddingsGenerated: CounterMetric;
+  cacheHits: CounterMetric;
+  cacheMisses: CounterMetric;
+  cacheHitRate: GaugeMetric;
+  errorsTotal: CounterMetric;
+}
 
-  // 1. Request metrics
-  public static readonly requestsTotal = new CounterMetric(
+const GLOBAL_METRICS_SYMBOL = Symbol.for('eidos.prometheus.metrics.v3');
+
+function getOrCreateGlobalMetrics(): GlobalMetricsSingleton {
+  const globalObj = globalThis as unknown as Record<symbol, GlobalMetricsSingleton | undefined>;
+  if (globalObj[GLOBAL_METRICS_SYMBOL]) {
+    return globalObj[GLOBAL_METRICS_SYMBOL]!;
+  }
+
+  const registry = new MetricsRegistry();
+  const requestsTotal = new CounterMetric(
     'eidos_requests_total',
     'Total number of HTTP requests processed by Eidos',
     ['method', 'endpoint', 'status', 'status_code']
   );
-
-  public static readonly requestDuration = new HistogramMetric(
+  const requestDuration = new HistogramMetric(
     'eidos_request_duration_seconds',
     'HTTP request duration in seconds',
-    ['method', 'endpoint'],
+    ['method', 'endpoint', 'status'],
     [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
   );
-
-  public static readonly requestSize = new HistogramMetric(
+  const requestSize = new HistogramMetric(
     'eidos_request_size_bytes',
     'Request payload body size in bytes',
     ['endpoint'],
     [100, 1000, 10000, 100000, 1000000]
   );
-
-  // 2. Vector store & index metrics
-  public static readonly vectorStoreSize = new GaugeMetric(
+  const vectorStoreSize = new GaugeMetric(
     'eidos_vector_store_size',
     'Total number of items indexed in HNSW vector store'
   );
-
-  public static readonly searchLatency = new HistogramMetric(
+  const activeIndexesTotal = new GaugeMetric(
+    'eidos_active_indexes_total',
+    'Total number of active tenant vector indexes in StoreRegistry'
+  );
+  const searchLatency = new HistogramMetric(
     'eidos_search_latency_seconds',
     'Vector approximate nearest neighbor search latency',
     ['search_type'],
     [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5]
   );
-
-  // 3. Embedding metrics
-  public static readonly embeddingLatency = new HistogramMetric(
+  const embeddingLatency = new HistogramMetric(
     'eidos_embedding_latency_seconds',
     'Transformer embedding inference latency in seconds',
     ['mode'],
     [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5]
   );
-
-  public static readonly embeddingsGenerated = new CounterMetric(
+  const embeddingsGenerated = new CounterMetric(
     'eidos_embeddings_generated_total',
     'Cumulative count of embeddings generated by server embedder'
   );
-
-  // 4. Cache telemetry
-  public static readonly cacheHits = new CounterMetric(
+  const cacheHits = new CounterMetric(
     'eidos_cache_hits_total',
     'Total recommendation and vector cache hits',
     ['cache_type']
   );
-
-  public static readonly cacheMisses = new CounterMetric(
+  const cacheMisses = new CounterMetric(
     'eidos_cache_misses_total',
     'Total recommendation and vector cache misses',
     ['cache_type']
   );
-
-  public static readonly cacheHitRate = new GaugeMetric(
+  const cacheHitRate = new GaugeMetric(
     'eidos_cache_hit_rate',
     'Current recommendation multi-tier cache hit rate (0.0 to 1.0)'
   );
-
-  // 5. Error telemetry
-  public static readonly errorsTotal = new CounterMetric(
+  const errorsTotal = new CounterMetric(
     'eidos_errors_total',
     'Total errors encountered during request lifecycle',
-    ['error_type', 'endpoint']
+    ['error_type', 'endpoint', 'status']
   );
 
-  static {
-    // Automatically register all static metrics
-    this.registry.register(this.requestsTotal);
-    this.registry.register(this.requestDuration);
-    this.registry.register(this.requestSize);
-    this.registry.register(this.vectorStoreSize);
-    this.registry.register(this.searchLatency);
-    this.registry.register(this.embeddingLatency);
-    this.registry.register(this.embeddingsGenerated);
-    this.registry.register(this.cacheHits);
-    this.registry.register(this.cacheMisses);
-    this.registry.register(this.cacheHitRate);
-    this.registry.register(this.errorsTotal);
-  }
+  registry.register(requestsTotal);
+  registry.register(requestDuration);
+  registry.register(requestSize);
+  registry.register(vectorStoreSize);
+  registry.register(activeIndexesTotal);
+  registry.register(searchLatency);
+  registry.register(embeddingLatency);
+  registry.register(embeddingsGenerated);
+  registry.register(cacheHits);
+  registry.register(cacheMisses);
+  registry.register(cacheHitRate);
+  registry.register(errorsTotal);
+
+  const instance: GlobalMetricsSingleton = {
+    registry,
+    requestsTotal,
+    requestDuration,
+    requestSize,
+    vectorStoreSize,
+    activeIndexesTotal,
+    searchLatency,
+    embeddingLatency,
+    embeddingsGenerated,
+    cacheHits,
+    cacheMisses,
+    cacheHitRate,
+    errorsTotal,
+  };
+
+  globalObj[GLOBAL_METRICS_SYMBOL] = instance;
+  return instance;
+}
+
+const singleton = getOrCreateGlobalMetrics();
+
+export class Metrics {
+  public static readonly registry = singleton.registry;
+  private static initialized = false;
+
+  // 1. Request metrics
+  public static readonly requestsTotal = singleton.requestsTotal;
+  public static readonly requestDuration = singleton.requestDuration;
+  public static readonly requestSize = singleton.requestSize;
+
+  // 2. Vector store & index metrics
+  public static readonly vectorStoreSize = singleton.vectorStoreSize;
+  public static readonly activeIndexesTotal = singleton.activeIndexesTotal;
+  public static readonly searchLatency = singleton.searchLatency;
+
+  // 3. Embedding metrics
+  public static readonly embeddingLatency = singleton.embeddingLatency;
+  public static readonly embeddingsGenerated = singleton.embeddingsGenerated;
+
+  // 4. Cache telemetry
+  public static readonly cacheHits = singleton.cacheHits;
+  public static readonly cacheMisses = singleton.cacheMisses;
+  public static readonly cacheHitRate = singleton.cacheHitRate;
+
+  // 5. Error telemetry
+  public static readonly errorsTotal = singleton.errorsTotal;
 
   /**
    * Initializes metrics collection in an environment-safe manner.
@@ -329,6 +481,13 @@ export class Metrics {
       return;
     }
     this.initialized = true;
+  }
+
+  /**
+   * Resets all registered counters, gauges, and histograms.
+   */
+  public static reset(): void {
+    this.registry.resetAll();
   }
 
   /**
@@ -352,3 +511,4 @@ export class Metrics {
     return this.registry.contentType;
   }
 }
+
