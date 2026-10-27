@@ -4,12 +4,15 @@ import { Candidate, cosineSimilarity } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { AILManager } from '../services/ail';
+import { StoreError, StoreRegistry } from '../services/store-registry';
 
 const recommendAdaptiveSchema = z.object({
   item_id: z.string().min(1),
   user_id: z.string().optional(),
   history: z.array(z.string()).optional(),
   limit: z.number().int().min(1).max(50).default(10),
+  index: z.string().optional(),
+  indexName: z.string().optional(),
   context: z
     .object({
       timestamp: z.number().optional(),
@@ -26,6 +29,9 @@ export async function recommendAdaptiveRoutes(
   fastify: FastifyInstance,
   opts: { vectorStore: VectorStore }
 ): Promise<void> {
+  const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
+  storeRegistry.setDefaultStore(opts.vectorStore);
+
   fastify.post('/v1/recommend/adaptive', { preHandler: authenticate }, async (request, reply) => {
     reply.header('Deprecation', 'true');
     reply.header('Link', '</v1/recommend>; rel="successor-version"');
@@ -38,8 +44,18 @@ export async function recommendAdaptiveRoutes(
       });
     }
 
+    let activeStore: VectorStore;
+    try {
+      activeStore = storeRegistry.resolveRequestStore(request).store;
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
+    }
+
     const { item_id, user_id, history = [], limit, context } = parseResult.data;
-    const sourceItem = opts.vectorStore.get(item_id);
+    const sourceItem = activeStore.get(item_id);
 
     if (!sourceItem) {
       return reply.status(404).send({
@@ -53,7 +69,7 @@ export async function recommendAdaptiveRoutes(
 
     // 1. Fallback when AIL_ENABLED is false
     if (!AILManager.isEnabled()) {
-      const results = opts.vectorStore.search(
+      const results = activeStore.search(
         sourceItem.normalizedVector || sourceItem.embedding,
         limit,
         0.01,
@@ -73,7 +89,7 @@ export async function recommendAdaptiveRoutes(
     }
 
     // 2. Retrieval by item_id (top-100)
-    const itemCandidates = opts.vectorStore.search(
+    const itemCandidates = activeStore.search(
       sourceItem.normalizedVector || sourceItem.embedding,
       100,
       0.0,
@@ -99,15 +115,15 @@ export async function recommendAdaptiveRoutes(
         uId,
         history,
         async (id: string) => {
-          const it = opts.vectorStore.get(id);
+          const it = activeStore.get(id);
           return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
         },
-        (id: string) => opts.vectorStore.get(id)?.category || 'General'
+        (id: string) => activeStore.get(id)?.category || 'General'
       );
       const userVec: Float32Array = userProfile.embedding;
       userEmbedding = userVec;
 
-      const userCandidates = opts.vectorStore.search(userVec, 100, 0.0, item_id);
+      const userCandidates = activeStore.search(userVec, 100, 0.0, item_id);
       sources.set(
         'user_affinity',
         userCandidates.map((c) => ({
@@ -128,7 +144,7 @@ export async function recommendAdaptiveRoutes(
           cand.id,
           cand.embedding,
           (id: string) => {
-            const it = opts.vectorStore.get(id);
+            const it = activeStore.get(id);
             return it ? new Float32Array(it.normalizedVector || it.embedding) : new Float32Array(384);
           }
         );
@@ -144,7 +160,7 @@ export async function recommendAdaptiveRoutes(
 
     const candidatesWithFeatures = enrichedCandidates.map(
       (c: { id: string; fusedScore: number; embedding: Float32Array }) => {
-        const stored = opts.vectorStore.get(c.id);
+        const stored = activeStore.get(c.id);
       const similarity = stored
         ? cosineSimilarity(sourceItem.normalizedVector || sourceItem.embedding, c.embedding)
         : 0;

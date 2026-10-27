@@ -1,5 +1,6 @@
 import 'fastify';
 import { ApiKeyManager } from '../services/api-key-manager';
+import { StoreRegistry } from '../services/store-registry';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -7,6 +8,10 @@ declare module 'fastify' {
      * API Key rotation & revocation manager instance attached to the server.
      */
     keyManager?: ApiKeyManager;
+    /**
+     * Unified StoreRegistry managing tenant and index VectorStore instances.
+     */
+    storeRegistry?: StoreRegistry;
   }
 
   interface FastifyRequest {

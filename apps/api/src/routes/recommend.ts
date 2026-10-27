@@ -13,6 +13,7 @@ import { StoredItem } from '../types';
 import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
 import { getCache, CacheKeys, getSingleFlight } from '../services/cache';
+import { StoreError, StoreRegistry, withTimeout } from '../services/store-registry';
 import { recordSearchLatency } from '../plugins/observability';
 
 export const recommendSchema = z
@@ -31,6 +32,8 @@ export const recommendSchema = z
     minSimilarity: z.number().min(0).max(1).default(0.35),
     excludeIds: z.array(z.string()).optional(),
     filterCategory: z.string().optional(),
+    index: z.string().optional(),
+    indexName: z.string().optional(),
     filters: z
       .object({
         category: z.string().optional(),
@@ -673,6 +676,8 @@ export async function recommendRoutes(
 ): Promise<void> {
   const redisCache = getCache();
   const singleFlight = getSingleFlight();
+  const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
+  storeRegistry.setDefaultStore(opts.vectorStore);
 
   const handleRecommend = async (request: FastifyRequest, reply: FastifyReply) => {
     const parseResult = recommendSchema.safeParse(request.body);
@@ -684,6 +689,21 @@ export async function recommendRoutes(
           .map((i) => `${i.path.join('.')}: ${i.message}`)
           .join('; '),
       });
+    }
+
+    let activeStore: VectorStore;
+    let tenantId: string;
+    let indexName: string;
+    try {
+      const resolved = storeRegistry.resolveRequestStore(request);
+      activeStore = resolved.store;
+      tenantId = resolved.tenantId;
+      indexName = resolved.indexName;
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
     }
 
     const data = parseResult.data;
@@ -698,6 +718,8 @@ export async function recommendRoutes(
     const resolvedItemId = data.item_id || data.itemId || '';
     const resolvedUserId = data.user_id || data.userId || '';
     const extraCacheParams: Record<string, any> = {};
+    if (tenantId !== 'default') extraCacheParams.tenantId = tenantId;
+    if (indexName !== 'default') extraCacheParams.indexName = indexName;
     if (data.filters?.category || data.filterCategory) {
       extraCacheParams.category = data.filters?.category ?? data.filterCategory;
     }
@@ -750,17 +772,25 @@ export async function recommendRoutes(
     const computeRecommendation = async () => {
       switch (data.strategy) {
         case 'simple':
-          return await simpleRecommend(data, opts.vectorStore);
+          return await withTimeout(simpleRecommend(data, activeStore), 5_000, 'recommend.simple');
         case 'adaptive':
-          return await adaptiveRecommend(data, opts.vectorStore, ail);
+          return await withTimeout(adaptiveRecommend(data, activeStore, ail), 5_000, 'recommend.adaptive');
         case 'user':
-          return await userRecommend(data, opts.vectorStore, ail);
+          return await withTimeout(userRecommend(data, activeStore, ail), 5_000, 'recommend.user');
       }
     };
 
-    const result = !hasDynamicExclusions
-      ? await singleFlight.do(cacheKey, computeRecommendation, 10_000)
-      : await computeRecommendation();
+    let result: Awaited<ReturnType<typeof computeRecommendation>>;
+    try {
+      result = !hasDynamicExclusions
+        ? await singleFlight.do(cacheKey, computeRecommendation, 10_000)
+        : await computeRecommendation();
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
+    }
 
     if (result.notFound) {
       return reply.status(404).send({

@@ -2,22 +2,19 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
-import { AuditLogger, RBACManager, TenantNamespaceManager } from '../services/multi-tenancy';
+import { AuditLogger, RBACManager } from '../services/multi-tenancy';
+import {
+  IndexMetadata,
+  QuantizationMode,
+  serializeIndexMetadata,
+  StoreError,
+  StoreRegistry,
+  withTimeout,
+} from '../services/store-registry';
+import { ApiQueryCache } from '../services/query-cache';
+import { getCache, getSemanticCache } from '../services/cache';
 
-export type QuantizationMode = 'fp32' | 'fp16' | 'int8' | 'binary';
-
-export interface IndexMetadata {
-  name: string;
-  dimension: number;
-  quantization: QuantizationMode;
-  M: number;
-  efConstruction: number;
-  efSearch: number;
-  shards: number;
-  replicationFactor: number;
-  createdAt: string;
-  store: VectorStore;
-}
+export { QuantizationMode, IndexMetadata };
 
 const createIndexSchema = z.object({
   name: z
@@ -51,70 +48,31 @@ const bulkDocumentsSchema = z.object({
     .max(1000),
 });
 
-const indexRegistry = new Map<string, IndexMetadata>();
-
-function computeMemoryBytes(docCount: number, dimension: number, quantization: QuantizationMode): number {
-  const bytesPerDim =
-    quantization === 'fp32'
-      ? 4
-      : quantization === 'fp16'
-        ? 2
-        : quantization === 'int8'
-          ? 1
-          : 0.125;
-  const vectorBytes = docCount * dimension * bytesPerDim;
-  const graphOverheadBytes = docCount * 128;
-  return Math.round(vectorBytes + graphOverheadBytes);
-}
-
-function serializeIndex(meta: IndexMetadata) {
-  const docCount = meta.store.count();
-  return {
-    name: meta.name,
-    dimension: meta.dimension,
-    documentCount: docCount,
-    quantization: meta.quantization,
-    hnswConfig: {
-      M: meta.M,
-      efConstruction: meta.efConstruction,
-      efSearch: meta.efSearch,
-    },
-    shards: meta.shards,
-    replicationFactor: meta.replicationFactor,
-    memoryBytes: computeMemoryBytes(docCount, meta.dimension, meta.quantization),
-    status: 'ready' as const,
-    createdAt: meta.createdAt,
-  };
-}
-
 export async function indexRoutes(
   fastify: FastifyInstance,
   opts: { vectorStore: VectorStore; embedder: ServerEmbedder }
 ): Promise<void> {
-  if (!indexRegistry.has('default')) {
-    indexRegistry.set('default', {
-      name: 'default',
-      dimension: 384,
-      quantization: 'int8',
-      M: 16,
-      efConstruction: 128,
-      efSearch: 64,
-      shards: 3,
-      replicationFactor: 2,
-      createdAt: new Date(Date.now() - 86_400_000 * 7).toISOString(),
-      store: opts.vectorStore,
-    });
-  } else {
-    const existingDefault = indexRegistry.get('default')!;
-    existingDefault.store = opts.vectorStore;
-  }
+  const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
+  storeRegistry.setDefaultStore(opts.vectorStore);
 
-  fastify.get('/v1/indexes', async () => {
-    const list = Array.from(indexRegistry.values()).map(serializeIndex);
-    return {
-      total: list.length,
-      indexes: list,
-    };
+  fastify.get('/v1/indexes', async (request, reply) => {
+    try {
+      const explicitHeaderTenant = request.headers['x-tenant-id'];
+      const tenantFilter =
+        typeof explicitHeaderTenant === 'string' && explicitHeaderTenant.trim().length > 0
+          ? storeRegistry.resolveTenantId(request)
+          : undefined;
+      const list = storeRegistry.listIndexes(tenantFilter).map(serializeIndexMetadata);
+      return {
+        total: list.length,
+        indexes: list,
+      };
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
+    }
   });
 
   fastify.post('/v1/indexes', async (request, reply) => {
@@ -127,144 +85,139 @@ export async function indexRoutes(
       });
     }
 
-    const data = parsed.data;
-    const key = data.name.toLowerCase();
-    if (indexRegistry.has(key)) {
-      return reply.status(409).send({
-        statusCode: 409,
-        error: 'Conflict',
-        message: `Index '${data.name}' already exists`,
+    try {
+      const data = parsed.data;
+      const tenantId = storeRegistry.resolveTenantId(request);
+      const meta = storeRegistry.createIndex(data, tenantId);
+
+      AuditLogger.getInstance().record({
+        tenantId: meta.tenantId === 'default' ? meta.name : meta.tenantId,
+        actorRole: RBACManager.resolveRole(request),
+        action: 'index.create',
+        resourceId: meta.name,
+        details: {
+          dimension: meta.dimension,
+          quantization: meta.quantization,
+          M: meta.M,
+          efConstruction: meta.efConstruction,
+        },
       });
+
+      return reply.status(201).send({
+        success: true,
+        index: serializeIndexMetadata(meta),
+      });
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
     }
-
-    const store = TenantNamespaceManager.getInstance().getStore(key);
-    const meta: IndexMetadata = {
-      name: key,
-      dimension: data.dimension,
-      quantization: data.quantization,
-      M: data.M,
-      efConstruction: data.efConstruction,
-      efSearch: data.efSearch,
-      shards: data.shards,
-      replicationFactor: data.replicationFactor,
-      createdAt: new Date().toISOString(),
-      store,
-    };
-
-    indexRegistry.set(key, meta);
-
-    AuditLogger.getInstance().record({
-      tenantId: key,
-      actorRole: RBACManager.resolveRole(request),
-      action: 'index.create',
-      resourceId: key,
-      details: {
-        dimension: data.dimension,
-        quantization: data.quantization,
-        M: data.M,
-        efConstruction: data.efConstruction,
-      },
-    });
-
-    return reply.status(201).send({
-      success: true,
-      index: serializeIndex(meta),
-    });
   });
 
   fastify.delete<{ Params: { name: string } }>('/v1/indexes/:name', async (request, reply) => {
-    const key = request.params.name.toLowerCase();
-    if (key === 'default') {
-      return reply.status(400).send({
-        statusCode: 400,
-        error: 'Bad Request',
-        message: 'Cannot delete the primary default index',
+    try {
+      const tenantId = storeRegistry.resolveTenantId(request);
+      const key = request.params.name.toLowerCase();
+      storeRegistry.deleteIndex(key, tenantId);
+
+      AuditLogger.getInstance().record({
+        tenantId: tenantId === 'default' ? key : tenantId,
+        actorRole: RBACManager.resolveRole(request),
+        action: 'index.delete',
+        resourceId: key,
       });
-    }
 
-    if (!indexRegistry.has(key)) {
-      return reply.status(404).send({
-        statusCode: 404,
-        error: 'Not Found',
-        message: `Index '${request.params.name}' not found`,
+      return reply.status(200).send({
+        success: true,
+        deleted: key,
       });
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
     }
-
-    indexRegistry.delete(key);
-    AuditLogger.getInstance().record({
-      tenantId: key,
-      actorRole: RBACManager.resolveRole(request),
-      action: 'index.delete',
-      resourceId: key,
-    });
-
-    return reply.status(200).send({
-      success: true,
-      deleted: key,
-    });
   });
 
   fastify.post<{ Params: { name: string } }>(
     '/v1/indexes/:name/documents',
     async (request, reply) => {
-      const key = request.params.name.toLowerCase();
-      const meta = indexRegistry.get(key);
-      if (!meta) {
-        return reply.status(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Index '${request.params.name}' not found`,
-        });
-      }
+      try {
+        const tenantId = storeRegistry.resolveTenantId(request);
+        const key = request.params.name.toLowerCase();
+        const meta = storeRegistry.getMetadata(tenantId, key, { createIfMissing: false });
 
-      const parsed = bulkDocumentsSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({
-          statusCode: 400,
-          error: 'Bad Request',
-          message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
-        });
-      }
-
-      const docs = parsed.data.documents;
-      const textsToEmbed: Array<{ idx: number; text: string }> = [];
-      for (let i = 0; i < docs.length; i++) {
-        const d = docs[i];
-        if (!d.embedding || d.embedding.length !== meta.dimension) {
-          textsToEmbed.push({
-            idx: i,
-            text: `${d.title}. ${d.category}. ${(d.tags || []).join(', ')}. ${d.description}`,
+        const parsed = bulkDocumentsSchema.safeParse(request.body);
+        if (!parsed.success) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
           });
         }
-      }
 
-      if (textsToEmbed.length > 0) {
-        const generated = await opts.embedder.embedBatch(textsToEmbed.map((t) => t.text));
-        for (let j = 0; j < textsToEmbed.length; j++) {
-          docs[textsToEmbed[j].idx].embedding = Array.from(generated[j]);
+        const docs = parsed.data.documents;
+        storeRegistry.assertItemQuota(meta.tenantId, meta.name, docs.length);
+
+        const textsToEmbed: Array<{ idx: number; text: string }> = [];
+        for (let i = 0; i < docs.length; i++) {
+          const d = docs[i];
+          if (!d.embedding || d.embedding.length !== meta.dimension) {
+            textsToEmbed.push({
+              idx: i,
+              text: `${d.title}. ${d.category}. ${(d.tags || []).join(', ')}. ${d.description}`,
+            });
+          }
         }
-      }
 
-      let indexed = 0;
-      for (const doc of docs) {
-        meta.store.upsert({
-          id: doc.id,
-          title: doc.title,
-          description: doc.description || '',
-          category: doc.category || 'General',
-          price: doc.price ?? 0,
-          inStock: true,
-          tags: doc.tags || [],
-          embedding: doc.embedding!,
+        if (textsToEmbed.length > 0) {
+          const generated = await withTimeout(
+            opts.embedder.embedBatch(textsToEmbed.map((t) => t.text)),
+            10_000,
+            'index.embedBatch'
+          );
+          for (let j = 0; j < textsToEmbed.length; j++) {
+            docs[textsToEmbed[j].idx].embedding = Array.from(generated[j]);
+          }
+        }
+
+        let indexed = 0;
+        for (const doc of docs) {
+          meta.store.upsert({
+            id: doc.id,
+            title: doc.title,
+            description: doc.description || '',
+            category: doc.category || 'General',
+            price: doc.price ?? 0,
+            inStock: true,
+            tags: doc.tags || [],
+            embedding: doc.embedding!,
+          });
+          indexed++;
+        }
+
+        // Invalidate caches so newly indexed documents are immediately visible to search & recommend
+        ApiQueryCache.invalidateAll();
+        getSemanticCache().clear();
+        await Promise.all([
+          getCache().invalidate('search:*'),
+          getCache().invalidate('recommend:*'),
+        ]);
+
+        return reply.status(200).send({
+          success: true,
+          index: serializeIndexMetadata(meta),
+          indexedCount: indexed,
         });
-        indexed++;
+      } catch (err) {
+        if (err instanceof StoreError) {
+          return reply.status(err.statusCode).send(err.toJSON());
+        }
+        throw err;
       }
-
-      return reply.status(200).send({
-        success: true,
-        index: serializeIndex(meta),
-        indexedCount: indexed,
-      });
     }
   );
 }
+
+(indexRoutes as any)[Symbol.for('skip-override')] = true;

@@ -16,19 +16,25 @@ import { settingsRoutes } from '../routes/settings';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { TenantNamespaceManager } from '../services/multi-tenancy';
+import { StoreRegistry } from '../services/store-registry';
 import { ApiKeyManager } from '../services/api-key-manager';
 
 export interface ApiRoutesPluginOptions {
   vectorStore: VectorStore;
   embedder: ServerEmbedder;
   keyManager?: ApiKeyManager;
+  storeRegistry?: StoreRegistry;
 }
 
 export async function apiRoutesPlugin(
   fastify: FastifyInstance,
   opts: ApiRoutesPluginOptions
 ): Promise<void> {
+  const storeRegistry = opts.storeRegistry || StoreRegistry.getInstance();
+  storeRegistry.setDefaultStore(opts.vectorStore);
   TenantNamespaceManager.getInstance().setDefaultStore(opts.vectorStore);
+  fastify.storeRegistry = storeRegistry;
+
   const keyManager = opts.keyManager || ApiKeyManager.getInstance();
   fastify.keyManager = keyManager;
 

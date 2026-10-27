@@ -7,7 +7,8 @@ import { VectorStore } from '../services/vector-store';
 import { AILManager } from '../services/ail';
 import { ApiQueryCache } from '../services/query-cache';
 import { getCache, CacheKeys, getSemanticCache } from '../services/cache';
-import { TenantNamespaceManager, RBACManager, AuditLogger } from '../services/multi-tenancy';
+import { RBACManager, AuditLogger } from '../services/multi-tenancy';
+import { StoreError, StoreRegistry, withTimeout } from '../services/store-registry';
 import { getAverageSearchLatencyMs } from '../plugins/observability';
 
 export const upsertItemSchema = z.object({
@@ -20,6 +21,8 @@ export const upsertItemSchema = z.object({
   inStock: z.boolean().optional().default(true),
   url: z.string().optional(),
   embedding: z.array(z.number()).length(384).optional(),
+  index: z.string().optional(),
+  indexName: z.string().optional(),
 });
 
 const catalogItemSchema = z.object({
@@ -36,6 +39,8 @@ const catalogItemSchema = z.object({
 
 const ingestPayloadSchema = z.object({
   items: z.array(catalogItemSchema).min(1).max(500),
+  index: z.string().optional(),
+  indexName: z.string().optional(),
 });
 
 export async function catalogRoutes(
@@ -44,12 +49,16 @@ export async function catalogRoutes(
 ): Promise<void> {
   const cache = getCache();
   const semanticCache = getSemanticCache();
-  const tenantManager = TenantNamespaceManager.getInstance();
+  const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
+  storeRegistry.setDefaultStore(opts.vectorStore);
 
-  function resolveStore(request: any): { store: VectorStore; tenantId: string } {
-    const tenantId = tenantManager.resolveTenantId(request);
-    const store = tenantId === 'default' ? opts.vectorStore : tenantManager.getStore(tenantId);
-    return { store, tenantId };
+  function resolveStore(request: any): { store: VectorStore; tenantId: string; indexName: string } {
+    const resolved = storeRegistry.resolveRequestStore(request);
+    return {
+      store: resolved.store,
+      tenantId: resolved.tenantId,
+      indexName: resolved.indexName,
+    };
   }
 
   async function invalidateCatalogCaches(): Promise<void> {
@@ -65,31 +74,38 @@ export async function catalogRoutes(
   /**
    * Catalog statistics & diagnostics endpoint.
    */
-  fastify.get('/v1/catalog/stats', async (request) => {
-    const { store } = resolveStore(request);
-    const allItems = store.getAll();
-    const categories: Record<string, number> = {};
-    for (const item of allItems) {
-      categories[item.category] = (categories[item.category] || 0) + 1;
+  fastify.get('/v1/catalog/stats', async (request, reply) => {
+    try {
+      const { store } = resolveStore(request);
+      const allItems = store.getAll();
+      const categories: Record<string, number> = {};
+      for (const item of allItems) {
+        categories[item.category] = (categories[item.category] || 0) + 1;
+      }
+
+      const redisStats = await cache.getStats();
+      const itemCount = store.count();
+
+      return {
+        itemsIndexed: itemCount,
+        totalItems: itemCount,
+        vectorDimension: 384,
+        hnswIndexed: store.getHNSW().size(),
+        walPending: store.getWAL().size(),
+        avgSearchLatencyMs: getAverageSearchLatencyMs(),
+        categories,
+        cache: {
+          type: redisStats.type || 'in-memory',
+          ...ApiQueryCache.getInstance().stats(),
+          redis: redisStats,
+        },
+      };
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
     }
-
-    const redisStats = await cache.getStats();
-    const itemCount = store.count();
-
-    return {
-      itemsIndexed: itemCount,
-      totalItems: itemCount,
-      vectorDimension: 384,
-      hnswIndexed: store.getHNSW().size(),
-      walPending: store.getWAL().size(),
-      avgSearchLatencyMs: getAverageSearchLatencyMs(),
-      categories,
-      cache: {
-        type: redisStats.type || 'in-memory',
-        ...ApiQueryCache.getInstance().stats(),
-        redis: redisStats,
-      },
-    };
   });
 
   /**
@@ -106,7 +122,7 @@ export async function catalogRoutes(
         });
       }
 
-      const { store, tenantId } = resolveStore(request);
+      const { store, tenantId, indexName } = resolveStore(request);
       const rawBody = request.body as Record<string, unknown> | null;
 
       // Batch mode: {"items": [...]}
@@ -127,6 +143,8 @@ export async function catalogRoutes(
           }
         }
 
+        storeRegistry.assertItemQuota(tenantId, indexName, validItems.length);
+
         const needingEmbeddings: Array<{ index: number; text: string }> = [];
         for (let i = 0; i < validItems.length; i++) {
           const it = validItems[i];
@@ -137,7 +155,11 @@ export async function catalogRoutes(
         }
 
         if (needingEmbeddings.length > 0) {
-          const generated = await opts.embedder.embedBatch(needingEmbeddings.map((e) => e.text));
+          const generated = await withTimeout(
+            opts.embedder.embedBatch(needingEmbeddings.map((e) => e.text)),
+            10_000,
+            'catalog.upsertBatchEmbed'
+          );
           for (let j = 0; j < needingEmbeddings.length; j++) {
             const targetIdx = needingEmbeddings[j].index;
             validItems[targetIdx].embedding = Array.from(generated[j]);
@@ -191,11 +213,12 @@ export async function catalogRoutes(
 
       // Single item mode: {id, title, ...}
       const validated = upsertItemSchema.parse(request.body);
+      storeRegistry.assertItemQuota(tenantId, indexName, 1);
 
       let embedding = validated.embedding;
       if (!embedding || embedding.length === 0) {
         const text = `${validated.title}. ${validated.category}. ${validated.tags.join(', ')}. ${validated.description}`;
-        const vec = await opts.embedder.embed(text);
+        const vec = await withTimeout(opts.embedder.embed(text), 5_000, 'catalog.upsertEmbed');
         embedding = Array.from(vec);
       }
 
@@ -239,6 +262,9 @@ export async function catalogRoutes(
         },
       });
     } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           statusCode: 400,
@@ -265,17 +291,19 @@ export async function catalogRoutes(
         });
       }
 
-      const { store, tenantId } = resolveStore(request);
+      const { store, tenantId, indexName } = resolveStore(request);
       const body = request.body as Record<string, any>;
       const rawItems = Array.isArray(body?.items) ? body.items : [body];
       const parsedItems = z.array(catalogItemSchema).min(1).max(500).parse(rawItems);
+
+      storeRegistry.assertItemQuota(tenantId, indexName, parsedItems.length);
 
       let indexedCount = 0;
       for (const item of parsedItems) {
         let embedding = item.embedding;
         if (!embedding || embedding.length === 0) {
           const text = `${item.title}. ${item.category}. ${(item.tags || []).join(', ')}. ${item.description}`;
-          const vec = await opts.embedder.embed(text);
+          const vec = await withTimeout(opts.embedder.embed(text), 5_000, 'catalog.itemsEmbed');
           embedding = Array.from(vec);
         }
 
@@ -306,6 +334,9 @@ export async function catalogRoutes(
         item: parsedItems.length === 1 ? { id: parsedItems[0].id, title: parsedItems[0].title, category: parsedItems[0].category } : undefined,
       });
     } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           statusCode: 400,
@@ -325,42 +356,49 @@ export async function catalogRoutes(
     '/v1/catalog/items/:id',
     { preHandler: authenticate },
     async (request, reply) => {
-      const role = RBACManager.resolveRole(request);
-      if (!RBACManager.hasPermission(role, 'write')) {
-        return reply.status(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: `Role '${role}' is not permitted to delete catalog items`,
+      try {
+        const role = RBACManager.resolveRole(request);
+        if (!RBACManager.hasPermission(role, 'write')) {
+          return reply.status(403).send({
+            statusCode: 403,
+            error: 'Forbidden',
+            message: `Role '${role}' is not permitted to delete catalog items`,
+          });
+        }
+
+        const { store, tenantId } = resolveStore(request);
+        const { id } = request.params;
+        const deleted = store.delete(id);
+
+        // Invalidate caches on deletion
+        await invalidateCatalogCaches();
+        Metrics.vectorStoreSize.set(store.count());
+
+        if (!deleted) {
+          return reply.status(404).send({
+            statusCode: 404,
+            error: 'Not Found',
+            message: `Item '${id}' not found in catalog`,
+          });
+        }
+
+        AuditLogger.getInstance().record({
+          tenantId,
+          actorRole: role,
+          action: 'catalog.delete',
+          resourceId: id,
         });
-      }
 
-      const { store, tenantId } = resolveStore(request);
-      const { id } = request.params;
-      const deleted = store.delete(id);
-
-      // Invalidate caches on deletion
-      await invalidateCatalogCaches();
-      Metrics.vectorStoreSize.set(store.count());
-
-      if (!deleted) {
-        return reply.status(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Item '${id}' not found in catalog`,
+        return reply.status(200).send({
+          success: true,
+          deletedId: id,
         });
+      } catch (err) {
+        if (err instanceof StoreError) {
+          return reply.status(err.statusCode).send(err.toJSON());
+        }
+        throw err;
       }
-
-      AuditLogger.getInstance().record({
-        tenantId,
-        actorRole: role,
-        action: 'catalog.delete',
-        resourceId: id,
-      });
-
-      return reply.status(200).send({
-        success: true,
-        deletedId: id,
-      });
     }
   );
 
@@ -368,84 +406,96 @@ export async function catalogRoutes(
    * Batch catalog ingestion using batch embedding inference (BUG #4).
    */
   fastify.post('/v1/catalog', { preHandler: authenticate }, async (request, reply) => {
-    const role = RBACManager.resolveRole(request);
-    if (!RBACManager.hasPermission(role, 'write')) {
-      return reply.status(403).send({
-        statusCode: 403,
-        error: 'Forbidden',
-        message: `Role '${role}' is not permitted to ingest catalog items`,
-      });
-    }
-
-    const { store, tenantId } = resolveStore(request);
-    const parseResult = ingestPayloadSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      return reply.status(400).send({
-        statusCode: 400,
-        error: 'Bad Request',
-        message: 'Invalid catalog payload',
-        issues: parseResult.error.issues,
-      });
-    }
-
-    const { items } = parseResult.data;
-    const start = Date.now();
-
-    const itemsNeedingEmbedding: Array<{ index: number; text: string }> = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (!it.embedding || it.embedding.length === 0) {
-        const text = `${it.title}. ${it.category}. ${it.tags.join(', ')}. ${it.description}`;
-        itemsNeedingEmbedding.push({ index: i, text });
-      }
-    }
-
-    if (itemsNeedingEmbedding.length > 0) {
-      const textsToEmbed = itemsNeedingEmbedding.map((e) => e.text);
-      const generatedEmbeddings = await opts.embedder.embedBatch(textsToEmbed);
-      for (let j = 0; j < itemsNeedingEmbedding.length; j++) {
-        const targetIdx = itemsNeedingEmbedding[j].index;
-        items[targetIdx].embedding = Array.from(generatedEmbeddings[j]);
-      }
-    }
-
-    let indexed = 0;
-    for (const item of items) {
-      store.upsert({
-        ...item,
-        description: item.description || '',
-        category: item.category || 'General',
-        tags: item.tags || [],
-        embedding: item.embedding!,
-      });
-
-      if (AILManager.isEnabled()) {
-        const ail = AILManager.getInstance();
-        ail.ranker.updateStatistics({
-          popularity: 1.0,
-          freshness: 1.0,
+    try {
+      const role = RBACManager.resolveRole(request);
+      if (!RBACManager.hasPermission(role, 'write')) {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: `Role '${role}' is not permitted to ingest catalog items`,
         });
       }
 
-      indexed++;
+      const { store, tenantId, indexName } = resolveStore(request);
+      const parseResult = ingestPayloadSchema.safeParse(request.body);
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Invalid catalog payload',
+          issues: parseResult.error.issues,
+        });
+      }
+
+      const { items } = parseResult.data;
+      storeRegistry.assertItemQuota(tenantId, indexName, items.length);
+      const start = Date.now();
+
+      const itemsNeedingEmbedding: Array<{ index: number; text: string }> = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (!it.embedding || it.embedding.length === 0) {
+          const text = `${it.title}. ${it.category}. ${it.tags.join(', ')}. ${it.description}`;
+          itemsNeedingEmbedding.push({ index: i, text });
+        }
+      }
+
+      if (itemsNeedingEmbedding.length > 0) {
+        const textsToEmbed = itemsNeedingEmbedding.map((e) => e.text);
+        const generatedEmbeddings = await withTimeout(
+          opts.embedder.embedBatch(textsToEmbed),
+          10_000,
+          'catalog.batchEmbed'
+        );
+        for (let j = 0; j < itemsNeedingEmbedding.length; j++) {
+          const targetIdx = itemsNeedingEmbedding[j].index;
+          items[targetIdx].embedding = Array.from(generatedEmbeddings[j]);
+        }
+      }
+
+      let indexed = 0;
+      for (const item of items) {
+        store.upsert({
+          ...item,
+          description: item.description || '',
+          category: item.category || 'General',
+          tags: item.tags || [],
+          embedding: item.embedding!,
+        });
+
+        if (AILManager.isEnabled()) {
+          const ail = AILManager.getInstance();
+          ail.ranker.updateStatistics({
+            popularity: 1.0,
+            freshness: 1.0,
+          });
+        }
+
+        indexed++;
+      }
+
+      await invalidateCatalogCaches();
+      Metrics.vectorStoreSize.set(store.count());
+
+      AuditLogger.getInstance().record({
+        tenantId,
+        actorRole: role,
+        action: 'catalog.batch_ingest',
+        metadata: { indexedCount: indexed },
+      });
+
+      const durationMs = Date.now() - start;
+      return reply.status(201).send({
+        success: true,
+        indexedCount: indexed,
+        durationMs,
+      });
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
     }
-
-    await invalidateCatalogCaches();
-    Metrics.vectorStoreSize.set(store.count());
-
-    AuditLogger.getInstance().record({
-      tenantId,
-      actorRole: role,
-      action: 'catalog.batch_ingest',
-      metadata: { indexedCount: indexed },
-    });
-
-    const durationMs = Date.now() - start;
-    return reply.status(201).send({
-      success: true,
-      indexedCount: indexed,
-      durationMs,
-    });
   });
 }
 

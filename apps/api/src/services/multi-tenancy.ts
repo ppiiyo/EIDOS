@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { FastifyRequest } from 'fastify';
 import { VectorStore } from './vector-store';
+import { StoreRegistry } from './store-registry';
 
 export type EidosRole = 'admin' | 'merchandiser' | 'editor' | 'readonly' | 'viewer';
 
@@ -22,17 +23,11 @@ export interface AuditLogEntry {
 
 /**
  * Multi-Tenancy Namespace Manager, RBAC Access Control, and Tamper-Evident Audit Logger.
- * Ensures 100% vector & lexical index isolation between tenants while maintaining backward
- * compatibility with the default namespace ('default').
+ * Ensures 100% vector & lexical index isolation between tenants while delegating to
+ * the unified StoreRegistry to prevent split-brain state.
  */
 export class TenantNamespaceManager {
   private static instance: TenantNamespaceManager | null = null;
-  private readonly tenantStores = new Map<string, VectorStore>();
-  private readonly tenantQuotas = new Map<string, TenantQuota>();
-  private readonly defaultQuota: TenantQuota = {
-    maxItems: 100_000,
-    rateLimitPerMin: 5_000,
-  };
 
   public static getInstance(): TenantNamespaceManager {
     if (!TenantNamespaceManager.instance) {
@@ -46,16 +41,11 @@ export class TenantNamespaceManager {
    * operate with zero overhead or behavior change.
    */
   public setDefaultStore(store: VectorStore): void {
-    this.tenantStores.set('default', store);
+    StoreRegistry.getInstance().setDefaultStore(store);
   }
 
   public reset(): void {
-    const def = this.tenantStores.get('default');
-    this.tenantStores.clear();
-    this.tenantQuotas.clear();
-    if (def) {
-      this.tenantStores.set('default', def);
-    }
+    StoreRegistry.getInstance().reset();
   }
 
   /**
@@ -64,70 +54,43 @@ export class TenantNamespaceManager {
   public resolveTenantId(
     request?: FastifyRequest | { headers?: Record<string, unknown>; tenantId?: string }
   ): string {
-    if (!request) return 'default';
-    if (typeof request.tenantId === 'string' && request.tenantId.trim().length > 0) {
-      return request.tenantId.trim().toLowerCase();
-    }
-    if (!request.headers) return 'default';
-
-    const headerTenant = request.headers['x-tenant-id'];
-    if (typeof headerTenant === 'string' && headerTenant.trim().length > 0) {
-      return headerTenant.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
-    }
-
-    const apiKey = String(request.headers['x-api-key'] || '');
-    const prefixMatch = apiKey.match(/^eidos_tenant_([a-z0-9_-]+)_/i);
-    if (prefixMatch && prefixMatch[1]) {
-      return prefixMatch[1].toLowerCase();
-    }
-
-    return 'default';
+    return StoreRegistry.getInstance().resolveTenantId(request);
   }
 
   /**
    * Retrieves or creates an isolated VectorStore for the given tenant namespace.
    */
-  public getStore(tenantId = 'default'): VectorStore {
-    const cleanId = (tenantId || 'default').toLowerCase().trim();
-    let store = this.tenantStores.get(cleanId);
-    if (!store) {
-      store = new VectorStore();
-      this.tenantStores.set(cleanId, store);
-    }
-    return store;
+  public getStore(tenantId = 'default', indexName = 'default'): VectorStore {
+    return StoreRegistry.getInstance().getStore(tenantId, indexName, { createIfMissing: true });
   }
 
   public setTenantQuota(tenantId: string, quota: Partial<TenantQuota>): void {
-    const cleanId = tenantId.toLowerCase().trim();
-    const current = this.getTenantQuota(cleanId);
-    this.tenantQuotas.set(cleanId, { ...current, ...quota });
+    StoreRegistry.getInstance().setTenantQuota(tenantId, quota);
   }
 
   public getTenantQuota(tenantId: string): TenantQuota {
-    return this.tenantQuotas.get(tenantId.toLowerCase().trim()) || this.defaultQuota;
-  }
-
-  public checkItemQuota(tenantId: string): { allowed: boolean; currentCount: number; maxItems: number } {
-    const store = this.getStore(tenantId);
-    const quota = this.getTenantQuota(tenantId);
-    const currentCount = store.count();
+    const q = StoreRegistry.getInstance().getTenantQuota(tenantId);
     return {
-      allowed: currentCount < quota.maxItems,
-      currentCount,
-      maxItems: quota.maxItems,
+      maxItems: q.maxItems,
+      rateLimitPerMin: q.rateLimitPerMin,
     };
   }
 
+  public checkItemQuota(tenantId: string): { allowed: boolean; currentCount: number; maxItems: number } {
+    return StoreRegistry.getInstance().checkItemQuota(tenantId, 'default', 1);
+  }
+
   public listTenants(): Array<{ tenantId: string; itemCount: number; quota: TenantQuota }> {
-    const out: Array<{ tenantId: string; itemCount: number; quota: TenantQuota }> = [];
-    for (const [tenantId, store] of this.tenantStores.entries()) {
-      out.push({
-        tenantId,
-        itemCount: store.count(),
-        quota: this.getTenantQuota(tenantId),
-      });
-    }
-    return out;
+    return StoreRegistry.getInstance()
+      .listTenants()
+      .map((t) => ({
+        tenantId: t.tenantId,
+        itemCount: t.itemCount,
+        quota: {
+          maxItems: t.quota.maxItems,
+          rateLimitPerMin: t.quota.rateLimitPerMin,
+        },
+      }));
   }
 }
 

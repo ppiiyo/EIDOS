@@ -13,7 +13,7 @@ import {
   isResponseCacheable,
   getSemanticCache,
 } from '../services/cache';
-import { TenantNamespaceManager } from '../services/multi-tenancy';
+import { StoreError, StoreRegistry, withTimeout } from '../services/store-registry';
 import { NeuralCrossEncoderReranker } from '../services/reranker';
 import { traceSpan } from '../tracing';
 import { recordSearchLatency } from '../plugins/observability';
@@ -36,6 +36,8 @@ const searchRequestSchema = z.object({
   alpha: z.number().min(0).max(1).default(0.5),
   rerank: z.boolean().optional().default(false),
   rerankGamma: z.number().min(0).max(1).optional().default(0.65),
+  index: z.string().optional(),
+  indexName: z.string().optional(),
 });
 
 const embedCircuitBreaker = new CircuitBreaker({
@@ -50,7 +52,8 @@ export async function searchRoutes(
   const redisCache = getCache();
   const singleFlight = getSingleFlight();
   const semanticCache = getSemanticCache();
-  const tenantManager = TenantNamespaceManager.getInstance();
+  const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
+  storeRegistry.setDefaultStore(opts.vectorStore);
   const reranker = NeuralCrossEncoderReranker.getInstance();
 
   const handleSearch = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -81,9 +84,20 @@ export async function searchRoutes(
       const limit = rawLimit ?? topK ?? 10;
       const effectiveCategory = filterCategory ?? filters?.category;
 
-      const tenantId = tenantManager.resolveTenantId(request);
-      const activeStore =
-        tenantId === 'default' ? opts.vectorStore : tenantManager.getStore(tenantId);
+      let activeStore: VectorStore;
+      let tenantId: string;
+      let indexName: string;
+      try {
+        const resolved = storeRegistry.resolveRequestStore(request);
+        activeStore = resolved.store;
+        tenantId = resolved.tenantId;
+        indexName = resolved.indexName;
+      } catch (err) {
+        if (err instanceof StoreError) {
+          return reply.status(err.statusCode).send(err.toJSON());
+        }
+        throw err;
+      }
 
       // Security Guardrail: Scan and sanitize user query against prompt injection and XSS
       const securityScan = SecurityGuardrails.scanAndSanitize(query);
@@ -107,6 +121,7 @@ export async function searchRoutes(
       if (mode !== 'hybrid') normalizedFilters.mode = mode;
       if (alpha !== 0.5) normalizedFilters.alpha = alpha;
       if (tenantId !== 'default') normalizedFilters.tenantId = tenantId;
+      if (indexName !== 'default') normalizedFilters.indexName = indexName;
       if (rerank) {
         normalizedFilters.rerank = true;
         normalizedFilters.rerankGamma = rerankGamma;
@@ -162,8 +177,10 @@ export async function searchRoutes(
       let queryVectorForSemCache: Float32Array | number[] | null = null;
 
       try {
-        const queryVector = await embedCircuitBreaker.execute(() =>
-          opts.embedder.embed(safeQuery)
+        const queryVector = await withTimeout(
+          embedCircuitBreaker.execute(() => opts.embedder.embed(safeQuery)),
+          5_000,
+          'search.embed'
         );
         queryVectorForSemCache = queryVector;
 
@@ -318,6 +335,9 @@ export async function searchRoutes(
           10_000
         );
       } catch (err: any) {
+        if (err instanceof StoreError) {
+          return reply.status(err.statusCode).send(err.toJSON());
+        }
         if (err?.statusCode === 400) {
           return reply.status(400).send({
             statusCode: 400,

@@ -4,11 +4,14 @@ import { cosineSimilarity } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { AILManager } from '../services/ail';
+import { StoreError, StoreRegistry } from '../services/store-registry';
 
 const recommendUserSchema = z.object({
   user_id: z.string().min(1),
   history: z.array(z.string()).default([]),
   limit: z.number().int().min(1).max(50).default(10),
+  index: z.string().optional(),
+  indexName: z.string().optional(),
   context: z
     .object({
       timestamp: z.number().optional(),
@@ -25,6 +28,9 @@ export async function recommendUserRoutes(
   fastify: FastifyInstance,
   opts: { vectorStore: VectorStore }
 ): Promise<void> {
+  const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
+  storeRegistry.setDefaultStore(opts.vectorStore);
+
   fastify.post('/v1/recommend/user', { preHandler: authenticate }, async (request, reply) => {
     reply.header('Deprecation', 'true');
     reply.header('Link', '</v1/recommend>; rel="successor-version"');
@@ -37,13 +43,23 @@ export async function recommendUserRoutes(
       });
     }
 
+    let activeStore: VectorStore;
+    try {
+      activeStore = storeRegistry.resolveRequestStore(request).store;
+    } catch (err) {
+      if (err instanceof StoreError) {
+        return reply.status(err.statusCode).send(err.toJSON());
+      }
+      throw err;
+    }
+
     const { user_id, history, limit, context } = parseResult.data;
     const ail = AILManager.getInstance();
 
     // 1. Fallback when AIL_ENABLED is false
     if (!AILManager.isEnabled()) {
       const fallbackItemId = history.length > 0 ? history[0] : '1';
-      const fallbackSource = opts.vectorStore.get(fallbackItemId);
+      const fallbackSource = activeStore.get(fallbackItemId);
       if (!fallbackSource) {
         return reply.status(404).send({
           statusCode: 404,
@@ -52,7 +68,7 @@ export async function recommendUserRoutes(
         });
       }
 
-      const results = opts.vectorStore.search(
+      const results = activeStore.search(
         fallbackSource.normalizedVector || fallbackSource.embedding,
         limit,
         0.01,
@@ -76,14 +92,14 @@ export async function recommendUserRoutes(
       user_id,
       history,
       async (itemId: string) => {
-        const item = opts.vectorStore.get(itemId);
+        const item = activeStore.get(itemId);
         return item ? new Float32Array(item.normalizedVector || item.embedding) : new Float32Array(384);
       },
-      (itemId: string) => opts.vectorStore.get(itemId)?.category || 'General'
+      (itemId: string) => activeStore.get(itemId)?.category || 'General'
     );
 
     // 3. Retrieval top-100 candidates by user embedding
-    const topCandidates = opts.vectorStore.search(profile.embedding, 100, 0.0);
+    const topCandidates = activeStore.search(profile.embedding, 100, 0.0);
 
     // Filter out items user already experienced in history
     const historySet = new Set(history);
