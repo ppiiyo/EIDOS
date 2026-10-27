@@ -28,30 +28,12 @@ export function App() {
   const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);
 
   const {
-    uiLang,
-    setUiLang,
-    catalog,
-    setCatalog,
-    embeddings,
-    setEmbeddings,
-    selectedItem,
-    setSelectedItem,
-    isScaledCatalog,
-    setIsScaledCatalog,
-    activeDomain,
-    toasts,
-    engineState,
-    showToast,
-    dismissToast,
-    handleAddItem,
-    handleDeleteItem,
-    handleScaleCatalog,
-    handleRestoreCuratedCatalog,
-    handleSelectDomainPreset,
-    handleImportCustomDatabase,
-    handleSearch,
-    handleHybridSearch,
-    handleRecommend,
+    uiLang, setUiLang, catalog, setCatalog, embeddings, setEmbeddings,
+    selectedItem, setSelectedItem, isScaledCatalog, setIsScaledCatalog,
+    activeDomain, toasts, engineState, showToast, dismissToast,
+    handleAddItem, handleDeleteItem, handleScaleCatalog, handleRestoreCuratedCatalog,
+    handleSelectDomainPreset, handleImportCustomDatabase, handleSearch,
+    handleHybridSearch, handleRecommend,
   } = useStudioWorkspace();
 
   const handleImportVectorBundle = useCallback(
@@ -61,10 +43,7 @@ export function App() {
       setCatalog(importedItems);
       setSelectedItem(importedItems[0] || null);
       setIsScaledCatalog(importedItems.length >= 500);
-      showToast(
-        `Imported ${importedItems.length} items with 0ms pre-computed 384-d vectors`,
-        'success'
-      );
+      showToast(`Imported ${importedItems.length} items with 0ms pre-computed 384-d vectors`, 'success');
     },
     [setCatalog, setEmbeddings, setIsScaledCatalog, setSelectedItem, showToast]
   );
@@ -72,25 +51,13 @@ export function App() {
   const handleCsvImportConcepts = useCallback(
     (concepts: Array<{ name: string; category?: string; notes?: string }>, replace: boolean) => {
       const newItems: CatalogItem[] = concepts.map((c, idx) => {
-        const safeTitle =
-          SecurityGuardrails.scanAndSanitize(c.name).sanitizedInput || `Item ${idx + 1}`;
-        const safeCat =
-          SecurityGuardrails.scanAndSanitize(c.category || 'Imported CSV').sanitizedInput ||
-          'Imported CSV';
-        const safeDesc =
-          SecurityGuardrails.scanAndSanitize(c.notes || c.name).sanitizedInput || safeTitle;
+        const safeTitle = SecurityGuardrails.scanAndSanitize(c.name).sanitizedInput || `Item ${idx + 1}`;
+        const safeCat = SecurityGuardrails.scanAndSanitize(c.category || 'Imported CSV').sanitizedInput || 'Imported CSV';
+        const safeDesc = SecurityGuardrails.scanAndSanitize(c.notes || c.name).sanitizedInput || safeTitle;
         return {
-          id: `csv_${Date.now()}_${idx}`,
-          title: safeTitle,
-          description: safeDesc,
-          category: safeCat,
-          price: '—',
-          rating: 4.8,
-          reviews: 12,
-          badge: 'CSV Import',
-          icon: '📄',
-          tags: [safeCat.toLowerCase()],
-          custom: true,
+          id: `csv_${Date.now()}_${idx}`, title: safeTitle, description: safeDesc,
+          category: safeCat, price: '—', rating: 4.8, reviews: 12,
+          badge: 'CSV Import', icon: '📄', tags: [safeCat.toLowerCase()], custom: true,
         };
       });
 
@@ -99,9 +66,7 @@ export function App() {
       for (const item of newItems) {
         nextEmbeddings.set(
           String(item.id),
-          computeTextEmbedding(
-            `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
-          )
+          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`)
         );
       }
       setEmbeddings(nextEmbeddings);
@@ -112,27 +77,18 @@ export function App() {
     [catalog, embeddings, setCatalog, setEmbeddings, setSelectedItem, showToast]
   );
 
-  const handleInspectIn3D = useCallback(
-    (item: CatalogItem) => {
-      setSelectedItem(item);
-      setView('vectorspace');
-    },
-    [setSelectedItem]
-  );
+  const handleInspectIn3D = useCallback((item: CatalogItem) => {
+    setSelectedItem(item);
+    setView('vectorspace');
+  }, [setSelectedItem]);
 
-  const handleInspectRecommendations = useCallback(
-    (item: CatalogItem) => {
-      setSelectedItem(item);
-      setView('recommendations');
-    },
-    [setSelectedItem]
-  );
+  const handleInspectRecommendations = useCallback((item: CatalogItem) => {
+    setSelectedItem(item);
+    setView('recommendations');
+  }, [setSelectedItem]);
 
   const agent = useMemo(
-    () =>
-      new ConversationalAgent(catalog, embeddings, async (q) =>
-        computeTextEmbedding(`query: ${q}`)
-      ),
+    () => new ConversationalAgent(catalog, embeddings, async (q) => computeTextEmbedding(`query: ${q}`)),
     [catalog, embeddings]
   );
 
@@ -142,10 +98,7 @@ export function App() {
       name: 'Eidos Production Catalog',
       updatedAt: Date.now(),
       concepts: catalog.map((item) => ({
-        id: String(item.id),
-        name: item.title,
-        category: item.category,
-        notes: item.description,
+        id: String(item.id), name: item.title, category: item.category, notes: item.description,
       })),
     }),
     [catalog]
