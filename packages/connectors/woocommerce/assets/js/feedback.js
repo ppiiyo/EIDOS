@@ -25,12 +25,25 @@
     }
   }
 
+  function resolveEndpointUrl(rawEndpoint) {
+    var url = rawEndpoint || '/wp-json/eidos/v1/feedback';
+    if (
+      typeof window !== 'undefined' &&
+      window.location &&
+      window.location.protocol === 'https:' &&
+      url.indexOf('http://') === 0
+    ) {
+      return 'https://' + url.substring(7);
+    }
+    return url;
+  }
+
   function sendFeedbackEvent(payload) {
     if (!payload || !payload.itemId) {
       return false;
     }
 
-    var endpoint = config.endpoint || '/wp-json/eidos/v1/feedback';
+    var endpoint = resolveEndpointUrl(config.endpoint);
     var body = JSON.stringify({
       itemId: String(payload.itemId),
       eventType: payload.eventType || 'click',
@@ -41,7 +54,8 @@
 
     if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       try {
-        var blob = new Blob([body], { type: 'application/json' });
+        // Use CORS-safelisted text/plain Content-Type to prevent preflight OPTIONS / CORS errors in console
+        var blob = new Blob([body], { type: 'text/plain;charset=UTF-8' });
         if (navigator.sendBeacon(endpoint, blob)) {
           return true;
         }
@@ -54,8 +68,10 @@
       try {
         window.fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
           body: body,
+          mode: 'cors',
+          credentials: 'omit',
           keepalive: true
         }).catch(function () {});
         return true;
@@ -83,11 +99,17 @@
       }
     }
 
-    var postItem = el.closest('.product, li.type-product, [class*="post-"]');
-    if (postItem && postItem.className) {
-      var match = String(postItem.className).match(/\bpost-(\d+)\b/);
-      if (match && match[1]) {
-        return match[1];
+    var postItem = el.closest('.product, li.type-product, .product-small, [class*="post-"]');
+    if (postItem) {
+      if (postItem.className) {
+        var match = String(postItem.className).match(/\bpost-(\d+)\b/);
+        if (match && match[1]) {
+          return match[1];
+        }
+      }
+      var nestedBtn = postItem.querySelector('[data-product_id], [data-product-id]');
+      if (nestedBtn) {
+        return nestedBtn.getAttribute('data-product_id') || nestedBtn.getAttribute('data-product-id');
       }
     }
 
@@ -103,7 +125,7 @@
       }
 
       var link = target.closest(
-        'a.woocommerce-LoopProduct-link, .product a, a[data-eidos-item-id], button.add_to_cart_button'
+        'a.woocommerce-LoopProduct-link, .astra-shop-summary-wrap a, .box-text-products a, .product-small a, .product a, a[data-eidos-item-id], button.add_to_cart_button, a.add_to_cart_button'
       );
       if (!link) {
         return;

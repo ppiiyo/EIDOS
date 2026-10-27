@@ -37,7 +37,7 @@ class Mapper
      * @param array<string, mixed>|null $parentContext Optional parent product data when mapping a variation
      * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
      */
-    public function mapFields(mixed $product, ?array $parentContext = null): array
+    public function mapFields($product, ?array $parentContext = null): array
     {
         if (is_object($product) && method_exists($product, 'get_id')) {
             return $this->mapFromWcProductObject($product, $parentContext);
@@ -338,7 +338,7 @@ class Mapper
     /**
      * @param mixed $attributes
      */
-    private function extractRestAttributesSummary(mixed $attributes): string
+    private function extractRestAttributesSummary($attributes): string
     {
         if (!is_array($attributes)) {
             return '';

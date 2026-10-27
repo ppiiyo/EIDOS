@@ -73,7 +73,7 @@ class Settings
      */
     public static function getConfig(): array
     {
-        $getOpt = static function (string $key, mixed $default): mixed {
+        $getOpt = static function (string $key, $default) {
             return function_exists('get_option') ? get_option($key, $default) : $default;
         };
 

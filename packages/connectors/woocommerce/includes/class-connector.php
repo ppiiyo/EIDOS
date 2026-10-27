@@ -97,12 +97,21 @@ class Connector implements ConnectorInterface
         }
 
         register_rest_route('eidos/v1', '/feedback', [
-            'methods' => 'POST',
+            'methods' => ['POST', 'OPTIONS'],
             'permission_callback' => '__return_true',
             'callback' => function ($request) {
                 $params = is_object($request) && method_exists($request, 'get_json_params')
                     ? (array) $request->get_json_params()
                     : [];
+                if (empty($params) && is_object($request) && method_exists($request, 'get_body')) {
+                    $rawBody = (string) $request->get_body();
+                    if ($rawBody !== '') {
+                        $decoded = json_decode($rawBody, true);
+                        if (is_array($decoded)) {
+                            $params = $decoded;
+                        }
+                    }
+                }
                 if (empty($params) && is_object($request) && method_exists($request, 'get_params')) {
                     $params = (array) $request->get_params();
                 }
@@ -432,7 +441,7 @@ class Connector implements ConnectorInterface
      * @param array<string, mixed>|null $parentContext
      * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
      */
-    public function mapFields(mixed $systemItem, ?array $parentContext = null): array
+    public function mapFields($systemItem, ?array $parentContext = null): array
     {
         return $this->mapper->mapFields($systemItem, $parentContext);
     }
@@ -530,7 +539,7 @@ class Connector implements ConnectorInterface
      * @param array<int, string> &$errors
      * @return array<int, array{item: mixed, parentContext: ?array<string, mixed>}>
      */
-    private function expandProductWithVariations(mixed $parentProduct, array &$errors): array
+    private function expandProductWithVariations($parentProduct, array &$errors): array
     {
         $entries = [
             [
@@ -590,7 +599,7 @@ class Connector implements ConnectorInterface
      * @param array<int, string> &$errors
      * @return array<int, mixed>
      */
-    private function fetchProductVariations(int|string $parentId, array &$errors): array
+    private function fetchProductVariations($parentId, array &$errors): array
     {
         if ($this->variationsFetcher !== null) {
             $res = ($this->variationsFetcher)($parentId);
@@ -729,7 +738,7 @@ class Connector implements ConnectorInterface
         }
     }
 
-    private function extractModifiedTimestamp(mixed $rawItem, int $fallbackTimestamp): int
+    private function extractModifiedTimestamp($rawItem, int $fallbackTimestamp): int
     {
         if (is_object($rawItem) && method_exists($rawItem, 'get_date_modified')) {
             $dateObj = $rawItem->get_date_modified();

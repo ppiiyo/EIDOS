@@ -37,12 +37,18 @@ class SearchReplacer
     }
 
     /**
-     * Регистрирует хук WordPress `pre_get_posts` для перехвата поисковых запросов WooCommerce.
+     * Регистрирует хук WordPress `pre_get_posts`, `woocommerce_product_query` и SQL-фильтры
+     * для полной совместимости с кастомными темами (Astra, Flatsome) и плагинами фильтрации (WOOF, Filter Everything).
      */
     public function registerHooks(): void
     {
         if (function_exists('add_action')) {
             add_action('pre_get_posts', [$this, 'handlePreGetPosts'], 20, 1);
+            add_action('woocommerce_product_query', [$this, 'handlePreGetPosts'], 20, 1);
+        }
+        if (function_exists('add_filter')) {
+            add_filter('posts_search', [$this, 'filterPostsSearchSql'], 20, 2);
+            add_filter('posts_orderby', [$this, 'enforceEidosOrderbySql'], 99, 2);
         }
     }
 
@@ -194,13 +200,71 @@ class SearchReplacer
             return;
         }
 
-        // Сохраняем исходный поисковый запрос в query_vars для телеметрии кликов (sendBeacon)
+        // Совместимость с плагинами фильтрации (WooCommerce Product Filter, WOOF, Filter Everything):
+        // если фильтр уже ограничил выборку через post__in, пересекаем с сохранением порядка ранжирования EIDOS
+        $existingPostIn = method_exists($wpQuery, 'get') ? $wpQuery->get('post__in') : [];
+        if (is_array($existingPostIn) && !empty($existingPostIn)) {
+            $existingFiltered = array_values(array_filter(array_map('intval', $existingPostIn), static fn(int $id): bool => $id > 0));
+            if (!empty($existingFiltered)) {
+                $existingSet = array_flip($existingFiltered);
+                $numericIds = array_values(array_filter(
+                    $numericIds,
+                    static fn(int $id): bool => isset($existingSet[$id])
+                ));
+                if (empty($numericIds)) {
+                    $wpQuery->set('post__in', [0]);
+                    return;
+                }
+            }
+        }
+
+        // Сохраняем исходный поисковый запрос в query_vars для телеметрии кликов (sendBeacon) и заголовков темы (Astra/Flatsome)
         $wpQuery->set('eidos_original_query', $searchTerm);
+        $wpQuery->set('eidos_search_active', true);
+        $wpQuery->set('eidos_ordered_ids', $numericIds);
         $wpQuery->set('post__in', $numericIds);
         $wpQuery->set('post_type', ['product', 'product_variation']);
         $wpQuery->set('orderby', 'post__in');
-        // Очищаем стандартный SQL LIKE-фильтр 's', чтобы WordPress не отфильтровал семантические находки EIDOS
-        $wpQuery->set('s', '');
+
+        // Если фильтр posts_search недоступен в минимальном тестовом окружении, сбрасываем 's',
+        // иначе оставляем 's' для get_search_query() в шаблонах Astra/Flatsome и убираем SQL LIKE через posts_search
+        if (!function_exists('add_filter')) {
+            $wpQuery->set('s', '');
+        }
+    }
+
+    /**
+     * Отключает стандартное условие SQL `AND (((wp_posts.post_title LIKE ...)))` при активном поиске EIDOS,
+     * сохраняя переменную запроса `s` нетронутой для шаблонов Astra / Flatsome (`get_search_query()`, `is_search()`).
+     */
+    public function filterPostsSearchSql(string $searchSql, object $wpQuery): string
+    {
+        if (method_exists($wpQuery, 'get') && $wpQuery->get('eidos_search_active')) {
+            return '';
+        }
+        return $searchSql;
+    }
+
+    /**
+     * Гарантирует сохранение порядка ранжирования EIDOS (`FIELD(ID, ...)`) даже если плагин фильтрации
+     * (WooCommerce Product Filter / WOOF) перезаписал `orderby` на `menu_order title` или `relevance`.
+     */
+    public function enforceEidosOrderbySql(string $orderbySql, object $wpQuery): string
+    {
+        if (!method_exists($wpQuery, 'get') || !$wpQuery->get('eidos_search_active')) {
+            return $orderbySql;
+        }
+
+        $orderedIds = $wpQuery->get('eidos_ordered_ids');
+        if (!is_array($orderedIds) || empty($orderedIds)) {
+            return $orderbySql;
+        }
+
+        $safeIds = implode(',', array_map('intval', $orderedIds));
+        global $wpdb;
+        $postsTable = (isset($wpdb) && is_object($wpdb) && !empty($wpdb->posts)) ? $wpdb->posts : 'wp_posts';
+
+        return sprintf('FIELD(%s.ID, %s)', $postsTable, $safeIds);
     }
 
     public function didLastSearchUseFallback(): bool

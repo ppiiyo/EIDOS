@@ -29,12 +29,13 @@ $escHtml = static function (string $val): string {
 
     <?php if (!empty($notice) && is_array($notice)) : ?>
         <?php
-        $noticeClass = match ($notice['type'] ?? 'info') {
+        $noticeClassMap = [
             'success' => 'notice-success',
             'error'   => 'notice-error',
             'warning' => 'notice-warning',
-            default   => 'notice-info',
-        };
+        ];
+        $noticeType = (string) ($notice['type'] ?? 'info');
+        $noticeClass = $noticeClassMap[$noticeType] ?? 'notice-info';
         ?>
         <div class="notice <?php echo $escAttr($noticeClass); ?> is-dismissible">
             <p><strong><?php echo $escHtml((string) ($notice['message'] ?? '')); ?></strong></p>

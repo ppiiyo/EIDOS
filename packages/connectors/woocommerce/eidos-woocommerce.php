@@ -5,7 +5,7 @@
  * Description:       Integrates WooCommerce with EIDOS hybrid vector + BM25 search, catalog synchronization (including product variations), and click feedback telemetry.
  * Version:           1.0.0
  * Requires at least: 6.0
- * Requires PHP:      8.0
+ * Requires PHP:      7.4
  * Author:            EIDOS Contributors
  * License:           MIT
  * Text Domain:       eidos-woocommerce
@@ -99,6 +99,11 @@ function eidos_wc_bootstrap(): void
                 $restUrl = function_exists('rest_url')
                     ? (string) rest_url('eidos/v1/feedback')
                     : '/wp-json/eidos/v1/feedback';
+                $isHttps = (function_exists('is_ssl') && is_ssl())
+                    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+                if ($isHttps && stripos($restUrl, 'http://') === 0) {
+                    $restUrl = 'https://' . substr($restUrl, 7);
+                }
                 $currentQuery = function_exists('get_search_query') ? (string) get_search_query() : '';
                 $userId = function_exists('get_current_user_id') && get_current_user_id() > 0
                     ? (string) get_current_user_id()
