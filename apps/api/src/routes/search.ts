@@ -363,4 +363,6 @@ export async function searchRoutes(
   fastify.post('/v1/demo/search', handleSearch);
 }
 
+(searchRoutes as any)[Symbol.for('skip-override')] = true;
+
 

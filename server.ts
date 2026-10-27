@@ -43,6 +43,8 @@ function isApiOrTelemetryRoute(url: string): boolean {
   return (
     cleanUrl === '/v1' ||
     cleanUrl.startsWith('/v1/') ||
+    cleanUrl === '/api/v1' ||
+    cleanUrl.startsWith('/api/v1/') ||
     cleanUrl === '/health' ||
     cleanUrl === '/api/health' ||
     cleanUrl === '/docs' ||
@@ -56,6 +58,9 @@ async function startUnifiedServer() {
   let viteMiddlewares: ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void) | null = null;
 
   const server = http.createServer(async (req, res) => {
+    if (req.url && (req.url === '/api/v1' || req.url.startsWith('/api/v1/') || req.url.startsWith('/api/v1?'))) {
+      req.url = req.url.slice(4);
+    }
     const url = req.url || '/';
     const cleanUrl = url.split('?')[0];
 

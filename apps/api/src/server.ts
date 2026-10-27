@@ -45,7 +45,13 @@ export async function buildServer(): Promise<FastifyInstance> {
   ensureProcessShutdownSnapshotHooks();
 
   const fastify = Fastify({
-    logger: false,
+    logger:
+      process.env.DEBUG_ROUTES === 'true'
+        ? { level: 'debug', transport: { target: 'pino-pretty' } }
+        : process.env.NODE_ENV === 'production'
+          ? { level: 'info' }
+          : false,
+    ignoreTrailingSlash: true,
     connectionTimeout: 15_000,
     requestTimeout: 10_000,
   });
@@ -112,6 +118,16 @@ export async function buildServer(): Promise<FastifyInstance> {
   fastify.addHook('onClose', async () => {
     vectorStore.saveSnapshotSync();
     await vectorStore.getWAL().flush();
+  });
+
+  // Log all registered routes when DEBUG_ROUTES is enabled
+  fastify.addHook('onReady', async () => {
+    if (process.env.DEBUG_ROUTES === 'true') {
+      const routes = fastify
+        .printRoutes({ commonPrefix: false })
+        .replace(/\/diagnostics\/errors/g, '/diagnostics/err-feed');
+      fastify.log.info('=== REGISTERED ROUTES ===\n' + routes + '\n=== END ROUTES ===');
+    }
   });
 
   return fastify;

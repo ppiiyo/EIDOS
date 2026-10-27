@@ -449,3 +449,5 @@ export async function catalogRoutes(
   });
 }
 
+(catalogRoutes as any)[Symbol.for('skip-override')] = true;
+

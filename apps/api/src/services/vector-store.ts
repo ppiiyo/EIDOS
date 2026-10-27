@@ -143,12 +143,28 @@ export class VectorStore {
   }
 
   public get(id: string): StoredItem | undefined {
-    const strId = String(id);
+    const strId = String(id).trim();
     const direct = this.items.get(strId);
     if (direct) return direct;
-    if (/^item-[1-5]$/.test(strId)) {
-      return this.items.get(strId.slice(5));
+
+    // Normalize underscored IDs like 'item_1' -> 'item-1'
+    const normalizedHyphen = strId.replace(/^item_(\d+)$/i, 'item-$1');
+    if (normalizedHyphen !== strId) {
+      const hyphenMatch = this.items.get(normalizedHyphen);
+      if (hyphenMatch) return hyphenMatch;
     }
+
+    // Seed catalog items 1..5 are stored under keys '1'..'5'
+    const shortMatch = normalizedHyphen.match(/^item-([1-5])$/i);
+    if (shortMatch) {
+      return this.items.get(shortMatch[1]);
+    }
+
+    // Numeric IDs >= 6 stored as 'item-N'
+    if (/^\d+$/.test(strId)) {
+      return this.items.get(`item-${strId}`);
+    }
+
     return undefined;
   }
 

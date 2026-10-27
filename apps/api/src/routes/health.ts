@@ -167,3 +167,6 @@ export async function healthRoutes(
     });
   });
 }
+
+(healthRoutes as any)[Symbol.for('skip-override')] = true;
+

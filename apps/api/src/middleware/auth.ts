@@ -181,6 +181,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         'eidos_public_demo_key',
         'eidos_demo_key_2026_public',
         'eidos_dev_key',
+        'eidos_test_key_1',
         'test-key',
       ].filter((k): k is string => Boolean(k));
 

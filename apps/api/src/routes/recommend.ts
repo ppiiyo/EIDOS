@@ -794,3 +794,5 @@ export async function recommendRoutes(
   fastify.post('/v1/demo/recommend', handleRecommend);
 }
 
+(recommendRoutes as any)[Symbol.for('skip-override')] = true;
+

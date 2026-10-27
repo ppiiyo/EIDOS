@@ -91,6 +91,16 @@ export async function apiRoutesPlugin(
   });
   await fastify.register(settingsRoutes);
 
+  // Diagnostic endpoint for route verification (disabled in production)
+  if (process.env.NODE_ENV !== 'production') {
+    fastify.get('/v1/routes', async () => {
+      return {
+        routes: fastify.printRoutes({ commonPrefix: false }),
+        timestamp: new Date().toISOString(),
+      };
+    });
+  }
+
   // 404 JSON handler for unknown /v1/* API endpoints; SPA fallback ONLY for non-API routes
   fastify.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith('/v1/') || request.url === '/v1') {
