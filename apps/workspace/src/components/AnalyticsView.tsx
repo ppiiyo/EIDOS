@@ -7,6 +7,7 @@ import {
   AnalyticsSummary,
 } from '../lib/analytics/tracker';
 import { SemanticTrendsAnalytics } from './SemanticTrendsAnalytics';
+import { LiveClusterTelemetryPanel } from './LiveMetricsCharts';
 
 const PERIODS = [
   { label: 'Last hour', ms: 3600000 },
@@ -115,6 +116,8 @@ export const AnalyticsView: React.FC = () => {
           <span className="kpi-trend negative">105 missed queries</span>
         </div>
       </div>
+
+      <LiveClusterTelemetryPanel activeSearches={summary.searches} />
 
       {/* Top Queries & Zero-Result Action Table */}
       <div className="analytics-tables mb-6">

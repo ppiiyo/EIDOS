@@ -19,6 +19,7 @@ import { TopQueriesTable } from './components/TopQueriesTable';
 import { ZeroResultQueries } from './components/ZeroResultQueries';
 import { QueryInspector } from './components/QueryInspector';
 import { HowToReadPanel } from './components/HowToReadPanel';
+import { LiveClusterTelemetryPanel } from '../../../../workspace/src/components/LiveMetricsCharts';
 import { GuidedTourStep } from './types';
 
 const TOUR_STORAGE_KEY = 'eidos_seo_guided_tour_completed_v1';
@@ -352,6 +353,15 @@ export const SEODashboard: React.FC = () => {
           accentColor="green"
         />
       </section>
+
+      <LiveClusterTelemetryPanel
+        catalogSize={
+          catalogStats?.itemsIndexed ??
+          analytics?.engineStats?.itemsIndexed ??
+          health?.itemsIndexed ??
+          5005
+        }
+      />
 
       {/* =====================================================================
           БЛОК 2: Search Behavior (Top Queries Table + Zero-Result + Top Clicked Products)

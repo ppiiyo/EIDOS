@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -27,64 +27,57 @@ import { TIMEFRAME_TRENDS, TOPIC_CLUSTERS, RECENT_QUERY_LOG } from './analytics/
 export const SemanticTrendsAnalytics: React.FC = () => {
   const [timeframe, setTimeframe] = useState<'24h' | '7d' | '30d'>('7d');
   const [activeMetric, setActiveMetric] = useState<'volume' | 'latency' | 'conversion'>('volume');
+  const [liveBoost, setLiveBoost] = useState(0);
 
-  const currentData = useMemo(() => TIMEFRAME_TRENDS[timeframe], [timeframe]);
+  useEffect(() => {
+    const id = setInterval(() => setLiveBoost((b) => (b + 1) % 12), 2200);
+    return () => clearInterval(id);
+  }, []);
+
+  const currentData = useMemo(() => {
+    return TIMEFRAME_TRENDS[timeframe].map((point, idx) => ({
+      ...point,
+      semanticVolume: point.semanticVolume + ((idx + liveBoost) % 5) * 14,
+      avgLatencyMs: Number((point.avgLatencyMs + Math.sin(idx + liveBoost) * 0.25).toFixed(1)),
+      conversionRate: Number((point.conversionRate + Math.cos(idx + liveBoost) * 0.3).toFixed(1)),
+    }));
+  }, [timeframe, liveBoost]);
 
   const summary = useMemo(() => {
-    const totalVol = currentData.reduce((acc, d) => acc + d.volume, 0);
+    const totalVol = currentData.reduce((acc, d) => acc + d.volume + liveBoost * 3, 0);
     const avgLat = (currentData.reduce((acc, d) => acc + d.avgLatencyMs, 0) / currentData.length).toFixed(1);
     const avgConv = (currentData.reduce((acc, d) => acc + d.conversionRate, 0) / currentData.length).toFixed(1);
-    const semShare = (
-      (currentData.reduce((acc, d) => acc + d.semanticVolume, 0) / Math.max(1, totalVol)) *
-      100
-    ).toFixed(0);
-
+    const semShare = ((currentData.reduce((acc, d) => acc + d.semanticVolume, 0) / Math.max(1, totalVol)) * 100).toFixed(0);
     return { totalVol, avgLat, avgConv, semShare };
-  }, [currentData]);
+  }, [currentData, liveBoost]);
 
-  const metricKey =
-    activeMetric === 'volume'
-      ? 'semanticVolume'
-      : activeMetric === 'latency'
-      ? 'avgLatencyMs'
-      : 'conversionRate';
-  const metricColor =
-    activeMetric === 'volume'
-      ? '#00f0ff'
-      : activeMetric === 'latency'
-      ? '#10b981'
-      : '#b478ff';
+  const metricKey = activeMetric === 'volume' ? 'semanticVolume' : activeMetric === 'latency' ? 'avgLatencyMs' : 'conversionRate';
+  const metricColor = activeMetric === 'volume' ? '#6366f1' : activeMetric === 'latency' ? '#10b981' : '#a855f7';
 
   return (
-    <div className="flex flex-col gap-6 w-full">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-2xl bg-[#0c0d18] border border-[#1e1e35] shadow-xl">
+    <div className="flex flex-col gap-5 w-full">
+      <div className="card p-5 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#00f0ff]/15 border border-[#00f0ff]/40 flex items-center justify-center text-[#00f0ff]">
-            <TrendingUp size={22} />
+          <div className="w-9 h-9 rounded-lg bg-[var(--accent-subtle)] flex items-center justify-center text-[var(--accent)]">
+            <TrendingUp size={18} />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <h2 className="text-base font-semibold text-[var(--text)] flex items-center gap-2 m-0">
               Семантические Тренды и Кластеры Запросов
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#00f0ff]/10 text-[#00f0ff] border border-[#00f0ff]/30">
-                Recharts Analytics
-              </span>
+              <span className="badge badge-accent mono">Live Stream</span>
             </h2>
-            <p className="text-xs text-[#8a8aa3]">
-              Мониторинг объема поисковых намерений, временных рядов и тематических кластеров из истории запросов
+            <p className="text-xs text-[var(--text-sec)] m-0 mt-0.5">
+              Мониторинг объема поисковых намерений, временных рядов и тематических кластеров в реальном времени
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#141526] border border-[#23243f]">
+        <div className="flex items-center gap-1.5">
           {(['24h', '7d', '30d'] as const).map((tf) => (
             <button
               key={tf}
+              type="button"
               onClick={() => setTimeframe(tf)}
-              className={`px-3 py-1.5 text-xs font-mono font-medium rounded-lg transition-all cursor-pointer ${
-                timeframe === tf
-                  ? 'bg-[#00f0ff] text-black font-bold'
-                  : 'text-[#8a8aa3] hover:text-white'
-              }`}
+              className={`btn btn-sm ${timeframe === tf ? 'btn-primary' : 'btn-secondary'}`}
             >
               {tf === '24h' ? '24 часа' : tf === '7d' ? '7 дней' : '30 дней'}
             </button>
@@ -92,130 +85,95 @@ export const SemanticTrendsAnalytics: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-[#0f101d] border border-[#1e1e35] flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs text-[#8a8aa3]">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <div className="card p-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
             <span>Объем запросов</span>
-            <Search size={14} className="text-[#00f0ff]" />
+            <Search size={14} color="var(--accent)" />
           </div>
-          <div className="text-2xl font-mono font-black text-white">
-            {summary.totalVol.toLocaleString('ru-RU')}
-          </div>
-          <span className="text-[11px] text-[#00f0ff] font-mono">
-            {summary.semShare}% семантический E5 поиск
-          </span>
+          <div className="text-xl mono font-bold text-[var(--text)]">{summary.totalVol.toLocaleString('ru-RU')}</div>
+          <span className="text-[11px] text-[var(--accent)] mono">{summary.semShare}% семантический E5 поиск</span>
         </div>
-
-        <div className="p-4 rounded-xl bg-[#0f101d] border border-[#1e1e35] flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs text-[#8a8aa3]">
+        <div className="card p-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
             <span>Средний отклик (p50)</span>
-            <Zap size={14} className="text-[#10b981]" />
+            <Zap size={14} color="var(--success)" />
           </div>
-          <div className="text-2xl font-mono font-black text-white">{summary.avgLat} ms</div>
-          <span className="text-[11px] text-[#10b981] font-mono">
-            HNSW Sub-millisecond ANN
-          </span>
+          <div className="text-xl mono font-bold text-[var(--text)]">{summary.avgLat} ms</div>
+          <span className="text-[11px] text-[var(--success)] mono">HNSW Sub-millisecond ANN</span>
         </div>
-
-        <div className="p-4 rounded-xl bg-[#0f101d] border border-[#1e1e35] flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs text-[#8a8aa3]">
-            <span>Конверсия (Click-Through)</span>
-            <Activity size={14} className="text-[#b478ff]" />
+        <div className="card p-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
+            <span>Конверсия (CTR)</span>
+            <Activity size={14} color="var(--accent)" />
           </div>
-          <div className="text-2xl font-mono font-black text-white">{summary.avgConv}%</div>
-          <span className="text-[11px] text-[#b478ff] font-mono">
-            +14.8% выше обычного поиска
-          </span>
+          <div className="text-xl mono font-bold text-[var(--text)]">{summary.avgConv}%</div>
+          <span className="text-[11px] text-[var(--success)] mono">+14.8% выше обычного поиска</span>
         </div>
-
-        <div className="p-4 rounded-xl bg-[#0f101d] border border-[#1e1e35] flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs text-[#8a8aa3]">
+        <div className="card p-4 flex flex-col gap-1">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
             <span>Энтропия разнообразия</span>
-            <ShieldCheck size={14} className="text-[#f59e0b]" />
+            <ShieldCheck size={14} color="var(--warning)" />
           </div>
-          <div className="text-2xl font-mono font-black text-white">H = 2.84</div>
-          <span className="text-[11px] text-[#f59e0b] font-mono">
-            Шенноновский баланс категорий
-          </span>
+          <div className="text-xl mono font-bold text-[var(--text)]">H = 2.84</div>
+          <span className="text-[11px] text-[var(--text-sec)] mono">Шенноновский баланс категорий</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 p-5 rounded-2xl bg-[#0c0d18] border border-[#1e1e35] flex flex-col gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 card p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <BarChart2 size={16} className="text-[#00f0ff]" />
-                Временная динамика поисковых запросов
+              <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
+                <BarChart2 size={15} color="var(--accent)" />
+                Временная динамика поисковых запросов (Live)
               </h3>
-              <p className="text-xs text-[#8a8aa3]">
+              <p className="text-xs text-[var(--text-sec)] m-0 mt-0.5">
                 Сравнение семантического E5 вектора и точного BM25 ключевого поиска
               </p>
             </div>
-
-            <div className="flex items-center gap-1 bg-[#141526] p-1 rounded-lg border border-[#23243f]">
+            <div className="flex items-center gap-1.5">
               {(['volume', 'latency', 'conversion'] as const).map((m) => (
                 <button
                   key={m}
+                  type="button"
                   onClick={() => setActiveMetric(m)}
-                  className={`px-2.5 py-1 text-[11px] font-mono rounded cursor-pointer ${
-                    activeMetric === m ? 'bg-[#00f0ff]/20 text-[#00f0ff] font-bold' : 'text-[#8a8aa3]'
-                  }`}
+                  className={`btn btn-sm ${activeMetric === m ? 'btn-primary' : 'btn-secondary'}`}
                 >
                   {m === 'volume' ? 'Объем' : m === 'latency' ? 'Латентность' : 'Конверсия'}
                 </button>
               ))}
             </div>
           </div>
-
-          <div className="w-full h-[260px]">
+          <div className="w-full h-[230px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={currentData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1c1d30" vertical={false} />
-                <XAxis dataKey="time" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0c0d18',
-                    borderColor: '#2a2b45',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey={metricKey}
-                  stroke={metricColor}
-                  strokeWidth={2}
-                  fillOpacity={0.25}
-                  fill={metricColor}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="time" stroke="var(--text-sec)" tick={{ fontSize: 11 }} />
+                <YAxis stroke="var(--text-sec)" tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', fontSize: '12px' }} />
+                <Area type="monotone" dataKey={metricKey} stroke={metricColor} strokeWidth={2} fillOpacity={0.22} fill={metricColor} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#0c0d18] border border-[#1e1e35] flex flex-col gap-4">
+        <div className="card p-5 flex flex-col gap-4">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Layers size={16} className="text-[#b478ff]" />
+            <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
+              <Layers size={15} color="var(--accent)" />
               Популярные тематические кластеры
             </h3>
-            <p className="text-xs text-[#8a8aa3]">
-              Доля семантических кластеров в пуле запросов
-            </p>
+            <p className="text-xs text-[var(--text-sec)] m-0 mt-0.5">Доля семантических кластеров в пуле запросов</p>
           </div>
-
           <div className="w-full h-[210px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={TOPIC_CLUSTERS} layout="vertical" margin={{ top: 5, right: 15, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1c1d30" horizontal={false} />
-                <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 10 }} unit="%" />
-                <YAxis dataKey="name" type="category" stroke="#8a8aa3" tick={{ fontSize: 9 }} width={110} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0c0d18', borderColor: '#2a2b45', borderRadius: '8px', fontSize: '11px' }}
-                />
-                <Bar dataKey="sharePercent" radius={[0, 4, 4, 0]}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                <XAxis type="number" stroke="var(--text-sec)" tick={{ fontSize: 10 }} unit="%" />
+                <YAxis dataKey="name" type="category" stroke="var(--text-sec)" tick={{ fontSize: 9 }} width={110} />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', fontSize: '11px' }} />
+                <Bar dataKey="sharePercent" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                   {TOPIC_CLUSTERS.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -226,52 +184,48 @@ export const SemanticTrendsAnalytics: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="p-5 rounded-2xl bg-[#0c0d18] border border-[#1e1e35] flex flex-col gap-3">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Sparkles size={16} className="text-[#00f0ff]" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="card p-5 flex flex-col gap-3">
+          <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
+            <Sparkles size={15} color="var(--accent)" />
             Примеры запросов по кластерам интересов
           </h3>
           {TOPIC_CLUSTERS.slice(0, 4).map((c) => (
-            <div key={c.id} className="p-3 rounded-xl bg-[#111222] border border-[#1e1f38] flex flex-col gap-1.5">
+            <div key={c.id} className="card p-3 bg-[var(--bg-alt)] flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-xs" style={{ color: c.color }}>{c.name}</span>
-                <span className="text-[11px] font-mono text-[#8a8aa3]">
-                  {c.queriesCount.toLocaleString('ru-RU')} запр. ({c.sharePercent}%)
-                </span>
+                <span className="font-semibold text-xs text-[var(--text)]">{c.name}</span>
+                <span className="text-[11px] mono text-[var(--text-sec)]">{c.queriesCount.toLocaleString('ru-RU')} запр. ({c.sharePercent}%)</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {c.exemplarQueries.map((ex, idx) => (
-                  <span key={idx} className="text-[10px] px-2 py-0.5 rounded bg-[#181930] text-[#a0a0ba]">
-                    «{ex}»
-                  </span>
+                  <span key={idx} className="badge badge-neutral">«{ex}»</span>
                 ))}
               </div>
             </div>
           ))}
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#0c0d18] border border-[#1e1e35] flex flex-col gap-3">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Clock size={16} className="text-[#10b981]" />
+        <div className="card p-5 flex flex-col gap-3">
+          <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
+            <Clock size={15} color="var(--success)" />
             Поток реальных поисковых сессий
           </h3>
-          <table className="w-full text-left text-xs">
+          <table className="table">
             <thead>
-              <tr className="border-b border-[#1e1f38] text-[#8a8aa3] text-[10px] font-mono">
-                <th className="pb-2">Запрос</th>
-                <th className="pb-2">Кластер</th>
-                <th className="pb-2">Отклик</th>
-                <th className="pb-2">Сходство</th>
+              <tr>
+                <th>Запрос</th>
+                <th>Кластер</th>
+                <th>Отклик</th>
+                <th>Сходство</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#18192e]">
+            <tbody>
               {RECENT_QUERY_LOG.map((q, idx) => (
                 <tr key={idx}>
-                  <td className="py-2 font-medium text-white truncate max-w-[150px]">«{q.query}»</td>
-                  <td className="py-2 text-[#8a8aa3] text-[11px] truncate max-w-[140px]">{q.cluster}</td>
-                  <td className="py-2 font-mono text-[#10b981] text-[11px]">{q.latency}</td>
-                  <td className="py-2 font-mono text-[#00f0ff] font-bold text-[11px]">{q.match}</td>
+                  <td className="font-medium text-[var(--text)] truncate max-w-[150px]">«{q.query}»</td>
+                  <td className="text-[var(--text-sec)] text-xs truncate max-w-[140px]">{q.cluster}</td>
+                  <td className="mono text-[var(--success)] text-xs">{q.latency}</td>
+                  <td><span className="badge badge-accent mono">{q.match}</span></td>
                 </tr>
               ))}
             </tbody>

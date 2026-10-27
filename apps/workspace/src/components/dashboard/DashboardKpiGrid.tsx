@@ -12,6 +12,20 @@ import {
   Layers,
 } from 'lucide-react';
 import { ViewId } from '../Sidebar';
+import { LiveClusterTelemetryPanel } from '../LiveMetricsCharts';
+
+interface DashboardTranslations {
+  kpiCorpusTitle: string;
+  kpiEntropyTitle: string;
+  kpiEntropySub: string;
+  kpiOpsTitle: string;
+  kpiOpsSub: string;
+  kpiAbTitle: string;
+  kpiAbSub: string;
+  modulesTitle: string;
+  openModule: string;
+  modules: Record<string, { title: string; desc: string }>;
+}
 
 interface DashboardKpiGridProps {
   stats: {
@@ -25,77 +39,83 @@ interface DashboardKpiGridProps {
   };
   dominantLang: string;
   onNavigate: (view: ViewId) => void;
-  t: any;
+  t: DashboardTranslations;
 }
 
 export const DashboardKpiGrid: React.FC<DashboardKpiGridProps> = ({
   stats,
   dominantLang,
-  onNavigate,
   t,
 }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
-      <div className="card px-5 py-4">
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
-            {t.kpiCorpusTitle}
-          </span>
-          <Package size={15} color="var(--accent)" />
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
+        <div className="card px-5 py-4">
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
+              {t.kpiCorpusTitle}
+            </span>
+            <Package size={15} color="var(--accent)" />
+          </div>
+          <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
+            {stats.itemsCount.toLocaleString()} SKU
+          </div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">
+            <span className="mono">{stats.embeddingsCount.toLocaleString()}</span> × 384-d L2 ({dominantLang.toUpperCase()})
+          </div>
         </div>
-        <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
-          {stats.itemsCount.toLocaleString()} SKU
+
+        <div className="card px-5 py-4">
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
+              {t.kpiEntropyTitle}
+            </span>
+            <Layers size={15} color="var(--success)" />
+          </div>
+          <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
+            H = {stats.entropyBits.toFixed(2)} bits
+          </div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">
+            {t.kpiEntropySub} <span className="mono">{stats.uniqueCategories}</span>
+          </div>
         </div>
-        <div className="text-xs text-[var(--text-sec)] mt-1">
-          <span className="mono">{stats.embeddingsCount.toLocaleString()}</span> × 384-d L2 ({dominantLang.toUpperCase()})
+
+        <div className="card px-5 py-4">
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
+              {t.kpiOpsTitle}
+            </span>
+            <Search size={15} color="var(--warning)" />
+          </div>
+          <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
+            {stats.searches + stats.recs} ops
+          </div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">
+            <span className="mono">{stats.searches}</span> / <span className="mono">{stats.recs}</span> {t.kpiOpsSub}
+          </div>
+        </div>
+
+        <div className="card px-5 py-4">
+          <div className="flex justify-between items-center mb-1.5">
+            <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
+              {t.kpiAbTitle}
+            </span>
+            <Split size={15} color="var(--accent)" />
+          </div>
+          <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
+            {stats.activeExperiments} running
+          </div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">
+            {t.kpiAbSub}
+          </div>
         </div>
       </div>
 
-      <div className="card px-5 py-4">
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
-            {t.kpiEntropyTitle}
-          </span>
-          <Layers size={15} color="var(--success)" />
-        </div>
-        <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
-          H = {stats.entropyBits.toFixed(2)} bits
-        </div>
-        <div className="text-xs text-[var(--text-sec)] mt-1">
-          {t.kpiEntropySub} <span className="mono">{stats.uniqueCategories}</span>
-        </div>
-      </div>
-
-      <div className="card px-5 py-4">
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
-            {t.kpiOpsTitle}
-          </span>
-          <Search size={15} color="var(--warning)" />
-        </div>
-        <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
-          {stats.searches + stats.recs} ops
-        </div>
-        <div className="text-xs text-[var(--text-sec)] mt-1">
-          <span className="mono">{stats.searches}</span> / <span className="mono">{stats.recs}</span> {t.kpiOpsSub}
-        </div>
-      </div>
-
-      <div className="card px-5 py-4">
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-[0.8125rem] text-[var(--text-sec)] font-medium">
-            {t.kpiAbTitle}
-          </span>
-          <Split size={15} color="var(--accent)" />
-        </div>
-        <div className="mono text-[1.625rem] font-bold text-[var(--text)]">
-          {stats.activeExperiments} running
-        </div>
-        <div className="text-xs text-[var(--text-sec)] mt-1">
-          {t.kpiAbSub}
-        </div>
-      </div>
-    </div>
+      <LiveClusterTelemetryPanel
+        catalogSize={stats.itemsCount}
+        activeSearches={stats.searches}
+      />
+    </>
   );
 };
 

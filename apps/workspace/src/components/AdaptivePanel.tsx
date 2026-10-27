@@ -17,6 +17,7 @@ import {
   BanditsSubView,
   SteeringSubView,
 } from './adaptive/AdaptiveSubViews';
+import { LiveAdaptiveCharts } from './adaptive/LiveAdaptiveCharts';
 import { UiLanguage } from '../i18n/uiTranslations';
 
 interface AdaptivePanelProps {
@@ -143,6 +144,13 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
         </div>
         <span className="badge badge-success mono">● AIL Core Engine Active</span>
       </div>
+
+      <LiveAdaptiveCharts
+        rankingConfig={rankingConfig}
+        smmrConfig={smmrConfig}
+        banditStrategy={banditStrategy}
+        banditEventCount={banditEvents.length}
+      />
 
       {/* Sub-navigation tabs aligned with studio design system */}
       <div className="card p-2 mb-6 flex flex-wrap items-center gap-1.5">
