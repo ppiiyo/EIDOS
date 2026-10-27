@@ -13,6 +13,7 @@ import { ConversationalView } from './components/ConversationalView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { VectorSpaceView } from './components/VectorSpaceView';
 import { AdaptivePanel } from './components/AdaptivePanel';
+import { SEODashboard } from './pages/SEODashboard/SEODashboard';
 import { ApiConsoleModal } from './components/ApiConsoleModal';
 import { CsvImporterModal } from './components/CsvImporterModal';
 import { DatabaseConnectorModal } from './components/DatabaseConnectorModal';
@@ -21,7 +22,7 @@ import { ConversationalAgent } from './lib/agent/conversational-agent';
 import { useStudioWorkspace } from './hooks/useStudioWorkspace';
 
 export function App() {
-  const [view, setView] = useState<ViewId>('dashboard');
+  const [view, setView] = useState<ViewId>('seo');
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);
@@ -252,6 +253,7 @@ export function App() {
           />
         )}
 
+        {view === 'seo' && <SEODashboard />}
         {view === 'analytics' && <AnalyticsView />}
         {view === 'abtest' && <ABTestView />}
         {view === 'conversational' && (

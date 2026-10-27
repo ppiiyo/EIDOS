@@ -9,6 +9,7 @@ import { recommendUserRoutes } from '../routes/recommend-user';
 import { recommendAdaptiveRoutes } from '../routes/recommend-adaptive';
 import { feedbackRoutes } from '../routes/feedback';
 import { enterpriseRoutes } from '../routes/enterprise';
+import { analyticsRoutes } from '../routes/analytics';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { TenantNamespaceManager } from '../services/multi-tenancy';
@@ -70,6 +71,10 @@ export async function apiRoutesPlugin(
   });
   await fastify.register(feedbackRoutes);
   await fastify.register(enterpriseRoutes);
+  await fastify.register(analyticsRoutes, {
+    vectorStore: opts.vectorStore,
+    embedder: opts.embedder,
+  });
 
   // 404 JSON handler for unknown /v1/* API endpoints; SPA fallback ONLY for non-API routes
   fastify.setNotFoundHandler((request, reply) => {

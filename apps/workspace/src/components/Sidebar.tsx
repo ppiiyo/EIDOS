@@ -15,6 +15,7 @@ import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 export type ViewId =
   | 'dashboard'
+  | 'seo'
   | 'vectorspace'
   | 'adaptive'
   | 'search'
@@ -47,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: t.nav.coreEngine,
       items: [
         { id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard },
+        { id: 'seo', label: 'SEO Dashboard (X-Ray)', icon: BarChart3 },
         { id: 'vectorspace', label: t.nav.vectorspace, icon: Boxes },
         { id: 'adaptive', label: t.nav.adaptive, icon: Sliders },
         { id: 'search', label: t.nav.search, icon: Search },
