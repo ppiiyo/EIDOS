@@ -14,6 +14,7 @@ import {
   Database,
   Settings,
   Network,
+  HelpCircle,
 } from 'lucide-react';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
@@ -31,7 +32,8 @@ export type ViewId =
   | 'analytics'
   | 'abtest'
   | 'conversational'
-  | 'settings';
+  | 'settings'
+  | 'faq';
 
 export interface SidebarProps {
   active: ViewId;
@@ -83,6 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           cluster: 'Кластер и отказоустойчивость',
           seo: 'SEO и мерчандайзинг',
           settings: 'Настройки и API-ключи',
+          faq: 'FAQ и Гид по функциям',
         }
       : uiLang === 'ja'
       ? {
@@ -94,6 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           cluster: 'クラスタ & フェイルオーバー',
           seo: 'SEO & マーチャンダイジング',
           settings: '設定 & APIキー',
+          faq: 'FAQ & 使い方ガイド',
         }
       : {
           g1: 'Core Engine',
@@ -104,6 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           cluster: 'Cluster & Failover',
           seo: 'SEO Insights',
           settings: 'Settings & Keys',
+          faq: 'FAQ & Feature Guide',
         };
 
   const navGroups: Array<{ title: string; items: NavGroupItem[] }> = [
@@ -134,6 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'seo', label: labels.seo, emoji: '🎯', icon: BarChart3 },
         { id: 'adaptive', label: t.nav.adaptive, emoji: '⚙️', icon: Sliders },
         { id: 'settings', label: labels.settings, emoji: '🔐', icon: Settings },
+        { id: 'faq', label: labels.faq, emoji: '❓', icon: HelpCircle },
       ],
     },
   ];

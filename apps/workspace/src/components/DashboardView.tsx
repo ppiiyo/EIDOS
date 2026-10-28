@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Database, RotateCcw, Terminal, Globe } from 'lucide-react';
+import { Search, Database, RotateCcw, Terminal, Globe, HelpCircle } from 'lucide-react';
 import { CatalogItem } from '../types';
 import { ViewId } from './Sidebar';
 import { getEvents, subscribeAnalytics } from '../lib/analytics/tracker';
@@ -110,6 +110,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <p className="page-sub mt-1">{t.subtitle}</p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => onNavigate('faq')}
+            data-testid="open-faq-guide-btn"
+          >
+            <HelpCircle size={14} />
+            <span>{uiLang === 'ru' ? 'FAQ и Гид по функциям' : 'FAQ & Feature Guide'}</span>
+          </button>
           {onOpenDatabaseConnector && (
             <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenDatabaseConnector} data-testid="open-db-connector-btn">
               <Globe size={14} />

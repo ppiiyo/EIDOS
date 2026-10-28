@@ -19,6 +19,7 @@ import { AdaptivePanel } from './AdaptivePanel';
 import { IndexManagerView } from './IndexManagerView';
 import { ClusterTopologyView } from './ClusterTopologyView';
 import { SettingsView } from './SettingsView';
+import { FaqGuideView } from './FaqGuideView';
 import { SEODashboard } from '../pages/SEODashboard/SEODashboard';
 
 export interface StudioViewRouterProps {
@@ -202,6 +203,14 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
       );
     case 'settings':
       return <SettingsView onShowToast={onShowToast} uiLang={uiLang} />;
+    case 'faq':
+      return (
+        <FaqGuideView
+          uiLang={uiLang}
+          onNavigate={onNavigate}
+          onOpenDatabaseConnector={onOpenDatabaseConnector}
+        />
+      );
     default:
       return <SEODashboard uiLang={uiLang} />;
   }
