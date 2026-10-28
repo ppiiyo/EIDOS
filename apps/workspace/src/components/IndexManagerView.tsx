@@ -49,7 +49,9 @@ function formatBytes(bytes: number): string {
 
 export const IndexManagerView: React.FC<{
   onShowToast?: (msg: string, type?: 'info' | 'success' | 'error') => void;
-}> = ({ onShowToast }) => {
+  uiLang?: 'ru' | 'en' | 'ja';
+}> = ({ onShowToast, uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [indexes, setIndexes] = useState<VectorIndexRecord[]>(INITIAL_INDEXES);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newName, setNewName] = useState('');
@@ -151,33 +153,39 @@ export const IndexManagerView: React.FC<{
     <div className="page" data-testid="index-manager-view">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
         <div>
-          <h1 className="page-title">🗄️ HNSW Index Manager &amp; Shards</h1>
-          <p className="page-sub">Manage vector indexes, quantization (FP32 / FP16 / INT8 / Binary), and bulk ingestion</p>
+          <h1 className="page-title">
+            {isRu ? '🗄️ Менеджер векторных индексов (HNSW Index Manager) и шардов' : '🗄️ HNSW Index Manager & Shards'}
+          </h1>
+          <p className="page-sub">
+            {isRu
+              ? 'Управление индексами HNSW, квантованием памяти (FP32 / FP16 / INT8 / Binary) и пакетной загрузкой документов'
+              : 'Manage vector indexes, quantization (FP32 / FP16 / INT8 / Binary), and bulk ingestion'}
+          </p>
         </div>
         <button type="button" className="btn btn-primary btn-sm" data-testid="open-create-index-btn" onClick={() => setShowCreateForm((v) => !v)}>
-          <Plus size={14} /> Create New Index
+          <Plus size={14} /> {isRu ? 'Создать новый индекс' : 'Create New Index'}
         </button>
       </div>
 
       {showCreateForm && (
         <form onSubmit={handleCreateIndex} className="card p-5 mb-5" data-testid="create-index-form">
-          <h3 className="text-base font-semibold mb-3">Create HNSW Vector Index</h3>
+          <h3 className="text-base font-semibold mb-3">{isRu ? 'Создание векторного индекса HNSW' : 'Create HNSW Vector Index'}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
-              <label className="text-xs font-medium block mb-1">Index Name</label>
+              <label className="text-xs font-medium block mb-1">{isRu ? 'Имя индекса' : 'Index Name'}</label>
               <input className="input" data-testid="input-index-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="products-v2" required />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1">Dimensions</label>
+              <label className="text-xs font-medium block mb-1">{isRu ? 'Размерность (Dimensions)' : 'Dimensions'}</label>
               <input type="number" className="input" value={newDimension} onChange={(e) => setNewDimension(Number(e.target.value))} min={8} max={4096} />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1">Quantization</label>
+              <label className="text-xs font-medium block mb-1">{isRu ? 'Квантование' : 'Quantization'}</label>
               <select className="input" data-testid="select-quantization" value={newQuantization} onChange={(e) => setNewQuantization(e.target.value as any)}>
-                <option value="fp32">FP32 (Full Precision)</option>
-                <option value="fp16">FP16 (2x Compression)</option>
-                <option value="int8">INT8 Scalar (4x Compression)</option>
-                <option value="binary">Binary 1-bit (32x Compression)</option>
+                <option value="fp32">{isRu ? 'FP32 (Полная точность)' : 'FP32 (Full Precision)'}</option>
+                <option value="fp16">{isRu ? 'FP16 (Сжатие 2x)' : 'FP16 (2x Compression)'}</option>
+                <option value="int8">{isRu ? 'INT8 Scalar (Сжатие 4x)' : 'INT8 Scalar (4x Compression)'}</option>
+                <option value="binary">{isRu ? 'Binary 1-bit (Сжатие 32x)' : 'Binary 1-bit (32x Compression)'}</option>
               </select>
             </div>
             <div>
@@ -190,8 +198,8 @@ export const IndexManagerView: React.FC<{
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button type="submit" className="btn btn-primary btn-sm" data-testid="submit-create-index">Provision Index</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowCreateForm(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary btn-sm" data-testid="submit-create-index">{isRu ? 'Создать индекс' : 'Provision Index'}</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowCreateForm(false)}>{isRu ? 'Отмена' : 'Cancel'}</button>
           </div>
         </form>
       )}
@@ -204,7 +212,7 @@ export const IndexManagerView: React.FC<{
                 <Database size={18} color="var(--accent)" />
                 <div>
                   <h3 className="text-base font-semibold m-0 mono">{idx.name}</h3>
-                  <span className="text-xs text-[var(--text-sec)]">{idx.shards} Shards · RF={idx.replicationFactor}</span>
+                  <span className="text-xs text-[var(--text-sec)]">{idx.shards} {isRu ? 'Шарда' : 'Shards'} · RF={idx.replicationFactor}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -218,15 +226,15 @@ export const IndexManagerView: React.FC<{
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border)] text-xs">
               <div>
-                <span className="text-[var(--text-sec)] flex items-center gap-1"><Layers size={12} /> Documents</span>
+                <span className="text-[var(--text-sec)] flex items-center gap-1"><Layers size={12} /> {isRu ? 'Документы' : 'Documents'}</span>
                 <div className="mono font-bold text-sm mt-0.5">{idx.documentCount.toLocaleString()}</div>
               </div>
               <div>
-                <span className="text-[var(--text-sec)] flex items-center gap-1"><Cpu size={12} /> Quantization</span>
+                <span className="text-[var(--text-sec)] flex items-center gap-1"><Cpu size={12} /> {isRu ? 'Квантование' : 'Quantization'}</span>
                 <div className="mono font-bold text-sm mt-0.5">{idx.quantization.toUpperCase()} ({idx.dimension}d)</div>
               </div>
               <div>
-                <span className="text-[var(--text-sec)] flex items-center gap-1"><HardDrive size={12} /> RAM Usage</span>
+                <span className="text-[var(--text-sec)] flex items-center gap-1"><HardDrive size={12} /> {isRu ? 'Память RAM' : 'RAM Usage'}</span>
                 <div className="mono font-bold text-sm mt-0.5">{formatBytes(idx.memoryBytes)}</div>
               </div>
             </div>
@@ -240,15 +248,15 @@ export const IndexManagerView: React.FC<{
       <form onSubmit={handleBulkUpload} className="card p-5" data-testid="bulk-upload-form">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h3 className="text-base font-semibold m-0 flex items-center gap-2">
-            <Upload size={16} color="var(--accent)" /> Bulk Document Ingestion (JSON / Vector Batch)
+            <Upload size={16} color="var(--accent)" /> {isRu ? 'Пакетная загрузка документов (JSON / Векторный батч)' : 'Bulk Document Ingestion (JSON / Vector Batch)'}
           </h3>
           <select className="input w-[200px]" value={selectedIndexForUpload} onChange={(e) => setSelectedIndexForUpload(e.target.value)}>
-            {indexes.map((i) => <option key={i.name} value={i.name}>Target: {i.name}</option>)}
+            {indexes.map((i) => <option key={i.name} value={i.name}>{isRu ? 'Индекс' : 'Target'}: {i.name}</option>)}
           </select>
         </div>
         <textarea className="input mono text-xs w-full h-24 mb-3" value={bulkJsonPayload} onChange={(e) => setBulkJsonPayload(e.target.value)} />
         <button type="submit" className="btn btn-primary btn-sm" data-testid="bulk-upload-submit">
-          <Upload size={14} /> Upload &amp; Auto-Embed Documents
+          <Upload size={14} /> {isRu ? 'Загрузить и векторизовать документы' : 'Upload & Auto-Embed Documents'}
         </button>
       </form>
     </div>

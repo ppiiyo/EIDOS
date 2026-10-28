@@ -19,7 +19,9 @@ export interface WebhookEntry {
 
 export const SettingsView: React.FC<{
   onShowToast?: (msg: string, type?: 'info' | 'success' | 'error') => void;
-}> = ({ onShowToast }) => {
+  uiLang?: 'ru' | 'en' | 'ja';
+}> = ({ onShowToast, uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [keys, setKeys] = useState<ApiKeyEntry[]>([
     {
       key_hash: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
@@ -177,22 +179,26 @@ export const SettingsView: React.FC<{
   return (
     <div className="page" data-testid="settings-view">
       <div className="mb-5">
-        <h1 className="page-title">⚙️ Engine Settings, API Keys &amp; Security</h1>
-        <p className="page-sub">Configure API authentication keys, HNSW graph parameters, webhook subscriptions, and rate limits</p>
+        <h1 className="page-title">{isRu ? '⚙️ Настройки движка, API-ключи и безопасность' : '⚙️ Engine Settings, API Keys & Security'}</h1>
+        <p className="page-sub">
+          {isRu
+            ? 'Управление ключами авторизации API (для 1С-Битрикс / SDK), параметрами графа HNSW, вебхуками и лимитами запросов'
+            : 'Configure API authentication keys, HNSW graph parameters, webhook subscriptions, and rate limits'}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5" data-testid="settings-api-keys-section">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-semibold m-0 flex items-center gap-2"><Key size={16} color="var(--accent)" /> API Keys Management</h3>
+            <h3 className="text-base font-semibold m-0 flex items-center gap-2"><Key size={16} color="var(--accent)" /> {isRu ? 'Управление API-ключами' : 'API Keys Management'}</h3>
             <div className="flex gap-2">
               <input className="input w-[120px] text-xs" value={newKeyTenant} onChange={(e) => setNewKeyTenant(e.target.value)} placeholder="tenant_id" />
-              <button type="button" className="btn btn-primary btn-sm" data-testid="generate-api-key-btn" onClick={handleGenerateKey}><Plus size={13} /> Generate Key</button>
+              <button type="button" className="btn btn-primary btn-sm" data-testid="generate-api-key-btn" onClick={handleGenerateKey}><Plus size={13} /> {isRu ? 'Создать ключ' : 'Generate Key'}</button>
             </div>
           </div>
           {generatedPlainKey && (
             <div className="p-3 mb-3 rounded bg-[var(--bg-alt)] border border-[var(--success)] text-xs mono">
-              <CheckCircle2 size={13} className="inline mr-1 text-[var(--success)]" /> New Key: <strong>{generatedPlainKey}</strong>
+              <CheckCircle2 size={13} className="inline mr-1 text-[var(--success)]" /> {isRu ? 'Новый ключ:' : 'New Key:'} <strong>{generatedPlainKey}</strong>
             </div>
           )}
           <div className="flex flex-col gap-2">
@@ -200,12 +206,12 @@ export const SettingsView: React.FC<{
               <div key={k.key_hash} className="p-3 rounded bg-[var(--bg-alt)] flex items-center justify-between text-xs">
                 <div>
                   <div className="mono font-semibold">{k.preview || `${k.key_hash.slice(0, 16)}...`}</div>
-                  <span className="text-[var(--text-sec)]">Tenant: {k.tenant_id} · Created: {k.created_at.slice(0, 10)}</span>
+                  <span className="text-[var(--text-sec)]">{isRu ? 'Тенант' : 'Tenant'}: {k.tenant_id} · {isRu ? 'Создан' : 'Created'}: {k.created_at.slice(0, 10)}</span>
                 </div>
                 {k.revoked_at ? (
-                  <span className="badge badge-danger mono">REVOKED</span>
+                  <span className="badge badge-danger mono">{isRu ? 'ОТОЗВАН' : 'REVOKED'}</span>
                 ) : (
-                  <button type="button" className="btn btn-danger btn-sm" data-testid={`revoke-key-${k.key_hash.slice(0, 8)}`} onClick={() => handleRevokeKey(k.key_hash)}>Revoke</button>
+                  <button type="button" className="btn btn-danger btn-sm" data-testid={`revoke-key-${k.key_hash.slice(0, 8)}`} onClick={() => handleRevokeKey(k.key_hash)}>{isRu ? 'Отозвать' : 'Revoke'}</button>
                 )}
               </div>
             ))}
@@ -213,10 +219,10 @@ export const SettingsView: React.FC<{
         </div>
 
         <form onSubmit={handleSaveEngineSettings} className="card p-5" data-testid="settings-hnsw-section">
-          <h3 className="text-base font-semibold mb-3 flex items-center gap-2"><Sliders size={16} color="var(--accent)" /> HNSW Parameters &amp; Rate Limiting</h3>
+          <h3 className="text-base font-semibold mb-3 flex items-center gap-2"><Sliders size={16} color="var(--accent)" /> {isRu ? 'Параметры HNSW и лимиты запросов (Rate Limiting)' : 'HNSW Parameters & Rate Limiting'}</h3>
           <div className="grid grid-cols-2 gap-3 mb-3 text-xs">
             <div>
-              <label className="block font-medium mb-1">HNSW M (Max Edges)</label>
+              <label className="block font-medium mb-1">{isRu ? 'HNSW M (Макс. рёбер)' : 'HNSW M (Max Edges)'}</label>
               <input type="number" className="input" data-testid="setting-hnsw-m" value={hnswM} onChange={(e) => setHnswM(Number(e.target.value))} />
             </div>
             <div>
@@ -228,7 +234,7 @@ export const SettingsView: React.FC<{
               <input type="number" className="input" value={efSearch} onChange={(e) => setEfSearch(Number(e.target.value))} />
             </div>
             <div>
-              <label className="block font-medium mb-1">Default Quantization</label>
+              <label className="block font-medium mb-1">{isRu ? 'Квантование по умолчанию' : 'Default Quantization'}</label>
               <select className="input" value={quantization} onChange={(e) => setQuantization(e.target.value as any)}>
                 <option value="fp32">FP32</option>
                 <option value="fp16">FP16</option>
@@ -237,39 +243,39 @@ export const SettingsView: React.FC<{
               </select>
             </div>
             <div>
-              <label className="block font-medium mb-1">Rate Limit (Req / Min)</label>
+              <label className="block font-medium mb-1">{isRu ? 'Лимит запросов (Req / Min)' : 'Rate Limit (Req / Min)'}</label>
               <input type="number" className="input" data-testid="setting-rpm-limit" value={rpmLimit} onChange={(e) => setRpmLimit(Number(e.target.value))} />
             </div>
             <div>
-              <label className="block font-medium mb-1">Burst Capacity</label>
+              <label className="block font-medium mb-1">{isRu ? 'Пиковый буфер (Burst)' : 'Burst Capacity'}</label>
               <input type="number" className="input" value={burstLimit} onChange={(e) => setBurstLimit(Number(e.target.value))} />
             </div>
           </div>
           <div className="flex items-center gap-4 mb-4 text-xs">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" checked={piiRedaction} onChange={(e) => setPiiRedaction(e.target.checked)} />
-              <Shield size={13} /> Automatic PII Redaction
+              <Shield size={13} /> {isRu ? 'Авто-скрытие персональных данных (PII)' : 'Automatic PII Redaction'}
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" checked={xssSanitization} onChange={(e) => setXssSanitization(e.target.checked)} />
-              XSS / Injection Guardrails
+              {isRu ? 'Защита от XSS / SQLi / Инъекций' : 'XSS / Injection Guardrails'}
             </label>
           </div>
-          <button type="submit" className="btn btn-primary btn-sm" data-testid="save-settings-btn"><Save size={13} /> Save Engine Settings</button>
+          <button type="submit" className="btn btn-primary btn-sm" data-testid="save-settings-btn"><Save size={13} /> {isRu ? 'Сохранить настройки движка' : 'Save Engine Settings'}</button>
         </form>
 
         <div className="card p-5 lg:col-span-2" data-testid="settings-webhooks-section">
-          <h3 className="text-base font-semibold mb-3 flex items-center gap-2"><Webhook size={16} color="var(--accent)" /> Event Webhooks (HMAC-SHA256 Signed)</h3>
+          <h3 className="text-base font-semibold mb-3 flex items-center gap-2"><Webhook size={16} color="var(--accent)" /> {isRu ? 'Событийные вебхуки (подпись HMAC-SHA256)' : 'Event Webhooks (HMAC-SHA256 Signed)'}</h3>
           <form onSubmit={handleAddWebhook} className="flex gap-2 mb-4">
             <input className="input flex-1" data-testid="input-webhook-url" value={newWebhookUrl} onChange={(e) => setNewWebhookUrl(e.target.value)} placeholder="https://api.yourcompany.com/webhooks/eidos" />
-            <button type="submit" className="btn btn-primary btn-sm" data-testid="add-webhook-btn"><Plus size={14} /> Add Webhook</button>
+            <button type="submit" className="btn btn-primary btn-sm" data-testid="add-webhook-btn"><Plus size={14} /> {isRu ? 'Добавить вебхук' : 'Add Webhook'}</button>
           </form>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {webhooks.map((wh) => (
               <div key={wh.id} className="p-3 rounded bg-[var(--bg-alt)] flex items-center justify-between text-xs">
                 <div>
                   <div className="mono font-semibold">{wh.url}</div>
-                  <div className="text-[var(--text-sec)] mt-0.5">Events: {wh.events.join(', ')}</div>
+                  <div className="text-[var(--text-sec)] mt-0.5">{isRu ? 'События' : 'Events'}: {wh.events.join(', ')}</div>
                 </div>
                 <button type="button" className="btn btn-danger btn-sm" onClick={() => setWebhooks((prev) => prev.filter((w) => w.id !== wh.id))}><Trash2 size={13} /></button>
               </div>

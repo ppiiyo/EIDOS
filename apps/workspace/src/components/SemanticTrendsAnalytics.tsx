@@ -24,7 +24,8 @@ import {
 } from 'lucide-react';
 import { TIMEFRAME_TRENDS, TOPIC_CLUSTERS, RECENT_QUERY_LOG } from './analytics/trendsData';
 
-export const SemanticTrendsAnalytics: React.FC = () => {
+export const SemanticTrendsAnalytics: React.FC<{ uiLang?: 'ru' | 'en' | 'ja' }> = ({ uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [timeframe, setTimeframe] = useState<'24h' | '7d' | '30d'>('7d');
   const [activeMetric, setActiveMetric] = useState<'volume' | 'latency' | 'conversion'>('volume');
   const [liveBoost, setLiveBoost] = useState(0);
@@ -63,11 +64,13 @@ export const SemanticTrendsAnalytics: React.FC = () => {
           </div>
           <div>
             <h2 className="text-base font-semibold text-[var(--text)] flex items-center gap-2 m-0">
-              Семантические Тренды и Кластеры Запросов
+              {isRu ? 'Семантические Тренды и Кластеры Запросов' : 'Semantic Search Trends & Intent Clusters'}
               <span className="badge badge-accent mono">Live Stream</span>
             </h2>
             <p className="text-xs text-[var(--text-sec)] m-0 mt-0.5">
-              Мониторинг объема поисковых намерений, временных рядов и тематических кластеров в реальном времени
+              {isRu
+                ? 'Мониторинг объема поисковых намерений, временных рядов и тематических кластеров в реальном времени'
+                : 'Real-time monitoring of semantic intent volume, time series, and topic clusters'}
             </p>
           </div>
         </div>
@@ -79,7 +82,7 @@ export const SemanticTrendsAnalytics: React.FC = () => {
               onClick={() => setTimeframe(tf)}
               className={`btn btn-sm ${timeframe === tf ? 'btn-primary' : 'btn-secondary'}`}
             >
-              {tf === '24h' ? '24 часа' : tf === '7d' ? '7 дней' : '30 дней'}
+              {isRu ? (tf === '24h' ? '24 часа' : tf === '7d' ? '7 дней' : '30 дней') : tf}
             </button>
           ))}
         </div>
@@ -88,15 +91,15 @@ export const SemanticTrendsAnalytics: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
         <div className="card p-4 flex flex-col gap-1">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>Объем запросов</span>
+            <span>{isRu ? 'Объем запросов' : 'Query Volume'}</span>
             <Search size={14} color="var(--accent)" />
           </div>
-          <div className="text-xl mono font-bold text-[var(--text)]">{summary.totalVol.toLocaleString('ru-RU')}</div>
-          <span className="text-[11px] text-[var(--accent)] mono">{summary.semShare}% семантический E5 поиск</span>
+          <div className="text-xl mono font-bold text-[var(--text)]">{summary.totalVol.toLocaleString(isRu ? 'ru-RU' : 'en-US')}</div>
+          <span className="text-[11px] text-[var(--accent)] mono">{summary.semShare}% {isRu ? 'семантический E5 поиск' : 'semantic E5 search'}</span>
         </div>
         <div className="card p-4 flex flex-col gap-1">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>Средний отклик (p50)</span>
+            <span>{isRu ? 'Средний отклик (p50)' : 'Median Latency (p50)'}</span>
             <Zap size={14} color="var(--success)" />
           </div>
           <div className="text-xl mono font-bold text-[var(--text)]">{summary.avgLat} ms</div>
@@ -104,19 +107,19 @@ export const SemanticTrendsAnalytics: React.FC = () => {
         </div>
         <div className="card p-4 flex flex-col gap-1">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>Конверсия (CTR)</span>
+            <span>{isRu ? 'Конверсия (CTR)' : 'Conversion (CTR)'}</span>
             <Activity size={14} color="var(--accent)" />
           </div>
           <div className="text-xl mono font-bold text-[var(--text)]">{summary.avgConv}%</div>
-          <span className="text-[11px] text-[var(--success)] mono">+14.8% выше обычного поиска</span>
+          <span className="text-[11px] text-[var(--success)] mono">{isRu ? '+14.8% выше обычного поиска' : '+14.8% vs lexical search'}</span>
         </div>
         <div className="card p-4 flex flex-col gap-1">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>Энтропия разнообразия</span>
+            <span>{isRu ? 'Энтропия разнообразия' : 'Diversity Entropy'}</span>
             <ShieldCheck size={14} color="var(--warning)" />
           </div>
           <div className="text-xl mono font-bold text-[var(--text)]">H = 2.84</div>
-          <span className="text-[11px] text-[var(--text-sec)] mono">Шенноновский баланс категорий</span>
+          <span className="text-[11px] text-[var(--text-sec)] mono">{isRu ? 'Шенноновский баланс категорий' : 'Shannon category balance'}</span>
         </div>
       </div>
 
@@ -126,10 +129,10 @@ export const SemanticTrendsAnalytics: React.FC = () => {
             <div>
               <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
                 <BarChart2 size={15} color="var(--accent)" />
-                Временная динамика поисковых запросов (Live)
+                {isRu ? 'Временная динамика поисковых запросов (Live)' : 'Live Search Query Time-Series'}
               </h3>
               <p className="text-xs text-[var(--text-sec)] m-0 mt-0.5">
-                Сравнение семантического E5 вектора и точного BM25 ключевого поиска
+                {isRu ? 'Сравнение семантического E5 вектора и точного BM25 ключевого поиска' : 'Comparing semantic E5 vector hits and exact BM25 lexical matching'}
               </p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -140,7 +143,7 @@ export const SemanticTrendsAnalytics: React.FC = () => {
                   onClick={() => setActiveMetric(m)}
                   className={`btn btn-sm ${activeMetric === m ? 'btn-primary' : 'btn-secondary'}`}
                 >
-                  {m === 'volume' ? 'Объем' : m === 'latency' ? 'Латентность' : 'Конверсия'}
+                  {isRu ? (m === 'volume' ? 'Объем' : m === 'latency' ? 'Латентность' : 'Конверсия') : m.charAt(0).toUpperCase() + m.slice(1)}
                 </button>
               ))}
             </div>
@@ -162,9 +165,11 @@ export const SemanticTrendsAnalytics: React.FC = () => {
           <div>
             <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
               <Layers size={15} color="var(--accent)" />
-              Популярные тематические кластеры
+              {isRu ? 'Популярные тематические кластеры' : 'Top Semantic Topic Clusters'}
             </h3>
-            <p className="text-xs text-[var(--text-sec)] m-0 mt-0.5">Доля семантических кластеров в пуле запросов</p>
+            <p className="text-xs text-[var(--text-sec)] m-0 mt-0.5">
+              {isRu ? 'Доля семантических кластеров в пуле запросов' : 'Share of semantic intent clusters across queries'}
+            </p>
           </div>
           <div className="w-full h-[210px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -188,13 +193,13 @@ export const SemanticTrendsAnalytics: React.FC = () => {
         <div className="card p-5 flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
             <Sparkles size={15} color="var(--accent)" />
-            Примеры запросов по кластерам интересов
+            {isRu ? 'Примеры запросов по кластерам интересов' : 'Exemplar Queries by Interest Cluster'}
           </h3>
           {TOPIC_CLUSTERS.slice(0, 4).map((c) => (
             <div key={c.id} className="card p-3 bg-[var(--bg-alt)] flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-xs text-[var(--text)]">{c.name}</span>
-                <span className="text-[11px] mono text-[var(--text-sec)]">{c.queriesCount.toLocaleString('ru-RU')} запр. ({c.sharePercent}%)</span>
+                <span className="text-[11px] mono text-[var(--text-sec)]">{c.queriesCount.toLocaleString(isRu ? 'ru-RU' : 'en-US')} {isRu ? 'запр.' : 'queries'} ({c.sharePercent}%)</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {c.exemplarQueries.map((ex, idx) => (
@@ -208,15 +213,15 @@ export const SemanticTrendsAnalytics: React.FC = () => {
         <div className="card p-5 flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2 m-0">
             <Clock size={15} color="var(--success)" />
-            Поток реальных поисковых сессий
+            {isRu ? 'Поток реальных поисковых сессий' : 'Live Search Session Stream'}
           </h3>
           <table className="table">
             <thead>
               <tr>
-                <th>Запрос</th>
-                <th>Кластер</th>
-                <th>Отклик</th>
-                <th>Сходство</th>
+                <th>{isRu ? 'Запрос' : 'Query'}</th>
+                <th>{isRu ? 'Кластер' : 'Cluster'}</th>
+                <th>{isRu ? 'Отклик' : 'Latency'}</th>
+                <th>{isRu ? 'Сходство' : 'Match'}</th>
               </tr>
             </thead>
             <tbody>

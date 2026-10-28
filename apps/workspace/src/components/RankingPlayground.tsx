@@ -20,6 +20,7 @@ export interface SearchResultItem {
 
 export interface RankingPlaygroundProps {
   catalog?: CatalogItem[];
+  uiLang?: 'ru' | 'en' | 'ja';
 }
 
 const DEFAULT_FALLBACK_ITEMS: Array<{ id: string; title: string; category: string }> = [
@@ -78,23 +79,30 @@ export function computeFallbackResults(
 const SLIDERS: Array<{
   key: keyof RankingParams;
   label: string;
+  labelRu: string;
   testId: string;
   leftHint?: string;
+  leftHintRu?: string;
   rightHint?: string;
+  rightHintRu?: string;
 }> = [
   {
     key: 'alpha',
     label: 'Hybrid Alpha (Vector vs BM25)',
+    labelRu: 'Гибридный вес Alpha (Вектор vs BM25)',
     testId: 'slider-alpha',
     leftHint: '100% BM25 (Keyword)',
+    leftHintRu: '100% BM25 (Ключевые слова)',
     rightHint: '100% Vector (Semantic)',
+    rightHintRu: '100% Вектор (Семантика)',
   },
-  { key: 'diversityLambda', label: 'MMR Diversity (λ)', testId: 'slider-diversity' },
-  { key: 'freshnessWeight', label: 'Freshness Boost', testId: 'slider-freshness' },
-  { key: 'popularityWeight', label: 'Popularity Boost', testId: 'slider-popularity' },
+  { key: 'diversityLambda', label: 'MMR Diversity (λ)', labelRu: 'Диверсификация MMR (λ)', testId: 'slider-diversity' },
+  { key: 'freshnessWeight', label: 'Freshness Boost', labelRu: 'Буст новизны (Freshness)', testId: 'slider-freshness' },
+  { key: 'popularityWeight', label: 'Popularity Boost', labelRu: 'Буст популярности (Popularity)', testId: 'slider-popularity' },
 ];
 
-export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog }) => {
+export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog, uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [query, setQuery] = useState('wireless headphones');
   const [params, setParams] = useState<RankingParams>({
     alpha: 0.7,
@@ -172,9 +180,13 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog })
   return (
     <div className="page ranking-playground" data-testid="ranking-playground">
       <div className="playground-header mb-6">
-        <h2 className="page-title">⚖️ Interactive Ranking Playground</h2>
+        <h2 className="page-title">
+          {isRu ? '⚖️ Интерактивная песочница ранжирования (Interactive Ranking Playground)' : '⚖️ Interactive Ranking Playground'}
+        </h2>
         <p className="page-sub">
-          Настройте веса гибридного поиска и MMR-диверсификации в реальном времени
+          {isRu
+            ? 'Настройте веса гибридного поиска (Vector vs BM25) и MMR-диверсификации в реальном времени'
+            : 'Tune hybrid search weights (Vector vs BM25) and MMR diversification in real time'}
         </p>
       </div>
 
@@ -185,23 +197,23 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog })
               htmlFor="ranking-query-input"
               className="block text-xs font-semibold text-[var(--text-sec)] mb-1.5"
             >
-              Search Query
+              {isRu ? 'Поисковый запрос' : 'Search Query'}
             </label>
             <input
               id="ranking-query-input"
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter search query..."
+              placeholder={isRu ? 'Введите поисковый запрос...' : 'Enter search query...'}
               className="search-input-large input"
               data-testid="ranking-query-input"
             />
           </div>
 
-          {SLIDERS.map(({ key, label, testId, leftHint, rightHint }) => (
+          {SLIDERS.map(({ key, label, labelRu, testId, leftHint, leftHintRu, rightHint, rightHintRu }) => (
             <div key={key} className="slider-group">
               <div className="slider-header">
-                <span>{label}</span>
+                <span>{isRu ? labelRu : label}</span>
                 <span className="slider-value" data-testid={`${key}-value`}>
                   {params[key].toFixed(2)}
                 </span>
@@ -218,8 +230,8 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog })
               />
               {leftHint && rightHint && (
                 <div className="slider-labels">
-                  <span>{leftHint}</span>
-                  <span>{rightHint}</span>
+                  <span>{isRu ? leftHintRu : leftHint}</span>
+                  <span>{isRu ? rightHintRu : rightHint}</span>
                 </div>
               )}
             </div>
@@ -228,9 +240,11 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog })
 
         <div className="results-panel card p-5">
           <div className="results-meta flex justify-between items-center mb-4">
-            <span className="text-sm font-semibold">Showing {results.length} live results</span>
+            <span className="text-sm font-semibold">
+              {isRu ? `Показано результатов в реальном времени: ${results.length}` : `Showing ${results.length} live results`}
+            </span>
             <span className="latency-badge badge badge-success mono" data-testid="ranking-latency">
-              ⚡ {latencyMs} ms {isLoading ? '(updating...)' : ''}
+              ⚡ {latencyMs} ms {isLoading ? (isRu ? '(обновление...)' : '(updating...)') : ''}
             </span>
           </div>
 
@@ -252,11 +266,11 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog })
 
                 <div className="score-bars">
                   {[
-                    { label: 'Vector', cls: 'vector', pct: item.vectorScore * 100 },
+                    { label: isRu ? 'Вектор (Vector)' : 'Vector', cls: 'vector', pct: item.vectorScore * 100 },
                     { label: 'BM25', cls: 'bm25', pct: item.bm25Score * 100 },
-                    { label: 'Diversity', cls: 'diversity', pct: item.diversityBonus * 200 },
+                    { label: isRu ? 'Разнообразие (Diversity)' : 'Diversity', cls: 'diversity', pct: item.diversityBonus * 200 },
                   ].map((b) => (
-                    <div key={b.label} className="bar-row">
+                    <div key={b.cls} className="bar-row">
                       <span>{b.label}</span>
                       <div className="bar-track">
                         <div

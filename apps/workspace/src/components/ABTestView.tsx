@@ -11,7 +11,8 @@ import {
   ExperimentResult,
 } from '../lib/ab-testing/engine';
 
-export const ABTestView: React.FC = () => {
+export const ABTestView: React.FC<{ uiLang?: 'ru' | 'en' | 'ja' }> = ({ uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [results, setResults] = useState<ExperimentResult[]>([]);
@@ -43,13 +44,13 @@ export const ABTestView: React.FC = () => {
   const handleCreate = () => {
     setErrorMessage(null);
     if (!form.name.trim()) {
-      setErrorMessage('Please enter an experiment name.');
+      setErrorMessage(isRu ? 'Пожалуйста, укажите название эксперимента.' : 'Please enter an experiment name.');
       return;
     }
     try {
       const exp = createExperiment({
         name: form.name.trim(),
-        description: form.description.trim() || 'Comparing ranking configurations',
+        description: form.description.trim() || (isRu ? 'Сравнение параметров ранжирования' : 'Comparing ranking configurations'),
         variantNames: [form.controlName, form.variantName],
         trafficSplit: [form.split / 100, 1 - form.split / 100],
         metric: form.metric,
@@ -59,7 +60,7 @@ export const ABTestView: React.FC = () => {
       setForm((f) => ({ ...f, name: '', description: '' }));
       refresh();
     } catch (e: any) {
-      setErrorMessage(e.message || 'Failed to create experiment');
+      setErrorMessage(e.message || (isRu ? 'Не удалось создать эксперимент' : 'Failed to create experiment'));
     }
   };
 
@@ -87,13 +88,17 @@ export const ABTestView: React.FC = () => {
     <div className="page">
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="page-title">Statistical A/B Experiment Engine</h1>
+          <h1 className="page-title">
+            {isRu ? '🧪 Статистический движок A/B-экспериментов' : 'Statistical A/B Experiment Engine'}
+          </h1>
           <p className="page-sub">
-            Deterministic FNV-1a user bucketing with two-tailed Z-test significance evaluation
+            {isRu
+              ? 'Детерминированное FNV-1a распределение пользователей по группам и двусторонний Z-тест статистической значимости'
+              : 'Deterministic FNV-1a user bucketing with two-tailed Z-test significance evaluation'}
           </p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={15} /> New Experiment
+          <Plus size={15} /> {isRu ? 'Новый эксперимент' : 'New Experiment'}
         </button>
       </div>
 
@@ -107,7 +112,7 @@ export const ABTestView: React.FC = () => {
         <div className="card p-5 mb-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="text-[0.8125rem] font-medium block mb-1">Experiment Name</label>
+              <label className="text-[0.8125rem] font-medium block mb-1">{isRu ? 'Название эксперимента' : 'Experiment Name'}</label>
               <input
                 className="input"
                 value={form.name}
@@ -116,18 +121,18 @@ export const ABTestView: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-[0.8125rem] font-medium block mb-1">Primary Metric</label>
+              <label className="text-[0.8125rem] font-medium block mb-1">{isRu ? 'Целевая метрика' : 'Primary Metric'}</label>
               <select
                 className="input"
                 value={form.metric}
                 onChange={(e) => setForm((f) => ({ ...f, metric: e.target.value as any }))}
               >
-                <option value="conversion">Conversion rate</option>
-                <option value="revenue">Revenue per user</option>
+                <option value="conversion">{isRu ? 'Конверсия в покупку (CR)' : 'Conversion rate'}</option>
+                <option value="revenue">{isRu ? 'Выручка на пользователя (ARPU)' : 'Revenue per user'}</option>
               </select>
             </div>
             <div>
-              <label className="text-[0.8125rem] font-medium block mb-1">Control Traffic Split (%)</label>
+              <label className="text-[0.8125rem] font-medium block mb-1">{isRu ? 'Доля трафика Control (%)' : 'Control Traffic Split (%)'}</label>
               <input
                 className="input"
                 type="number"
@@ -138,21 +143,21 @@ export const ABTestView: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-[0.8125rem] font-medium block mb-1">Hypothesis Description</label>
+              <label className="text-[0.8125rem] font-medium block mb-1">{isRu ? 'Описание гипотезы' : 'Hypothesis Description'}</label>
               <input
                 className="input"
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="What ranking parameter are you testing?"
+                placeholder={isRu ? 'Какой параметр ранжирования тестируем?' : 'What ranking parameter are you testing?'}
               />
             </div>
           </div>
           <div className="mt-4 flex gap-2">
             <button type="button" className="btn btn-primary btn-sm" onClick={handleCreate}>
-              Create Experiment
+              {isRu ? 'Создать эксперимент' : 'Create Experiment'}
             </button>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowForm(false)}>
-              Cancel
+              {isRu ? 'Отмена' : 'Cancel'}
             </button>
           </div>
         </div>
@@ -173,13 +178,13 @@ export const ABTestView: React.FC = () => {
             >
               <div className="font-semibold text-sm">{exp.name}</div>
               <div className="mono text-xs text-[var(--text-sec)] mt-1">
-                {exp.variants.map((v) => v.users).reduce((a, b) => a + b, 0)} users · {exp.status}
+                {exp.variants.map((v) => v.users).reduce((a, b) => a + b, 0)} {isRu ? 'польз.' : 'users'} · {exp.status}
               </div>
             </button>
           ))}
           {experiments.length === 0 && (
             <div className="card p-4 text-[0.8125rem] text-[var(--text-sec)]">
-              No experiments created yet. Click "New Experiment" to start testing ranking variants.
+              {isRu ? 'Эксперименты ещё не созданы. Нажмите «Новый эксперимент».' : 'No experiments created yet. Click "New Experiment" to start testing ranking variants.'}
             </div>
           )}
         </div>
@@ -193,7 +198,7 @@ export const ABTestView: React.FC = () => {
               </div>
               <div className="flex gap-2">
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulate(sel.id)}>
-                  <Play size={13} /> Simulate 200 Sessions
+                  <Play size={13} /> {isRu ? 'Симулировать 200 сессий' : 'Simulate 200 Sessions'}
                 </button>
                 {sel.status === 'running' && (
                   <button
@@ -204,7 +209,7 @@ export const ABTestView: React.FC = () => {
                       refresh();
                     }}
                   >
-                    <Square size={13} /> Complete
+                    <Square size={13} /> {isRu ? 'Завершить' : 'Complete'}
                   </button>
                 )}
               </div>
@@ -213,13 +218,13 @@ export const ABTestView: React.FC = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Variant</th>
-                  <th>Users</th>
-                  <th>Conversions</th>
-                  <th>Rate</th>
-                  <th>Relative Uplift</th>
+                  <th>{isRu ? 'Вариант' : 'Variant'}</th>
+                  <th>{isRu ? 'Пользователи' : 'Users'}</th>
+                  <th>{isRu ? 'Конверсии' : 'Conversions'}</th>
+                  <th>{isRu ? 'CR (%)' : 'Rate'}</th>
+                  <th>{isRu ? 'Прирост (Uplift)' : 'Relative Uplift'}</th>
                   <th>p-value</th>
-                  <th>Statistical Significance</th>
+                  <th>{isRu ? 'Стат. значимость' : 'Statistical Significance'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -231,7 +236,7 @@ export const ABTestView: React.FC = () => {
                     <td className="mono">{(r.rate * 100).toFixed(2)}%</td>
                     <td className="mono">
                       {r.uplift === 0 ? (
-                        'Baseline'
+                        isRu ? 'Базовый (Control)' : 'Baseline'
                       ) : (
                         <span
                           className={`inline-flex items-center gap-1 font-semibold ${
@@ -252,7 +257,13 @@ export const ABTestView: React.FC = () => {
                         r.significant ? 'text-[var(--success)]' : 'text-[var(--text-sec)]'
                       }`}
                     >
-                      {r.significant ? '95% Significant (p < 0.05)' : 'Awaiting sample size'}
+                      {r.significant
+                        ? isRu
+                          ? 'Значимо 95% (p < 0.05)'
+                          : '95% Significant (p < 0.05)'
+                        : isRu
+                        ? 'Набор выборки'
+                        : 'Awaiting sample size'}
                     </td>
                   </tr>
                 ))}

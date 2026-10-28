@@ -60,9 +60,36 @@ export const CustomJsonConnectorTab: React.FC<CustomJsonTabProps> = ({
   </div>
 );
 
-type ConnectorSource = 'postgres' | 'mongodb' | 'algolia' | 'pinecone';
+type ConnectorSource = 'bitrix' | 'postgres' | 'mongodb' | 'algolia' | 'pinecone';
 
 const CONNECTOR_SNIPPETS: Record<ConnectorSource, { title: string; subtitle: string; code: string }> = {
+  bitrix: {
+    title: '1С-Битрикс: Управление сайтом → EIDOS v3.2 (Модуль eidos.connector)',
+    subtitle: 'Вставьте URL вашего сервера EIDOS и API-ключ в админке Битрикс (Настройки → Модули → EIDOS) или вызовите PHP API:',
+    code: `<?php
+// Вариант А: В админ-панели 1С-Битрикс (Настройки -> Настройки модулей -> EIDOS):
+//   URL сервера EIDOS: http://localhost:3000  (или ваш production HTTPS домен)
+//   API-ключ EIDOS:    eidos_dev_key          (или ваш EIDOS_API_KEY из .env)
+//   Нажмите «Проверить связь» и «Синхронизировать сейчас»!
+
+// Вариант Б: Программный вызов коннектора из init.php / крона 1С-Битрикс:
+require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/eidos.connector/include.php';
+
+use Eidos\\Connectors\\Bitrix\\Connector;
+use Eidos\\Connectors\\Bitrix\\HttpClient;
+
+$client = new HttpClient('http://localhost:3000', 'eidos_dev_key', 3.0, 1, false);
+$connector = new Connector($client);
+
+// 1. Проверка связи с сервером EIDOS (GET /v1/health)
+$health = $connector->healthCheck(); // ['ok' => true, 'itemsIndexed' => 40, 'version' => '3.2.0']
+
+// 2. Полная или дельта-синхронизация инфоблока каталога (POST /v1/catalog/upsert)
+$sync = $connector->syncCatalog(['batchSize' => 100]);
+
+// 3. Гибридный поиск с подменой стандартной выдачи Битрикса (POST /v1/search + fallback)
+$items = $connector->replaceSearch('беспроводные наушники с шумоподавлением', ['limit' => 20]);`,
+  },
   postgres: {
     title: 'PostgreSQL → EIDOS Real-Time & Batch Sync',
     subtitle: 'Streams rows from PostgreSQL and auto-vectorizes into 384-d HNSW index via @eidos/sdk',
@@ -195,7 +222,7 @@ const { recommendations, latencyMs } = await response.json();`,
 };
 
 export const DbSyncConnectorsTab: React.FC = () => {
-  const [source, setSource] = useState<ConnectorSource>('postgres');
+  const [source, setSource] = useState<ConnectorSource>('bitrix');
   const [copied, setCopied] = useState(false);
 
   const active = CONNECTOR_SNIPPETS[source];
@@ -211,6 +238,7 @@ export const DbSyncConnectorsTab: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
+            { id: 'bitrix', label: '1С-Битрикс (eidos.connector)', icon: Database },
             { id: 'postgres', label: 'PostgreSQL Sync', icon: Database },
             { id: 'mongodb', label: 'MongoDB Change Streams', icon: Database },
             { id: 'algolia', label: 'Migrate from Algolia', icon: ArrowRightLeft },

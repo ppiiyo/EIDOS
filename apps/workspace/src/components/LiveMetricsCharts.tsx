@@ -44,7 +44,9 @@ function createInitialSeries(): TelemetryPoint[] {
 export const LiveClusterTelemetryPanel: React.FC<{
   catalogSize?: number;
   activeSearches?: number;
-}> = ({ catalogSize = 40, activeSearches = 0 }) => {
+  uiLang?: 'ru' | 'en' | 'ja';
+}> = ({ catalogSize = 40, activeSearches = 0, uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [series, setSeries] = useState<TelemetryPoint[]>(() => createInitialSeries());
   const [isStreaming, setIsStreaming] = useState(true);
   const [tickCount, setTickCount] = useState(0);
@@ -90,14 +92,16 @@ export const LiveClusterTelemetryPanel: React.FC<{
         <div className="flex items-center gap-2.5">
           <span className="badge badge-success mono flex items-center gap-1.5">
             <Radio size={12} />
-            <span>{isStreaming ? 'LIVE TELEMETRY' : 'PAUSED'}</span>
+            <span>{isStreaming ? (isRu ? 'ЖИВОЙ ПОТОК' : 'LIVE TELEMETRY') : (isRu ? 'ПАУЗА' : 'PAUSED')}</span>
           </span>
           <div>
             <h3 className="text-sm font-semibold text-[var(--text)] m-0">
-              Real-Time Hybrid Engine Stream (HNSW + BM25 + SPLADE + SQ8)
+              {isRu
+                ? 'Поток гибридного ядра в реальном времени (HNSW + BM25 + SPLADE + SQ8)'
+                : 'Real-Time Hybrid Engine Stream (HNSW + BM25 + SPLADE + SQ8)'}
             </h3>
             <p className="text-xs text-[var(--text-sec)] m-0">
-              Live online metrics updating every 1.8s · Tick #{tickCount}
+              {isRu ? `Обновление онлайн-метрик каждые 1.8 с · Такт #${tickCount}` : `Live online metrics updating every 1.8s · Tick #${tickCount}`}
             </p>
           </div>
         </div>
@@ -108,14 +112,14 @@ export const LiveClusterTelemetryPanel: React.FC<{
           data-testid="toggle-live-telemetry"
         >
           {isStreaming ? <Pause size={13} /> : <Play size={13} />}
-          <span>{isStreaming ? 'Pause Stream' : 'Resume Stream'}</span>
+          <span>{isStreaming ? (isRu ? 'Пауза потока' : 'Pause Stream') : (isRu ? 'Возобновить поток' : 'Resume Stream')}</span>
         </button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div className="card p-3.5 bg-[var(--bg-alt)]">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>Throughput (QPS)</span>
+            <span>{isRu ? 'Пропускная способность (QPS)' : 'Throughput (QPS)'}</span>
             <Zap size={13} color="var(--accent)" />
           </div>
           <div className="mono text-xl font-bold text-[var(--text)] mt-1">
@@ -128,24 +132,24 @@ export const LiveClusterTelemetryPanel: React.FC<{
 
         <div className="card p-3.5 bg-[var(--bg-alt)]">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>HNSW Latency (p95 / p99)</span>
+            <span>{isRu ? 'Задержка HNSW (p95 / p99)' : 'HNSW Latency (p95 / p99)'}</span>
             <Activity size={13} color="var(--success)" />
           </div>
           <div className="mono text-xl font-bold text-[var(--text)] mt-1">
             {latest.p95Ms} / {latest.p99Ms} ms
           </div>
           <span className="text-[11px] mono text-[var(--text-sec)]">
-            Sub-10ms SLA target: PASS
+            {isRu ? 'SLA < 10 мс: ВЫПОЛНЕН' : 'Sub-10ms SLA target: PASS'}
           </span>
         </div>
 
         <div className="card p-3.5 bg-[var(--bg-alt)]">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>SQ8 Memory Compression</span>
+            <span>{isRu ? 'Сжатие памяти SQ8' : 'SQ8 Memory Compression'}</span>
             <Cpu size={13} color="var(--warning)" />
           </div>
           <div className="mono text-xl font-bold text-[var(--text)] mt-1">
-            4.0x (75% saved)
+            4.0x (75% {isRu ? 'экономия' : 'saved'})
           </div>
           <span className="text-[11px] mono text-[var(--success)]">
             Recall@10: {latest.recallAt10}%
@@ -154,14 +158,14 @@ export const LiveClusterTelemetryPanel: React.FC<{
 
         <div className="card p-3.5 bg-[var(--bg-alt)]">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)]">
-            <span>Online Bandit CTR</span>
+            <span>{isRu ? 'Онлайн-бандит CTR' : 'Online Bandit CTR'}</span>
             <TrendingUp size={13} color="var(--accent)" />
           </div>
           <div className="mono text-xl font-bold text-[var(--text)] mt-1">
             {latest.banditCtr}%
           </div>
           <span className="text-[11px] mono text-[var(--text-sec)]">
-            EWMA Drift: {latest.ewmaDrift} (Stable)
+            EWMA Drift: {latest.ewmaDrift} ({isRu ? 'Стабильно' : 'Stable'})
           </span>
         </div>
       </div>
@@ -170,7 +174,7 @@ export const LiveClusterTelemetryPanel: React.FC<{
         <div className="card p-3.5 bg-[var(--bg-alt)]">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-[var(--text)]">
-              Online Search Throughput (QPS Stream)
+              {isRu ? 'Поток поисковых запросов (QPS Stream)' : 'Online Search Throughput (QPS Stream)'}
             </span>
             <span className="badge badge-accent mono">{latest.qps} QPS</span>
           </div>

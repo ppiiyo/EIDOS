@@ -7,6 +7,7 @@ interface ClusterStatusResponse { nodeId: string; role: string; clusterMode: boo
 
 export interface ClusterTopologyViewProps {
   onShowToast?: (message: string, type?: 'info' | 'success' | 'error') => void;
+  uiLang?: 'ru' | 'en' | 'ja';
 }
 
 const DEFAULT_STATUS: ClusterStatusResponse = {
@@ -43,7 +44,8 @@ function fnv1a32(input: string): number {
   return h >>> 0;
 }
 
-export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShowToast }) => {
+export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShowToast, uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [status, setStatus] = useState<ClusterStatusResponse>(DEFAULT_STATUS);
   const [loading, setLoading] = useState(false);
   const [probeKey, setProbeKey] = useState('sku-quantum-headphones-42');
@@ -167,24 +169,28 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
         <div>
           <div className="flex items-center gap-2.5">
             <Network size={22} className="text-[var(--accent)]" />
-            <h1 className="text-xl font-bold text-[var(--text)] m-0">Distributed Cluster Topology & Failover Inspector</h1>
+            <h1 className="text-xl font-bold text-[var(--text)] m-0">
+              {isRu ? 'Топология распределённого кластера и инспектор отказоустойчивости' : 'Distributed Cluster Topology & Failover Inspector'}
+            </h1>
             <span className="mono text-xs px-2.5 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-semibold">EIDOS v3.2 HA</span>
           </div>
-          <p className="text-xs text-[var(--text-sec)] mt-1 mb-0">Consistent Hash Ring (150 vnodes/shard · FNV-1a 32-bit · R=2 Replication)</p>
+          <p className="text-xs text-[var(--text-sec)] mt-1 mb-0">
+            {isRu ? 'Consistent Hash Ring (150 vnodes/шард · FNV-1a 32-bit · Репликация R=2)' : 'Consistent Hash Ring (150 vnodes/shard · FNV-1a 32-bit · R=2 Replication)'}
+          </p>
         </div>
         <div className="flex items-center gap-2.5">
           <button type="button" data-testid="cluster-drain-btn" onClick={() => void toggleNodeDrain()} className={`btn btn-sm ${status.draining ? 'btn-primary' : 'btn-secondary'}`}>
-            <Power size={14} /> <span>{status.draining ? 'Resume Node Traffic' : 'Simulate Graceful Drain'}</span>
+            <Power size={14} /> <span>{status.draining ? (isRu ? 'Вернуть узел в работу' : 'Resume Node Traffic') : (isRu ? 'Симуляция Graceful Drain' : 'Simulate Graceful Drain')}</span>
           </button>
           <button type="button" data-testid="cluster-refresh-btn" onClick={() => void fetchStatus()} className="btn btn-secondary btn-sm">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> <span>Refresh</span>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> <span>{isRu ? 'Обновить' : 'Refresh'}</span>
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)]">Coordinator & Leader</div>
+          <div className="text-xs text-[var(--text-sec)]">{isRu ? 'Координатор и Лидер' : 'Coordinator & Leader'}</div>
           <div className="text-lg font-bold text-[var(--text)] mt-1 flex items-center gap-2 mono">
             <Server size={16} className="text-[var(--accent)]" />
             <span data-testid="cluster-leader-id">{status.leaderState.leaderShardId ?? 'NO QUORUM'}</span>
@@ -192,20 +198,20 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
           <div className="text-xs text-[var(--text-sec)] mt-1 mono">{status.nodeId} · Term #{status.leaderState.term}</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)]">Shard Quorum & Health</div>
+          <div className="text-xs text-[var(--text-sec)]">{isRu ? 'Кворум и здоровье шардов' : 'Shard Quorum & Health'}</div>
           <div className="text-lg font-bold text-[var(--text)] mt-1 flex items-center gap-2">
             {status.leaderState.quorumReached ? <ShieldCheck size={18} className="text-[var(--success)]" /> : <AlertTriangle size={18} className="text-[var(--danger)]" />}
-            <span data-testid="cluster-healthy-ratio">{status.healthyShards} / {status.shardCount} Healthy</span>
+            <span data-testid="cluster-healthy-ratio">{status.healthyShards} / {status.shardCount} {isRu ? 'Активно' : 'Healthy'}</span>
           </div>
-          <div className="text-xs text-[var(--text-sec)] mt-1">{status.leaderState.splitBrainDetected ? 'Split-Brain Guard Active' : 'Quorum Consensus Active'}</div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">{status.leaderState.splitBrainDetected ? (isRu ? 'Защита от Split-Brain активна' : 'Split-Brain Guard Active') : (isRu ? 'Кворум консенсуса достигнут' : 'Quorum Consensus Active')}</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)]">Virtual Hash Ring</div>
+          <div className="text-xs text-[var(--text-sec)]">{isRu ? 'Виртуальное кольцо хэширования' : 'Virtual Hash Ring'}</div>
           <div className="text-lg font-bold text-[var(--text)] mt-1 mono">{routeInfo.vnodeCount} vnodes</div>
           <div className="text-xs text-[var(--text-sec)] mt-1 mono">150 vnodes/shard · Catalog v{status.catalogVersion}</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)]">K8s Readiness Probe</div>
+          <div className="text-xs text-[var(--text-sec)]">{isRu ? 'Проба готовности K8s' : 'K8s Readiness Probe'}</div>
           <div className="text-lg font-bold mt-1">
             <span data-testid="cluster-drain-badge" className={`mono text-sm px-2 py-0.5 rounded font-semibold ${status.draining ? 'bg-[var(--warning)]/20 text-[var(--warning)]' : 'bg-[var(--success)]/15 text-[var(--success)]'}`}>
               {status.draining ? '503 DRAINING' : '200 READY'}
@@ -218,20 +224,20 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
         <div className="card p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-bold text-sm text-[var(--text)]">Consistent Hash Ring Probe</span>
-            <span className="mono text-xs text-[var(--text-sec)]">Angle: {routeInfo.angleDeg}°</span>
+            <span className="font-bold text-sm text-[var(--text)]">{isRu ? 'Инспектор Consistent Hash Ring' : 'Consistent Hash Ring Probe'}</span>
+            <span className="mono text-xs text-[var(--text-sec)]">{isRu ? 'Угол' : 'Angle'}: {routeInfo.angleDeg}°</span>
           </div>
           <label className="text-xs font-semibold text-[var(--text-sec)] flex items-center gap-1.5 mb-1.5">
-            <Hash size={13} /> <span>Document / Query Key</span>
+            <Hash size={13} /> <span>{isRu ? 'Ключ документа / запроса' : 'Document / Query Key'}</span>
           </label>
           <input type="text" data-testid="hash-ring-probe-input" value={probeKey} onChange={(e) => setProbeKey(e.target.value)} className="input mono text-xs w-full mb-3" />
           <div className="rounded-md bg-[var(--bg-alt)] border border-[var(--border)] p-3 text-xs mono flex flex-col gap-2">
             <div className="flex justify-between"><span className="text-[var(--text-sec)]">FNV-1a 32-bit:</span><span className="font-semibold">{routeInfo.hashHex}</span></div>
-            <div className="flex justify-between"><span className="text-[var(--text-sec)]">Replica Chain:</span><span className="flex items-center gap-1">{routeInfo.primaryShard} <ArrowRight size={11} /> {routeInfo.secondaryShard}</span></div>
+            <div className="flex justify-between"><span className="text-[var(--text-sec)]">{isRu ? 'Цепочка реплик:' : 'Replica Chain:'}</span><span className="flex items-center gap-1">{routeInfo.primaryShard} <ArrowRight size={11} /> {routeInfo.secondaryShard}</span></div>
             <div className="flex justify-between">
-              <span className="text-[var(--text-sec)]">Serving Node:</span>
+              <span className="text-[var(--text-sec)]">{isRu ? 'Обслуживающий узел:' : 'Serving Node:'}</span>
               <span data-testid="hash-ring-serving-node" className={routeInfo.isFailover ? 'text-[var(--warning)] font-bold' : 'text-[var(--success)] font-bold'}>
-                {routeInfo.servingShard} {routeInfo.isFailover ? '(Failover Replica)' : '(Primary)'}
+                {routeInfo.servingShard} {routeInfo.isFailover ? (isRu ? '(Реплика Failover)' : '(Failover Replica)') : (isRu ? '(Основной)' : '(Primary)')}
               </span>
             </div>
           </div>
@@ -239,7 +245,7 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
 
         <div className="flex flex-col gap-4">
           <div className="card p-5">
-            <h2 className="text-base font-bold text-[var(--text)] m-0 mb-3">Physical Shards & Replica Failover Controls</h2>
+            <h2 className="text-base font-bold text-[var(--text)] m-0 mb-3">{isRu ? 'Физические шарды и управление отказоустойчивостью реплик' : 'Physical Shards & Replica Failover Controls'}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
               {status.shards.map((shard, idx) => {
                 const sId = shard.id || shard.shardId || `shard-${idx}`;
@@ -253,10 +259,10 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
                     <div className="mt-2 flex items-center gap-1 text-xs font-semibold">
                       {shard.healthy ? <span className="text-[var(--success)] flex items-center gap-1"><CheckCircle2 size={14} /> HEALTHY</span> : <span className="text-[var(--danger)] flex items-center gap-1"><XCircle size={14} /> DEGRADED</span>}
                     </div>
-                    <div className="mt-1 text-xs mono text-[var(--text-sec)]">Vectors: {shard.itemCount} · 150 vnodes</div>
+                    <div className="mt-1 text-xs mono text-[var(--text-sec)]">{isRu ? 'Векторов' : 'Vectors'}: {shard.itemCount} · 150 vnodes</div>
                   </div>
                   <button type="button" data-testid={`toggle-shard-${sId}`} onClick={() => void toggleShardHealth(sId, !shard.healthy)} className={`btn btn-sm w-full justify-center ${shard.healthy ? 'btn-secondary' : 'btn-primary'}`}>
-                    {shard.healthy ? 'Simulate Failure' : 'Restore Shard'}
+                    {shard.healthy ? (isRu ? 'Симулировать сбой' : 'Simulate Failure') : (isRu ? 'Восстановить шард' : 'Restore Shard')}
                   </button>
                 </div>
               );})}
@@ -264,7 +270,7 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
           </div>
 
           <div className="card p-4">
-            <div className="flex items-center gap-2 mb-2"><Activity size={15} className="text-[var(--accent)]" /><span className="font-bold text-xs">Cluster Failover Event Stream</span></div>
+            <div className="flex items-center gap-2 mb-2"><Activity size={15} className="text-[var(--accent)]" /><span className="font-bold text-xs">{isRu ? 'Журнал событий отказоустойчивости кластера' : 'Cluster Failover Event Stream'}</span></div>
             <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
               {events.map((ev) => (
                 <div key={ev.id} className="px-2.5 py-1.5 rounded border border-[var(--border)] bg-[var(--bg-alt)] text-xs mono flex justify-between">

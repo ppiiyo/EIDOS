@@ -155,7 +155,7 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
         />
       );
     case 'ranking':
-      return <RankingPlayground catalog={catalog} />;
+      return <RankingPlayground catalog={catalog} uiLang={uiLang} />;
     case 'recommendations':
       return (
         <RecommendationsView
@@ -183,15 +183,15 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
         />
       );
     case 'indexes':
-      return <IndexManagerView onShowToast={onShowToast} />;
+      return <IndexManagerView onShowToast={onShowToast} uiLang={uiLang} />;
     case 'cluster':
-      return <ClusterTopologyView onShowToast={onShowToast} />;
+      return <ClusterTopologyView onShowToast={onShowToast} uiLang={uiLang} />;
     case 'seo':
-      return <SEODashboard />;
+      return <SEODashboard uiLang={uiLang} />;
     case 'analytics':
-      return <AnalyticsView />;
+      return <AnalyticsView uiLang={uiLang} />;
     case 'abtest':
-      return <ABTestView />;
+      return <ABTestView uiLang={uiLang} />;
     case 'conversational':
       return (
         <ConversationalView
@@ -201,8 +201,8 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
         />
       );
     case 'settings':
-      return <SettingsView onShowToast={onShowToast} />;
+      return <SettingsView onShowToast={onShowToast} uiLang={uiLang} />;
     default:
-      return <SEODashboard />;
+      return <SEODashboard uiLang={uiLang} />;
   }
 };

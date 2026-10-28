@@ -72,34 +72,68 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [isCollapsed]);
 
+  const labels =
+    uiLang === 'ru'
+      ? {
+          g1: 'Ядро движка',
+          g2: 'Лаборатория и тесты',
+          g3: 'Аналитика и эксплуатация',
+          indexes: 'Менеджер индексов HNSW',
+          ranking: 'Песочница ранжирования',
+          cluster: 'Кластер и отказоустойчивость',
+          seo: 'SEO и мерчандайзинг',
+          settings: 'Настройки и API-ключи',
+        }
+      : uiLang === 'ja'
+      ? {
+          g1: 'コアエンジン',
+          g2: 'プレイグラウンド & ラボ',
+          g3: '分析 & オペレーション',
+          indexes: 'インデックス管理',
+          ranking: 'ランキング調整ラボ',
+          cluster: 'クラスタ & フェイルオーバー',
+          seo: 'SEO & マーチャンダイジング',
+          settings: '設定 & APIキー',
+        }
+      : {
+          g1: 'Core Engine',
+          g2: 'Playground & Labs',
+          g3: 'Analytics & Ops',
+          indexes: 'Index Manager',
+          ranking: 'Ranking Playground',
+          cluster: 'Cluster & Failover',
+          seo: 'SEO Insights',
+          settings: 'Settings & Keys',
+        };
+
   const navGroups: Array<{ title: string; items: NavGroupItem[] }> = [
     {
-      title: 'Core Engine',
+      title: labels.g1,
       items: [
         { id: 'dashboard', label: t.nav.dashboard, emoji: '📊', icon: LayoutDashboard },
         { id: 'catalog', label: t.nav.catalog, emoji: '📦', icon: Package },
-        { id: 'indexes', label: 'Index Manager', emoji: '🗄️', icon: Database },
+        { id: 'indexes', label: labels.indexes, emoji: '🗄️', icon: Database },
         { id: 'search', label: t.nav.search, emoji: '🔍', icon: Search },
         { id: 'recommendations', label: t.nav.recommendations, emoji: '✨', icon: Lightbulb },
       ],
     },
     {
-      title: 'Playground & Labs',
+      title: labels.g2,
       items: [
-        { id: 'ranking', label: 'Ranking Playground', emoji: '⚖️', icon: Scale },
+        { id: 'ranking', label: labels.ranking, emoji: '⚖️', icon: Scale },
         { id: 'vectorspace', label: t.nav.vectorspace, emoji: '🌌', icon: Boxes },
         { id: 'conversational', label: t.nav.conversational, emoji: '💬', icon: MessageSquare },
         { id: 'abtest', label: t.nav.abtest, emoji: '🧪', icon: Split },
       ],
     },
     {
-      title: 'Analytics & Ops',
+      title: labels.g3,
       items: [
-        { id: 'cluster', label: 'Cluster & Failover', emoji: '🌐', icon: Network },
+        { id: 'cluster', label: labels.cluster, emoji: '🌐', icon: Network },
         { id: 'analytics', label: t.nav.analytics, emoji: '📈', icon: BarChart3 },
-        { id: 'seo', label: 'SEO Insights', emoji: '🎯', icon: BarChart3 },
+        { id: 'seo', label: labels.seo, emoji: '🎯', icon: BarChart3 },
         { id: 'adaptive', label: t.nav.adaptive, emoji: '⚙️', icon: Sliders },
-        { id: 'settings', label: 'Settings & Keys', emoji: '🔐', icon: Settings },
+        { id: 'settings', label: labels.settings, emoji: '🔐', icon: Settings },
       ],
     },
   ];

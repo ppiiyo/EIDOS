@@ -63,7 +63,8 @@ const DEFAULT_METRICS: AnalyticsApiMetrics = {
   ],
 };
 
-export const LatencyAndCachePanel: React.FC = () => {
+export const LatencyAndCachePanel: React.FC<{ uiLang?: 'ru' | 'en' | 'ja' }> = ({ uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [metrics, setMetrics] = useState<AnalyticsApiMetrics>(DEFAULT_METRICS);
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export const LatencyAndCachePanel: React.FC = () => {
       <div className="card p-5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold m-0 flex items-center gap-2">
-            <TrendingUp size={15} color="var(--accent)" /> Search Volume Over Time (7d)
+            <TrendingUp size={15} color="var(--accent)" /> {isRu ? 'Динамика поисковых запросов (7д)' : 'Search Volume Over Time (7d)'}
           </h3>
           <span className="badge badge-accent mono">+16.4% WoW</span>
         </div>
@@ -119,7 +120,7 @@ export const LatencyAndCachePanel: React.FC = () => {
       <div className="card p-5" data-testid="latency-percentiles-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold m-0 flex items-center gap-2">
-            <Gauge size={15} color="var(--success)" /> Latency Percentiles (p50 / p95 / p99)
+            <Gauge size={15} color="var(--success)" /> {isRu ? 'Перцентили задержек (p50 / p95 / p99)' : 'Latency Percentiles (p50 / p95 / p99)'}
           </h3>
           <span className="badge badge-success mono">SLA &lt; 15ms</span>
         </div>
@@ -158,7 +159,7 @@ export const LatencyAndCachePanel: React.FC = () => {
       <div className="card p-5" data-testid="cache-hit-rate-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold m-0 flex items-center gap-2">
-            <Database size={15} color="var(--accent)" /> Cache Hit Rate (Exact + Semantic)
+            <Database size={15} color="var(--accent)" /> {isRu ? 'Попадания в кэш (Точный + Семантический)' : 'Cache Hit Rate (Exact + Semantic)'}
           </h3>
           <span className="badge badge-success mono" data-testid="cache-hit-rate-value">
             {metrics.cacheHitRate.hitRatePercent}% HIT
@@ -175,19 +176,19 @@ export const LatencyAndCachePanel: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="p-2 rounded bg-[var(--bg-alt)]">
-            <span className="text-[var(--text-sec)] block">Exact Redis Hits</span>
+            <span className="text-[var(--text-sec)] block">{isRu ? 'Точные попадания Redis' : 'Exact Redis Hits'}</span>
             <span className="mono font-semibold">{metrics.cacheHitRate.exactCacheHits.toLocaleString()}</span>
           </div>
           <div className="p-2 rounded bg-[var(--bg-alt)]">
-            <span className="text-[var(--text-sec)] block">Semantic Hits (≥0.95)</span>
+            <span className="text-[var(--text-sec)] block">{isRu ? 'Семантический кэш (≥0.95)' : 'Semantic Hits (≥0.95)'}</span>
             <span className="mono font-semibold">{metrics.cacheHitRate.semanticCacheHits.toLocaleString()}</span>
           </div>
           <div className="p-2 rounded bg-[var(--bg-alt)]">
-            <span className="text-[var(--text-sec)] block">Cache Misses</span>
+            <span className="text-[var(--text-sec)] block">{isRu ? 'Промахи кэша' : 'Cache Misses'}</span>
             <span className="mono font-semibold">{metrics.cacheHitRate.cacheMisses.toLocaleString()}</span>
           </div>
           <div className="p-2 rounded bg-[var(--bg-alt)]">
-            <span className="text-[var(--text-sec)] block">Saved Latency</span>
+            <span className="text-[var(--text-sec)] block">{isRu ? 'Экономия задержки' : 'Saved Latency'}</span>
             <span className="mono font-semibold text-[var(--success)]">
               -{metrics.cacheHitRate.avgSavedLatencyMs} ms/req
             </span>

@@ -1,13 +1,13 @@
 <div align="center">
 
-# ⚡ EIDOS v3.0
+# ⚡ EIDOS v3.2.0 GA
 
-### Hybrid Vector Search, Explainable Ranking X-Ray & Multi-Objective Recommendation Engine
-### Платформа гибридного векторного поиска, объяснимого ранжирования (X-Ray) и мультицелевых рекомендаций
+### Hybrid Vector Search, Explainable Ranking X-Ray, Distributed HNSW Cluster & Multi-Objective Recommendation Engine
+### Платформа гибридного векторного поиска, объяснимого ранжирования (X-Ray), распределённого HNSW-кластера и мультицелевых рекомендаций
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-eidos--semantic--ideation--platform.ai.studio-00E5A3?style=for-the-badge&logo=googlecloud&logoColor=black)](https://eidos-semantic-ideation-platform.ai.studio/)
 [![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1_Swagger-38BDF8?style=for-the-badge&logo=openapiinitiative&logoColor=black)](https://eidos-semantic-ideation-platform.ai.studio/docs)
-[![Tests](https://img.shields.io/badge/Tests-46_Suites_%7C_222_Passing-10B981?style=for-the-badge)](./apps/api/tests)
+[![Tests](https://img.shields.io/badge/Tests-85_Suites_%7C_346_Passing-10B981?style=for-the-badge)](./tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](./LICENSE)
 
 **[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🇬🇧 English Guide ](#-english-documentation)** · **[ 🇷🇺 Руководство на русском ](#-документация-на-русском-языке)** · **[ 🔄 Migration Blueprints ](./docs/MIGRATION.md)**
@@ -219,8 +219,37 @@ for _, row in df.iterrows():
     })
 ```
 
-### 5.4 REST Webhook Integration (Shopify / WooCommerce / Custom Backend)
+### 5.4 REST Webhook & Official E-Commerce Plugins (`1C-Bitrix` & `WooCommerce`)
 
+#### Official 1C-Bitrix Module (`packages/connectors/bitrix` — `eidos.connector`)
+EIDOS v3.2 includes a ready-to-install 1C-Bitrix module (`packages/connectors/bitrix`) that connects any Bitrix store to EIDOS in 60 seconds:
+1. Copy `packages/connectors/bitrix` to `/bitrix/modules/eidos.connector/` and install it in the Bitrix Marketplace admin panel.
+2. Open **Settings → Module Settings → EIDOS (`Настройки → Настройки модулей → EIDOS`)** and enter:
+   - **EIDOS Server URL**: `http://localhost:3000` (or your production HTTPS URL)
+   - **API Key (`X-API-Key`)**: `eidos_dev_key` (or your production `EIDOS_API_KEY`)
+3. Click **Test Connection (`Проверить связь`)** (`GET /v1/health`) and **Sync Catalog (`Синхронизировать каталог`)** (`POST /v1/catalog/upsert`).
+4. Hybrid Search (`POST /v1/search`) and Recommendations (`POST /v1/recommend`) work automatically with built-in graceful fallback to native Bitrix search if the network is unreachable.
+
+```php
+use Eidos\Connector\HttpClient;
+use Eidos\Connector\Connector;
+
+$client = new HttpClient('http://localhost:3000', 'eidos_dev_key', 2.0);
+$eidos  = new Connector($client);
+
+// 1. Verify connection to EIDOS API (/v1/health)
+$health = $eidos->healthCheck(); // ['status' => 'ok', 'catalogSize' => 240, ...]
+
+// 2. Sync 1C-Bitrix IBlock catalog items (/v1/catalog/upsert)
+$eidos->syncCatalog($iblockItems);
+
+// 3. Hybrid Search with automatic fallback to standard Bitrix search
+$results = $eidos->replaceSearch('беспроводные наушники', ['limit' => 10, 'mode' => 'hybrid'], function($q) {
+    return \CSearch::Search($q);
+});
+```
+
+#### Official WooCommerce Plugin (`packages/connectors/woocommerce`) & REST Webhook
 Trigger a direct HTTP `POST` from your e-commerce webhook whenever a product is created or updated:
 
 ```bash
@@ -315,11 +344,17 @@ All `/v1/*` write and query endpoints accept `X-API-Key: <your_key>` (defaults t
 | Method & Path | Description | Auth Required |
 | :--- | :--- | :--- |
 | `POST /v1/recommend` | Unified recommendations (`strategy: 'simple' \| 'adaptive' \| 'user'`) with MMR & Explainable X-Ray | ✅ `X-API-Key` |
-| `POST /v1/search` | Hybrid RRF Search (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) with X-Ray breakdown | ✅ `X-API-Key` (`eidos_demo_key` supported) |
+| `POST /v1/search` | Hybrid RRF + Neural Cross-Encoder Search (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) | ✅ `X-API-Key` (`eidos_demo_key` supported) |
 | `POST /v1/demo/search` | Public live demo endpoint for Hybrid Search & Redis Cache testing | Public |
 | `POST /v1/demo/recommend` | Public live demo endpoint for MMR & Adaptive Recommendations testing | Public |
 | `POST /v1/catalog/upsert` | Real-time item ingestion, XSS/SQLi sanitization, 384-d embedding & cache invalidation | ✅ `X-API-Key` |
 | `GET /v1/catalog/stats` | Returns total indexed items, categories, vector dimension (`384`), and HNSW status | ✅ `X-API-Key` (`eidos_demo_key` supported) |
+| `GET /v1/indexes` | List & manage HNSW vector indexes (`FP32`, `FP16`, `INT8`, `Binary`), RAM footprint & quantization | ✅ `X-API-Key` |
+| `GET /v1/cluster/status` | Distributed HNSW cluster topology, Consistent Hash Ring (`450 vnodes`), shard & replica health | ✅ `X-API-Key` |
+| `POST /v1/cluster/drain` | Simulate shard failover / drain node and promote read replica with zero downtime | ✅ `X-API-Key` |
+| `GET /v1/analytics/seo` | SEO & Merchandising intelligence: zero-result semantic recovery, CTR, CVR & top queries | ✅ `X-API-Key` |
+| `GET /v1/ab-tests` | Multi-variant A/B testing experiments with Z-score and p-value statistical significance | ✅ `X-API-Key` |
+| `GET /v1/audit/logs` | Immutable RBAC & multi-tenant audit trail for catalog and ranking rule changes | ✅ `X-API-Key` |
 | `POST /v1/feedback` | Online learning feedback (`click`, `like`, `purchase`, `dislike`) updating LinUCB & User Profile | ✅ `X-API-Key` |
 | `GET /v1/health` | Public liveness & readiness probe with Redis cache stats, memory, uptime, and HNSW diagnostics | Public |
 | `GET /metrics` | Prometheus metrics (`http_request_duration_ms`, `eidos_cache_*`, entropy) | Public |
@@ -460,7 +495,7 @@ client.record_feedback(user_id="user-42", item_id="item-15", event_type="click")
 ### Running the Full Verification Suite
 
 ```bash
-# Run all 46 test suites (222 unit, integration, security, stress & architectural tests)
+# Run all 85 test suites (346 unit, integration, security, connectors, cluster & SLA benchmark tests)
 corepack pnpm test
 
 # Run test suite with V8 coverage gate (>88% statement coverage)
@@ -543,21 +578,26 @@ We build EIDOS in the open. Here's our development plan for the next 12 months:
 
 ---
 
-### ✅ v3.2 — Released (Q3 2026)
+### ✅ v3.2.0 GA — Current Production Release (Q3–Q4 2026)
 
-**Focus:** Enterprise Connectors, Multi-Tenancy & Advanced ML
+**Focus:** Enterprise Connectors, Distributed Cluster Topology UI, SEO Intelligence, Multi-Tenancy & Neural Reranking
 
-- [x] **Zero-ETL Database Connectors**
+- [x] **Zero-ETL Database & E-Commerce Connectors**
   - [x] Native PostgreSQL logical replication (`PostgresCDCConnector` / `pgoutput` CDC stream)
   - [x] MongoDB Change Streams auto-sync connector (`MongoChangeStreamConnector`)
-  - [x] Shopify / WooCommerce / BigCommerce one-click webhook ingestion
-  - [x] Event stream batch ingestion with automatic HNSW & cache invalidation
+  - [x] Official **1C-Bitrix Module (`packages/connectors/bitrix` / `eidos.connector`)** & **WooCommerce Plugin (`packages/connectors/woocommerce`)**
+  - [x] One-click JSON/CSV browser catalog import & multi-language SDK code generator in Studio UI
+- [x] **Interactive 14-Tab Studio UI (Full `RU / EN / JA` Localization)**
+  - [x] **Cluster Topology & Failover Inspector**: Visual 3-shard / 6-replica inspector, Consistent Hash Ring (`450 vnodes`), and live shard failover simulation (`/v1/cluster/drain`)
+  - [x] **SEO & Merchandising Intelligence Dashboard**: Automatic zero-result query recovery via semantic vector fallback (`/v1/analytics/seo`)
+  - [x] **HNSW Index Manager**: Live `FP32` / `FP16` / `INT8` / `Binary` quantization comparison and index CRUD (`/v1/indexes`)
+  - [x] **Ranking Playground & A/B Testing Lab**: Live multi-objective weight sliders and statistical significance (`p-value`, `Z-score`) calculator
 - [x] **Multi-Tenancy & RBAC**
   - [x] Isolated namespaces per tenant with strict resource quotas (`TenantNamespaceManager` / `X-Tenant-ID`)
   - [x] Role-Based Access Control (`RBACManager`: Admin, Editor/Merchandiser, Viewer Read-Only API keys)
   - [x] Audit log for all merchandising rule & catalog changes (`AuditLogger` + `GET /v1/audit/logs`)
 - [x] **Advanced ML & Reranking**
-  - [x] Cross-encoder neural reranker (`NeuralCrossEncoderReranker` on CPU, `<5ms` for top-20)
+  - [x] Stage-2 Cross-encoder neural reranker (`NeuralCrossEncoderReranker` on CPU, `<5ms` for top-20)
   - [x] Automated A/B testing framework with statistical significance calculator
   - [x] Real-time user session embeddings (Active Intent Learning + Contextual LinUCB)
 
@@ -869,7 +909,53 @@ for _, row in df.iterrows():
     })
 ```
 
-### 5.4 Подключение через REST Webhook (1С-Битрикс / Shopify / WooCommerce / Свой Бэкенд)
+### 5.4 Готовый модуль для 1С-Битрикс (`eidos.connector`), WooCommerce и REST Webhook
+
+#### Пошаговое подключение к 1С-Битрикс (`packages/connectors/bitrix`)
+В состав монорепозитория входит официальный модуль **`packages/connectors/bitrix` (`eidos.connector`)**, который позволяет подключить любой интернет-магазин на «1С-Битрикс: Управление сайтом» без ручного программирования:
+
+1. **Установка модуля**: скопируйте папку `packages/connectors/bitrix` в `/bitrix/modules/eidos.connector/` вашего сайта и нажмите «Установить» в разделе *Marketplace → Установленные решения*.
+2. **Ввод API-ключа и URL**: откройте в админке Битрикса **Настройки → Настройки модулей → EIDOS Гибридный поиск** и укажите:
+   - **URL сервера EIDOS**: `http://localhost:3000` (или ваш боевой HTTPS-домен)
+   - **API Ключ (`X-API-Key`)**: `eidos_dev_key` (или ваш секретный `EIDOS_API_KEY`)
+   - **ID Инфоблока каталога**: например, `2` (ваш торговый каталог)
+3. **Проверка связи и синхронизация**:
+   - Нажмите кнопку **«Проверить связь»** — модуль выполнит запрос к `GET /v1/health` и покажет статус индекса HNSW и Redis.
+   - Нажмите кнопку **«Синхронизировать каталог»** — все активные товары инфоблока автоматически отправятся в `POST /v1/catalog/upsert` и получат 384-мерные векторы.
+4. **Бесшовная работа на витрине**:
+   - Поиск (`replaceSearch`), рекомендации (`getRecommendations`) и сбор событий (`trackEvent`: клик, корзина, покупка) работают автоматически.
+   - Если сервер EIDOS временно недоступен по сети, коннектор за `<2 сек` бесшовно переключается на стандартный поиск 1С-Битрикс (`CSearch`), гарантируя 100% доступность магазина.
+
+```php
+<?php
+// Пример использования коннектора в init.php или компоненте 1С-Битрикс
+use Eidos\Connector\HttpClient;
+use Eidos\Connector\Connector;
+
+$client = new HttpClient('http://localhost:3000', 'eidos_dev_key', 2.0);
+$eidos  = new Connector($client);
+
+// 1. Проверка доступности API (/v1/health)
+$health = $eidos->healthCheck(); // ['status' => 'ok', 'catalogSize' => 240]
+
+// 2. Выгрузка товаров из Инфоблока в 384-d HNSW индекс (/v1/catalog/upsert)
+$sync = $eidos->syncCatalog($arItems);
+
+// 3. Гибридный поиск с автоматическим fallback на штатный поиск Битрикса
+$search = $eidos->replaceSearch($_REQUEST['q'] ?? '', ['limit' => 12, 'mode' => 'hybrid'], function($query) {
+    return \CSearch::Search($query);
+});
+
+// 4. Персональные рекомендации для карточки товара (/v1/recommend)
+$recs = $eidos->getRecommendations((string)$elementId, 'adaptive', 6);
+
+// 5. Отправка сигнала о покупке в онлайн-бандит LinUCB (/v1/feedback)
+$eidos->trackEvent((string)$USER->GetID(), (string)$elementId, 'purchase');
+```
+
+> 💡 **Где взять готовый код в интерфейсе?** Нажмите кнопку **«Подключить БД»** в верхней панели EIDOS Studio и откройте вкладку **«1С-Битрикс (eidos.connector)»** — там находится готовый к копированию PHP-код с вашим текущим URL сервера.
+
+#### Подключение через универсальный REST Webhook (Shopify / WooCommerce / Свой Бэкенд)
 
 Отправляйте обычный `POST`-запрос при создании или изменении карточки товара в вашей CMS/ERP:
 
@@ -950,11 +1036,17 @@ const { results, latencyMs } = await eidos.search({
 | Метод и URL | Назначение | Авторизация |
 | :--- | :--- | :--- |
 | `POST /v1/recommend` | Единый эндпоинт рекомендаций (`strategy: 'simple' \| 'adaptive' \| 'user'`) с MMR и X-Ray | ✅ `X-API-Key` (поддерживается `eidos_demo_key`) |
-| `POST /v1/search` | Гибридный поиск (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) с X-Ray формулой | ✅ `X-API-Key` (поддерживается `eidos_demo_key`) |
+| `POST /v1/search` | Гибридный поиск + Neural Cross-Encoder (`mode: 'hybrid' \| 'semantic' \| 'lexical'`, `alpha: 0..1`) | ✅ `X-API-Key` (поддерживается `eidos_demo_key`) |
 | `POST /v1/demo/search` | Публичный демо-эндпоинт гибридного поиска и проверки Redis-кэширования | Публичный |
 | `POST /v1/demo/recommend` | Публичный демо-эндпоинт рекомендаций | Публичный |
 | `POST /v1/catalog/upsert` | Добавление/обновление товара, авто-векторизация 384-d и сброс кэша | ✅ `X-API-Key` |
 | `GET /v1/catalog/stats` | Статистика каталога: число товаров, категории, размерность (`384`) и статус HNSW | ✅ `X-API-Key` (поддерживается `eidos_demo_key`) |
+| `GET /v1/indexes` | Управление индексами HNSW (`FP32`, `FP16`, `INT8`, `Binary`), объём RAM и пакетная загрузка | ✅ `X-API-Key` |
+| `GET /v1/cluster/status` | Топология распределённого кластера HNSW, кольцо `Consistent Hash Ring (450 vnodes)` и статус реплик | ✅ `X-API-Key` |
+| `POST /v1/cluster/drain` | Симуляция вывода шарда из строя (Failover) и автоматическое повышение Read-реплики без даунтайма | ✅ `X-API-Key` |
+| `GET /v1/analytics/seo` | SEO-аналитика поисковых запросов, конверсия и семантическое спасение нулевой выдачи | ✅ `X-API-Key` |
+| `GET /v1/ab-tests` | Статистика A/B-экспериментов ранжирования с расчётом `Z-score` и `p-value` | ✅ `X-API-Key` |
+| `GET /v1/audit/logs` | Неизменяемый журнал аудита изменений правил мерчандайзинга и каталога (`RBAC` + `X-Tenant-ID`) | ✅ `X-API-Key` |
 | `POST /v1/feedback` | Запись событий (`click`, `like`, `purchase`, `dislike`) для онлайн-обучения `LinUCB` | ✅ `X-API-Key` |
 | `GET /v1/health` | Публичная проверка работоспособности сервера, Redis-кэша, памяти и HNSW-ядра | Публичный |
 | `GET /metrics` | Метрики в формате Prometheus (`http_request_duration_ms`, `eidos_cache_*`, энтропия) | Публичный |
@@ -1067,10 +1159,10 @@ client.record_feedback(user_id="user-101", item_id="item-15", event_type="purcha
 ### Команды самопроверки перед релизом
 
 ```bash
-# Полный прогон всех 46 тестовых сьютов (222 теста: ядро, API, безопасность, нагрузка, инварианты)
+# Полный прогон всех 85 тестовых сьютов (346 тестов: ядро, API, 1С-Битрикс, кластер, безопасность, SLA-бенчмарки)
 corepack pnpm test
 
-# Проверка покрытия кода (порог >85%, фактически ~88.7%)
+# Проверка покрытия кода (порог >85%, фактически ~89%)
 corepack pnpm run test:coverage
 
 # Проверка типов TypeScript и линтера во всех пакетах монорепозитория
@@ -1159,21 +1251,26 @@ CACHE_TTL_SECONDS=300
 
 ---
 
-### ✅ v3.2 — Реализовано (Q3 2026)
+### ✅ v3.2.0 GA — Текущий стабильный релиз (Q3–Q4 2026)
 
-**Фокус:** Enterprise-коннекторы, мультитенантность и продвинутый ML
+**Фокус:** Коннекторы к 1С-Битрикс и БД, интерактивная топология кластера, SEO-аналитика, мультитенантность и нейросетевой Cross-Encoder
 
-- [x] **Zero-ETL коннекторы к базам данных**
-  - [x] Нативная логическая репликация PostgreSQL (`PostgresCDCConnector` / `pgoutput` CDC-стриминг)
-  - [x] Автоматический коннектор к MongoDB Change Streams (`MongoChangeStreamConnector`)
-  - [x] Плагины и вебхуки для Shopify, WooCommerce и 1С-Битрикс
-  - [x] Потоковая загрузка событий с автоматическим сбросом кэша и переиндексацией HNSW
+- [x] **Zero-ETL коннекторы к CMS и базам данных**
+  - [x] Официальный модуль для **1С-Битрикс (`packages/connectors/bitrix` / `eidos.connector`)** с проверкой связи, автосинхронизацией инфоблоков и бесшовным fallback на штатный поиск
+  - [x] Официальный плагин для **WordPress WooCommerce (`packages/connectors/woocommerce`)**
+  - [x] Нативная логическая репликация PostgreSQL (`PostgresCDCConnector` / `pgoutput` CDC-стриминг) и коннектор к MongoDB Change Streams (`MongoChangeStreamConnector`)
+  - [x] Мгновенный импорт каталога из JSON/CSV в 1 клик прямо в браузере и встроенный генератор кода SDK (TypeScript, Python, cURL, 1С-Битрикс)
+- [x] **Полностью локализованная студия из 14 вкладок (`RU / EN / JA`)**
+  - [x] **Топология кластера (`ClusterTopologyView`)**: интерактивная карта 3 шардов и 6 реплик, кольцо `Consistent Hash Ring (450 vnodes)` и тестирование аварийного переключения (`Drain / Failover`) в реальном времени
+  - [x] **SEO и мерчандайзинг (`SEODashboard`)**: аналитика поисковых запросов и автоматическое спасение нулевой выдачи (`Zero-Result Semantic Recovery`)
+  - [x] **Менеджер индексов HNSW (`IndexManagerView`)**: сравнение точности и экономии памяти `FP32 / FP16 / INT8 / Binary` и управление коллекциями
+  - [x] **Лаборатория ранжирования и A/B эксперименты (`RankingPlayground`, `ABTestView`)**: настройка мультицелевых весов (Семантика, Маржа, Популярность, Новизна) и калькулятор статзначимости (`Z-score`, `p-value`)
 - [x] **Мультитенантность и ролевой доступ (RBAC)**
   - [x] Изолированные пространства имён (`TenantNamespaceManager` / `X-Tenant-ID`) для каждого тенанта
   - [x] Ролевая модель доступа (`RBACManager`: Администратор, Мерчандайзер/Editor, Viewer Read-Only)
   - [x] Аудит-лог всех изменений правил ранжирования и каталога (`AuditLogger` + `GET /v1/audit/logs`)
 - [x] **Продвинутый ML и нейросетевое реранжирование**
-  - [x] Cross-encoder реранкер (`NeuralCrossEncoderReranker` на CPU, `<5 мс` для топ-20 кандидатов)
+  - [x] Stage-2 Cross-encoder реранкер (`NeuralCrossEncoderReranker` on CPU, `<5 мс` для топ-20 кандидатов)
   - [x] Встроенный фреймворк A/B-тестирования с расчётом статистической значимости
   - [x] Сессионные эмбеддинги в реальном времени (Active Intent Learning + контекстные бандиты LinUCB)
 

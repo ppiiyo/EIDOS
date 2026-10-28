@@ -133,16 +133,23 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
       .slice(0, 5);
   }, [currentSeed, catalog, embeddings, rankingConfig, capsuleHistory, uiLang]);
 
+  const isRu = uiLang === 'ru';
   return (
     <div className="page" data-testid="adaptive-intelligence-lab">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="page-title">⚙️ Adaptive Intelligence Lab</h1>
+          <h1 className="page-title">
+            {isRu ? '⚙️ Адаптивный интеллект и обучение (Adaptive Intelligence Lab)' : '⚙️ Adaptive Intelligence Lab'}
+          </h1>
           <p className="page-sub">
-            Multi-feature composite ranking, MIND/ComiRec interest capsules, LinUCB contextual bandits, and 384-d vector steering
+            {isRu
+              ? 'Многофакторное композитное ранжирование, капсулы интересов MIND/ComiRec, контекстные бандиты LinUCB и 384-d векторный руль'
+              : 'Multi-feature composite ranking, MIND/ComiRec interest capsules, LinUCB contextual bandits, and 384-d vector steering'}
           </p>
         </div>
-        <span className="badge badge-success mono">● AIL Core Engine Active</span>
+        <span className="badge badge-success mono">
+          {isRu ? '● Ядро AIL активно' : '● AIL Core Engine Active'}
+        </span>
       </div>
 
       <LiveAdaptiveCharts
@@ -155,10 +162,10 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
       {/* Sub-navigation tabs aligned with studio design system */}
       <div className="card p-2 mb-6 flex flex-wrap items-center gap-1.5">
         {[
-          { id: 'ranker' as const, label: 'Multi-Feature Ranker', icon: Sliders },
-          { id: 'capsules' as const, label: 'Multi-Interest Capsules', icon: Layers },
-          { id: 'bandits' as const, label: 'Contextual Bandits (LinUCB)', icon: Zap },
-          { id: 'steering' as const, label: 'Vector Steering', icon: Compass },
+          { id: 'ranker' as const, label: isRu ? 'Многофакторный ранкер' : 'Multi-Feature Ranker', icon: Sliders },
+          { id: 'capsules' as const, label: isRu ? 'Капсулы интересов (MIND)' : 'Multi-Interest Capsules', icon: Layers },
+          { id: 'bandits' as const, label: isRu ? 'Контекстные бандиты (LinUCB)' : 'Contextual Bandits (LinUCB)', icon: Zap },
+          { id: 'steering' as const, label: isRu ? 'Векторный руль (Steering)' : 'Vector Steering', icon: Compass },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -176,12 +183,12 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
         <div className="playground-layout">
           <div className="controls-panel card">
             <h3 className="text-sm font-semibold text-[var(--text)] mb-4">
-              Ranker Weight Parameters
+              {isRu ? 'Весовые параметры ранкера' : 'Ranker Weight Parameters'}
             </h3>
             {[
-              { label: 'α Semantic Cosine', val: rankingConfig.alpha, key: 'alpha' as const },
-              { label: 'δ User History Affinity', val: rankingConfig.delta, key: 'delta' as const },
-              { label: 'β Popularity Score', val: rankingConfig.beta, key: 'beta' as const },
+              { label: isRu ? 'α Семантический косинус' : 'α Semantic Cosine', val: rankingConfig.alpha, key: 'alpha' as const },
+              { label: isRu ? 'δ Близость к истории (Affinity)' : 'δ User History Affinity', val: rankingConfig.delta, key: 'delta' as const },
+              { label: isRu ? 'β Популярность товара' : 'β Popularity Score', val: rankingConfig.beta, key: 'beta' as const },
             ].map((s) => (
               <div key={s.key} className="slider-group">
                 <div className="slider-header">
@@ -202,7 +209,7 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
             ))}
             <div className="slider-group mb-0">
               <div className="slider-header">
-                <span>λ SMMR Diversity Balance</span>
+                <span>{isRu ? 'λ Баланс разнообразия SMMR' : 'λ SMMR Diversity Balance'}</span>
                 <span className="slider-value">{smmrConfig.lambda.toFixed(2)}</span>
               </div>
               <input
@@ -221,10 +228,10 @@ export const AdaptivePanel: React.FC<AdaptivePanelProps> = ({
           <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-[var(--text)]">
-                Top Adaptive Recommendations (Composite Scoring)
+                {isRu ? 'Топ адаптивных рекомендаций (Композитный Score)' : 'Top Adaptive Recommendations (Composite Scoring)'}
               </h3>
               {currentSeed && (
-                <span className="badge badge-neutral">Anchor: {currentSeed.title}</span>
+                <span className="badge badge-neutral">{isRu ? 'Якорь:' : 'Anchor:'} {currentSeed.title}</span>
               )}
             </div>
             <div className="flex flex-col gap-3">

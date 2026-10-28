@@ -31,7 +31,8 @@ const INITIAL_ZERO_RESULT_QUERIES = [
   { query: 'rtx 5090 ti founders edition', count: 28, lastSeen: '2 hours ago' },
 ];
 
-export const AnalyticsView: React.FC = () => {
+export const AnalyticsView: React.FC<{ uiLang?: 'ru' | 'en' | 'ja' }> = ({ uiLang = 'en' }) => {
+  const isRu = uiLang === 'ru';
   const [periodIdx, setPeriodIdx] = useState(1);
   const [summary, setSummary] = useState<AnalyticsSummary>(() =>
     computeSummary(PERIODS[1].ms, PERIODS[1].label)
@@ -60,9 +61,13 @@ export const AnalyticsView: React.FC = () => {
     <div className="page analytics-dashboard" data-testid="analytics-dashboard">
       <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
         <div>
-          <h2 className="page-title">📈 Search &amp; Conversion Analytics</h2>
+          <h2 className="page-title">
+            {isRu ? '📈 Аналитика поиска и конверсии (Search & Conversion Analytics)' : '📈 Search & Conversion Analytics'}
+          </h2>
           <p className="page-sub">
-            Real-time search telemetry, zero-result query diagnostics, latency percentiles, and cache hit rate
+            {isRu
+              ? 'Телеметрия поисковых запросов в реальном времени, диагностика пустой выдачи, перцентили задержек и эффективность кэша'
+              : 'Real-time search telemetry, zero-result query diagnostics, latency percentiles, and cache hit rate'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -73,7 +78,15 @@ export const AnalyticsView: React.FC = () => {
           >
             {PERIODS.map((p, i) => (
               <option key={i} value={i}>
-                {p.label}
+                {isRu
+                  ? i === 0
+                    ? 'За последний час'
+                    : i === 1
+                    ? 'Сегодня'
+                    : i === 2
+                    ? 'За 7 дней'
+                    : 'За всё время'
+                  : p.label}
               </option>
             ))}
           </select>
@@ -82,7 +95,7 @@ export const AnalyticsView: React.FC = () => {
             className="btn btn-danger btn-sm"
             onClick={() => clearAnalytics()}
           >
-            <Trash2 size={13} /> Clear session
+            <Trash2 size={13} /> {isRu ? 'Очистить сессию' : 'Clear session'}
           </button>
         </div>
       </div>
@@ -90,48 +103,48 @@ export const AnalyticsView: React.FC = () => {
       {/* Primary KPI Grid */}
       <div className="kpi-grid" data-testid="analytics-kpi-grid">
         <div className="kpi-card">
-          <span className="kpi-title">Total Searches (24h)</span>
+          <span className="kpi-title">{isRu ? 'Всего поисков (Total Searches 24ч)' : 'Total Searches (24h)'}</span>
           <div className="kpi-value" data-testid="kpi-total-searches">
             {(24850 + summary.searches).toLocaleString()}
           </div>
           <span className="kpi-trend positive">
-            ↑ +14.2% vs yesterday (Session:{' '}
+            ↑ +14.2% {isRu ? 'к вчерашнему дню (Сессия:' : 'vs yesterday (Session:'}{' '}
             <span data-testid="search-count">{summary.searches}</span>)
           </span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-title">Avg Latency (p95)</span>
+          <span className="kpi-title">{isRu ? 'Средняя задержка (Avg Latency p95)' : 'Avg Latency (p95)'}</span>
           <div className="kpi-value">11.4 ms</div>
-          <span className="kpi-trend positive">↓ -2.1ms improvement</span>
+          <span className="kpi-trend positive">↓ -2.1ms {isRu ? 'ускорение' : 'improvement'}</span>
         </div>
         <div className="kpi-card">
-          <span className="kpi-title">Search CTR</span>
+          <span className="kpi-title">{isRu ? 'Кликабельность (Search CTR)' : 'Search CTR'}</span>
           <div className="kpi-value">
             {summary.searches > 0 ? `${(summary.ctr * 100).toFixed(1)}%` : '34.8%'}
           </div>
-          <span className="kpi-trend positive">↑ +3.4% vs last week</span>
+          <span className="kpi-trend positive">↑ +3.4% {isRu ? 'за неделю' : 'vs last week'}</span>
         </div>
         <div className="kpi-card alert">
-          <span className="kpi-title">Zero-Result Rate</span>
+          <span className="kpi-title">{isRu ? 'Пустая выдача (Zero-Result Rate)' : 'Zero-Result Rate'}</span>
           <div className="kpi-value">1.2%</div>
-          <span className="kpi-trend negative">105 missed queries</span>
+          <span className="kpi-trend negative">{isRu ? '105 запросов без ответа' : '105 missed queries'}</span>
         </div>
       </div>
 
-      <LatencyAndCachePanel />
+      <LatencyAndCachePanel uiLang={uiLang} />
 
-      <LiveClusterTelemetryPanel activeSearches={summary.searches} />
+      <LiveClusterTelemetryPanel activeSearches={summary.searches} uiLang={uiLang} />
 
       {/* Top Queries & Zero-Result Action Table */}
       <div className="analytics-tables mb-6">
         <div className="table-card card p-5">
-          <h3 className="text-base font-semibold mb-3">🔥 Top Search Queries</h3>
+          <h3 className="text-base font-semibold mb-3">{isRu ? '🔥 Популярные поисковые запросы' : '🔥 Top Search Queries'}</h3>
           <table className="table" data-testid="top-queries-table">
             <thead>
               <tr>
-                <th>Query</th>
-                <th>Count</th>
-                <th>Avg Score</th>
+                <th>{isRu ? 'Запрос' : 'Query'}</th>
+                <th>{isRu ? 'Кол-во' : 'Count'}</th>
+                <th>{isRu ? 'Ср. Score' : 'Avg Score'}</th>
               </tr>
             </thead>
             <tbody>
@@ -152,10 +165,12 @@ export const AnalyticsView: React.FC = () => {
 
         <div className="table-card alert-border card p-5">
           <h3 className="text-base font-semibold mb-1">
-            ⚠️ Zero-Result Queries (Action Required)
+            {isRu ? '⚠️ Запросы с нулевой выдачей (Требуется действие)' : '⚠️ Zero-Result Queries (Action Required)'}
           </h3>
           <p className="table-sub text-xs text-[var(--text-sec)] mb-3">
-            Пользователи искали эти товары, но ничего не нашли. Добавьте синонимы или товары.
+            {isRu
+              ? 'Пользователи искали эти товары, но ничего не нашли. Добавьте синонимы или товары.'
+              : 'Users searched for these items but found 0 results. Map synonyms or add catalog items.'}
           </p>
           <div className="zero-results-list" data-testid="zero-results-list">
             {INITIAL_ZERO_RESULT_QUERIES.map((z) => {
@@ -165,7 +180,7 @@ export const AnalyticsView: React.FC = () => {
                   <div>
                     <strong>"{z.query}"</strong>
                     <span className="zero-meta block text-xs text-[var(--text-mut)]">
-                      {z.count} searches • {z.lastSeen}
+                      {z.count} {isRu ? 'поисков' : 'searches'} • {z.lastSeen}
                     </span>
                   </div>
                   <button
@@ -183,7 +198,7 @@ export const AnalyticsView: React.FC = () => {
                       }
                     }}
                   >
-                    {isAdded ? '✓ Synonym Added' : '+ Add Synonym'}
+                    {isAdded ? (isRu ? '✓ Синоним добавлен' : '✓ Synonym Added') : (isRu ? '+ Добавить синоним (+ Add Synonym)' : '+ Add Synonym')}
                   </button>
                 </div>
               );
@@ -192,7 +207,7 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
-      <SemanticTrendsAnalytics />
+      <SemanticTrendsAnalytics uiLang={uiLang} />
     </div>
   );
 };
