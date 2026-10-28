@@ -1,0 +1,356 @@
+2026-10-28T18:36:45.6196930Z ##[group]Run pnpm run test:coverage
+2026-10-28T18:36:45.6197137Z [36;1mpnpm run test:coverage[0m
+2026-10-28T18:36:45.6213320Z shell: /usr/bin/bash -e {0}
+2026-10-28T18:36:45.6213463Z env:
+2026-10-28T18:36:45.6213607Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-10-28T18:36:45.6213784Z ##[endgroup]
+2026-10-28T18:36:45.8901160Z 
+2026-10-28T18:36:45.8902071Z > eidos@3.2.0 test:coverage /home/runner/work/EIDOS/EIDOS
+2026-10-28T18:36:45.8902531Z > vitest run --coverage
+2026-10-28T18:36:45.8902681Z 
+2026-10-28T18:36:46.1402369Z [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+2026-10-28T18:36:46.2424472Z 
+2026-10-28T18:36:46.2426320Z [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/EIDOS/EIDOS[39m
+2026-10-28T18:36:46.2426905Z       [2mCoverage enabled with [22m[33mv8[39m
+2026-10-28T18:36:46.2427103Z 
+2026-10-28T18:36:48.5893401Z  [32m✓[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1374[2mms[22m[39m
+2026-10-28T18:36:48.5898543Z    [33m[2m✓[22m[39m PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification v3.2[2m > [22mTASK 4.1: Multi-Instance Horizontal Scaling & Cross-Node Cache Invalidation Bus [33m1063[2mms[22m[39m
+2026-10-28T18:36:48.6390074Z  [32m✓[39m apps/api/tests/phase1-api-hardening.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1439[2mms[22m[39m
+2026-10-28T18:36:48.6394240Z    [33m[2m✓[22m[39m PHASE 1: Critical API Fixes & Security Hardening[2m > [22mTASK 1.3: Production Auth & JWT Expiration Validation[2m > [22mallows public /v1/health in production (200), rejects missing key on protected endpoints (401), rejects hardcoded dev keys (eidos_dev_key, test-key), and allows eidos_demo_key on read-only search/recommend [33m1007[2mms[22m[39m
+2026-10-28T18:36:50.3813643Z  [32m✓[39m tests/connectors/bitrix-and-all-in-one-docker.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 252[2mms[22m[39m
+2026-10-28T18:36:50.9407215Z  [32m✓[39m tests/integration/phase2-ui-completion.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 374[2mms[22m[39m
+2026-10-28T18:36:51.5616462Z  [32m✓[39m packages/core/src/tests/strict-validation.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-10-28T18:36:52.4723492Z  [32m✓[39m apps/api/tests/redis-cache.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 377[2mms[22m[39m
+2026-10-28T18:36:52.4865515Z  [32m✓[39m tests/benchmarks/search-sla.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 902[2mms[22m[39m
+2026-10-28T18:36:52.8152008Z  [32m✓[39m tests/unit/multilingual-crosslingual.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 54[2mms[22m[39m
+2026-10-28T18:36:53.0776242Z  [32m✓[39m packages/core/src/tests/hnsw-quantization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 78[2mms[22m[39m
+2026-10-28T18:36:53.5996587Z  [32m✓[39m tests/integration/prometheus-metrics.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 481[2mms[22m[39m
+2026-10-28T18:36:54.1521876Z  [32m✓[39m apps/api/tests/ten-bugs-fixes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 469[2mms[22m[39m
+2026-10-28T18:36:54.8280837Z  [32m✓[39m packages/core/src/tests/v3-enterprise.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+2026-10-28T18:36:55.3614297Z  [32m✓[39m tests/integration/modernization-phases-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 253[2mms[22m[39m
+2026-10-28T18:36:55.6567081Z  [32m✓[39m tests/integration/split-brain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 319[2mms[22m[39m
+2026-10-28T18:36:56.5505888Z  [32m✓[39m tests/unit/phase2-rate-limit-lru.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+2026-10-28T18:36:57.2571732Z  [32m✓[39m tests/integration/critical-routes.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 357[2mms[22m[39m
+2026-10-28T18:36:57.3282983Z  [32m✓[39m apps/api/tests/phase2-product-improvements.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 260[2mms[22m[39m
+2026-10-28T18:36:58.4257966Z  [32m✓[39m packages/core/src/tests/adaptive/explainability-steering.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:36:59.2699015Z  [32m✓[39m apps/api/tests/phase3-competitive-edge.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 351[2mms[22m[39m
+2026-10-28T18:37:00.2395172Z  [32m✓[39m apps/api/tests/cache-hardening.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1467[2mms[22m[39m
+2026-10-28T18:37:00.2396357Z    [33m[2m✓[22m[39m Cache Hardening Tests[2m > [22mInMemoryCache[2m > [22mshould expire keys correctly [33m1101[2mms[22m[39m
+2026-10-28T18:37:00.4297635Z  [32m✓[39m packages/core/src/tests/adaptive/multi-interest-tower.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:37:01.0200784Z  [32m✓[39m tests/multi-tenancy/tenant-isolation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 245[2mms[22m[39m
+2026-10-28T18:37:01.1957967Z  [32m✓[39m tests/unit/phase3-deterministic-seeding-metrics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 226[2mms[22m[39m
+2026-10-28T18:37:01.2098130Z  [32m✓[39m packages/core/src/tests/csv-parser.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-10-28T18:37:01.3652849Z  [32m✓[39m packages/core/src/tests/audit-regressions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-28T18:37:01.3757217Z  [31m❯[39m tests/unit/architecture-constraints.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[90m 23[2mms[22m[39m
+2026-10-28T18:37:01.3759344Z [31m   [31m×[31m Phase 5: Architectural Constraints & Quality Invariants[2m > [22mverifies Phase 0 cleanup: legacy /src removed, bun.lock gitignored, pnpm enforced, and Vite config inside apps/workspace[90m 7[2mms[22m[31m[39m
+2026-10-28T18:37:01.3760823Z [31m     → the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string[39m
+2026-10-28T18:37:01.3767166Z [31m   [31m×[31m Phase 5: Architectural Constraints & Quality Invariants[2m > [22mverifies GitHub Actions workflows and Dockerfile contain no || true stubs or stale paths[90m 5[2mms[22m[31m[39m
+2026-10-28T18:37:01.3768321Z [31m     → expected 'name: Security Audit & SAST\n\non:\n …' not to contain '|| true'[39m
+2026-10-28T18:37:01.5119841Z  [32m✓[39m packages/core/tests/multilingual-bm25.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-28T18:37:01.5971201Z  [32m✓[39m tests/unit/store-registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+2026-10-28T18:37:01.6918116Z  [32m✓[39m packages/sdk/tests/sdk-client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+2026-10-28T18:37:01.8628563Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-explorer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:37:02.1407030Z  [32m✓[39m tests/unit/indexeddb-storage.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+2026-10-28T18:37:02.1650641Z  [32m✓[39m tests/integration/shopify-webhook.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 168[2mms[22m[39m
+2026-10-28T18:37:02.3331695Z  [32m✓[39m packages/core/src/tests/priority2-v2.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-28T18:37:02.4897350Z  [32m✓[39m packages/core/src/tests/persistence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:37:02.7757102Z  [32m✓[39m tests/connectors/postgres-cdc.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 267[2mms[22m[39m
+2026-10-28T18:37:03.0512193Z  [32m✓[39m tests/unit/honest-embeddings-and-determinism.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+2026-10-28T18:37:03.1007304Z  [32m✓[39m tests/integration/postgres-cdc.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 175[2mms[22m[39m
+2026-10-28T18:37:03.3317508Z  [32m✓[39m tests/sharding/lsh-router.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+2026-10-28T18:37:03.5841403Z  [32m✓[39m apps/api/tests/cache-invalidation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-10-28T18:37:03.7209361Z  [32m✓[39m tests/integration/cluster.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 481[2mms[22m[39m
+2026-10-28T18:37:03.7210482Z    [33m[2m✓[22m[39m PHASE 1 - Task 1.1: Multi-Node Cluster Integration Test (3 Shards + Coordinator)[2m > [22mspins up a 3-node HNSW cluster, indexes 300 items, executes 1,000 search queries, and verifies all 3 shards respond with balanced load [33m479[2mms[22m[39m
+2026-10-28T18:37:03.7211799Z  [32m✓[39m packages/core/src/tests/adaptive/cross-encoder.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:03.8681493Z  [32m✓[39m packages/core/src/tests/comprehensive-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-28T18:37:04.2877209Z  [32m✓[39m tests/integration/mongodb-changestream.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 169[2mms[22m[39m
+2026-10-28T18:37:04.4564644Z  [32m✓[39m tests/unit/phase2-modern-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+2026-10-28T18:37:04.5268901Z  [32m✓[39m tests/unit/pipeline-sync-and-agent.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+2026-10-28T18:37:04.8092779Z  [32m✓[39m tests/cache/semantic-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:37:05.3879531Z  [32m✓[39m apps/api/tests/hnsw-store-security.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 408[2mms[22m[39m
+2026-10-28T18:37:05.5687575Z  [32m✓[39m tests/integration/phase3-docs-and-deploy.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 194[2mms[22m[39m
+2026-10-28T18:37:06.5542332Z  [32m✓[39m packages/core/src/tests/adaptive/feature-scaler.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:06.6995487Z  [32m✓[39m packages/core/src/tests/security-guardrails.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:37:07.0495034Z  [32m✓[39m tests/integration/failover.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 168[2mms[22m[39m
+2026-10-28T18:37:07.3561100Z  [32m✓[39m apps/api/tests/v31-release-features.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 445[2mms[22m[39m
+2026-10-28T18:37:07.7630493Z  [32m✓[39m tests/unit/phase1-type-safety-csp.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 203[2mms[22m[39m
+2026-10-28T18:37:08.5426542Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-cholesky.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+2026-10-28T18:37:08.5733025Z  [32m✓[39m tests/reranker/cross-encoder.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 14[2mms[22m[39m
+2026-10-28T18:37:08.6965983Z  [32m✓[39m packages/core/src/tests/adaptive/user-tower.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:37:08.7257658Z  [32m✓[39m packages/core/src/tests/adaptive/ranker.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-10-28T18:37:08.8447232Z  [32m✓[39m packages/core/src/tests/adaptive/candidate-fusion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:09.6061627Z  [32m✓[39m tests/unit/api-key-manager.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 382[2mms[22m[39m
+2026-10-28T18:37:09.6062987Z    [33m[2m✓[22m[39m ApiKeyManager & /v1/keys/revoke Rotation[2m > [22mPOST /v1/keys/revoke revokes key and middleware rejects subsequent requests with 401 [33m379[2mms[22m[39m
+2026-10-28T18:37:09.6672222Z  [32m✓[39m apps/api/tests/recommend-adaptive.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 309[2mms[22m[39m
+2026-10-28T18:37:10.7703982Z  [32m✓[39m packages/core/src/tests/adaptive/feedback-loop.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:10.7727231Z  [32m✓[39m packages/core/src/tests/adaptive/metadata-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:10.9268040Z  [32m✓[39m packages/core/src/tests/adaptive/kg-enricher.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:11.0754379Z  [32m✓[39m packages/core/src/tests/clip-embedder.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-28T18:37:11.5157143Z  [32m✓[39m apps/api/tests/recommend-user.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 234[2mms[22m[39m
+2026-10-28T18:37:11.7692188Z  [32m✓[39m apps/api/tests/feedback.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 177[2mms[22m[39m
+2026-10-28T18:37:12.7337202Z  [32m✓[39m tests/unit/vector-store.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-28T18:37:13.2712519Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould register /v1/search route
+2026-10-28T18:37:13.2713294Z [22m[39mRegistered routes:
+2026-10-28T18:37:13.2713614Z  ├── /v1/telemetry (GET, HEAD)
+2026-10-28T18:37:13.2713897Z ├── /v1/tenants (GET, HEAD)
+2026-10-28T18:37:13.2714154Z ├── /v1/metrics (GET, HEAD)
+2026-10-28T18:37:13.2714433Z │   └── /prometheus (GET, HEAD)
+2026-10-28T18:37:13.2714735Z ├── /v1/merchandising/rules (POST)
+2026-10-28T18:37:13.2714972Z ├── /v1/diagnostics/errors (GET, HEAD)
+2026-10-28T18:37:13.2715700Z ├── /v1/demo/search (POST)
+2026-10-28T18:37:13.2715961Z ├── /v1/demo/recommend (POST)
+2026-10-28T18:37:13.2716247Z ├── /v1/openapi.json (GET, HEAD)
+2026-10-28T18:37:13.2716515Z ├── /v1/health (GET, HEAD)
+2026-10-28T18:37:13.2716771Z │   ├── /ready (GET, HEAD)
+2026-10-28T18:37:13.2717027Z │   └── /live (GET, HEAD)
+2026-10-28T18:37:13.2717312Z ├── /v1/cluster/status (GET, HEAD)
+2026-10-28T18:37:13.2717661Z ├── /v1/cluster/shards/:shardId/health (POST)
+2026-10-28T18:37:13.2717972Z ├── /v1/cluster/drain (POST)
+2026-10-28T18:37:13.2718221Z ├── /v1/catalog (POST)
+2026-10-28T18:37:13.2718491Z │   ├── /stats (GET, HEAD)
+2026-10-28T18:37:13.2718725Z │   ├── /upsert (POST)
+2026-10-28T18:37:13.2718951Z │   └── /items (POST)
+2026-10-28T18:37:13.2719188Z │       └── /:id (DELETE)
+2026-10-28T18:37:13.2719429Z ├── /v1/search (POST)
+2026-10-28T18:37:13.2719706Z ├── /v1/settings (GET, HEAD, PUT)
+2026-10-28T18:37:13.2719978Z │   └── /webhooks (POST)
+2026-10-28T18:37:13.2720218Z │       └── /:id (DELETE)
+2026-10-28T18:37:13.2720481Z ├── /v1/recommend (POST)
+2026-10-28T18:37:13.2720708Z │   ├── /user (POST)
+2026-10-28T18:37:13.2720949Z │   └── /adaptive (POST)
+2026-10-28T18:37:13.2721205Z ├── /v1/routes (GET, HEAD)
+2026-10-28T18:37:13.2721455Z ├── /v1/feedback (POST)
+2026-10-28T18:37:13.2721726Z ├── /v1/audit/logs (GET, HEAD)
+2026-10-28T18:37:13.2722061Z ├── /v1/analytics (GET, HEAD)
+2026-10-28T18:37:13.2722309Z │   ├── /seo (GET, HEAD)
+2026-10-28T18:37:13.2722528Z │   ├── /synonym (POST)
+2026-10-28T18:37:13.2722763Z │   ├── /metrics (GET, HEAD)
+2026-10-28T18:37:13.2723003Z │   └── /boost (POST)
+2026-10-28T18:37:13.2723238Z ├── /v1/keys (GET, HEAD)
+2026-10-28T18:37:13.2723462Z │   ├── /revoke (POST)
+2026-10-28T18:37:13.2723677Z │   └── /generate (POST)
+2026-10-28T18:37:13.2723936Z ├── /v1/indexes (GET, HEAD, POST)
+2026-10-28T18:37:13.2724182Z │   └── /:name (DELETE)
+2026-10-28T18:37:13.2724418Z │       └── /documents (POST)
+2026-10-28T18:37:13.2724661Z ├── /docs (GET, HEAD)
+2026-10-28T18:37:13.2724952Z │   ├── /static/index.html (GET, HEAD)
+2026-10-28T18:37:13.2725822Z │   ├── /static/swagger-initializer.js (GET, HEAD)
+2026-10-28T18:37:13.2726146Z │   ├── * (HEAD, GET)
+2026-10-28T18:37:13.2726373Z │   ├── /json (GET, HEAD)
+2026-10-28T18:37:13.2726616Z │   └── /yaml (GET, HEAD)
+2026-10-28T18:37:13.2726859Z ├── /metrics (GET, HEAD)
+2026-10-28T18:37:13.2727096Z ├── /health (GET, HEAD)
+2026-10-28T18:37:13.2727339Z ├── /api/health (GET, HEAD)
+2026-10-28T18:37:13.2727592Z ├── /ready (GET, HEAD)
+2026-10-28T18:37:13.2727820Z ├── /live (GET, HEAD)
+2026-10-28T18:37:13.2728026Z └── * (OPTIONS)
+2026-10-28T18:37:13.2728376Z 
+2026-10-28T18:37:13.2728385Z 
+2026-10-28T18:37:13.4587357Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould respond to POST /v1/demo/search with valid payload
+2026-10-28T18:37:13.4606017Z [22m[39mResponse status: [33m200[39m
+2026-10-28T18:37:13.4624391Z Response body: {"query":"wireless headphones","mode":"hybrid","results":[{"id":"item-6","title":"Quantum Spatial Audio Headphones Gen-1","description":"High-performance quantum spatial audio headphones in Electronics category (Series 1, SKU #item-6).","category":"Electronics","tags":["quantum","electronics","hardware","tech","wireless"],"price":187.49,"score":0.0164,"source":"sparse","explanation":{"denseComponent":0,"sparseBm25Component":5.5814,"rrfScore":0.0164,"mmrPenalty":0,"businessBoost":0}},{"id":"item-214","title":"ProGrade Approximate Nearest Neighbor Search Gen-3","description":"High-performance prograde approximate nearest neighbor search in Books category (Series 3, SKU #item-214).","category":"Books","tags":["prograde","books","engineering","ai","algorithms"],"price":50.79,"score":0.0164,"source":"dense","explanation":{"denseComponent":0.0939,"sparseBm25Component":0,"rrfScore":0.0164,"mmrPenalty":0,"businessBoost":0}},{"id":"item-15","title":"Neural Spatial Audio Headphones Gen-1","description":"High-performance neural spatial audio headphones in Electronics category (Series 1, SKU #item-15).","category":"Electronics","tags":["neural","electronics","hardware","tech","wireless"],"price":239.99,"score":0.0161,"source":"sparse","explanation":{"denseComponent":0.0217,"sparseBm25Component":5.5814,"rrfScore":0.0161,"mmrPenalty":0,"businessBoost":0}},{"id":"item-97","title":"Acoustic Distributed Systems Architecture Gen-2","description":"High-performance acoustic distributed systems architecture in Books category (Series 2, SKU #item-97).","category":"Books","tags":["acoustic","books","engineering","ai","algorithms"],"price":61.58,"score":0.0161,"source":"dense","explanation":{"denseComponent":0.0926,"sparseBm25Component":0,"rrfScore":0.0161,"mmrPenalty":0,"businessBoost":0}},{"id":"item-24","title":"UltraLight Spatial Audio Headphones Gen-1","description":"High-performance ultralight spatial audio headphones in Electronics category (Series 1, SKU #item-24).","category":"Electronics","tags":["ultralight","electronics","hardware","tech","wireless"],"price":292.49,"score":0.0159,"source":"sparse","explanation":{"denseComponent":0.0099,"sparseBm25Component":5.5814,"rrfScore":0.0159,"mmrPenalty":0,"businessBoost":0}}],"count":5,"latencyMs":201.6,"cacheHit":false}
+2026-10-28T18:37:13.4631540Z 
+2026-10-28T18:37:13.5257244Z  [32m✓[39m tests/integration/route-registration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 433[2mms[22m[39m
+2026-10-28T18:37:13.7461231Z  [32m✓[39m apps/api/tests/production-hardening.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 426[2mms[22m[39m
+2026-10-28T18:37:14.6901766Z  [32m✓[39m packages/core/src/tests/adaptive/context-signals.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:14.6923295Z  [32m✓[39m packages/core/src/tests/adaptive/smmr.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:14.8377204Z  [32m✓[39m packages/core/src/tests/graph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:15.1500956Z  [32m✓[39m apps/api/tests/singleflight.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 153[2mms[22m[39m
+2026-10-28T18:37:15.3378820Z  [32m✓[39m apps/api/tests/similarity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:15.3820672Z  [32m✓[39m apps/api/tests/recommend.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 214[2mms[22m[39m
+2026-10-28T18:37:15.4713596Z  [32m✓[39m tests/unit/xai-explainer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:15.6095675Z  [32m✓[39m tests/unit/splade-lite.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:15.6114164Z  [32m✓[39m packages/core/src/tests/cosine.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:15.7451716Z  [32m✓[39m tests/unit/query-understanding.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:15.7470383Z  [32m✓[39m tests/unit/sequential-recommender.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:15.8859192Z  [32m✓[39m packages/core/src/tests/entropy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:15.8861491Z  [32m✓[39m tests/unit/prometheus.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:16.0306843Z  [32m✓[39m tests/unit/webhook-dispatcher.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:16.0330003Z  [32m✓[39m tests/unit/tracing.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-28T18:37:16.1887368Z  [32m✓[39m tests/unit/benchmark.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-28T18:37:16.7721668Z 
+2026-10-28T18:37:16.7723466Z [31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-28T18:37:16.7723736Z 
+2026-10-28T18:37:16.7725719Z [31m[1m[7m FAIL [27m[22m[39m tests/unit/architecture-constraints.test.ts[2m > [22mPhase 5: Architectural Constraints & Quality Invariants[2m > [22mverifies Phase 0 cleanup: legacy /src removed, bun.lock gitignored, pnpm enforced, and Vite config inside apps/workspace
+2026-10-28T18:37:16.7736947Z [31m[1mAssertionError[22m: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string[39m
+2026-10-28T18:37:16.7738091Z [36m [2m❯[22m tests/unit/architecture-constraints.test.ts:[2m36:41[22m[39m
+2026-10-28T18:37:16.7842581Z     [90m 34| [39m
+2026-10-28T18:37:16.7843427Z     [90m 35| [39m    [35mconst[39m rootPkg [33m=[39m [33mJSON[39m[33m.[39m[34mparse[39m(fs[33m.[39m[34mreadFileSync[39m(path[33m.[39m[34mresolve[39m([33mROOT_DIR[39m[33m,[39m …
+2026-10-28T18:37:16.7844263Z     [90m 36| [39m    [34mexpect[39m(rootPkg[33m.[39mscripts[33m?.[39mpreinstall)[33m.[39m[34mtoContain[39m([32m'npx only-allow pnpm[39m…
+2026-10-28T18:37:16.7844660Z     [90m   | [39m                                        [31m^[39m
+2026-10-28T18:37:16.7845128Z     [90m 37| [39m    [34mexpect[39m(rootPkg[33m.[39mpnpm[33m?.[39moverrides[33m?.[39mprotobufjs)[33m.[39m[34mtoBe[39m([32m'>=7.6.1'[39m)[33m;[39m
+2026-10-28T18:37:16.7845679Z     [90m 38| [39m  })[33m;[39m
+2026-10-28T18:37:16.7845781Z 
+2026-10-28T18:37:16.7845948Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+2026-10-28T18:37:16.7846072Z 
+2026-10-28T18:37:16.7846694Z [31m[1m[7m FAIL [27m[22m[39m tests/unit/architecture-constraints.test.ts[2m > [22mPhase 5: Architectural Constraints & Quality Invariants[2m > [22mverifies GitHub Actions workflows and Dockerfile contain no || true stubs or stale paths
+2026-10-28T18:37:16.7847992Z [31m[1mAssertionError[22m: expected 'name: Security Audit & SAST\n\non:\n …' not to contain '|| true'[39m
+2026-10-28T18:37:16.7848334Z 
+2026-10-28T18:37:16.7848447Z [32m- Expected[39m
+2026-10-28T18:37:16.7848669Z [31m+ Received[39m
+2026-10-28T18:37:16.7848781Z 
+2026-10-28T18:37:16.7848903Z [32m- || true[39m
+2026-10-28T18:37:16.7849156Z [31m+ name: Security Audit & SAST[39m
+2026-10-28T18:37:16.7849394Z [31m+[39m
+2026-10-28T18:37:16.7849583Z [31m+ on:[39m
+2026-10-28T18:37:16.7849801Z [31m+   push:[39m
+2026-10-28T18:37:16.7850090Z [31m+     branches: [main, master][39m
+2026-10-28T18:37:16.7850371Z [31m+   pull_request:[39m
+2026-10-28T18:37:16.7850723Z [31m+     branches: [main, master][39m
+2026-10-28T18:37:16.7850994Z [31m+   schedule:[39m
+2026-10-28T18:37:16.7851295Z [31m+     # Run every Sunday at 02:00 UTC[39m
+2026-10-28T18:37:16.7851627Z [31m+     - cron: '0 2 * * 0'[39m
+2026-10-28T18:37:16.7852295Z [31m+   workflow_dispatch:[39m
+2026-10-28T18:37:16.7852528Z [31m+[39m
+2026-10-28T18:37:16.7852746Z [31m+ permissions:[39m
+2026-10-28T18:37:16.7852997Z [31m+   contents: read[39m
+2026-10-28T18:37:16.7853284Z [31m+   security-events: write[39m
+2026-10-28T18:37:16.7853525Z [31m+[39m
+2026-10-28T18:37:16.7853724Z [31m+ jobs:[39m
+2026-10-28T18:37:16.7853938Z [31m+   codeql:[39m
+2026-10-28T18:37:16.7854265Z [31m+     name: CodeQL Static Security Analysis[39m
+2026-10-28T18:37:16.7854530Z [31m+     runs-on: ubuntu-latest[39m
+2026-10-28T18:37:16.7854701Z [31m+     steps:[39m
+2026-10-28T18:37:16.7854877Z [31m+       - name: Checkout Code[39m
+2026-10-28T18:37:16.7855084Z [31m+         uses: actions/checkout@v4[39m
+2026-10-28T18:37:16.7855433Z [31m+[39m
+2026-10-28T18:37:16.7855700Z [31m+       - name: Initialize CodeQL[39m
+2026-10-28T18:37:16.7856066Z [31m+         uses: github/codeql-action/init@v3[39m
+2026-10-28T18:37:16.7856365Z [31m+         with:[39m
+2026-10-28T18:37:16.7856671Z [31m+           languages: javascript-typescript, python[39m
+2026-10-28T18:37:16.7856862Z [31m+[39m
+2026-10-28T18:37:16.7857040Z [31m+       - name: Perform CodeQL Analysis[39m
+2026-10-28T18:37:16.7857284Z [31m+         uses: github/codeql-action/analyze@v3[39m
+2026-10-28T18:37:16.7857460Z [31m+[39m
+2026-10-28T18:37:16.7857651Z [31m+   security-and-guardrails-verification:[39m
+2026-10-28T18:37:16.7858071Z [31m+     name: Dependency Audit & Security Guardrails Verification[39m
+2026-10-28T18:37:16.7858320Z [31m+     runs-on: ubuntu-latest[39m
+2026-10-28T18:37:16.7858489Z [31m+     steps:[39m
+2026-10-28T18:37:16.7858664Z [31m+       - name: Checkout Code[39m
+2026-10-28T18:37:16.7858870Z [31m+         uses: actions/checkout@v4[39m
+2026-10-28T18:37:16.7859031Z [31m+[39m
+2026-10-28T18:37:16.7859188Z [31m+       - name: Setup pnpm[39m
+2026-10-28T18:37:16.7859416Z [31m+         uses: pnpm/action-setup@v4[39m
+2026-10-28T18:37:16.7859599Z [31m+         with:[39m
+2026-10-28T18:37:16.7859778Z [31m+           version: 9.15.4[39m
+2026-10-28T18:37:16.7859931Z [31m+[39m
+2026-10-28T18:37:16.7860095Z [31m+       - name: Setup Node.js 20[39m
+2026-10-28T18:37:16.7860312Z [31m+         uses: actions/setup-node@v4[39m
+2026-10-28T18:37:16.7860496Z [31m+         with:[39m
+2026-10-28T18:37:16.7860668Z [31m+           node-version: 20[39m
+2026-10-28T18:37:16.7860909Z [31m+           cache: 'pnpm'[39m
+2026-10-28T18:37:16.7861328Z [31m+[39m
+2026-10-28T18:37:16.7861555Z [31m+       - name: Install Workspace Dependencies[39m
+2026-10-28T18:37:16.7861824Z [31m+         run: pnpm install -r --no-frozen-lockfile[39m
+2026-10-28T18:37:16.7862012Z [31m+[39m
+2026-10-28T18:37:16.7862191Z [31m+       - name: Build Core & SDK Packages[39m
+2026-10-28T18:37:16.7862411Z [31m+         run: |[39m
+2026-10-28T18:37:16.7862731Z [31m+           pnpm --filter @eidos/core build[39m
+2026-10-28T18:37:16.7862964Z [31m+           pnpm --filter @eidos/sdk build[39m
+2026-10-28T18:37:16.7863139Z [31m+[39m
+2026-10-28T18:37:16.7863505Z [31m+       - name: Execute Security Guardrails, API Hardening & Invariant Suite[39m
+2026-10-28T18:37:16.7863802Z [31m+         run: pnpm run security:check[39m
+2026-10-28T18:37:16.7863970Z [31m+[39m
+2026-10-28T18:37:16.7864226Z [31m+       - name: Audit Production Dependencies (Critical Vulnerability Gate)[39m
+2026-10-28T18:37:16.7864578Z [31m+ [7m        run: pnpm audit --prod --audit-level=critical [27m|| true[39m
+2026-10-28T18:37:16.7864797Z [31m+[39m
+2026-10-28T18:37:16.7865001Z [31m+[39m
+2026-10-28T18:37:16.7865061Z 
+2026-10-28T18:37:16.7865421Z [36m [2m❯[22m tests/unit/architecture-constraints.test.ts:[2m90:27[22m[39m
+2026-10-28T18:37:16.7865762Z     [90m 88| [39m    [35mfor[39m ([35mconst[39m wf [35mof[39m workflowFiles) {
+2026-10-28T18:37:16.7866250Z     [90m 89| [39m      [35mconst[39m content [33m=[39m fs[33m.[39m[34mreadFileSync[39m(wf[33m,[39m [32m'utf-8'[39m)[33m;[39m
+2026-10-28T18:37:16.7866929Z     [90m 90| [39m      [34mexpect[39m(content)[33m.[39mnot[33m.[39m[34mtoContain[39m([32m'|| true'[39m)[33m;[39m
+2026-10-28T18:37:16.7867250Z     [90m   | [39m                          [31m^[39m
+2026-10-28T18:37:16.7867601Z     [90m 91| [39m      [34mexpect[39m(content)[33m.[39mnot[33m.[39m[34mtoContain[39m([32m"'src/**'"[39m)[33m;[39m
+2026-10-28T18:37:16.7868088Z     [90m 92| [39m      [34mexpect[39m(content)[33m.[39mnot[33m.[39m[34mtoMatch[39m([36m/pnpm\s+--filter\s+\S+\s+pack/[39m)[33m;[39m
+2026-10-28T18:37:16.7868329Z 
+2026-10-28T18:37:16.7868468Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+2026-10-28T18:37:16.7868583Z 
+2026-10-28T18:37:16.7868860Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m84 passed[39m[22m[90m (85)[39m
+2026-10-28T18:37:16.7869276Z [2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m344 passed[39m[22m[90m (346)[39m
+2026-10-28T18:37:16.7869550Z [2m   Start at [22m 18:36:46
+2026-10-28T18:37:16.7870173Z [2m   Duration [22m 30.53s[2m (transform 955ms, setup 0ms, collect 13.14s, tests 14.72s, environment 15ms, prepare 4.11s)[22m
+2026-10-28T18:37:16.7870460Z 
+2026-10-28T18:37:16.7882050Z 
+2026-10-28T18:37:16.7899398Z ##[error]AssertionError: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+ ❯ tests/unit/architecture-constraints.test.ts:36:41
+
+
+2026-10-28T18:37:16.7906314Z 
+2026-10-28T18:37:16.7915509Z ##[error]AssertionError: expected 'name: Security Audit & SAST\n\non:\n …' not to contain '|| true'
+
+- Expected
++ Received
+
+- || true
++ name: Security Audit & SAST
++
++ on:
++   push:
++     branches: [main, master]
++   pull_request:
++     branches: [main, master]
++   schedule:
++     # Run every Sunday at 02:00 UTC
++     - cron: '0 2 * * 0'
++   workflow_dispatch:
++
++ permissions:
++   contents: read
++   security-events: write
++
++ jobs:
++   codeql:
++     name: CodeQL Static Security Analysis
++     runs-on: ubuntu-latest
++     steps:
++       - name: Checkout Code
++         uses: actions/checkout@v4
++
++       - name: Initialize CodeQL
++         uses: github/codeql-action/init@v3
++         with:
++           languages: javascript-typescript, python
++
++       - name: Perform CodeQL Analysis
++         uses: github/codeql-action/analyze@v3
++
++   security-and-guardrails-verification:
++     name: Dependency Audit & Security Guardrails Verification
++     runs-on: ubuntu-latest
++     steps:
++       - name: Checkout Code
++         uses: actions/checkout@v4
++
++       - name: Setup pnpm
++         uses: pnpm/action-setup@v4
++         with:
++           version: 9.15.4
++
++       - name: Setup Node.js 20
++         uses: actions/setup-node@v4
++         with:
++           node-version: 20
++           cache: 'pnpm'
++
++       - name: Install Workspace Dependencies
++         run: pnpm install -r --no-frozen-lockfile
++
++       - name: Build Core & SDK Packages
++         run: |
++           pnpm --filter @eidos/core build
++           pnpm --filter @eidos/sdk build
++
++       - name: Execute Security Guardrails, API Hardening & Invariant Suite
++         run: pnpm run security:check
++
++       - name: Audit Production Dependencies (Critical Vulnerability Gate)
++         run: pnpm audit --prod --audit-level=critical || true
++
++
+
+ ❯ tests/unit/architecture-constraints.test.ts:90:27
+
+
+2026-10-28T18:37:16.8214779Z  ELIFECYCLE  Command failed with exit code 1.
+2026-10-28T18:37:16.8384996Z ##[error]Process completed with exit code 1.
