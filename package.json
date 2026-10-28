@@ -1,14 +1,15 @@
 {
   "name": "eidos",
-  "version": "1.0.0",
+  "version": "3.2.0",
   "private": true,
-  "description": "Eidos — Production Semantic Recommender & Ideation Engine",
+  "description": "Eidos v3.2 — Enterprise Hybrid Search, Distributed HNSW Sharding & Adaptive Recommendation Engine",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/api",
+    "apps/workspace",
+    "packages/core",
+    "packages/sdk"
   ],
   "scripts": {
-    "preinstall": "node -e \"process.exit(0)\" || npx only-allow pnpm",
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "tsc -p packages/core/tsconfig.json && vite build --config apps/workspace/vite.config.ts",

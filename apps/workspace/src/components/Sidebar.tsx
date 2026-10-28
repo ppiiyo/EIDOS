@@ -13,6 +13,7 @@ import {
   Scale,
   Database,
   Settings,
+  Network,
 } from 'lucide-react';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
@@ -26,6 +27,7 @@ export type ViewId =
   | 'recommendations'
   | 'catalog'
   | 'indexes'
+  | 'cluster'
   | 'analytics'
   | 'abtest'
   | 'conversational'
@@ -93,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'Analytics & Ops',
       items: [
+        { id: 'cluster', label: 'Cluster & Failover', emoji: '🌐', icon: Network },
         { id: 'analytics', label: t.nav.analytics, emoji: '📈', icon: BarChart3 },
         { id: 'seo', label: 'SEO Insights', emoji: '🎯', icon: BarChart3 },
         { id: 'adaptive', label: t.nav.adaptive, emoji: '⚙️', icon: Sliders },

@@ -6,6 +6,8 @@ import { buildServer } from '../../apps/api/src/server';
 import { IndexManager } from '../../apps/workspace/src/pages/IndexManager';
 import { Analytics } from '../../apps/workspace/src/pages/Analytics';
 import { Settings } from '../../apps/workspace/src/pages/Settings';
+import { ClusterTopologyView } from '../../apps/workspace/src/components/ClusterTopologyView';
+import { ApiConsoleSnippets } from '../../apps/workspace/src/components/modals/ApiConsoleSnippets';
 
 describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings UI)', () => {
   let app: FastifyInstance;
@@ -170,5 +172,37 @@ describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings U
     expect(whRes.statusCode).toBe(201);
     const whBody = whRes.json();
     expect(whBody.webhook.url).toBe('https://ops.eidos.ai/webhooks/cluster-health');
+  });
+
+  it('Task 2.4: Cluster Topology & Failover Inspector UI and Multi-Language SDK Code Generator render v3.2 capabilities', async () => {
+    const clusterHtml = renderToStaticMarkup(React.createElement(ClusterTopologyView, {}));
+    expect(clusterHtml).toContain('data-testid="cluster-topology-view"');
+    expect(clusterHtml).toContain('Consistent Hash Ring');
+    expect(clusterHtml).toContain('450 vnodes');
+    expect(clusterHtml).toContain('data-testid="shard-card-shard-0"');
+    expect(clusterHtml).toContain('data-testid="cluster-drain-btn"');
+
+    const sdkHtml = renderToStaticMarkup(
+      React.createElement(ApiConsoleSnippets, {
+        query: 'wireless studio headphones',
+        alpha: 0.65,
+        limit: 5,
+        selectedId: 'item-0',
+        diversityLambda: 0.35,
+        strategy: 'adaptive',
+        copiedSnippet: null,
+        onCopy: () => {},
+      })
+    );
+    expect(sdkHtml).toContain('data-testid="sdk-code-generator"');
+    expect(sdkHtml).toContain('from eidos_sdk import EidosClient, AsyncEidosClient');
+    expect(sdkHtml).toContain('@eidos/sdk');
+
+    const statusRes = await app.inject({
+      method: 'GET',
+      url: '/v1/cluster/status',
+    });
+    expect(statusRes.statusCode).toBe(200);
+    expect(statusRes.json().shardCount).toBe(3);
   });
 });

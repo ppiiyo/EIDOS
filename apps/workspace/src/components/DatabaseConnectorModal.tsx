@@ -101,6 +101,30 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
         };
       });
 
+      // Sync custom JSON catalog with live Fastify backend (/v1/catalog/upsert) when available
+      if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+        void window
+          .fetch('/v1/catalog/upsert', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': 'eidos_dev_key',
+            },
+            body: JSON.stringify({
+              items: normalized.map((item) => ({
+                id: String(item.id),
+                title: item.title,
+                description: item.description,
+                category: item.category,
+                tags: item.tags,
+              })),
+            }),
+          })
+          .catch(() => {
+            // Ignore offline fallback
+          });
+      }
+
       onImportCustomDatabase(normalized, sourceLabel);
       onClose();
     } catch (err) {

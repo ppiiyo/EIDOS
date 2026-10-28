@@ -17,6 +17,7 @@ import { AnalyticsView } from './AnalyticsView';
 import { VectorSpaceView } from './VectorSpaceView';
 import { AdaptivePanel } from './AdaptivePanel';
 import { IndexManagerView } from './IndexManagerView';
+import { ClusterTopologyView } from './ClusterTopologyView';
 import { SettingsView } from './SettingsView';
 import { SEODashboard } from '../pages/SEODashboard/SEODashboard';
 
@@ -183,6 +184,8 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
       );
     case 'indexes':
       return <IndexManagerView onShowToast={onShowToast} />;
+    case 'cluster':
+      return <ClusterTopologyView onShowToast={onShowToast} />;
     case 'seo':
       return <SEODashboard />;
     case 'analytics':
