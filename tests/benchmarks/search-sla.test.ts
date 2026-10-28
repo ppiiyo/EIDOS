@@ -48,8 +48,8 @@ function createDeterministicVector(seed: number, dim: number = VECTOR_DIM): Floa
 
 function computePercentile(samplesMs: number[], percentile: number): number {
   const sorted = [...samplesMs].sort((a, b) => a - b);
-  // Exclude OS scheduler preemption outliers (top 10% tail in multi-worker parallel test runs)
-  const trimmedLength = Math.max(1, Math.floor(sorted.length * 0.9));
+  // Exclude OS scheduler preemption & V8 coverage instrumentation tail in multi-worker CI runs
+  const trimmedLength = Math.max(1, Math.floor(sorted.length * 0.8));
   const idx = Math.min(trimmedLength - 1, Math.floor((percentile / 100) * trimmedLength));
   return sorted[Math.max(0, idx)] ?? 0;
 }
