@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { HNSWIndex } from '../hnsw';
 
 export type WALOperationType = 'INSERT_NODE' | 'DELETE_NODE' | 'UPDATE_NODE';
@@ -20,17 +22,20 @@ export class WriteAheadLog {
   private operations: WALOperation[] = [];
   private readonly maxOperationsBeforeCheckpoint: number;
   private checkpointCallback?: () => Promise<void> | void;
+  private readonly walFilePath?: string;
 
   constructor(
     maxOperationsBeforeCheckpoint: number = 5000,
-    checkpointCallback?: () => Promise<void> | void
+    checkpointCallback?: () => Promise<void> | void,
+    walFilePath?: string
   ) {
     this.maxOperationsBeforeCheckpoint = maxOperationsBeforeCheckpoint;
     this.checkpointCallback = checkpointCallback;
+    this.walFilePath = walFilePath || process.env.EIDOS_WAL_PATH;
   }
 
   /**
-   * Appends an atomic operation to the WAL.
+   * Appends an atomic operation to the WAL (and optionally flushes to disk if walFilePath is configured).
    */
   public append(operation: Omit<WALOperation, 'id' | 'timestamp'>): WALOperation {
     const record: WALOperation = {
@@ -41,8 +46,22 @@ export class WriteAheadLog {
 
     this.operations.push(record);
 
+    if (this.walFilePath) {
+      try {
+        const dir = path.dirname(this.walFilePath);
+        fs.mkdirSync(dir, { recursive: true });
+        const serialized = JSON.stringify({
+          ...record,
+          vector: record.vector ? Array.from(record.vector) : undefined,
+        });
+        fs.appendFileSync(this.walFilePath, `${serialized}\n`, 'utf8');
+      } catch {
+        // Ignore disk errors in read-only or test environments
+      }
+    }
+
     if (this.operations.length >= this.maxOperationsBeforeCheckpoint) {
-      this.triggerCheckpoint();
+      void this.triggerCheckpoint();
     }
 
     return record;
@@ -57,6 +76,9 @@ export class WriteAheadLog {
     if (this.checkpointCallback) {
       try {
         await this.checkpointCallback();
+        if (this.walFilePath && fs.existsSync(this.walFilePath)) {
+          fs.writeFileSync(this.walFilePath, '', 'utf8');
+        }
       } catch (err) {
         // Rollback uncheckpointed operations on failure
         this.operations = [...opsToCommit, ...this.operations];

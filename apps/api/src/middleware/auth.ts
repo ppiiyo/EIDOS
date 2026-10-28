@@ -19,15 +19,13 @@ const PUBLIC_ENDPOINTS = [
 ];
 
 /**
- * Constant-time string comparison to prevent timing side-channel attacks on API tokens.
+ * Constant-time string comparison using fixed-length SHA-256 digests
+ * to prevent timing side-channel attacks (including token length leakage).
  */
 function timingSafeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) {
-    return false;
-  }
-  return crypto.timingSafeEqual(bufA, bufB);
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB) && a.length === b.length;
 }
 
 interface JwtValidationResult {

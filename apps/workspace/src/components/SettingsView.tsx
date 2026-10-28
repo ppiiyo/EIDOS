@@ -57,7 +57,7 @@ export const SettingsView: React.FC<{
 
   useEffect(() => {
     if (typeof fetch !== 'function') return;
-    fetch('/v1/settings')
+    fetch('/v1/settings', { headers: { 'x-api-key': 'eidos_dev_key' } })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const s = data?.settings;
@@ -87,7 +87,7 @@ export const SettingsView: React.FC<{
     try {
       const res = await fetch('/v1/keys/generate', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
         body: JSON.stringify({ tenant_id: newKeyTenant, expires_in_days: 365 }),
       });
       if (res.ok) {
@@ -127,7 +127,7 @@ export const SettingsView: React.FC<{
     try {
       await fetch('/v1/keys/revoke', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
         body: JSON.stringify({ key_hash: keyHash }),
       });
     } catch {}
@@ -140,7 +140,7 @@ export const SettingsView: React.FC<{
     try {
       await fetch('/v1/settings', {
         method: 'PUT',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
         body: JSON.stringify({
           hnsw: { M: hnswM, efConstruction, efSearch, quantization },
           rateLimit: { maxRequestsPerMinute: rpmLimit, burstLimit, enabled: true },
@@ -163,7 +163,7 @@ export const SettingsView: React.FC<{
     try {
       const res = await fetch('/v1/settings/webhooks', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
         body: JSON.stringify({ url: newWh.url, events: newWh.events }),
       });
       if (res.ok) {

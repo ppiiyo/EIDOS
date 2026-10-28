@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyError } from 'fastify';
+import { authenticate } from '../middleware/auth';
 
 export interface CapturedErrorEvent {
   id: string;
@@ -75,7 +76,7 @@ export async function errorTrackerPlugin(fastify: FastifyInstance): Promise<void
     });
   });
 
-  fastify.get('/v1/diagnostics/errors', async () => ({
+  fastify.get('/v1/diagnostics/errors', { preHandler: authenticate }, async () => ({
     sentryEnabled: Boolean(process.env.SENTRY_DSN),
     totalCaptured: recentErrors.length,
     recentErrors: recentErrors.slice(-20),

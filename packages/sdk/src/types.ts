@@ -1,11 +1,16 @@
 export interface EidosClientConfig {
-  baseUrl: string;
+  baseUrl?: string;
   apiKey: string;
   timeoutMs?: number;
 }
 
 export interface RecommendationRequest {
-  itemId: string;
+  itemId?: string;
+  item_id?: string;
+  userId?: string;
+  user_id?: string;
+  history?: string[];
+  strategy?: 'simple' | 'adaptive' | 'user';
   limit?: number;
   minSimilarity?: number;
   diversityFactor?: number;
@@ -16,6 +21,10 @@ export interface RecommendationRequest {
 export interface SearchRequest {
   query: string;
   limit?: number;
+  topK?: number;
+  mode?: 'dense' | 'sparse' | 'hybrid' | 'semantic';
+  alpha?: number;
+  rerank?: boolean;
   minSimilarity?: number;
   filterCategory?: string;
 }
@@ -46,10 +55,13 @@ export interface SearchResponse {
 export interface CatalogItemInput {
   id: string;
   title: string;
-  description: string;
-  category: string;
-  tags: string[];
+  description?: string;
+  category?: string;
+  tags?: string[];
   price?: number;
+  inStock?: boolean;
+  vector?: number[];
+  embedding?: number[];
   metadata?: Record<string, string | number | boolean | string[]>;
 }
 

@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { SecurityGuardrails, CircuitBreaker, cosineSimilarity } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
+import { demoRateLimit } from '../middleware/rate-limit-demo';
 import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
 import { ApiQueryCache } from '../services/query-cache';
@@ -32,7 +33,10 @@ const searchRequestSchema = z.object({
     })
     .passthrough()
     .optional(),
-  mode: z.enum(['dense', 'sparse', 'hybrid']).default('hybrid'),
+  mode: z
+    .enum(['dense', 'sparse', 'hybrid', 'semantic'])
+    .default('hybrid')
+    .transform((m): 'dense' | 'sparse' | 'hybrid' => (m === 'semantic' ? 'dense' : m)),
   alpha: z.number().min(0).max(1).default(0.5),
   rerank: z.boolean().optional().default(false),
   rerankGamma: z.number().min(0).max(1).optional().default(0.65),
@@ -232,11 +236,17 @@ export async function searchRoutes(
                 )
               );
             } else if (mode === 'dense') {
-              results = await traceSpan('hnsw.search', { mode: 'dense', limit }, async () =>
-                activeStore
+              results = await traceSpan('hnsw.search', { mode: 'dense', limit }, async () => {
+                let denseHits = activeStore
                   .search(cleanVector, limit, minSimilarity, undefined, effectiveCategory)
-                  .map((r) => ({ ...r, source: 'dense' }))
-              );
+                  .map((r) => ({ ...r, source: 'dense' }));
+                if (denseHits.length === 0 && minSimilarity === 0.25) {
+                  denseHits = activeStore
+                    .search(cleanVector, limit, 0.0, undefined, effectiveCategory)
+                    .map((r) => ({ ...r, source: 'dense' }));
+                }
+                return denseHits;
+              });
             } else {
               results = await traceSpan('bm25.lexical_search', { mode: 'sparse', limit }, async () => {
                 const out: Array<{ item: any; score: number; source?: string }> = [];
@@ -380,7 +390,17 @@ export async function searchRoutes(
   };
 
   fastify.post('/v1/search', { preHandler: authenticate }, handleSearch);
-  fastify.post('/v1/demo/search', handleSearch);
+  fastify.post(
+    '/v1/demo/search',
+    {
+      preHandler: async (request, reply) => {
+        request.demoMode = true;
+        request.demoRateLimit = 60;
+        await demoRateLimit(request, reply);
+      },
+    },
+    handleSearch
+  );
 }
 
 (searchRoutes as any)[Symbol.for('skip-override')] = true;

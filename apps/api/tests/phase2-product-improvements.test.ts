@@ -104,6 +104,7 @@ describe('PHASE 2: Product Improvements (5,000+ Seed Dataset, OpenAPI 3.0.3, Sen
     const diagRes = await app.inject({
       method: 'GET',
       url: '/v1/diagnostics/errors',
+      headers: { 'x-api-key': 'test-key' },
     });
     expect(diagRes.statusCode).toBe(200);
     expect(typeof diagRes.json().totalCaptured).toBe('number');

@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { getCache } from '../services/cache';
@@ -205,7 +206,7 @@ export async function healthRoutes(
     return reply.status(200).send(coordinator.getClusterStatus());
   });
 
-  fastify.post('/v1/cluster/drain', async (request, reply) => {
+  fastify.post('/v1/cluster/drain', { preHandler: authenticate }, async (request, reply) => {
     const coordinator = fastify.clusterCoordinator;
     const body = (request.body as { draining?: boolean } | null) || {};
     const draining = typeof body.draining === 'boolean' ? body.draining : true;
@@ -218,25 +219,29 @@ export async function healthRoutes(
     });
   });
 
-  fastify.post('/v1/cluster/shards/:shardId/health', async (request, reply) => {
-    const coordinator = fastify.clusterCoordinator;
-    if (!coordinator) {
-      return reply.status(503).send({
-        statusCode: 503,
-        error: 'Service Unavailable',
-        message: 'Cluster coordinator is not initialized on this instance',
+  fastify.post(
+    '/v1/cluster/shards/:shardId/health',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const coordinator = fastify.clusterCoordinator;
+      if (!coordinator) {
+        return reply.status(503).send({
+          statusCode: 503,
+          error: 'Service Unavailable',
+          message: 'Cluster coordinator is not initialized on this instance',
+        });
+      }
+      const params = request.params as { shardId: string };
+      const body = (request.body as { healthy?: boolean } | null) || {};
+      const healthy = typeof body.healthy === 'boolean' ? body.healthy : true;
+      const updated = coordinator.setShardHealth(params.shardId, healthy);
+      return reply.status(200).send({
+        ok: true,
+        nodeId: coordinator.nodeId,
+        ...updated,
       });
     }
-    const params = request.params as { shardId: string };
-    const body = (request.body as { healthy?: boolean } | null) || {};
-    const healthy = typeof body.healthy === 'boolean' ? body.healthy : true;
-    const updated = coordinator.setShardHealth(params.shardId, healthy);
-    return reply.status(200).send({
-      ok: true,
-      nodeId: coordinator.nodeId,
-      ...updated,
-    });
-  });
+  );
 }
 
 (healthRoutes as unknown as Record<symbol, boolean>)[Symbol.for('skip-override')] = true;

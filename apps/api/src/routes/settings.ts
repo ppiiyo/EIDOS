@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { authenticate } from '../middleware/auth';
 import { AuditLogger, RBACManager } from '../services/multi-tenancy';
 import { WebhookDispatcher, WebhookSubscription } from '../webhooks/webhook-dispatcher';
 
@@ -31,6 +32,44 @@ export interface EngineSettingsState {
   }>;
 }
 
+function isSafeWebhookUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host === '[::1]' ||
+      host.startsWith('169.254.') ||
+      host.startsWith('10.') ||
+      host.startsWith('192.168.')
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function maskWebhookSecret(secret: string): string {
+  if (!secret || secret.length <= 6) return 'whsec_••••••••••••';
+  return `${secret.slice(0, 6)}••••••••••••`;
+}
+
+function sanitizeSettingsForResponse(state: EngineSettingsState): EngineSettingsState {
+  return {
+    ...state,
+    webhooks: state.webhooks.map((wh) => ({
+      ...wh,
+      secret: maskWebhookSecret(wh.secret),
+    })),
+  };
+}
+
 const settingsUpdateSchema = z.object({
   hnsw: z
     .object({
@@ -58,7 +97,9 @@ const settingsUpdateSchema = z.object({
 });
 
 const createWebhookSchema = z.object({
-  url: z.string().url(),
+  url: z.string().url().refine(isSafeWebhookUrl, {
+    message: 'Webhook URL must not target loopback, link-local, or private internal network addresses',
+  }),
   secret: z.string().min(8).max(128).default('whsec_eidos_default_secret'),
   events: z
     .array(z.enum(['drift.detected', 'ab_test.concluded', 'index.degraded']))
@@ -105,13 +146,13 @@ webhookDispatcher.register({
 });
 
 export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.get('/v1/settings', async () => {
+  fastify.get('/v1/settings', { preHandler: authenticate }, async () => {
     return {
-      settings: currentSettings,
+      settings: sanitizeSettingsForResponse(currentSettings),
     };
   });
 
-  fastify.put('/v1/settings', async (request, reply) => {
+  fastify.put('/v1/settings', { preHandler: authenticate }, async (request, reply) => {
     const parsed = settingsUpdateSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -141,11 +182,11 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
 
     return reply.status(200).send({
       success: true,
-      settings: currentSettings,
+      settings: sanitizeSettingsForResponse(currentSettings),
     });
   });
 
-  fastify.post('/v1/settings/webhooks', async (request, reply) => {
+  fastify.post('/v1/settings/webhooks', { preHandler: authenticate }, async (request, reply) => {
     const parsed = createWebhookSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -182,24 +223,31 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
 
     return reply.status(201).send({
       success: true,
-      webhook: wh,
+      webhook: {
+        ...wh,
+        secret: maskWebhookSecret(wh.secret),
+      },
     });
   });
 
-  fastify.delete<{ Params: { id: string } }>('/v1/settings/webhooks/:id', async (request, reply) => {
-    const idx = currentSettings.webhooks.findIndex((w) => w.id === request.params.id);
-    if (idx === -1) {
-      return reply.status(404).send({
-        statusCode: 404,
-        error: 'Not Found',
-        message: `Webhook '${request.params.id}' not found`,
+  fastify.delete<{ Params: { id: string } }>(
+    '/v1/settings/webhooks/:id',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const idx = currentSettings.webhooks.findIndex((w) => w.id === request.params.id);
+      if (idx === -1) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Webhook '${request.params.id}' not found`,
+        });
+      }
+
+      const [removed] = currentSettings.webhooks.splice(idx, 1);
+      return reply.status(200).send({
+        success: true,
+        deletedId: removed.id,
       });
     }
-
-    const [removed] = currentSettings.webhooks.splice(idx, 1);
-    return reply.status(200).send({
-      success: true,
-      deletedId: removed.id,
-    });
-  });
+  );
 }

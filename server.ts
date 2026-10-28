@@ -81,7 +81,29 @@ async function startUnifiedServer() {
     // In production mode, serve static files from dist/ immediately without blocking on API hydration
     if (isProduction && !isApiOrTelemetryRoute(url)) {
       const distDir = path.resolve(process.cwd(), 'dist');
-      const candidateFile = path.join(distDir, cleanUrl === '/' ? 'index.html' : cleanUrl);
+      let decodedPath = cleanUrl;
+      try {
+        decodedPath = decodeURIComponent(cleanUrl);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Bad Request');
+        return;
+      }
+
+      if (decodedPath.includes('\0') || decodedPath.includes('..')) {
+        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Forbidden');
+        return;
+      }
+
+      const safeRelPath = (decodedPath === '/' ? 'index.html' : decodedPath).replace(/^\/+/, '');
+      const candidateFile = path.resolve(distDir, safeRelPath);
+
+      if (!candidateFile.startsWith(distDir + path.sep) && candidateFile !== distDir) {
+        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Forbidden');
+        return;
+      }
 
       if (fs.existsSync(candidateFile) && fs.statSync(candidateFile).isFile()) {
         const ext = path.extname(candidateFile);

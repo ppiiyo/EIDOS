@@ -44,6 +44,13 @@ export class EidosClient {
   }
 
   /**
+   * Upserts a single item into the Eidos semantic vector store.
+   */
+  async upsertItem(item: CatalogItemInput): Promise<IngestResponse> {
+    return this.post<IngestResponse>('/v1/catalog/upsert', item);
+  }
+
+  /**
    * Batch uploads items to the Eidos semantic vector store.
    */
   async ingestCatalog(items: CatalogItemInput[]): Promise<IngestResponse> {

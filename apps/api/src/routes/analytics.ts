@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { AILManager } from '../services/ail';
@@ -527,7 +528,7 @@ export async function analyticsRoutes(
   });
 
   // Actionable endpoint: Add Synonym for a Zero-Result Query and enrich catalog tags in VectorStore
-  fastify.post('/v1/analytics/synonym', async (request, reply) => {
+  fastify.post('/v1/analytics/synonym', { preHandler: authenticate }, async (request, reply) => {
     const parsed = synonymBodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -607,7 +608,7 @@ export async function analyticsRoutes(
   });
 
   // Actionable endpoint: Boost Product for SEO / Zero-Result recovery
-  fastify.post('/v1/analytics/boost', async (request, reply) => {
+  fastify.post('/v1/analytics/boost', { preHandler: authenticate }, async (request, reply) => {
     const parsed = boostBodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({

@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { authenticate } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { AuditLogger, RBACManager } from '../services/multi-tenancy';
@@ -55,7 +56,7 @@ export async function indexRoutes(
   const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
   storeRegistry.setDefaultStore(opts.vectorStore);
 
-  fastify.get('/v1/indexes', async (request, reply) => {
+  fastify.get('/v1/indexes', { preHandler: authenticate }, async (request, reply) => {
     try {
       const explicitHeaderTenant = request.headers['x-tenant-id'];
       const tenantFilter =
@@ -75,7 +76,7 @@ export async function indexRoutes(
     }
   });
 
-  fastify.post('/v1/indexes', async (request, reply) => {
+  fastify.post('/v1/indexes', { preHandler: authenticate }, async (request, reply) => {
     const parsed = createIndexSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -115,33 +116,38 @@ export async function indexRoutes(
     }
   });
 
-  fastify.delete<{ Params: { name: string } }>('/v1/indexes/:name', async (request, reply) => {
-    try {
-      const tenantId = storeRegistry.resolveTenantId(request);
-      const key = request.params.name.toLowerCase();
-      storeRegistry.deleteIndex(key, tenantId);
+  fastify.delete<{ Params: { name: string } }>(
+    '/v1/indexes/:name',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      try {
+        const tenantId = storeRegistry.resolveTenantId(request);
+        const key = request.params.name.toLowerCase();
+        storeRegistry.deleteIndex(key, tenantId);
 
-      AuditLogger.getInstance().record({
-        tenantId: tenantId === 'default' ? key : tenantId,
-        actorRole: RBACManager.resolveRole(request),
-        action: 'index.delete',
-        resourceId: key,
-      });
+        AuditLogger.getInstance().record({
+          tenantId: tenantId === 'default' ? key : tenantId,
+          actorRole: RBACManager.resolveRole(request),
+          action: 'index.delete',
+          resourceId: key,
+        });
 
-      return reply.status(200).send({
-        success: true,
-        deleted: key,
-      });
-    } catch (err) {
-      if (err instanceof StoreError) {
-        return reply.status(err.statusCode).send(err.toJSON());
+        return reply.status(200).send({
+          success: true,
+          deleted: key,
+        });
+      } catch (err) {
+        if (err instanceof StoreError) {
+          return reply.status(err.statusCode).send(err.toJSON());
+        }
+        throw err;
       }
-      throw err;
     }
-  });
+  );
 
   fastify.post<{ Params: { name: string } }>(
     '/v1/indexes/:name/documents',
+    { preHandler: authenticate },
     async (request, reply) => {
       try {
         const tenantId = storeRegistry.resolveTenantId(request);

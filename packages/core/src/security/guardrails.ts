@@ -15,12 +15,13 @@ export interface SecurityScanResult {
 }
 
 export class SecurityGuardrails {
+  private static readonly SCRIPT_PATTERN = /<script[\s\S]*?>[\s\S]*?<\/script>/gi;
+
   private static readonly INJECTION_PATTERNS = [
     /ignore\s+(all\s+)?(previous|prior)\s+instructions/i,
     /reveal\s+(system\s+)?(prompt|instructions)/i,
     /you\s+are\s+now\s+in\s+developer\s+mode/i,
     /jailbreak/i,
-    /<script[\s\S]*?>[\s\S]*?<\/script>/i,
     /javascript:/i,
     /drop\s+table/i,
     /union\s+select/i,
@@ -47,20 +48,32 @@ export class SecurityGuardrails {
       risk += 0.2;
     }
 
-    // 2. Prompt injection and jailbreak pattern matching
+    // 2. XSS <script> tag detection and neutralization
+    if (this.SCRIPT_PATTERN.test(clean)) {
+      threats.push('XSS_SCRIPT_TAG_DETECTED');
+      clean = clean.replace(this.SCRIPT_PATTERN, '').trim();
+      // If the payload was purely a script tag with no legitimate search terms, block it (risk >= 0.75)
+      if (!clean) {
+        risk += 0.85;
+      } else {
+        risk += 0.5;
+      }
+    }
+
+    // 3. Prompt injection, SQLi, and jailbreak pattern matching (single match exceeds 0.7 threshold)
     for (const pattern of this.INJECTION_PATTERNS) {
       if (pattern.test(clean)) {
         threats.push(`INJECTION_DETECTED: ${pattern.source.slice(0, 30)}`);
-        risk += 0.5;
+        risk += 0.75;
         // Strip or neutralize malicious pattern
         clean = clean.replace(pattern, '[SECURITY_FILTERED]');
       }
     }
 
-    // 3. HTML / Script tag stripping
+    // 4. HTML tag stripping
     clean = clean.replace(/<[^>]*>?/gm, '');
 
-    // 4. Control characters stripping
+    // 5. Control characters stripping
     clean = clean.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
     const isSafe = threats.length === 0;

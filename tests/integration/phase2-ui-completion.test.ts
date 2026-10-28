@@ -31,10 +31,18 @@ describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings U
     expect(html).toContain('data-testid="index-card-default"');
     expect(html).toContain('data-testid="bulk-upload-form"');
 
-    // Verify GET /v1/indexes
+    // Verify unauthenticated GET /v1/indexes returns 401
+    const unauthIndexes = await app.inject({
+      method: 'GET',
+      url: '/v1/indexes',
+    });
+    expect(unauthIndexes.statusCode).toBe(401);
+
+    // Verify GET /v1/indexes with valid API key
     const listRes = await app.inject({
       method: 'GET',
       url: '/v1/indexes',
+      headers: { 'x-api-key': 'test-key' },
     });
     expect(listRes.statusCode).toBe(200);
     const listBody = listRes.json();
@@ -45,6 +53,7 @@ describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings U
     const createRes = await app.inject({
       method: 'POST',
       url: '/v1/indexes',
+      headers: { 'x-api-key': 'test-key' },
       payload: {
         name: 'catalog-v32-int8',
         dimension: 384,
@@ -65,6 +74,7 @@ describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings U
     const uploadRes = await app.inject({
       method: 'POST',
       url: '/v1/indexes/catalog-v32-int8/documents',
+      headers: { 'x-api-key': 'test-key' },
       payload: {
         documents: [
           {
@@ -93,6 +103,7 @@ describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings U
     const delRes = await app.inject({
       method: 'DELETE',
       url: '/v1/indexes/catalog-v32-int8',
+      headers: { 'x-api-key': 'test-key' },
     });
     expect(delRes.statusCode).toBe(200);
     expect(delRes.json().deleted).toBe('catalog-v32-int8');
@@ -136,18 +147,28 @@ describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings U
     expect(html).toContain('data-testid="setting-rpm-limit"');
     expect(html).toContain('data-testid="settings-webhooks-section"');
 
-    // GET /v1/settings
-    const getRes = await app.inject({
+    // GET /v1/settings without auth -> 401
+    const unauthSettings = await app.inject({
       method: 'GET',
       url: '/v1/settings',
     });
+    expect(unauthSettings.statusCode).toBe(401);
+
+    // GET /v1/settings with auth -> 200 and masked webhook secret
+    const getRes = await app.inject({
+      method: 'GET',
+      url: '/v1/settings',
+      headers: { 'x-api-key': 'test-key' },
+    });
     expect(getRes.statusCode).toBe(200);
     expect(getRes.json().settings.hnsw.M).toBe(16);
+    expect(getRes.json().settings.webhooks[0].secret).toContain('••••');
 
     // PUT /v1/settings
     const putRes = await app.inject({
       method: 'PUT',
       url: '/v1/settings',
+      headers: { 'x-api-key': 'test-key' },
       payload: {
         hnsw: { M: 32, efConstruction: 200, efSearch: 96, quantization: 'fp16' },
         rateLimit: { maxRequestsPerMinute: 2500, burstLimit: 400, enabled: true },
@@ -164,6 +185,7 @@ describe('PHASE 2: UI Completion (Index Manager, Analytics Dashboard, Settings U
     const whRes = await app.inject({
       method: 'POST',
       url: '/v1/settings/webhooks',
+      headers: { 'x-api-key': 'test-key' },
       payload: {
         url: 'https://ops.eidos.ai/webhooks/cluster-health',
         events: ['drift.detected', 'index.degraded'],

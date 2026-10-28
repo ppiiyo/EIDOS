@@ -192,7 +192,7 @@ export const AnalyticsView: React.FC<{ uiLang?: 'ru' | 'en' | 'ja' }> = ({ uiLan
                       if (typeof fetch === 'function') {
                         fetch('/v1/analytics/synonym', {
                           method: 'POST',
-                          headers: { 'content-type': 'application/json' },
+                          headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
                           body: JSON.stringify({ query: z.query, synonym: z.query.split(' ')[0] }),
                         }).catch(() => {});
                       }

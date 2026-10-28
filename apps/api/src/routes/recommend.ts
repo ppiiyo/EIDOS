@@ -8,6 +8,7 @@ import {
   SecurityGuardrails,
 } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
+import { demoRateLimit } from '../middleware/rate-limit-demo';
 import { VectorStore } from '../services/vector-store';
 import { StoredItem } from '../types';
 import { AILManager } from '../services/ail';
@@ -821,7 +822,17 @@ export async function recommendRoutes(
   };
 
   fastify.post('/v1/recommend', { preHandler: authenticate }, handleRecommend);
-  fastify.post('/v1/demo/recommend', handleRecommend);
+  fastify.post(
+    '/v1/demo/recommend',
+    {
+      preHandler: async (request, reply) => {
+        request.demoMode = true;
+        request.demoRateLimit = 60;
+        await demoRateLimit(request, reply);
+      },
+    },
+    handleRecommend
+  );
 }
 
 (recommendRoutes as any)[Symbol.for('skip-override')] = true;

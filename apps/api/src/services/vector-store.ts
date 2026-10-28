@@ -50,7 +50,7 @@ export class VectorStore {
     });
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
-    this.wal = new WriteAheadLog(10000);
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync());
   }
 
   private snapshotTimer: NodeJS.Timeout | null = null;
@@ -121,10 +121,8 @@ export class VectorStore {
         }
       }
 
-      if (i < 200) {
-        const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
-        this.bm25.addDocument(id, docText);
-      }
+      const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
+      this.bm25.addDocument(id, docText);
     }
   }
 
@@ -337,12 +335,14 @@ export class VectorStore {
       }
 
       const toEmbed: Array<{ item: SnapshotCatalogItem; text: string }> = [];
+      const snapshotIds = new Set<string>();
       let loadedCount = 0;
 
       for (const entry of parsed) {
         if (!entry || typeof entry.id !== 'string' || typeof entry.title !== 'string') {
           continue;
         }
+        snapshotIds.add(String(entry.id));
         const snapItem: SnapshotCatalogItem = {
           id: String(entry.id),
           title: String(entry.title),
@@ -369,6 +369,15 @@ export class VectorStore {
         } else {
           const text = `${snapItem.title}. ${snapItem.category}. ${snapItem.tags.join(', ')}. ${snapItem.description}`;
           toEmbed.push({ item: snapItem, text });
+        }
+      }
+
+      // Reconcile deleted seed items if this snapshot represents a full catalog state
+      if (snapshotIds.size >= 100) {
+        for (const existingId of Array.from(this.items.keys())) {
+          if (!snapshotIds.has(existingId)) {
+            this.delete(existingId);
+          }
         }
       }
 

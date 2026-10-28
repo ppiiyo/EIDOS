@@ -66,7 +66,7 @@ export const IndexManagerView: React.FC<{
 
   useEffect(() => {
     if (typeof fetch !== 'function') return;
-    fetch('/v1/indexes')
+    fetch('/v1/indexes', { headers: { 'x-api-key': 'eidos_dev_key' } })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && Array.isArray(data.indexes) && data.indexes.length > 0) setIndexes(data.indexes);
@@ -93,7 +93,7 @@ export const IndexManagerView: React.FC<{
     try {
       const res = await fetch('/v1/indexes', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
         body: JSON.stringify({
           name: cleanName,
           dimension: newDimension,
@@ -119,7 +119,10 @@ export const IndexManagerView: React.FC<{
   const handleDeleteIndex = async (name: string) => {
     if (name === 'default') return;
     try {
-      await fetch(`/v1/indexes/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      await fetch(`/v1/indexes/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: { 'x-api-key': 'eidos_dev_key' },
+      });
     } catch {}
     setIndexes((prev) => prev.filter((idx) => idx.name !== name));
     onShowToast?.(`Index '${name}' deleted`, 'info');
@@ -132,7 +135,7 @@ export const IndexManagerView: React.FC<{
       const docs = Array.isArray(parsed) ? parsed : [parsed];
       const res = await fetch(`/v1/indexes/${encodeURIComponent(selectedIndexForUpload)}/documents`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
         body: JSON.stringify({ documents: docs }),
       });
       if (res.ok) {

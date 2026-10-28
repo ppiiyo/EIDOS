@@ -100,6 +100,7 @@ describe('PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification
     const failShardRes = await nodeA.inject({
       method: 'POST',
       url: '/v1/cluster/shards/shard-0/health',
+      headers: { 'x-api-key': apiKey },
       payload: { healthy: false },
     });
     expect(failShardRes.statusCode).toBe(200);
@@ -123,6 +124,7 @@ describe('PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification
     const recoverShardRes = await nodeA.inject({
       method: 'POST',
       url: '/v1/cluster/shards/shard-0/health',
+      headers: { 'x-api-key': apiKey },
       payload: { healthy: true },
     });
     expect(recoverShardRes.statusCode).toBe(200);
@@ -143,6 +145,7 @@ describe('PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification
     const drainOn = await nodeB.inject({
       method: 'POST',
       url: '/v1/cluster/drain',
+      headers: { 'x-api-key': apiKey },
       payload: { draining: true },
     });
     expect(drainOn.statusCode).toBe(200);
@@ -170,6 +173,7 @@ describe('PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification
     await nodeB.inject({
       method: 'POST',
       url: '/v1/cluster/drain',
+      headers: { 'x-api-key': apiKey },
       payload: { draining: false },
     });
     const readyAfter = await nodeB.inject({
