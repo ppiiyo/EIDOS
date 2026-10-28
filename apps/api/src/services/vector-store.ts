@@ -391,7 +391,6 @@ export class VectorStore {
           if (useFastBulk && isRecentTail && typeof embedder.embed === 'function') {
             vec = await embedder.embed(toEmbed[i].text);
           }
-          const embArr = vec instanceof Float32Array ? Array.from(vec) : vec;
           this.upsert(
             {
               id: item.id,
@@ -402,7 +401,7 @@ export class VectorStore {
               inStock: item.inStock,
               tags: item.tags,
               url: item.url,
-              embedding: embArr,
+              embedding: vec,
             },
             { fastLeaf: useFastBulk && !isRecentTail }
           );

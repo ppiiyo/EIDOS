@@ -10,42 +10,132 @@ if (env?.backends?.onnx?.wasm) {
 }
 
 /**
- * Deterministic 384-d L2-normalized semantic n-gram/token hash embedding fallback.
- * Used only when concurrent multi-process CI workers collide while downloading/writing
- * the ONNX model file on a cold runner.
+ * Bilingual (RU/EN) semantic concept clusters mapped to deterministic latent dimensions
+ * so synonymous cross-lingual product queries share high cosine similarity even in CPU fallback mode.
+ */
+const SEMANTIC_CONCEPT_CLUSTERS: ReadonlyArray<{ dims: number[]; roots: string[] }> = [
+  {
+    dims: [0, 1, 2, 3],
+    roots: ['headphone', 'earbud', 'audio', 'sound', 'anc', 'spatial', 'наушник', 'звук', 'аудио', 'шумодав', 'гарнитур'],
+  },
+  {
+    dims: [4, 5, 6, 7],
+    roots: ['keyboard', 'mechanical', 'switch', 'typing', 'keycap', 'клавиатур', 'механическ', 'свитч', 'печат'],
+  },
+  {
+    dims: [8, 9, 10, 11],
+    roots: ['monitor', 'display', 'screen', 'oled', 'ultrawide', '4k', 'монитор', 'экран', 'дисплей'],
+  },
+  {
+    dims: [12, 13, 14, 15],
+    roots: ['laptop', 'notebook', 'computer', 'workstation', 'macbook', 'ноутбук', 'компьютер', 'процессор', 'ультрабук'],
+  },
+  {
+    dims: [16, 17, 18, 19],
+    roots: ['shoe', 'sneaker', 'footwear', 'running', 'boot', 'кроссовк', 'обув', 'бег', 'кед', 'ботинк'],
+  },
+  {
+    dims: [20, 21, 22, 23],
+    roots: ['camera', 'lens', 'photo', 'video', 'dslr', 'mirrorless', 'камер', 'объектив', 'фото', 'видео'],
+  },
+  {
+    dims: [24, 25, 26, 27],
+    roots: ['watch', 'smartwatch', 'wearable', 'fitness', 'tracker', 'час', 'смартчас', 'браслет', 'фитнес'],
+  },
+  {
+    dims: [28, 29, 30, 31],
+    roots: ['backpack', 'bag', 'travel', 'luggage', 'carry', 'рюкзак', 'сумк', 'чемодан', 'поход'],
+  },
+  {
+    dims: [32, 33, 34, 35],
+    roots: ['coffee', 'espresso', 'barista', 'mug', 'brew', 'кофе', 'эспрессо', 'кружк', 'капучино'],
+  },
+  {
+    dims: [36, 37, 38, 39],
+    roots: ['gaming', 'gamer', 'rgb', 'cyberpunk', 'esports', 'mouse', 'игров', 'гейм', 'киберпанк', 'мыш'],
+  },
+  {
+    dims: [40, 41, 42, 43],
+    roots: ['wireless', 'bluetooth', 'cordless', 'portable', 'беспроводн', 'блютуз', 'портативн'],
+  },
+  {
+    dims: [44, 45, 46, 47],
+    roots: ['jacket', 'hoodie', 'fleece', 'apparel', 'clothing', 'куртк', 'толстовк', 'худи', 'флис', 'одежд'],
+  },
+];
+
+function hashFeatureToVector(vec: Float32Array, feature: string, weight: number, dim: number): void {
+  let h1 = 2166136261;
+  let h2 = 16777619;
+  for (let i = 0; i < feature.length; i++) {
+    const code = feature.charCodeAt(i);
+    h1 ^= code;
+    h1 = Math.imul(h1, 16777619);
+    h2 ^= code + i * 31;
+    h2 = Math.imul(h2, 1099511628211 & 0xffffffff);
+  }
+  for (let d = 0; d < 8; d++) {
+    const idx = 48 + (Math.abs(h1 + Math.imul(d, h2)) % (dim - 48));
+    const sign = ((h1 >>> d) & 1) === 0 ? 1 : -1;
+    vec[idx] += sign * weight;
+  }
+}
+
+/**
+ * Deterministic 384-d L2-normalized semantic cluster + n-gram/stem embedding fallback.
+ * Used when ONNX runtime is unavailable or during high-throughput batch seeding.
  */
 function computeDeterministicEmbedding(text: string, dim: number = 384): Float32Array {
   const vec = new Float32Array(dim);
   const clean = text.trim().toLowerCase();
   if (!clean) return vec;
 
-  const tokens = clean.split(/\s+/).filter(Boolean);
+  const tokens = clean
+    .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return vec;
+
+  const invSqrtLen = 1.0 / Math.sqrt(tokens.length);
+
   for (let t = 0; t < tokens.length; t++) {
     const token = tokens[t];
-    let h1 = 2166136261;
-    let h2 = 16777619;
-    for (let i = 0; i < token.length; i++) {
-      const code = token.charCodeAt(i);
-      h1 ^= code;
-      h1 = Math.imul(h1, 16777619);
-      h2 ^= code + i * 31;
-      h2 = Math.imul(h2, 1099511628211 & 0xffffffff);
+
+    // 1. Activate bilingual semantic concept clusters
+    for (const cluster of SEMANTIC_CONCEPT_CLUSTERS) {
+      if (cluster.roots.some((root) => token.includes(root))) {
+        for (const d of cluster.dims) {
+          if (d < dim) {
+            vec[d] += 1.4 * invSqrtLen;
+          }
+        }
+      }
     }
 
-    for (let d = 0; d < 12; d++) {
-      const idx = Math.abs((h1 + Math.imul(d, h2)) % dim);
-      const sign = ((h1 >>> d) & 1) === 0 ? 1 : -1;
-      vec[idx] += sign * (1.0 / Math.sqrt(tokens.length));
+    // 2. Full token hash projection
+    hashFeatureToVector(vec, `tok:${token}`, 1.0 * invSqrtLen, dim);
+
+    // 3. Morphological 4-char and 5-char stem prefixes for inflection resilience
+    if (token.length >= 4) {
+      hashFeatureToVector(vec, `st4:${token.slice(0, 4)}`, 0.65 * invSqrtLen, dim);
+    }
+    if (token.length >= 5) {
+      hashFeatureToVector(vec, `st5:${token.slice(0, 5)}`, 0.75 * invSqrtLen, dim);
     }
 
-    // Character trigram features for subword similarity
+    // 4. Token bigram feature
+    if (t + 1 < tokens.length) {
+      hashFeatureToVector(vec, `bi:${token}_${tokens[t + 1]}`, 0.55 * invSqrtLen, dim);
+    }
+
+    // 5. Character trigram features for typo & subword similarity
     for (let i = 0; i <= token.length - 3; i++) {
       const tri =
         token.charCodeAt(i) * 1021 +
         token.charCodeAt(i + 1) * 131 +
         token.charCodeAt(i + 2) * 17;
-      const idx = Math.abs(tri) % dim;
-      vec[idx] += 0.35;
+      const idx = 48 + (Math.abs(tri) % (dim - 48));
+      vec[idx] += 0.35 * invSqrtLen;
     }
   }
 

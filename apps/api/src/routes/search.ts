@@ -131,7 +131,8 @@ export async function searchRoutes(
         normalizedFilters.rerankGamma = rerankGamma;
       }
 
-      const cacheKey = CacheKeys.search(safeQuery, normalizedFilters, limit);
+      const cacheNamespace = `${tenantId}:${indexName}`;
+      const cacheKey = CacheKeys.search(safeQuery, normalizedFilters, limit, cacheNamespace);
       const keySafe = isCacheKeySafe(cacheKey);
       const l1Cache = ApiQueryCache.getInstance();
 

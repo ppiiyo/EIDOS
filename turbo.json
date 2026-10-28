@@ -1,35 +1,27 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "vite.config.ts",
-        "index.html",
-        "src/**"
-      ],
-      "outputs": [
-        "dist/**",
-        "../../dist/**",
-        ".next/**",
-        "!.next/cache/**",
-        "out/**"
-      ]
-    },
-    "@eidos/api#build": {
-      "dependsOn": ["@eidos/core#build"],
       "outputs": ["dist/**"]
     },
-    "@eidos/workspace#build": {
-      "dependsOn": ["@eidos/core#build", "@eidos/sdk#build"],
-      "outputs": ["../../dist/**"]
-    },
     "lint": {
-      "dependsOn": ["^build", "@eidos/core#build"]
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build", "@eidos/core#build"],
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:coverage": {
+      "dependsOn": ["^build"],
       "outputs": ["coverage/**"]
     },
     "dev": {

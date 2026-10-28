@@ -10,7 +10,7 @@ export interface CatalogItem {
   tags: string[];
   price?: number;
   metadata?: CatalogItemMetadata;
-  embedding?: number[];
+  embedding?: number[] | Float32Array;
 }
 
 export interface SimilarityResult {

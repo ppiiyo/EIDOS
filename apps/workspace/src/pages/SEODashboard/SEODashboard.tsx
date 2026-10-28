@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  TrendingUp,
-  Search,
-  AlertCircle,
-  Sparkles,
-  RefreshCw,
-  ArrowUpRight,
-  Plus,
-  CheckCircle2,
-  DollarSign,
-  MousePointerClick,
-} from 'lucide-react';
+import { TrendingUp, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { SeoSummaryCards } from './SeoSummaryCards';
+import { SeoTablesAndMerchandising } from './SeoTablesAndMerchandising';
 
 export interface TopQueryItem {
   query: string;
@@ -211,198 +202,24 @@ export const SEODashboard: React.FC<SEODashboardProps> = ({ uiLang = 'en' }) => 
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)] flex items-center justify-between">
-            <span>{isRu ? 'Объём поисковых запросов' : 'Total Search Volume'}</span>
-            <Search size={14} className="text-[var(--accent)]" />
-          </div>
-          <div className="text-2xl font-bold text-[var(--text)] mt-1 mono">
-            {data.summary.totalSearches.toLocaleString()}
-          </div>
-          <div className="text-xs text-[var(--text-sec)] mt-1">
-            {isRu ? `Средняя задержка: ${data.summary.avgLatencyMs} мс` : `Avg Latency: ${data.summary.avgLatencyMs} ms`}
-          </div>
-        </div>
+      <SeoSummaryCards
+        summary={data.summary}
+        zeroResultCount={data.zeroResultQueries.length}
+        isRu={isRu}
+      />
 
-        <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)] flex items-center justify-between">
-            <span>{isRu ? 'Кликабельность выдачи (CTR)' : 'Search Click-Through Rate'}</span>
-            <MousePointerClick size={14} className="text-[var(--success)]" />
-          </div>
-          <div className="text-2xl font-bold text-[var(--success)] mt-1 mono">
-            {data.summary.avgCtr.toFixed(1)}%
-          </div>
-          <div className="text-xs text-[var(--text-sec)] mt-1">
-            {isRu ? 'Stage-2 Cross-Encoder активен' : 'Stage-2 Cross-Encoder Active'}
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)] flex items-center justify-between">
-            <span>{isRu ? 'Доля пустой выдачи (Zero-Result)' : 'Zero-Result Rate'}</span>
-            <AlertCircle size={14} className="text-[var(--warning)]" />
-          </div>
-          <div className="text-2xl font-bold text-[var(--warning)] mt-1 mono">
-            {data.summary.zeroResultRate.toFixed(1)}%
-          </div>
-          <div className="text-xs text-[var(--text-sec)] mt-1">
-            {isRu
-              ? `${data.zeroResultQueries.length} запросов ожидают синоним`
-              : `${data.zeroResultQueries.length} queries awaiting synonym rule`}
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <div className="text-xs text-[var(--text-sec)] flex items-center justify-between">
-            <span>{isRu ? 'Атрибутированная выручка поиска' : 'Attributed Search Revenue'}</span>
-            <DollarSign size={14} className="text-[var(--accent)]" />
-          </div>
-          <div className="text-2xl font-bold text-[var(--text)] mt-1 mono">
-            ${data.summary.searchRevenue.toLocaleString()}
-          </div>
-          <div className="text-xs text-[var(--text-sec)] mt-1">
-            {isRu ? 'Гибридный RRF + LinUCB Бандит' : 'Hybrid RRF + LinUCB Bandit'}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-5">
-          <h2 className="text-base font-bold text-[var(--text)] m-0 mb-3">
-            {isRu ? 'Высокочастотные поисковые запросы' : 'High-Volume Search Queries'}
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-[var(--text-sec)]">
-                  <th className="py-2 pr-3">{isRu ? 'Запрос' : 'Query'}</th>
-                  <th className="py-2 px-2">{isRu ? 'Частота' : 'Volume'}</th>
-                  <th className="py-2 px-2">CTR</th>
-                  <th className="py-2 pl-2 text-right">{isRu ? 'Выручка' : 'Revenue'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.topQueries.map((q) => (
-                  <tr key={q.query} className="border-b border-[var(--border)]/50">
-                    <td className="py-2.5 pr-3 font-semibold text-[var(--text)]">{q.query}</td>
-                    <td className="py-2.5 px-2 mono">{q.volume}</td>
-                    <td className="py-2.5 px-2 mono text-[var(--success)]">{q.ctr.toFixed(1)}%</td>
-                    <td className="py-2.5 pl-2 mono text-right">${q.revenue.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="card p-5 flex flex-col justify-between gap-4">
-          <div>
-            <h2 className="text-base font-bold text-[var(--text)] m-0 mb-1">
-              {isRu
-                ? 'Устранение пустой выдачи и словарь синонимов'
-                : 'Zero-Result Query Recovery & Synonym Bridge'}
-            </h2>
-            <p className="text-xs text-[var(--text-sec)] m-0 mb-3">
-              {isRu
-                ? 'Свяжите опечатки и разговорные запросы с каноническими терминами каталога в 1 клик.'
-                : 'Map misspelled or colloquial zero-result queries to canonical catalog terms.'}
-            </p>
-
-            <div className="flex flex-col gap-2">
-              {data.zeroResultQueries.map((zq) => (
-                <div
-                  key={zq.query}
-                  className="p-2.5 rounded border border-[var(--border)] bg-[var(--bg-alt)] flex items-center justify-between gap-2 text-xs"
-                >
-                  <div>
-                    <span className="font-bold text-[var(--text)]">"{zq.query}"</span>
-                    <span className="mono text-[var(--text-sec)] ml-2">
-                      ({zq.volume} {isRu ? 'запр.' : 'searches'})
-                    </span>
-                  </div>
-                  {zq.resolvedSynonym ? (
-                    <span className="mono text-[var(--success)] font-semibold">
-                      → {zq.resolvedSynonym}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleAddSynonym(zq.query, zq.suggestedSynonym || 'electronics')
-                      }
-                      className="btn btn-secondary btn-sm"
-                    >
-                      <Sparkles size={12} />
-                      <span>
-                        {isRu ? 'Связать →' : 'Map →'} "{zq.suggestedSynonym || 'electronics'}"
-                      </span>
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-[var(--border)] flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              placeholder={isRu ? 'Запрос с 0 результатов (напр. абибас)' : 'Zero-result term (e.g. абибас)'}
-              value={sourceTerm}
-              onChange={(e) => setSourceTerm(e.target.value)}
-              className="input text-xs flex-1 min-w-[140px]"
-            />
-            <input
-              type="text"
-              placeholder={isRu ? 'Канонический синоним (напр. adidas)' : 'Canonical target (e.g. adidas)'}
-              value={targetSynonym}
-              onChange={(e) => setTargetSynonym(e.target.value)}
-              className="input text-xs flex-1 min-w-[140px]"
-            />
-            <button
-              type="button"
-              onClick={() => void handleAddSynonym(sourceTerm, targetSynonym)}
-              className="btn btn-primary btn-sm"
-            >
-              <Plus size={13} />
-              <span>{isRu ? 'Добавить синоним' : 'Add Synonym'}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-5">
-        <h2 className="text-base font-bold text-[var(--text)] m-0 mb-3">
-          {isRu
-            ? 'Лидеры конверсии и бустинг товаров в 1 клик'
-            : 'Top Converting SKUs & 1-Click Merchandising Boost'}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {data.topClickedProducts.map((prod) => (
-            <div
-              key={prod.id}
-              className="p-3.5 rounded-lg border border-[var(--border)] bg-[var(--bg-alt)] flex flex-col justify-between gap-3"
-            >
-              <div>
-                <div className="font-bold text-sm text-[var(--text)]">{prod.title}</div>
-                <div className="text-xs mono text-[var(--text-sec)] mt-1">
-                  {isRu
-                    ? `Клики: ${prod.clicks} · Покупки: ${prod.purchases} · CR: ${prod.conversionRate}%`
-                    : `Clicks: ${prod.clicks} · Purchases: ${prod.purchases} · CR: ${prod.conversionRate}%`}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleBoostProduct(prod.id, prod.title)}
-                className="btn btn-secondary btn-sm w-full justify-center"
-              >
-                <ArrowUpRight size={13} />
-                <span>{isRu ? 'Повысить в выдаче (1.35x)' : 'Boost Ranking (1.35x)'}</span>
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
+      <SeoTablesAndMerchandising
+        topQueries={data.topQueries}
+        zeroResultQueries={data.zeroResultQueries}
+        topClickedProducts={data.topClickedProducts}
+        sourceTerm={sourceTerm}
+        targetSynonym={targetSynonym}
+        onChangeSourceTerm={setSourceTerm}
+        onChangeTargetSynonym={setTargetSynonym}
+        onAddSynonym={(t, s) => void handleAddSynonym(t, s)}
+        onBoostProduct={(id, title) => void handleBoostProduct(id, title)}
+        isRu={isRu}
+      />
     </div>
   );
 };

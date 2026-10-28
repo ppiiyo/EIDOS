@@ -28,9 +28,55 @@ export function simulateQuotaExceededForTests(enabled: boolean): void {
   forceQuotaExceededForTests = enabled;
 }
 
+function createResilientIdbStore(dbName: string, storeName: string): UseStore {
+  if (typeof indexedDB === 'undefined') {
+    return createStore(dbName, storeName);
+  }
+
+  let dbPromise: Promise<IDBDatabase> | null = null;
+
+  const getDb = (): Promise<IDBDatabase> => {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(dbName);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(storeName)) {
+          request.result.createObjectStore(storeName);
+        }
+      };
+      request.onblocked = () => {
+        dbPromise = null;
+        reject(new Error(`IndexedDB open blocked for "${dbName}" by another open tab`));
+      };
+      request.onerror = () => {
+        dbPromise = null;
+        reject(request.error ?? new Error(`IndexedDB failed to open "${dbName}"`));
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+        db.onclose = () => {
+          dbPromise = null;
+        };
+        resolve(db);
+      };
+    });
+    return dbPromise;
+  };
+
+  return (txMode, callback) =>
+    getDb().then((db) => {
+      const tx = db.transaction(storeName, txMode);
+      return callback(tx.objectStore(storeName));
+    });
+}
+
 export function getEidosIdbStore(): UseStore {
   if (!customStore) {
-    customStore = createStore(IDB_DB_NAME, IDB_STORE_NAME);
+    customStore = createResilientIdbStore(IDB_DB_NAME, IDB_STORE_NAME);
   }
   return customStore;
 }

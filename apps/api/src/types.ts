@@ -18,6 +18,6 @@ export interface StoredItem {
   inStock?: boolean;
   url?: string;
   metadata?: Record<string, string | number | boolean | string[] | undefined>;
-  embedding: number[];
+  embedding: number[] | Float32Array;
   normalizedVector?: Float32Array;
 }

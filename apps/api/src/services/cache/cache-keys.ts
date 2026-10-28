@@ -10,14 +10,22 @@ export class CacheKeys {
    * @param filters Optional filters object
    * @param limit Number of results
    */
-  static search(query: string, filters?: Record<string, any>, limit?: number): string {
+  static search(
+    query: string,
+    filters?: Record<string, any>,
+    limit?: number,
+    namespace?: string
+  ): string {
     const normalized = {
       q: query.toLowerCase().trim(),
       f: filters || {},
       l: limit || 10,
+      ...(namespace && namespace !== 'default:default' ? { ns: namespace } : {}),
     };
     const hash = this.hashObject(normalized);
-    return `search:${hash}`;
+    return namespace && namespace !== 'default:default'
+      ? `search:${namespace}:${hash}`
+      : `search:${hash}`;
   }
 
   /**
@@ -26,18 +34,24 @@ export class CacheKeys {
    * @param strategy Recommendation strategy
    * @param limit Number of recommendations
    * @param extra Optional extra parameters (filters, userId, history) to avoid cross-request collisions
+   * @param namespace Optional tenant/index namespace
    */
   static recommend(
     itemId: string,
     strategy: string = 'simple',
     limit: number = 10,
-    extra?: Record<string, any>
+    extra?: Record<string, any>,
+    namespace?: string
   ): string {
+    const prefix =
+      namespace && namespace !== 'default:default'
+        ? `recommend:${namespace}:${strategy}:${itemId}:${limit}`
+        : `recommend:${strategy}:${itemId}:${limit}`;
     if (extra && Object.keys(extra).length > 0) {
       const hash = this.hashObject(extra);
-      return `recommend:${strategy}:${itemId}:${limit}:${hash}`;
+      return `${prefix}:${hash}`;
     }
-    return `recommend:${strategy}:${itemId}:${limit}`;
+    return prefix;
   }
 
   /**

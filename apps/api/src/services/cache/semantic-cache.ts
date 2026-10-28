@@ -26,6 +26,7 @@ export interface SemanticLookupResult<T = Record<string, any>> {
 export class SemanticQueryCache {
   private static instance: SemanticQueryCache | null = null;
   private readonly entries: SemanticCacheEntry<any>[] = [];
+  private readonly buckets = new Map<string, SemanticCacheEntry<any>[]>();
   private readonly maxEntries: number;
   private readonly defaultThreshold: number;
 
@@ -54,8 +55,20 @@ export class SemanticQueryCache {
     return `${limit}::${sortedFilters}`;
   }
 
+  private removeEntryFromBucket(entry: SemanticCacheEntry<any>): void {
+    const bucket = this.buckets.get(entry.filterKey);
+    if (!bucket) return;
+    const idx = bucket.indexOf(entry);
+    if (idx !== -1) {
+      bucket.splice(idx, 1);
+    }
+    if (bucket.length === 0) {
+      this.buckets.delete(entry.filterKey);
+    }
+  }
+
   /**
-   * Searches the ring buffer for a semantically equivalent cached query
+   * Searches the partitioned bucket for a semantically equivalent cached query
    * with CosineSimilarity(queryVec, cachedVec) >= threshold.
    */
   public lookup<T = Record<string, any>>(
@@ -66,19 +79,25 @@ export class SemanticQueryCache {
   ): SemanticLookupResult<T> {
     const now = Date.now();
     const filterKey = this.normalizeFilterKey(filters, limit);
+    const bucket = this.buckets.get(filterKey);
+    if (!bucket || bucket.length === 0) {
+      return { hit: false, similarity: 0 };
+    }
+
     const qVec =
       queryVector instanceof Float32Array ? queryVector : new Float32Array(queryVector);
 
     let bestMatch: SemanticCacheEntry<any> | null = null;
     let bestSim = -1;
 
-    for (let i = this.entries.length - 1; i >= 0; i--) {
-      const entry = this.entries[i];
+    for (let i = bucket.length - 1; i >= 0; i--) {
+      const entry = bucket[i];
       if (entry.expiresAt <= now) {
-        this.entries.splice(i, 1);
-        continue;
-      }
-      if (entry.filterKey !== filterKey) {
+        bucket.splice(i, 1);
+        const globalIdx = this.entries.indexOf(entry);
+        if (globalIdx !== -1) {
+          this.entries.splice(globalIdx, 1);
+        }
         continue;
       }
 
@@ -86,7 +105,14 @@ export class SemanticQueryCache {
       if (sim >= threshold && sim > bestSim) {
         bestSim = sim;
         bestMatch = entry;
+        if (sim >= 0.9999) {
+          break;
+        }
       }
+    }
+
+    if (bucket.length === 0) {
+      this.buckets.delete(filterKey);
     }
 
     if (bestMatch) {
@@ -143,12 +169,16 @@ export class SemanticQueryCache {
       (e) => e.query.toLowerCase() === query.toLowerCase() && e.filterKey === filterKey
     );
     if (existingIdx !== -1) {
-      this.entries.splice(existingIdx, 1);
+      const [removed] = this.entries.splice(existingIdx, 1);
+      this.removeEntryFromBucket(removed);
     } else if (this.entries.length >= this.maxEntries) {
-      this.entries.shift();
+      const oldest = this.entries.shift();
+      if (oldest) {
+        this.removeEntryFromBucket(oldest);
+      }
     }
 
-    this.entries.push({
+    const newEntry: SemanticCacheEntry<T> = {
       query,
       vector: vecCopy,
       filterKey,
@@ -156,11 +186,20 @@ export class SemanticQueryCache {
       response,
       createdAt: now,
       expiresAt: now + ttlSeconds * 1000,
-    });
+    };
+
+    this.entries.push(newEntry);
+    const bucket = this.buckets.get(filterKey);
+    if (bucket) {
+      bucket.push(newEntry);
+    } else {
+      this.buckets.set(filterKey, [newEntry]);
+    }
   }
 
   public clear(): void {
     this.entries.length = 0;
+    this.buckets.clear();
   }
 
   public size(): number {
