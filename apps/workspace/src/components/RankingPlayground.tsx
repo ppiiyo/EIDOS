@@ -36,6 +36,7 @@ export function computeFallbackResults(
   params: RankingParams,
   catalog?: CatalogItem[]
 ): SearchResultItem[] {
+  if (Array.isArray(catalog) && catalog.length === 0) return [];
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const source =
     catalog && catalog.length > 0
@@ -121,6 +122,10 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog, u
   const [latencyMs, setLatencyMs] = useState(8);
 
   useEffect(() => {
+    if (Array.isArray(catalog) && catalog.length === 0) {
+      setResults([]);
+      return;
+    }
     const timer = setTimeout(async () => {
       if (!query.trim()) {
         setResults([]);
@@ -147,11 +152,7 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog, u
             const bm25Score = baseScore * (1 - params.alpha);
             const diversityBonus = params.diversityLambda * (1 / (i + 1)) * 0.25;
             const finalScore =
-              vectorScore +
-              bm25Score +
-              diversityBonus +
-              params.freshnessWeight * 0.05 +
-              params.popularityWeight * 0.05;
+              vectorScore + bm25Score + diversityBonus + params.freshnessWeight * 0.05 + params.popularityWeight * 0.05;
             return {
               id: r.id || `item-${i}`,
               title: r.title || `Item ${r.id || i + 1}`,
@@ -193,10 +194,7 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog, u
       <div className="playground-layout">
         <div className="controls-panel card">
           <div className="control-group mb-5">
-            <label
-              htmlFor="ranking-query-input"
-              className="block text-xs font-semibold text-[var(--text-sec)] mb-1.5"
-            >
+            <label htmlFor="ranking-query-input" className="block text-xs font-semibold text-[var(--text-sec)] mb-1.5">
               {isRu ? 'Поисковый запрос' : 'Search Query'}
             </label>
             <input
@@ -214,9 +212,7 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog, u
             <div key={key} className="slider-group">
               <div className="slider-header">
                 <span>{isRu ? labelRu : label}</span>
-                <span className="slider-value" data-testid={`${key}-value`}>
-                  {params[key].toFixed(2)}
-                </span>
+                <span className="slider-value" data-testid={`${key}-value`}>{params[key].toFixed(2)}</span>
               </div>
               <input
                 type="range"
@@ -249,40 +245,43 @@ export const RankingPlayground: React.FC<RankingPlaygroundProps> = ({ catalog, u
           </div>
 
           <div className="results-list" data-testid="ranking-results-list">
-            {results.map((item, idx) => (
-              <div key={item.id} className="result-card-live" data-testid={`ranking-result-${idx}`}>
-                <div className="result-rank">
-                  <div className="result-header">
-                    <span className="rank-badge">#{idx + 1}</span>
-                    <div className="result-info">
-                      <h4>{item.title}</h4>
-                      <span className="category-tag text-xs text-[var(--text-sec)]">
-                        {item.category}
-                      </span>
+            {results.length === 0 ? (
+              <div className="py-10 px-4 text-center text-[var(--text-mut)] text-sm border border-dashed border-[var(--border)] rounded-lg">
+                {isRu
+                  ? 'Пользовательский каталог пуст (0 SKU). Загрузите свою базу (CSV/JSON) на вкладке «Поиск» или «Каталог», либо протестируйте движок во вкладке «Демо-каталог (48 SKU)».'
+                  : 'User catalog is empty (0 SKU). Upload your dataset (CSV/JSON) in Search/Catalog or explore Demo Catalog (48 SKU).'}
+              </div>
+            ) : (
+              results.map((item, idx) => (
+                <div key={item.id} className="result-card-live" data-testid={`ranking-result-${idx}`}>
+                  <div className="result-rank">
+                    <div className="result-header">
+                      <span className="rank-badge">#{idx + 1}</span>
+                      <div className="result-info">
+                        <h4>{item.title}</h4>
+                        <span className="category-tag text-xs text-[var(--text-sec)]">{item.category}</span>
+                      </div>
+                      <div className="final-score mono">{item.finalScore.toFixed(3)}</div>
                     </div>
-                    <div className="final-score mono">{item.finalScore.toFixed(3)}</div>
+                  </div>
+
+                  <div className="score-bars">
+                    {[
+                      { label: isRu ? 'Вектор (Vector)' : 'Vector', cls: 'vector', pct: item.vectorScore * 100 },
+                      { label: 'BM25', cls: 'bm25', pct: item.bm25Score * 100 },
+                      { label: isRu ? 'Разнообразие (Diversity)' : 'Diversity', cls: 'diversity', pct: item.diversityBonus * 200 },
+                    ].map((b) => (
+                      <div key={b.cls} className="bar-row">
+                        <span>{b.label}</span>
+                        <div className="bar-track">
+                          <div className={`bar-fill ${b.cls}`} style={{ width: `${Math.min(100, b.pct)}%` }} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                <div className="score-bars">
-                  {[
-                    { label: isRu ? 'Вектор (Vector)' : 'Vector', cls: 'vector', pct: item.vectorScore * 100 },
-                    { label: 'BM25', cls: 'bm25', pct: item.bm25Score * 100 },
-                    { label: isRu ? 'Разнообразие (Diversity)' : 'Diversity', cls: 'diversity', pct: item.diversityBonus * 200 },
-                  ].map((b) => (
-                    <div key={b.cls} className="bar-row">
-                      <span>{b.label}</span>
-                      <div className="bar-track">
-                        <div
-                          className={`bar-fill ${b.cls}`}
-                          style={{ width: `${Math.min(100, b.pct)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

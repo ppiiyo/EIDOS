@@ -143,33 +143,51 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {onSelectDomainPreset && (
-        <div className="card px-4 py-3 mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Globe size={15} color="var(--accent)" />
-            <span className="text-[0.8125rem] font-semibold text-[var(--text)]">
-              {t.platformDomainLabel}
-            </span>
+      {catalog.length === 0 ? (
+        <div className="card px-5 py-4 mb-5 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-[var(--accent)]">
+          <div>
+            <div className="text-sm font-semibold text-[var(--text)]">
+              {uiLang === 'ru'
+                ? 'Пользовательская база пуста (0 SKU) — загрузите свой каталог или откройте Демо-стенд'
+                : 'User database is empty (0 SKU) — upload your catalog or open the Demo Catalog'}
+            </div>
+            <p className="text-xs text-[var(--text-sec)] mt-0.5">
+              {uiLang === 'ru'
+                ? 'В основном рабочем пространстве нет предзагруженных демо-товаров. Импортируйте CSV/JSON или протестируйте все 48 SKU во вкладке «Демо-каталог».'
+                : 'No preloaded demo items in the main workspace. Import CSV/JSON or test all 48 SKU in the Demo Catalog tab.'}
+            </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {PLATFORM_DOMAIN_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                data-testid={`switch-domain-${preset.id}`}
-                onClick={() => {
-                  setQuickResults([]);
-                  onSelectDomainPreset(preset);
-                }}
-                className={
-                  activeDomain === preset.id ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'
-                }
-              >
-                <span>{preset.shortLabel}</span>
-              </button>
-            ))}
+            <button type="button" onClick={() => onNavigate('search')} className="btn btn-primary btn-sm">
+              <span>{uiLang === 'ru' ? '📤 Загрузить свою базу (CSV/JSON)' : '📤 Upload Own Catalog'}</span>
+            </button>
+            <button type="button" onClick={() => onNavigate('demo')} className="btn btn-secondary btn-sm">
+              <span>{uiLang === 'ru' ? '🧪 Открыть Демо-каталог (48 SKU)' : '🧪 Open Demo Catalog (48 SKU)'}</span>
+            </button>
           </div>
         </div>
+      ) : (
+        onSelectDomainPreset && (
+          <div className="card px-4 py-3 mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Globe size={15} color="var(--accent)" />
+              <span className="text-[0.8125rem] font-semibold text-[var(--text)]">{t.platformDomainLabel}</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {PLATFORM_DOMAIN_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  data-testid={`switch-domain-${preset.id}`}
+                  onClick={() => { setQuickResults([]); onSelectDomainPreset(preset); }}
+                  className={activeDomain === preset.id ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                >
+                  <span>{preset.shortLabel}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )
       )}
 
       <DashboardKpiGrid stats={stats} dominantLang={dominantLang} onNavigate={onNavigate} t={t} />
@@ -211,11 +229,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 value={quickQuery}
                 onChange={(e) => setQuickQuery(e.target.value)}
               />
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isSearching || !quickQuery.trim()}
-              >
+              <button type="submit" className="btn btn-primary" disabled={isSearching || !quickQuery.trim()}>
                 {isSearching ? '...' : <Search size={15} />}
               </button>
             </form>

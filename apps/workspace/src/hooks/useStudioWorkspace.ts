@@ -154,12 +154,17 @@ export function useStudioWorkspace() {
 
   const handleScaleCatalog = useCallback(
     (targetCount = 1200) => {
+      if (catalog.length === 0) {
+        showToast(
+          'Сначала загрузите свой каталог (CSV/JSON) или перейдите во вкладку «Демо-каталог (48 SKU)»',
+          'info'
+        );
+        return;
+      }
       const t0 = performance.now();
-      const currentPreset = PLATFORM_DOMAIN_PRESETS.find((p) => p.id === activeDomain);
-      const baseItems = !isScaledCatalog ? catalog : currentPreset?.items || DEFAULT_CATALOG;
       const { catalog: scaledCat, embeddings: scaledEmb } = generateSyntheticScaledCatalog(
         targetCount,
-        baseItems,
+        catalog,
         embeddings
       );
       getOrBuildCatalogHNSWIndex(scaledCat, scaledEmb);
@@ -169,11 +174,11 @@ export function useStudioWorkspace() {
       setSelectedItem(scaledCat[0] || null);
       setIsScaledCatalog(true);
       showToast(
-        `Scaled active corpus (${activeDomain}) to ${scaledCat.length.toLocaleString()} SKU in ${elapsed} ms`,
+        `Масштабирован пользовательский каталог до ${scaledCat.length.toLocaleString()} SKU за ${elapsed} мс`,
         'success'
       );
     },
-    [activeDomain, isScaledCatalog, catalog, embeddings, showToast]
+    [catalog, embeddings, showToast]
   );
 
   const handleRestoreCuratedCatalog = useCallback(() => {

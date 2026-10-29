@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { Upload, X, Download, Zap, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { parseFile, ParsedCatalogItem } from '../lib/csv-parser';
 
 export interface UploadModalProps {
@@ -15,9 +16,11 @@ const SAMPLE_CSV_CONTENT = `id,title,category,price,description,tags
 custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,"Флагманские наушники с активным шумоподавлением ANC, 30 часов автономной работы, LDAC Bluetooth","наушники;sony;anc;bluetooth;музыка"
 custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,"Алюминиевый корпус CNC, беспроводная QMK/VIA клавиатура, переключатели Gateron, Hot-Swap","клавиатура;keychron;механика;гейминг;офис"
 custom-3,"Игровой монитор LG UltraGear 27 OLED 240Hz",Мониторы,64990,"OLED-матрица 2560x1440, время отклика 0.03 мс, частота 240 Гц, G-Sync и HDR10 для киберспорта","монитор;oled;240hz;гейминг;lg"
-custom-4,"Умные часы Garmin Fenix 7X Sapphire Solar",Гаджеты,72990,"Мультиспортивные GPS-часы с солнечной зарядкой, сапфировым стеклом, картами и пульсоксиметром","часы;garmin;спорт;туризм;gps"
+custom-4,"Умные часы Garmin Fenix 7X Sapphire Solar",Гаджеты,72990,"Мультиспортивные GPS-часы с солнечной зарядкой, сапфировым стеклом, картами и пульсоксиметром","часы;garmin;спорт;бег;gps"
 custom-5,"Кофемашина DeLonghi Magnifica Evo",Техника для дома,44990,"Автоматическая зерновая кофемашина с капучинатором LatteCrema для эспрессо, капучино и латте","кофемашина;delonghi;дом;кухня;кофе"
-custom-6,"Ноутбук Apple MacBook Air 15 M3 16/512GB",Ноутбуки,139990,"Тонкий и бесшумный ноутбук с чипом M3, дисплеем Liquid Retina 15.3 дюйма и 18 часами работы","ноутбук;macbook;apple;работа;программирование"`;
+custom-6,"Ноутбук Apple MacBook Air 15 M3 16/512GB",Ноутбуки,139990,"Тонкий и бесшумный ноутбук с чипом M3, дисплеем Liquid Retina 15.3 дюйма и 18 часами работы","ноутбук;macbook;apple;работа;программирование"
+custom-7,"Беговые кроссовки Nike ZoomX Vaporfly Next%",Спорт и обувь,19990,"Ультралегкие марафонские кроссовки с карбоновой пластиной и пеной ZoomX для бега и тренировок","кроссовки;бег;спорт;nike;марафон"
+custom-8,"Эргономичное кресло Herman Miller Aeron",Мебель и офис,119000,"Дышащая сетка Pellicle, поддержка поясницы PostureFit SL для долгой работы за компьютером","кресло;офис;работа;эргономика;дом"`;
 
 export const UploadModal: React.FC<UploadModalProps> = ({
   isOpen,
@@ -127,10 +130,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'eidos-sample-catalog.csv';
+    a.download = 'eidos-custom-catalog-sample.csv';
     a.click();
     URL.revokeObjectURL(url);
   }, []);
+
+  const handleQuickLoadSampleCsv = useCallback(() => {
+    const sampleFile = new File([SAMPLE_CSV_CONTENT], 'eidos-custom-catalog-sample.csv', {
+      type: 'text/csv',
+    });
+    void processFile(sampleFile);
+  }, [processFile]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -160,30 +170,34 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      className="modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby="upload-modal-title"
       data-testid="demo-upload-modal"
+      onClick={handleClose}
     >
-      <div className="w-full max-w-xl rounded-xl bg-[#1e293b] border border-slate-700 text-[#f1f5f9] shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+      <div
+        className="card w-full max-w-xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
           <div>
-            <h2 id="upload-modal-title" className="text-lg font-semibold text-[#f1f5f9]">
-              Загрузка собственного каталога
+            <h2 id="upload-modal-title" className="text-base font-bold text-[var(--text)]">
+              Загрузка собственного каталога (CSV / JSON)
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Поддерживаются файлы CSV и JSON (батч-отправка в /v1/catalog/upsert)
+            <p className="text-xs text-[var(--text-sec)] mt-0.5">
+              Батч-отправка в <code className="mono text-[var(--accent)]">POST /v1/catalog/upsert</code> и построение 384-d HNSW индекса
             </p>
           </div>
           <button
             type="button"
             onClick={handleClose}
             disabled={isUploading}
-            className="px-2.5 py-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-700/60 transition-colors disabled:opacity-50"
+            className="btn btn-secondary btn-sm"
             aria-label="Закрыть модальное окно"
           >
-            ✕
+            <X size={14} />
           </button>
         </div>
 
@@ -196,10 +210,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             onClick={() => !isUploading && fileInputRef.current?.click()}
-            className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+            className={`cursor-pointer rounded-lg border-2 border-dashed p-7 text-center transition-colors ${
               isDragging
-                ? 'border-indigo-400 bg-indigo-950/30'
-                : 'border-slate-600 bg-[#0f172a]/70 hover:border-slate-500'
+                ? 'border-[var(--accent)] bg-[var(--accent-bg)]'
+                : 'border-[var(--border-hi)] bg-[var(--bg-alt)] hover:border-[var(--accent)]'
             }`}
             data-testid="upload-dropzone"
           >
@@ -211,27 +225,28 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               className="hidden"
               data-testid="upload-file-input"
             />
-            <div className="text-base font-medium text-[#f1f5f9] mb-1">
+            <Upload size={24} className="mx-auto mb-2 text-[var(--accent)]" />
+            <div className="text-sm font-semibold text-[var(--text)] mb-1">
               {selectedFileName
                 ? `Выбран файл: ${selectedFileName}`
-                : 'Перетащите CSV или JSON сюда или нажмите для выбора'}
+                : 'Перетащите CSV или JSON сюда или нажмите для выбора файла'}
             </div>
-            <p className="text-xs text-slate-400">
-              Обязательные поля: <code className="text-indigo-300">id</code>,{' '}
-              <code className="text-indigo-300">title</code> · Опционально:{' '}
-              <code className="text-slate-300">category, price, description, tags</code>
+            <p className="text-xs text-[var(--text-sec)]">
+              Обязательные поля: <code className="mono text-[var(--accent)]">id</code>,{' '}
+              <code className="mono text-[var(--accent)]">title</code> · Опционально:{' '}
+              <code className="mono">category, price, description, tags</code>
             </p>
           </div>
 
           {isUploading && (
             <div className="space-y-1.5" data-testid="upload-progress">
-              <div className="flex justify-between text-xs text-slate-300">
-                <span>Индексация и загрузка батчей...</span>
-                <span className="font-mono">{progress}%</span>
+              <div className="flex justify-between text-xs text-[var(--text-sec)]">
+                <span>Индексация 384-d векторов и загрузка батчей...</span>
+                <span className="mono font-semibold text-[var(--accent)]">{progress}%</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div className="w-full h-2 rounded-full bg-[var(--bg-alt)] border border-[var(--border)] overflow-hidden">
                 <div
-                  className="h-full bg-indigo-500 transition-all duration-200"
+                  className="h-full bg-[var(--accent)] transition-all duration-200"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -240,10 +255,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
           {errors.length > 0 && (
             <div
-              className="rounded-lg bg-red-950/50 border border-red-800/80 p-3 text-xs text-red-200 space-y-1"
+              className="rounded-lg bg-[var(--error-bg)] border border-[var(--error)]/40 p-3 text-xs text-[var(--error)] space-y-1"
               data-testid="upload-errors"
             >
-              <div className="font-semibold text-red-300">Ошибки проверки файла:</div>
+              <div className="font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={14} />
+                <span>Ошибки проверки файла:</span>
+              </div>
               <ul className="list-disc list-inside space-y-0.5">
                 {errors.map((err, i) => (
                   <li key={i}>{err}</li>
@@ -254,12 +272,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
           {warnings.length > 0 && (
             <div
-              className="rounded-lg bg-amber-950/40 border border-amber-800/70 p-3 text-xs text-amber-200 space-y-1 max-h-28 overflow-y-auto"
+              className="rounded-lg bg-[var(--warning-bg)] border border-[var(--warning)]/40 p-3 text-xs text-[var(--warning)] space-y-1 max-h-28 overflow-y-auto"
               data-testid="upload-warnings"
             >
-              <div className="font-semibold text-amber-300">
-                Предупреждения ({warnings.length}):
-              </div>
+              <div className="font-semibold">Предупреждения ({warnings.length}):</div>
               <ul className="list-disc list-inside space-y-0.5">
                 {warnings.slice(0, 5).map((warn, i) => (
                   <li key={i}>{warn}</li>
@@ -268,32 +284,45 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </div>
           )}
 
-          <div className="rounded-lg bg-[#0f172a] border border-slate-800 p-3.5 text-xs text-slate-300">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="font-medium text-slate-200">Пример формата CSV:</span>
-              <button
-                type="button"
-                onClick={handleDownloadSampleCsv}
-                data-testid="download-sample-csv-btn"
-                className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
-              >
-                ⬇ Скачать шаблон CSV (6 SKU)
-              </button>
+          <div className="rounded-lg bg-[var(--bg-alt)] border border-[var(--border)] p-3.5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <span className="font-semibold text-[var(--text)]">Пример формата CSV:</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadSampleCsv}
+                  data-testid="download-sample-csv-btn"
+                  className="btn btn-secondary btn-sm"
+                >
+                  <Download size={12} />
+                  <span>Скачать шаблон CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQuickLoadSampleCsv}
+                  data-testid="quick-load-sample-csv-btn"
+                  disabled={isUploading}
+                  className="btn btn-primary btn-sm"
+                >
+                  <Zap size={12} />
+                  <span>Загрузить тестовый CSV (8 SKU)</span>
+                </button>
+              </div>
             </div>
-            <pre className="font-mono text-[11px] text-slate-400 overflow-x-auto leading-relaxed">
+            <pre className="mono text-[11px] text-[var(--text-sec)] overflow-x-auto leading-relaxed">
 {`id,title,category,price,description,tags
-sku-1,"Беспроводные наушники Sony",Аудио,14990,"Шумоподавление ANC, 30ч работы","anc;bluetooth;хит"
-sku-2,"Механическая клавиатура Keychron",Периферия,8900,"Hot-swap переключатели, RGB","keychron;gaming"`}
+custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,"Шумоподавление ANC, 30ч работы","наушники;sony;anc"
+custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,"Алюминиевый корпус, Hot-Swap","клавиатура;keychron"`}
             </pre>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-[#0f172a]/50 border-t border-slate-700">
+        <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 bg-[var(--bg-alt)] border-t border-[var(--border)]">
           <button
             type="button"
             onClick={handleClose}
             disabled={isUploading}
-            className="px-4 py-2 rounded-lg text-xs font-medium bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-50"
+            className="btn btn-secondary btn-sm"
           >
             Отмена
           </button>
@@ -301,9 +330,10 @@ sku-2,"Механическая клавиатура Keychron",Перифери�
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="px-4 py-2 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+            className="btn btn-primary btn-sm"
           >
-            Выбрать файл
+            <CheckCircle2 size={13} />
+            <span>Выбрать файл (.csv / .json)</span>
           </button>
         </div>
       </div>

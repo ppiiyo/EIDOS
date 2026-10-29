@@ -30,10 +30,10 @@ const SAMPLE_QUERIES_BY_LANG: Record<string, Array<{ label: string; note: string
     { label: 'rust vector databases and deep coding focus', note: 'Finds Silicon & Rust Doc + Coding Synthwave Audio' },
   ],
   ru: [
-    { label: 'недорогие наушники для бега', note: 'Intent-Aware Search test (category + useCase + priceRange)' },
-    { label: 'релятивистское время и космос', note: 'Vocabulary mismatch test (finds Interstellar & Dune)' },
-    { label: 'симуляция реальности и нейросети', note: 'Conceptual match (finds Matrix & Cyberpunk)' },
-    { label: 'утренний эспрессо и уют в офисе', note: 'Cross-category lifestyle intent' },
+    { label: 'недорогие наушники для бега', note: 'Intent-Aware Search (категория + сценарий + бюджет)' },
+    { label: 'релятивистское время и космос', note: 'Семантический поиск без совпадения слов (Интерстеллар, Дюна)' },
+    { label: 'симуляция реальности и нейросети', note: 'Концептуальный поиск (Матрица, Cyberpunk 2077)' },
+    { label: 'утренний эспрессо и уют в офисе', note: 'Кросс-категорийное намерение (Кофемашина, Кресло, Lo-Fi)' },
   ],
 };
 
@@ -73,6 +73,7 @@ const CLIENT_CATEGORY_MAP: Record<string, string> = {
   уши: 'наушники',
   ноутбук: 'ноутбуки',
   ультрабук: 'ноутбуки',
+  макбук: 'ноутбуки',
   смартфон: 'смартфоны',
   телефон: 'смартфоны',
   кроссовк: 'кроссовки',
@@ -80,6 +81,7 @@ const CLIENT_CATEGORY_MAP: Record<string, string> = {
   часы: 'умные часы',
   браслет: 'фитнес-браслеты',
   клавиатур: 'клавиатуры',
+  монитор: 'мониторы',
   кофемашин: 'кофемашины',
   эспрессо: 'кофе и техника',
   книг: 'книги',
@@ -87,6 +89,8 @@ const CLIENT_CATEGORY_MAP: Record<string, string> = {
   игр: 'игры',
   фильм: 'фильмы',
   кино: 'фильмы',
+  кресл: 'мебель и офис',
+  камер: 'камеры',
   headphones: 'headphones',
   earbuds: 'headphones',
   laptop: 'laptops',
@@ -105,6 +109,7 @@ const CLIENT_USECASE_MAP: Record<string, string> = {
   спорта: 'спорт',
   спорт: 'спорт',
   тренировок: 'тренировки',
+  фитнеса: 'спорт',
   игр: 'игры',
   игры: 'игры',
   гейминга: 'игры',
@@ -113,10 +118,13 @@ const CLIENT_USECASE_MAP: Record<string, string> = {
   офис: 'офис',
   кодинга: 'программирование',
   программирования: 'программирование',
+  разработки: 'программирование',
   учебы: 'обучение',
   обучения: 'обучение',
   дома: 'дом',
   семьи: 'семья',
+  музыки: 'музыка',
+  путешествий: 'путешествия',
   running: 'running',
   gaming: 'gaming',
   work: 'work',
@@ -161,10 +169,10 @@ export function extractClientIntentPreview(query: string): InspectorExtractedInt
     priceRange = { max: Number(maxMatch[1]) };
   } else if (minMatch) {
     priceRange = { min: Number(minMatch[1]) };
-  } else if (/(недорог|дешев|дешёв|бюджетн|эконом|cheap|budget|affordable)/i.test(q)) {
-    priceRange = { max: 5000 };
-  } else if (/(премиум|флагман|дорог|профи|premium|flagship|pro)/i.test(q)) {
-    priceRange = { min: 15000 };
+  } else if (/(недорог|дешев|дешёв|бюджетн|эконом|доступн|cheap|budget|affordable)/i.test(q)) {
+    priceRange = { max: 15000 };
+  } else if (/(премиум|флагман|дорог|профи|люкс|premium|flagship|pro)/i.test(q)) {
+    priceRange = { min: 25000 };
   }
 
   let confidence = 0;
@@ -206,21 +214,26 @@ export function useSearchCognitiveState(
   const actionCountRef = useRef<number>(1);
 
   useEffect(() => {
-    let lastY = window.scrollY;
+    let lastY = 0;
     let lastTime = performance.now();
 
-    const onScroll = () => {
+    const onScroll = (e: Event) => {
       const now = performance.now();
       const dt = Math.max(16, now - lastTime);
-      const dy = Math.abs(window.scrollY - lastY);
+      const target = e.target as HTMLElement | Document | null;
+      const currentY =
+        target && 'scrollTop' in target && typeof target.scrollTop === 'number'
+          ? target.scrollTop
+          : window.scrollY;
+      const dy = Math.abs(currentY - lastY);
       const vel = Math.round((dy / dt) * 1000);
-      setScrollVelocityPxPerSec((prev) => Math.round(prev * 0.65 + vel * 0.35));
-      lastY = window.scrollY;
+      setScrollVelocityPxPerSec((prev) => Math.round(prev * 0.6 + vel * 0.4));
+      lastY = currentY;
       lastTime = now;
     };
 
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    return () => window.removeEventListener('scroll', onScroll, { capture: true });
   }, []);
 
   const handleCardHoverStart = useCallback((itemId: string) => {
@@ -262,7 +275,7 @@ export function useSearchCognitiveState(
       } else if (preset === 'price_hesitant') {
         setScrollVelocityPxPerSec(140);
         setComparisonAlternations(1);
-        setPriceHoverCount(5);
+        setPriceHoverCount(6);
         setHoverDwellByItemId({ '1': 3200 });
       } else if (preset === 'scanner') {
         setScrollVelocityPxPerSec(1150);
@@ -318,6 +331,8 @@ export function useSearchCognitiveState(
     return Math.round(Math.min(1, Math.max(0, raw)) * 100) / 100;
   }, [alpha, kineticProfile.alphaAdjustment, chronoProfile.recommendedAlphaShift, radarCoords.axisDiscovery]);
 
+  const extractedIntent = useMemo(() => extractClientIntentPreview(query), [query]);
+
   const hybridHits = useMemo(() => {
     if (baseHybridHits.length === 0) return [];
 
@@ -348,9 +363,9 @@ export function useSearchCognitiveState(
 
     const discoveryWeight = Math.max(
       0,
-      radarCoords.axisDiscovery * 0.45 +
-        kineticProfile.serendipityBoost * 0.25 +
-        (chronoProfile.mode === 'dopamine_discovery' ? 0.2 : 0)
+      radarCoords.axisDiscovery * 0.55 +
+        kineticProfile.serendipityBoost * 0.3 +
+        (chronoProfile.mode === 'dopamine_discovery' ? 0.22 : 0)
     );
 
     const enriched = baseHybridHits.map((hit, idx) => {
@@ -370,12 +385,36 @@ export function useSearchCognitiveState(
           : parseFloat(String(hit.item.price || '').replace(/[^\d.]/g, ''));
       const itemPrice = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : undefined;
 
+      // Dynamic base score using effectiveAlpha so 2D Radar, Chrono, and Kinetic shifts re-rank live
+      const dynamicHybridBase =
+        effectiveAlpha * hit.denseScore + (1 - effectiveAlpha) * hit.bm25Score;
+
       const kineticMod = KineticAttentionEngine.modulateCandidateScore(
-        hit.fusedScore,
+        dynamicHybridBase,
         itemPrice,
         medianPrice,
         kineticProfile
       );
+
+      // Intent-Aware boost when query intent matches item category, use-case, or price budget
+      let intentBoost = 0;
+      if (extractedIntent) {
+        const hay = `${hit.item.title} ${hit.item.category} ${hit.item.description} ${(hit.item.tags || []).join(' ')}`.toLowerCase();
+        if (extractedIntent.category && hay.includes(extractedIntent.category.slice(0, 5))) {
+          intentBoost += 0.06;
+        }
+        if (extractedIntent.useCase && hay.includes(extractedIntent.useCase.slice(0, 4))) {
+          intentBoost += 0.05;
+        }
+        if (extractedIntent.priceRange && itemPrice !== undefined) {
+          const { min, max } = extractedIntent.priceRange;
+          const okMin = min === undefined || itemPrice >= min;
+          const okMax = max === undefined || itemPrice <= max;
+          if (okMin && okMax) {
+            intentBoost += 0.05;
+          }
+        }
+      }
 
       let tierBonus = 0;
       if (itemPrice && medianPrice > 0 && Math.abs(radarCoords.axisTier) > 0.08) {
@@ -383,34 +422,51 @@ export function useSearchCognitiveState(
         tierBonus =
           radarCoords.axisTier > 0
             ? isPremium
-              ? radarCoords.axisTier * 0.08
+              ? radarCoords.axisTier * 0.09
               : -radarCoords.axisTier * 0.04
             : !isPremium
-            ? Math.abs(radarCoords.axisTier) * 0.09
+            ? Math.abs(radarCoords.axisTier) * 0.1
             : -Math.abs(radarCoords.axisTier) * 0.04;
       }
 
+      const sniperPenalty =
+        radarCoords.axisDiscovery < -0.15 && hit.item.category !== dominantCategory
+          ? radarCoords.axisDiscovery * 0.12
+          : 0;
+
       const serendipityContribution = serendipityEval.isSerendipityDiscovery
-        ? serendipityEval.serendipityScore * discoveryWeight * 0.28
+        ? serendipityEval.serendipityScore * discoveryWeight * 0.32
         : 0;
+
+      const totalBoost =
+        kineticMod.kineticBonus + intentBoost + Math.max(0, tierBonus) + serendipityContribution;
 
       const newFusedScore = Math.min(
         0.999,
-        Math.max(0.05, kineticMod.adjustedScore + serendipityContribution + tierBonus)
+        Math.max(
+          0.05,
+          kineticMod.adjustedScore +
+            intentBoost +
+            tierBonus +
+            sniperPenalty +
+            serendipityContribution
+        )
       );
 
       return {
         ...hit,
         fusedScore: Math.round(newFusedScore * 10000) / 10000,
-        isSerendipityDiscovery: serendipityEval.isSerendipityDiscovery,
+        isSerendipityDiscovery:
+          serendipityEval.isSerendipityDiscovery &&
+          (radarCoords.axisDiscovery >= 0 || discoveryWeight > 0.08),
         serendipityScore: serendipityEval.serendipityScore,
         discoveryReason: serendipityEval.discoveryReason,
-        kineticBonus: kineticMod.kineticBonus,
+        kineticBonus: Math.round(totalBoost * 10000) / 10000,
       };
     });
 
     return enriched.sort((a, b) => b.fusedScore - a.fusedScore);
-  }, [baseHybridHits, query, radarCoords, kineticProfile, chronoProfile]);
+  }, [baseHybridHits, query, radarCoords, kineticProfile, chronoProfile, effectiveAlpha, extractedIntent]);
 
   const paretoReport = useMemo(() => {
     const avgDense =
@@ -451,17 +507,15 @@ export function useSearchCognitiveState(
         price: h.item.price,
         score: h.fusedScore,
         explanation: {
-          denseComponent: h.denseScore,
-          sparseBm25Component: h.bm25Score,
+          denseComponent: Number((effectiveAlpha * h.denseScore).toFixed(4)),
+          sparseBm25Component: Number(((1 - effectiveAlpha) * h.bm25Score).toFixed(4)),
           rrfScore: h.rrfScore ?? Number((h.fusedScore * 0.016).toFixed(4)),
           businessBoost: Math.max(0, Number((h.kineticBonus ?? 0).toFixed(4))),
           mmrPenalty: i > 0 && !h.isSerendipityDiscovery ? -Number((i * 0.025).toFixed(3)) : 0,
         },
       })),
-    [hybridHits]
+    [hybridHits, effectiveAlpha]
   );
-
-  const extractedIntent = useMemo(() => extractClientIntentPreview(query), [query]);
 
   return {
     radarCoords,

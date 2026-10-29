@@ -1,5 +1,5 @@
-import React from "react";
-import { Database, FileSpreadsheet, Terminal, RotateCcw, Globe, Cpu } from 'lucide-react';
+import React, { useState } from "react";
+import { Database, FileSpreadsheet, Terminal, RotateCcw, Globe, Cpu, Sun, Moon } from 'lucide-react';
 import { CatalogItem } from '../types';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 import { EmbeddingEngineState } from '../lib/embeddings';
@@ -32,6 +32,19 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   onOpenApiModal,
 }) => {
   const tTop = UI_TRANSLATIONS[uiLang].topbar;
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark'
+      ? 'dark'
+      : 'light'
+  );
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', next);
+    }
+  };
 
   const statusBadge = (() => {
     if (engineState.status === 'ready') {
@@ -78,6 +91,16 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          data-testid="theme-toggle-btn"
+          className="btn btn-secondary btn-sm"
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+        </button>
+
         <div
           data-testid="ui-lang-switcher"
           className="inline-flex items-center bg-[var(--bg-alt)] border border-[var(--border)] rounded-md p-0.5 gap-0.5"

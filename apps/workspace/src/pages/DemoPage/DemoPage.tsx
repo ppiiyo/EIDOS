@@ -79,7 +79,6 @@ export const DemoPage: React.FC<DemoPageProps> = ({
 
   useEffect(() => {
     if (forceMode === 'normal' && ownCatalog.length === 0 && (!catalog || catalog.length === 0)) {
-      // При переходе на обычную страницу без пользовательской базы очищаем демо-индекс на сервере
       void fetch(`${apiBaseUrl}/v1/demo/reset`, {
         method: 'POST',
       }).catch(() => {});
@@ -163,7 +162,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({
   }, [apiBaseUrl, resetToWelcome, onClearCatalog, forceMode, onNavigate]);
 
   return (
-    <div className="min-h-full bg-[#0f172a] text-[#f1f5f9]">
+    <div className="min-h-full bg-[var(--bg-alt)] text-[var(--text)]">
       {effectiveState === 'welcome' && (
         <WelcomeScreen
           onUpload={() => setIsUploadModalOpen(true)}
