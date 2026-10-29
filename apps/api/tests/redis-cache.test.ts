@@ -13,6 +13,7 @@ describe('WEEK 1: Redis Caching Layer & Cache Invalidation', () => {
     await cache.clear();
     app = await buildServer();
     await app.ready();
+    await app.inject({ method: 'POST', url: '/v1/demo/load' });
   });
 
   afterAll(async () => {

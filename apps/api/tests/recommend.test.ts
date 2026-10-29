@@ -7,6 +7,7 @@ describe('POST /v1/recommend', () => {
   beforeAll(async () => {
     app = await buildServer();
     await app.ready();
+    await app.inject({ method: 'POST', url: '/v1/demo/load' });
   });
 
   afterAll(async () => {

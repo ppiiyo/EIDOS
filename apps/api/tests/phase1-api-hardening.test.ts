@@ -10,6 +10,12 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
     process.env.AIL_ENABLED = 'true';
     app = await buildServer();
     await app.ready();
+
+    const healthRes = await app.inject({ method: 'GET', url: '/v1/health' });
+    expect(healthRes.json().itemsIndexed).toBe(0);
+    expect(healthRes.json().initializedEmpty).toBe(true);
+
+    await app.inject({ method: 'POST', url: '/v1/demo/load' });
   });
 
   afterAll(async () => {
@@ -110,6 +116,7 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
       expect(responses[3].statusCode).toBe(429);
 
       await rateLimitedApp.close();
+      await app.inject({ method: 'POST', url: '/v1/demo/load' });
       if (prevMax === undefined) {
         delete process.env.RATE_LIMIT_MAX;
       } else {

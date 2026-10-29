@@ -9,6 +9,7 @@ describe('POST /v1/recommend/user', () => {
     process.env.AIL_ENABLED = 'true';
     app = await buildServer();
     await app.ready();
+    await app.inject({ method: 'POST', url: '/v1/demo/load' });
   });
 
   afterAll(async () => {

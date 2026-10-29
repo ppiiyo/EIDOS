@@ -14,7 +14,7 @@ describe('EIDOS v3.1 Release Features & Production Hardening', () => {
     await app.close();
   });
 
-  it('1. /v1/health is public and does not require authentication', async () => {
+  it('1. /v1/health is public, does not require authentication, and verifies empty initial vector store', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/v1/health',
@@ -22,37 +22,29 @@ describe('EIDOS v3.1 Release Features & Production Hardening', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.status).toBe('healthy');
+    expect(body.itemsIndexed).toBe(0);
+    expect(body.initializedEmpty).toBe(true);
     expect(body.checks).toBeDefined();
   });
 
-  it('2. /v1/catalog/stats is public and returns balanced categories with >= 50 items each', async () => {
+  it('2. /v1/catalog/stats is public and returns indexed categories after loading demo catalog', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/v1/demo/load',
+    });
+
     const res = await app.inject({
       method: 'GET',
       url: '/v1/catalog/stats',
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.totalItems).toBeGreaterThanOrEqual(5000);
+    expect(body.totalItems).toBe(48);
     expect(body.cache).toBeDefined();
     expect(['redis', 'in-memory']).toContain(body.cache.type);
 
     const categories = body.categories;
-    const expectedCategories = [
-      'Games',
-      'Movies',
-      'Books',
-      'Appliances',
-      'Electronics',
-      'Sports',
-      'Fashion',
-      'Home',
-      'Toys',
-    ];
-
-    for (const cat of expectedCategories) {
-      expect(categories[cat]).toBeDefined();
-      expect(categories[cat]).toBeGreaterThanOrEqual(50);
-    }
+    expect(Object.keys(categories).length).toBeGreaterThanOrEqual(8);
   });
 
   it('3. Public demo key eidos_public_demo_key_2026 authenticates search request', async () => {

@@ -228,13 +228,14 @@ export class VectorStore {
       if (hyphenMatch) return hyphenMatch;
     }
 
-    // Seed catalog items 1..5 are stored under keys '1'..'5'
-    const shortMatch = normalizedHyphen.match(/^item-([1-5])$/i);
+    // Demo catalog items are stored under numeric keys ('1'..'18', '101'..'304')
+    const shortMatch = normalizedHyphen.match(/^item-(\d+)$/i);
     if (shortMatch) {
-      return this.items.get(shortMatch[1]);
+      const byNumericKey = this.items.get(shortMatch[1]);
+      if (byNumericKey) return byNumericKey;
     }
 
-    // Numeric IDs >= 6 stored as 'item-N'
+    // Numeric IDs stored as 'item-N'
     if (/^\d+$/.test(strId)) {
       return this.items.get(`item-${strId}`);
     }

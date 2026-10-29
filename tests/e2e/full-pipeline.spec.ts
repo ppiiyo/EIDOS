@@ -6,8 +6,12 @@ test.describe('Eidos Full Pipeline E2E Critical Paths', () => {
   }) => {
     await page.goto('/');
 
-    // 1. Navigate to Hybrid Search view
+    // 1. Navigate to Hybrid Search view and activate Demo mode if on Welcome screen
     await page.locator('[data-testid="nav-search"]').first().click();
+    const tryDemoBtn = page.locator('[data-testid="try-demo-btn"]');
+    if (await tryDemoBtn.isVisible()) {
+      await tryDemoBtn.click();
+    }
 
     // 2. Search for an item
     const searchInput = page.locator('[data-testid="search-input"]');
@@ -39,6 +43,10 @@ test.describe('Eidos Full Pipeline E2E Critical Paths', () => {
   test('2. Multilingual & Cross-Lingual Search (RU / EN / JA)', async ({ page }) => {
     await page.goto('/');
     await page.locator('[data-testid="nav-search"]').first().click();
+    const tryDemoBtn = page.locator('[data-testid="try-demo-btn"]');
+    if (await tryDemoBtn.isVisible()) {
+      await tryDemoBtn.click();
+    }
 
     const searchInput = page.locator('[data-testid="search-input"]');
     await expect(searchInput).toBeVisible();

@@ -210,6 +210,8 @@ async function runScenario({
 async function runAll() {
   console.log(`🚀 Running EIDOS k6 Load Test Suite against ${API_BASE} (API_KEY=${API_KEY})...`);
 
+  await fetch(`${API_BASE}/v1/demo/load`, { method: 'POST' }).catch(() => {});
+
   // 1. Baseline Test (70% search, 30% recommend, Zipf query distribution)
   const baseline = await runScenario({
     name: 'BASELINE TEST (100 VU Profile)',

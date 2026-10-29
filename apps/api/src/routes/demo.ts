@@ -18,6 +18,7 @@ export async function demoRoutes(
     '/v1/demo/load',
     { preHandler: applyDemoRateLimit },
     async () => {
+      fastify.storeRegistry?.setDefaultStore(opts.vectorStore);
       await opts.vectorStore.loadDemoCatalog(DEMO_CATALOG, opts.embedder);
       return {
         ok: true,
