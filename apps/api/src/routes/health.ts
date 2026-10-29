@@ -9,16 +9,26 @@ export interface ComponentCheck {
   [key: string]: unknown;
 }
 
-async function checkVectorStore(vectorStore: VectorStore): Promise<ComponentCheck> {
+async function checkVectorStore(
+  vectorStore: VectorStore,
+  initialItemsIndexed = 0
+): Promise<ComponentCheck> {
   try {
     const itemCount = vectorStore.size();
     const hnswSize = vectorStore.getHNSW().size();
+    const initializedEmpty = initialItemsIndexed === 0;
     return {
-      status: 'ok',
+      status: initializedEmpty ? 'ok' : 'warning',
       itemCount,
       itemsCount: itemCount,
+      itemsIndexed: itemCount,
+      initialItemsIndexed,
+      initializedEmpty,
       hnswIndexedCount: hnswSize,
-      message: itemCount > 0 ? `Indexed ${itemCount} items` : 'Vector store ready (0 items indexed)',
+      message:
+        itemCount > 0
+          ? `Indexed ${itemCount} items`
+          : 'Vector store ready (0 items indexed)',
     };
   } catch (err) {
     return {
@@ -88,6 +98,7 @@ export async function healthRoutes(
   opts: { vectorStore: VectorStore; embedder?: ServerEmbedder }
 ): Promise<void> {
   const bootTime = Date.now();
+  const initialItemsIndexed = opts.vectorStore.count();
   const cache = getCache();
 
   const handleHealthCheck = async (_request: FastifyRequest, reply: FastifyReply) => {
@@ -99,7 +110,7 @@ export async function healthRoutes(
     ]);
 
     const checks = {
-      vectorStore: await checkVectorStore(opts.vectorStore),
+      vectorStore: await checkVectorStore(opts.vectorStore, initialItemsIndexed),
       database: await checkDatabase(opts.vectorStore),
       embeddingModel: await checkEmbeddingModel(opts.embedder),
       redis: {
@@ -114,6 +125,7 @@ export async function healthRoutes(
     const isHealthy = Object.values(checks).every((c) => c.status === 'ok');
     const responseTime = Date.now() - startTime;
     const itemCount = opts.vectorStore.count();
+    const initializedEmpty = initialItemsIndexed === 0;
 
     return reply.status(isHealthy ? 200 : 503).send({
       ok: isHealthy,
@@ -123,6 +135,8 @@ export async function healthRoutes(
       version: process.env.npm_package_version || '1.0.0',
       itemsIndexed: itemCount,
       itemsCount: itemCount,
+      initialItemsIndexed,
+      initializedEmpty,
       uptimeSeconds: Math.floor((Date.now() - bootTime) / 1000),
       model: 'all-MiniLM-L6-v2',
       ...(isHealthy ? {} : { error: 'One or more health checks reported degraded or error status' }),
@@ -149,7 +163,7 @@ export async function healthRoutes(
     }
 
     const [vectorStore, database, embeddingModel] = await Promise.all([
-      checkVectorStore(opts.vectorStore),
+      checkVectorStore(opts.vectorStore, initialItemsIndexed),
       checkDatabase(opts.vectorStore),
       checkEmbeddingModel(opts.embedder),
     ]);

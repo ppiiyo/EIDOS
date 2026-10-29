@@ -16,7 +16,31 @@ describe('Critical API Routes Integration Tests', () => {
     }
   });
 
+  describe('Fresh Start & Health Verification', () => {
+    it('GET /v1/health should verify vector store initialized in an empty state (itemsIndexed = 0)', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/health',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.itemsIndexed).toBe(0);
+      expect(body.initialItemsIndexed).toBe(0);
+      expect(body.initializedEmpty).toBe(true);
+      expect(body.checks?.vectorStore?.itemsIndexed).toBe(0);
+      expect(body.checks?.vectorStore?.initializedEmpty).toBe(true);
+    });
+  });
+
   describe('Demo Endpoints (no auth required)', () => {
+    beforeAll(async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/demo/load',
+      });
+    });
+
     it('POST /v1/demo/search should return 200 and results', async () => {
       const response = await app.inject({
         method: 'POST',

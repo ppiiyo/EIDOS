@@ -8,23 +8,17 @@ import { funnelPlugin } from './plugins/funnel';
 import { apiRoutesPlugin } from './plugins/routes';
 import { VectorStore } from './services/vector-store';
 import { ServerEmbedder } from './services/embedder';
-import { AILManager } from './services/ail';
 import { intentDictionary } from './services/intent-dictionary';
 import {
-  getPrecomputedSeedCatalog,
   generateDeterministicSeedCatalog,
   mulberry32,
   resetSeedCatalogCache,
 } from './services/seed-catalog';
 import { initTracing } from './tracing';
-import { recommendSchema, simpleRecommend } from './routes/recommend';
 import { getCache } from './services/cache';
 import { ClusterStateCoordinator } from './services/cluster-coordinator';
 
 export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache, intentDictionary };
-
-const DETERMINISTIC_SEED = 42;
-const DETERMINISTIC_EPOCH_MS = 1_700_000_000_000;
 
 let activeShutdownStore: VectorStore | null = null;
 let shutdownHooksRegistered = false;
@@ -73,34 +67,15 @@ export async function buildServer(): Promise<FastifyInstance> {
   // 3. Register OpenAPI / Swagger documentation
   await registerOpenAPI(fastify);
 
+  // Initialize VectorStore in a clean, empty state (itemsIndexed = 0); no demo catalog auto-seeding
   const vectorStore = new VectorStore();
   activeShutdownStore = vectorStore;
   const embedder = ServerEmbedder.getInstance();
-  const ail = AILManager.getInstance();
 
-  const shouldSeedCatalog =
-    process.env.EIDOS_DEMO_MODE === 'true' ||
-    (Boolean(process.env.VITEST) && process.env.EIDOS_DEMO_MODE !== 'false');
-
-  if (shouldSeedCatalog) {
-    const seedItems = await getPrecomputedSeedCatalog(embedder, 5005, DETERMINISTIC_SEED);
-    vectorStore.bulkSeed(seedItems);
-
-    const prng = mulberry32(DETERMINISTIC_SEED);
-    for (let i = 0; i < Math.min(seedItems.length, 100); i++) {
-      const item = seedItems[i];
-      ail.metadataStore.add({
-        id: item.id,
-        category: item.category,
-        popularity: Math.round((0.65 + prng() * 0.25) * 1000) / 1000,
-        createdAt: DETERMINISTIC_EPOCH_MS - i * 3600_000,
-        attributes: {},
-      });
-    }
+  // Only load persisted catalog snapshot when explicitly configured via EIDOS_SNAPSHOT_PATH
+  if (process.env.EIDOS_SNAPSHOT_PATH) {
+    await vectorStore.loadSnapshotFromDisk(embedder);
   }
-
-  // Load persisted catalog snapshot (if present on disk) before HTTP server starts
-  await vectorStore.loadSnapshotFromDisk(embedder);
 
   Metrics.vectorStoreSize.set(vectorStore.count());
   Metrics.activeIndexesTotal.set(1);
@@ -125,20 +100,8 @@ export async function buildServer(): Promise<FastifyInstance> {
   // 4. Register API routes and 404/SPA fallback handler
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
 
-  // Warm up V8 JIT and Redis TCP socket without populating ApiQueryCache
+  // Verify Redis / cache health on startup without seeding or populating query caches
   await getCache().healthCheck();
-  if (vectorStore.count() > 0) {
-    const warmupQueryVec = await embedder.embed('Quantum Spatial Audio Headphones');
-    vectorStore.hybridSearch('Quantum Spatial Audio Headphones', warmupQueryVec, 10);
-    const parsedWarmup = recommendSchema.safeParse({
-      item_id: 'item-10',
-      strategy: 'simple',
-      limit: 10,
-    });
-    if (parsedWarmup.success) {
-      await simpleRecommend(parsedWarmup.data, vectorStore);
-    }
-  }
 
   // Attach vectorStore cleanup, graceful drain & synchronous snapshot persistence on Fastify close
   fastify.addHook('onClose', async () => {

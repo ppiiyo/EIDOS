@@ -73,6 +73,28 @@ describe('PHASE 3: Deterministic Seeding (mulberry32) & Real Search Latency Metr
   it('GET /v1/metrics and GET /v1/catalog/stats reflect real search and recommend latencies', async () => {
     const app = await buildServer();
     try {
+      const healthRes = await app.inject({
+        method: 'GET',
+        url: '/v1/health',
+      });
+      expect(healthRes.statusCode).toBe(200);
+      expect(healthRes.json().itemsIndexed).toBe(0);
+      expect(healthRes.json().initializedEmpty).toBe(true);
+
+      await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': 'eidos_dev_key' },
+        payload: {
+          id: '1',
+          title: 'Quantum Spatial Audio Headphones',
+          description: 'Noise-canceling wireless spatial audio headphones',
+          category: 'Electronics',
+          price: 299,
+          tags: ['audio', 'wireless'],
+        },
+      });
+
       resetObservabilityMetrics();
 
       const beforeMetricsRes = await app.inject({

@@ -72,9 +72,19 @@ async function startUnifiedServer() {
     }
 
     // Fast-path /health probe if Fastify is still hydrating
-    if ((cleanUrl === '/health' || cleanUrl === '/api/health') && !fastifyApp) {
+    if ((cleanUrl === '/health' || cleanUrl === '/api/health' || cleanUrl === '/v1/health') && !fastifyApp) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ ok: true, status: 'healthy', timestamp: new Date().toISOString() }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          status: 'healthy',
+          itemsIndexed: 0,
+          itemsCount: 0,
+          initialItemsIndexed: 0,
+          initializedEmpty: true,
+          timestamp: new Date().toISOString(),
+        })
+      );
       return;
     }
 

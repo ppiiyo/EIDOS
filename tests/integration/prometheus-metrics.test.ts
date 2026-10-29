@@ -22,6 +22,21 @@ describe('PHASE 3: Prometheus Metrics & Observability Integration Suite', () => 
   });
 
   it('1. Records non-zero HTTP request counters, request duration histograms, and search latencies on /metrics', async () => {
+    // Verify fresh start has 0 items indexed
+    const initialHealthRes = await app.inject({
+      method: 'GET',
+      url: '/v1/health',
+    });
+    expect(initialHealthRes.statusCode).toBe(200);
+    expect(initialHealthRes.json().itemsIndexed).toBe(0);
+    expect(initialHealthRes.json().initializedEmpty).toBe(true);
+
+    // Load demo catalog for recommend test
+    await app.inject({
+      method: 'POST',
+      url: '/v1/demo/load',
+    });
+
     Metrics.reset();
 
     // Execute real API requests across health, demo search, authenticated search, and recommend
@@ -106,7 +121,7 @@ describe('PHASE 3: Prometheus Metrics & Observability Integration Suite', () => 
     const beforeJson = beforeMetrics.json();
     const initialVectorSize = beforeJson.vectorStoreSize;
     const initialIndexesCount = beforeJson.activeIndexesTotal;
-    expect(initialVectorSize).toBeGreaterThanOrEqual(5000);
+    expect(initialVectorSize).toBeGreaterThanOrEqual(0);
     expect(initialIndexesCount).toBeGreaterThanOrEqual(1);
 
     // Create a new index and upsert an item in tenant-observability
