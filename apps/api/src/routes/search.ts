@@ -1,6 +1,15 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { SecurityGuardrails, CircuitBreaker, cosineSimilarity } from '@eidos/core';
+import {
+  SecurityGuardrails,
+  CircuitBreaker,
+  cosineSimilarity,
+  AdaptiveQueryRouter,
+  KineticAttentionEngine,
+  SerendipityOrthogonalEngine,
+  ChronoCognitiveEngine,
+  ParetoWeightOptimizer,
+} from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { demoRateLimit } from '../middleware/rate-limit-demo';
 import { ServerEmbedder } from '../services/embedder';
@@ -18,6 +27,35 @@ import { StoreError, StoreRegistry, withTimeout } from '../services/store-regist
 import { NeuralCrossEncoderReranker } from '../services/reranker';
 import { traceSpan } from '../tracing';
 import { recordSearchLatency } from '../plugins/observability';
+
+const cognitiveContextSchema = z
+  .object({
+    kineticTelemetry: z
+      .object({
+        scrollVelocityPxPerSec: z.number().min(0).optional(),
+        hoverDwellByItemId: z.record(z.string(), z.number()).optional(),
+        comparisonAlternations: z.number().min(0).optional(),
+        priceHoverCount: z.number().min(0).optional(),
+        queryRefinementVelocity: z.number().min(0).optional(),
+      })
+      .optional(),
+    intentRadar: z
+      .object({
+        axisDiscovery: z.number().min(-1).max(1).default(0),
+        axisTier: z.number().min(-1).max(1).default(0),
+      })
+      .optional(),
+    chronoInput: z
+      .object({
+        localHour: z.number().min(0).max(23).optional(),
+        dayOfWeek: z.number().min(0).max(6).optional(),
+        sessionDurationSec: z.number().min(0).optional(),
+        actionsPerMinute: z.number().min(0).optional(),
+      })
+      .optional(),
+    enableSerendipity: z.boolean().optional(),
+  })
+  .optional();
 
 const searchRequestSchema = z.object({
   query: z.string().min(1, 'query is required').max(500),
@@ -42,7 +80,18 @@ const searchRequestSchema = z.object({
   rerankGamma: z.number().min(0).max(1).optional().default(0.65),
   index: z.string().optional(),
   indexName: z.string().optional(),
+  cognitiveContext: cognitiveContextSchema,
 });
+
+const paretoRequestSchema = z
+  .object({
+    avgDenseScore: z.number().min(0).max(1).optional(),
+    avgBm25Score: z.number().min(0).max(1).optional(),
+    categoryEntropyNormalized: z.number().min(0).max(1).optional(),
+    explorationTemperature: z.number().min(0).max(1).optional(),
+    priceSensitivity: z.number().min(0).max(1).optional(),
+  })
+  .optional();
 
 const embedCircuitBreaker = new CircuitBreaker({
   failureThreshold: 5,
@@ -84,6 +133,7 @@ export async function searchRoutes(
         alpha,
         rerank,
         rerankGamma,
+        cognitiveContext,
       } = parseResult.data;
       const limit = rawLimit ?? topK ?? 10;
       const effectiveCategory = filterCategory ?? filters?.category;
@@ -116,6 +166,14 @@ export async function searchRoutes(
 
       const safeQuery = securityScan.sanitizedInput;
 
+      // Evaluate Next-Gen Cognitive Engines (Chrono, Kinetic, Adaptive Router)
+      const chronoProfile = ChronoCognitiveEngine.evaluate(cognitiveContext?.chronoInput);
+      const kineticProfile = KineticAttentionEngine.analyze(cognitiveContext?.kineticTelemetry);
+      const routeDecision = AdaptiveQueryRouter.routeQuery(safeQuery, {
+        radarDiscoveryAxis: cognitiveContext?.intentRadar?.axisDiscovery,
+        explorationTemperature: chronoProfile.explorationTemperature,
+      });
+
       // 1. Check Redis Cache first
       const normalizedFilters: Record<string, any> = {
         ...(filters || {}),
@@ -129,6 +187,9 @@ export async function searchRoutes(
       if (rerank) {
         normalizedFilters.rerank = true;
         normalizedFilters.rerankGamma = rerankGamma;
+      }
+      if (cognitiveContext) {
+        normalizedFilters.cognitiveContext = cognitiveContext;
       }
 
       const cacheNamespace = `${tenantId}:${indexName}`;
@@ -171,12 +232,16 @@ export async function searchRoutes(
         price?: number;
         score: number;
         source?: string;
+        isSerendipityDiscovery?: boolean;
+        discoveryReason?: string;
         explanation: {
           denseComponent: number;
           sparseBm25Component: number;
           rrfScore: number;
           mmrPenalty: number;
           businessBoost: number;
+          serendipityScore?: number;
+          kineticBonus?: number;
         };
       }>;
       let queryVectorForSemCache: Float32Array | number[] | null = null;
@@ -189,7 +254,7 @@ export async function searchRoutes(
         );
         queryVectorForSemCache = queryVector;
 
-        if (keySafe) {
+        if (keySafe && !cognitiveContext) {
           const semHit = semanticCache.lookup(queryVector, filterKey);
           if (semHit.hit && semHit.response) {
             const semLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
@@ -219,7 +284,15 @@ export async function searchRoutes(
               (vecErr as any).errorType = 'Vector Integrity Error';
               throw vecErr;
             }
-            const cleanVector = vectorCheck.corrected || queryVector;
+            let cleanVector: Float32Array | number[] = vectorCheck.corrected || queryVector;
+
+            // Apply 2D Intent Radar vector synthesis if cognitiveContext.intentRadar is active
+            if (cognitiveContext?.intentRadar) {
+              cleanVector = SerendipityOrthogonalEngine.synthesizeSteeredQueryVector(
+                cleanVector,
+                cognitiveContext.intentRadar
+              );
+            }
 
             let results: Array<{ item: any; score: number; rrfScore?: number; source?: string }> = [];
 
@@ -315,6 +388,21 @@ export async function searchRoutes(
               }
             }
 
+            // Compute Echo-Chamber centroid from top-3 results for Counterfactual Serendipity evaluation
+            const topVectors = results
+              .slice(0, 3)
+              .map((r) => r.item.normalizedVector || r.item.embedding)
+              .filter(Boolean);
+            const echoCentroid = SerendipityOrthogonalEngine.computeEchoChamberCentroid(topVectors);
+            const dominantCategory = results[0]?.item?.category || '';
+
+            const pricedValues = results
+              .map((r) => r.item.price)
+              .filter((p): p is number => typeof p === 'number' && p > 0)
+              .sort((a, b) => a - b);
+            const medianPrice =
+              pricedValues.length > 0 ? pricedValues[Math.floor(pricedValues.length / 2)] : 0;
+
             return results.map((r) => {
               const itemVec = r.item.normalizedVector || r.item.embedding;
               const rawDense =
@@ -324,6 +412,24 @@ export async function searchRoutes(
               const sparseBm25Component = Math.round(rawSparse * 10000) / 10000;
               const rrfScore = Math.round((r.rrfScore ?? r.score) * 10000) / 10000;
 
+              const serendipityEval = itemVec
+                ? SerendipityOrthogonalEngine.evaluateCandidate({
+                    id: r.item.id,
+                    category: r.item.category,
+                    dominantCategory,
+                    candidateVec: itemVec,
+                    queryVec: cleanVector,
+                    echoCentroidVec: echoCentroid,
+                  })
+                : undefined;
+
+              const kineticMod = KineticAttentionEngine.modulateCandidateScore(
+                r.score,
+                r.item.price,
+                medianPrice,
+                kineticProfile
+              );
+
               return {
                 id: r.item.id,
                 title: r.item.title,
@@ -331,14 +437,18 @@ export async function searchRoutes(
                 category: r.item.category,
                 tags: r.item.tags,
                 price: r.item.price,
-                score: r.score,
+                score: cognitiveContext ? kineticMod.adjustedScore : r.score,
                 source: r.source,
+                isSerendipityDiscovery: serendipityEval?.isSerendipityDiscovery,
+                discoveryReason: serendipityEval?.discoveryReason,
                 explanation: {
                   denseComponent,
                   sparseBm25Component,
                   rrfScore,
                   mmrPenalty: 0,
-                  businessBoost: 0,
+                  businessBoost: kineticMod.kineticBonus,
+                  serendipityScore: serendipityEval?.serendipityScore ?? 0,
+                  kineticBonus: kineticMod.kineticBonus,
                 },
               };
             });
@@ -373,6 +483,12 @@ export async function searchRoutes(
         count: freshResults.length,
         latencyMs,
         cacheHit: false,
+        cognitiveDiagnostics: {
+          routeDecision,
+          kineticProfile,
+          chronoProfile,
+          serendipityDiscoveriesCount: freshResults.filter((r) => r.isSerendipityDiscovery).length,
+        },
       };
 
       // 3. Only cache if key and response are safe (Cache Poisoning Protection)
@@ -381,13 +497,25 @@ export async function searchRoutes(
         const adaptiveTtl = CacheKeys.getAdaptiveTTL(safeQuery);
         await redisCache.set(cacheKey, cacheEntry, adaptiveTtl, 'search');
         l1Cache.set(cacheKey, cacheEntry);
-        if (queryVectorForSemCache) {
+        if (queryVectorForSemCache && !cognitiveContext) {
           semanticCache.store(safeQuery, queryVectorForSemCache, filterKey, cacheEntry, adaptiveTtl);
         }
       }
 
       return responsePayload;
     });
+  };
+
+  const handleParetoOptimize = async (request: FastifyRequest, reply: FastifyReply) => {
+    const parsed = paretoRequestSchema.safeParse(request.body || {});
+    if (!parsed.success) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'Invalid Pareto optimization parameters',
+      });
+    }
+    return ParetoWeightOptimizer.optimize(parsed.data);
   };
 
   fastify.post('/v1/search', { preHandler: authenticate }, handleSearch);
@@ -401,6 +529,19 @@ export async function searchRoutes(
       },
     },
     handleSearch
+  );
+
+  fastify.post('/v1/optimize/pareto', { preHandler: authenticate }, handleParetoOptimize);
+  fastify.post(
+    '/v1/demo/optimize/pareto',
+    {
+      preHandler: async (request, reply) => {
+        request.demoMode = true;
+        request.demoRateLimit = 60;
+        await demoRateLimit(request, reply);
+      },
+    },
+    handleParetoOptimize
   );
 }
 

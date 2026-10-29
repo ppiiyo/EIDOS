@@ -279,7 +279,12 @@ export interface HybridSearchHit {
   rrfDenseContribution?: number;
   rrfSparseContribution?: number;
   matchedTokens?: string[];
+  isSerendipityDiscovery?: boolean;
+  serendipityScore?: number;
+  discoveryReason?: string;
+  kineticBonus?: number;
 }
+
 
 export interface RecommendationXRay {
   cosineScore: number;

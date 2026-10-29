@@ -19,6 +19,9 @@ interface SearchResultsColumnsProps {
   };
   onSelectItem: (item: CatalogItem) => void;
   onInspectIn3D: (item: CatalogItem) => void;
+  onCardHoverStart?: (itemId: string) => void;
+  onCardHoverEnd?: (itemId: string) => void;
+  onPriceHover?: (itemId: string) => void;
 }
 
 export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
@@ -31,6 +34,9 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
   t,
   onSelectItem,
   onInspectIn3D,
+  onCardHoverStart,
+  onCardHoverEnd,
+  onPriceHover,
 }) => {
   return (
     <div
@@ -59,8 +65,12 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
               <div
                 key={hit.item.id}
                 data-testid="search-result"
-                className="card p-4 cursor-pointer"
+                className={`card p-4 cursor-pointer transition-colors ${
+                  hit.isSerendipityDiscovery ? 'border-[var(--accent)]' : ''
+                }`}
                 onClick={() => onSelectItem(hit.item)}
+                onMouseEnter={() => onCardHoverStart?.(String(hit.item.id))}
+                onMouseLeave={() => onCardHoverEnd?.(String(hit.item.id))}
               >
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex gap-2.5">
@@ -69,13 +79,32 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
                     </span>
                     <span className="text-xl leading-none">{hit.item.icon || '📦'}</span>
                     <div>
-                      <div className="font-semibold text-[0.9375rem] text-[var(--text)]">
-                        {hit.item.title}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-[0.9375rem] text-[var(--text)]">
+                          {hit.item.title}
+                        </span>
+                        {hit.isSerendipityDiscovery && (
+                          <span
+                            data-testid="serendipity-discovery-badge"
+                            className="badge badge-accent text-[0.625rem]"
+                            title={hit.discoveryReason}
+                          >
+                            ✦ Serendipity Ray ({Math.round((hit.serendipityScore ?? 0.65) * 100)}% ⊥)
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-[var(--text-sec)] mt-0.5">
                         <span>{hit.item.category}</span>
                         <span> · </span>
-                        <span className="mono">{hit.item.price || '—'}</span>
+                        <span
+                          className="mono px-1 rounded hover:bg-[var(--bg-alt)]"
+                          onMouseEnter={(e) => {
+                            e.stopPropagation();
+                            onPriceHover?.(String(hit.item.id));
+                          }}
+                        >
+                          {hit.item.price || '—'}
+                        </span>
                         <span> · </span>
                         <span className="mono text-[var(--accent)]">
                           {hit.source.toUpperCase()}
@@ -97,6 +126,12 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
                 <p className="text-[0.8125rem] text-[var(--text-sec)] my-2">
                   {hit.item.description}
                 </p>
+                {hit.isSerendipityDiscovery && hit.discoveryReason && (
+                  <div className="text-[0.6875rem] text-[var(--accent)] mb-2 font-medium">
+                    ⚡ {hit.discoveryReason}
+                  </div>
+                )}
+
 
                 {showXray && (
                   <div

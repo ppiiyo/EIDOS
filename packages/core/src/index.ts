@@ -19,5 +19,8 @@ export * from './cache';
 export * from './metrics';
 export * from './csv';
 export * from './sharding';
-
-
+export * from './kinetic-attention';
+export * from './serendipity-vector';
+export * from './chrono-cognitive';
+export * from './query-router';
+export * from './pareto-optimizer';
