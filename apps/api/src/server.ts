@@ -4,10 +4,12 @@ import { registerOpenAPI } from './openapi';
 import { securityPlugin } from './plugins/security';
 import { observabilityPlugin } from './plugins/observability';
 import { errorTrackerPlugin } from './plugins/error-tracker';
+import { funnelPlugin } from './plugins/funnel';
 import { apiRoutesPlugin } from './plugins/routes';
 import { VectorStore } from './services/vector-store';
 import { ServerEmbedder } from './services/embedder';
 import { AILManager } from './services/ail';
+import { intentDictionary } from './services/intent-dictionary';
 import {
   getPrecomputedSeedCatalog,
   generateDeterministicSeedCatalog,
@@ -19,7 +21,7 @@ import { recommendSchema, simpleRecommend } from './routes/recommend';
 import { getCache } from './services/cache';
 import { ClusterStateCoordinator } from './services/cluster-coordinator';
 
-export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache };
+export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache, intentDictionary };
 
 const DETERMINISTIC_SEED = 42;
 const DETERMINISTIC_EPOCH_MS = 1_700_000_000_000;
@@ -63,9 +65,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   // 1. Register security stack (CORS whitelist, Rate Limit, Helmet CSP)
   await fastify.register(securityPlugin);
 
-  // 2. Register observability & error tracking plugins
+  // 2. Register observability, error tracking & search funnel singleton plugins
   await fastify.register(observabilityPlugin);
   await fastify.register(errorTrackerPlugin);
+  await fastify.register(funnelPlugin);
 
   // 3. Register OpenAPI / Swagger documentation
   await registerOpenAPI(fastify);

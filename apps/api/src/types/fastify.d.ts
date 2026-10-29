@@ -2,6 +2,7 @@ import 'fastify';
 import { ApiKeyManager } from '../services/api-key-manager';
 import { StoreRegistry } from '../services/store-registry';
 import { ClusterStateCoordinator } from '../services/cluster-coordinator';
+import { SearchFunnelService } from '../services/search-funnel';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -17,6 +18,10 @@ declare module 'fastify' {
      * Multi-node horizontal scaling & cluster state coordinator attached to the server.
      */
     clusterCoordinator?: ClusterStateCoordinator;
+    /**
+     * Search Funnel conversion tracking service decorated at server startup.
+     */
+    funnelService: SearchFunnelService;
   }
 
   interface FastifyRequest {

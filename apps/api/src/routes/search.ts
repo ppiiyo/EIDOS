@@ -25,6 +25,7 @@ import {
 } from '../services/cache';
 import { StoreError, StoreRegistry, withTimeout } from '../services/store-registry';
 import { NeuralCrossEncoderReranker } from '../services/reranker';
+import { intentDictionary } from '../services/intent-dictionary';
 import { traceSpan } from '../tracing';
 import { recordSearchLatency } from '../plugins/observability';
 
@@ -80,6 +81,7 @@ const searchRequestSchema = z.object({
   rerankGamma: z.number().min(0).max(1).optional().default(0.65),
   index: z.string().optional(),
   indexName: z.string().optional(),
+  sessionId: z.string().optional(),
   cognitiveContext: cognitiveContextSchema,
 });
 
@@ -133,6 +135,7 @@ export async function searchRoutes(
         alpha,
         rerank,
         rerankGamma,
+        sessionId,
         cognitiveContext,
       } = parseResult.data;
       const limit = rawLimit ?? topK ?? 10;
@@ -165,6 +168,27 @@ export async function searchRoutes(
       }
 
       const safeQuery = securityScan.sanitizedInput;
+
+      // Record search event in SearchFunnelService singleton decorator
+      const resolvedSessionId =
+        sessionId ||
+        (typeof request.headers['x-session-id'] === 'string'
+          ? request.headers['x-session-id']
+          : undefined) ||
+        'anonymous';
+      if (fastify.funnelService) {
+        fastify.funnelService.addEvent({
+          type: 'search',
+          query: safeQuery,
+          sessionId: resolvedSessionId,
+        });
+      }
+
+      // Feature Flag: Intent-Aware Search (Phase 1)
+      const isIntentAwareEnabled = process.env.EIDOS_FEATURE_INTENT_AWARE_SEARCH === 'true';
+      const extractedIntent = isIntentAwareEnabled
+        ? intentDictionary.extractIntent(safeQuery)
+        : undefined;
 
       // Evaluate Next-Gen Cognitive Engines (Chrono, Kinetic, Adaptive Router)
       const chronoProfile = ChronoCognitiveEngine.evaluate(cognitiveContext?.chronoInput);
@@ -211,8 +235,10 @@ export async function searchRoutes(
         const hitLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
         recordSearchLatency(hitLatencyMs, `${mode}_cache_hit`);
         reply.header('x-cache', 'HIT');
+        const { extractedIntent: _cachedIntent, ...restCached } = cachedResponse;
         return {
-          ...cachedResponse,
+          ...restCached,
+          ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
           cached: true,
           cacheHit: true,
           cachedAt: cachedResponse.cachedAt || new Date().toISOString(),
@@ -260,8 +286,10 @@ export async function searchRoutes(
             const semLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
             recordSearchLatency(semLatencyMs, `${mode}_semantic_hit`);
             reply.header('x-cache', 'SEMANTIC_HIT');
+            const { extractedIntent: _semIntent, ...restSem } = semHit.response;
             return {
-              ...semHit.response,
+              ...restSem,
+              ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
               cached: true,
               cacheHit: true,
               semanticSimilarity: Number(semHit.similarity.toFixed(4)),
@@ -483,6 +511,7 @@ export async function searchRoutes(
         count: freshResults.length,
         latencyMs,
         cacheHit: false,
+        ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
         cognitiveDiagnostics: {
           routeDecision,
           kineticProfile,

@@ -29,6 +29,7 @@ export default defineConfig({
       'packages/**/tests/**/*.test.ts',
       'apps/api/tests/**/*.test.ts',
       'tests/unit/**/*.test.ts',
+      'tests/unit/**/*.test.tsx',
       'tests/integration/**/*.test.ts',
       'tests/sharding/**/*.test.ts',
       'tests/cache/**/*.test.ts',

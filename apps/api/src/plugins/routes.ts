@@ -10,9 +10,11 @@ import { recommendAdaptiveRoutes } from '../routes/recommend-adaptive';
 import { feedbackRoutes } from '../routes/feedback';
 import { enterpriseRoutes } from '../routes/enterprise';
 import { analyticsRoutes } from '../routes/analytics';
+import { funnelRoutes } from '../routes/funnel';
 import { keyRoutes } from '../routes/keys';
 import { indexRoutes } from '../routes/indexes';
 import { settingsRoutes } from '../routes/settings';
+import { funnelPlugin } from './funnel';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { TenantNamespaceManager } from '../services/multi-tenancy';
@@ -30,6 +32,8 @@ export async function apiRoutesPlugin(
   fastify: FastifyInstance,
   opts: ApiRoutesPluginOptions
 ): Promise<void> {
+  await fastify.register(funnelPlugin);
+
   const storeRegistry = opts.storeRegistry || StoreRegistry.getInstance();
   storeRegistry.setDefaultStore(opts.vectorStore);
   TenantNamespaceManager.getInstance().setDefaultStore(opts.vectorStore);
@@ -88,6 +92,7 @@ export async function apiRoutesPlugin(
     vectorStore: opts.vectorStore,
     embedder: opts.embedder,
   });
+  await fastify.register(funnelRoutes);
   await fastify.register(keyRoutes, {
     keyManager,
   });

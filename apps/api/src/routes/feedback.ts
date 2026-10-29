@@ -12,6 +12,7 @@ const feedbackSchema = z.object({
   itemId: z.string().min(1),
   eventType: z.enum(['click', 'like', 'purchase', 'ignore', 'dislike']),
   query: z.string().optional(),
+  sessionId: z.string().optional(),
   timestamp: z.number().default(() => Date.now()),
   context: z
     .object({
@@ -38,6 +39,21 @@ export async function feedbackRoutes(fastify: FastifyInstance): Promise<void> {
 
     const event = parseResult.data;
     const ail = AILManager.getInstance();
+
+    // Record click/purchase funnel events via fastify.funnelService decorator (Phase 2)
+    if (
+      fastify.funnelService &&
+      (event.eventType === 'click' || event.eventType === 'purchase')
+    ) {
+      fastify.funnelService.addEvent({
+        type: event.eventType,
+        itemId: event.itemId,
+        query: event.query,
+        sessionId: event.sessionId || event.context?.sessionId || event.userId,
+        userId: event.userId,
+        timestamp: event.timestamp,
+      });
+    }
 
     // 1. Register with Online FeedbackLoop
     ail.feedbackLoop.register({

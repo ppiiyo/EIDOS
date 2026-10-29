@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 import { Boxes, Lightbulb, AlertCircle } from 'lucide-react';
 import { CatalogItem } from '../../types';
 import { HybridSearchHit } from '../../utils/recommenderEngine';
@@ -132,7 +132,6 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
                   </div>
                 )}
 
-
                 {showXray && (
                   <div
                     data-testid="search-xray-panel"
@@ -183,15 +182,11 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
                         <div className="h-1 bg-[var(--border)] rounded overflow-hidden flex">
                           <div
                             className="h-full bg-[var(--accent)]"
-                            style={{
-                              width: `${Math.min(100, alpha * 100)}%`,
-                            }}
+                            style={{ width: `${Math.min(100, alpha * 100)}%` }}
                           />
                           <div
                             className="h-full bg-[var(--success)]"
-                            style={{
-                              width: `${Math.min(100, (1 - alpha) * 100)}%`,
-                            }}
+                            style={{ width: `${Math.min(100, (1 - alpha) * 100)}%` }}
                           />
                         </div>
                       </div>

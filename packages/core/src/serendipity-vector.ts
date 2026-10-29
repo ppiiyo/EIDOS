@@ -36,7 +36,12 @@ export class SerendipityOrthogonalEngine {
     candidateVec: Float32Array | number[],
     seenCentroidVec: Float32Array | number[]
   ): { orthogonalVector: Float32Array; orthogonalMagnitude: number; cosineToSeen: number } {
-    const dim = Math.min(candidateVec.length, seenCentroidVec.length);
+    if (candidateVec.length !== seenCentroidVec.length) {
+      throw new Error(
+        `Vector dimension mismatch: ${candidateVec.length} !== ${seenCentroidVec.length}`
+      );
+    }
+    const dim = candidateVec.length;
     const ortho = new Float32Array(dim);
 
     let dot = 0;
