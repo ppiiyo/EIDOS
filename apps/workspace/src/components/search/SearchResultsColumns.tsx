@@ -24,7 +24,7 @@ interface SearchResultsColumnsProps {
   onPriceHover?: (itemId: string) => void;
 }
 
-export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
+export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.memo(({
   compareMode,
   showXray = true,
   hybridHits,
@@ -293,4 +293,4 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = ({
       )}
     </div>
   );
-};
+});

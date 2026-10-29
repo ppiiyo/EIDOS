@@ -9,6 +9,7 @@ import {
 import { SemanticTrendsAnalytics } from './SemanticTrendsAnalytics';
 import { LiveClusterTelemetryPanel } from './LiveMetricsCharts';
 import { LatencyAndCachePanel } from './analytics/LatencyAndCachePanel';
+import { SearchFunnelRoiPanel } from './analytics/SearchFunnelRoiPanel';
 
 const PERIODS = [
   { label: 'Last hour', ms: 3600000 },
@@ -130,6 +131,8 @@ export const AnalyticsView: React.FC<{ uiLang?: 'ru' | 'en' | 'ja' }> = ({ uiLan
           <span className="kpi-trend negative">{isRu ? '105 запросов без ответа' : '105 missed queries'}</span>
         </div>
       </div>
+
+      <SearchFunnelRoiPanel sessionSearches={summary.searches} uiLang={uiLang} />
 
       <LatencyAndCachePanel uiLang={uiLang} />
 

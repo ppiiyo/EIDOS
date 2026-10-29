@@ -9,6 +9,7 @@ import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 import { SearchResultsColumns } from './search/SearchResultsColumns';
 import { IntentVectorSynthesizer } from './search/IntentVectorSynthesizer';
 import { KineticBiometricsHUD } from './search/KineticBiometricsHUD';
+import { VectorScenarioAndExportBar } from './search/VectorScenarioAndExportBar';
 import { QueryInspector } from './QueryInspector';
 import { useSearchCognitiveState, getSampleQueriesForLang } from '../hooks/useSearchCognitiveState';
 
@@ -112,9 +113,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   }, [dominantLang, catalog[0]?.id, catalog.length]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void runSearch(query, alpha);
-    }, 90);
+    const timer = setTimeout(() => { void runSearch(query, alpha); }, 90);
     return () => clearTimeout(timer);
   }, [query, alpha]);
 
@@ -167,10 +166,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
       </div>
 
       <div className="card p-5 mb-4">
-        <form
-          onSubmit={(e) => { e.preventDefault(); void runSearch(); }}
-          className="flex gap-2.5 mb-4"
-        >
+        <form onSubmit={(e) => { e.preventDefault(); void runSearch(); }} className="flex gap-2.5 mb-4">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3.5 top-3 text-[var(--text-sec)]" />
             <input
@@ -235,33 +231,37 @@ export const SearchView: React.FC<SearchViewProps> = ({
         </div>
       </div>
 
+      <VectorScenarioAndExportBar
+        query={query} alpha={alpha} effectiveAlpha={cog.effectiveAlpha}
+        radarCoords={cog.radarCoords} simulatedHour={cog.simulatedHour}
+        activeScenarioId={cog.activeScenarioId} stageTimingsMs={cog.stageTimingsMs}
+        retrievalLatencyMs={latencyMs} uiLang={uiLang}
+        onSelectScenario={(scId) => {
+          const nextQ = cog.applyScenarioPreset(scId);
+          if (nextQ) void runSearch(nextQ);
+        }}
+      />
+
       {showXray && (
         <QueryInspector
-          query={query}
-          results={cog.inspectorResults}
-          latencyMs={latencyMs}
-          extractedIntent={cog.extractedIntent}
+          query={query} results={cog.inspectorResults}
+          latencyMs={latencyMs} extractedIntent={cog.extractedIntent}
         />
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-5">
         <IntentVectorSynthesizer
-          coordinates={cog.radarCoords}
-          onChangeCoordinates={cog.setRadarCoords}
-          serendipityActiveCount={serendipityActiveCount}
-          effectiveAlpha={cog.effectiveAlpha}
+          coordinates={cog.radarCoords} onChangeCoordinates={cog.setRadarCoords}
+          serendipityActiveCount={serendipityActiveCount} effectiveAlpha={cog.effectiveAlpha}
           uiLang={uiLang}
         />
 
         <KineticBiometricsHUD
-          kineticProfile={cog.kineticProfile}
-          chronoProfile={cog.chronoProfile}
-          routeDecision={cog.routeDecision}
-          paretoReport={cog.paretoReport}
+          kineticProfile={cog.kineticProfile} chronoProfile={cog.chronoProfile}
+          routeDecision={cog.routeDecision} paretoReport={cog.paretoReport}
           scrollVelocityPxPerSec={cog.scrollVelocityPxPerSec}
           comparisonAlternations={cog.comparisonAlternations}
-          priceHoverCount={cog.priceHoverCount}
-          simulatedHour={cog.simulatedHour}
+          priceHoverCount={cog.priceHoverCount} simulatedHour={cog.simulatedHour}
           onChangeSimulatedHour={cog.setSimulatedHour}
           onSimulateArchetype={cog.handleSimulateArchetype}
           onApplyParetoSolution={cog.handleApplyParetoSolution}
@@ -270,15 +270,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
       </div>
 
       <SearchResultsColumns
-        compareMode={compareMode}
-        showXray={showXray}
-        hybridHits={cog.hybridHits.slice(0, 8)}
-        keywordHits={keywordHits}
-        latencyMs={latencyMs}
-        alpha={cog.effectiveAlpha}
-        t={t}
-        onSelectItem={onSelectItem}
-        onInspectIn3D={onInspectIn3D}
+        compareMode={compareMode} showXray={showXray}
+        hybridHits={cog.hybridHits.slice(0, 8)} keywordHits={keywordHits}
+        latencyMs={latencyMs} alpha={cog.effectiveAlpha} t={t}
+        onSelectItem={onSelectItem} onInspectIn3D={onInspectIn3D}
         onCardHoverStart={cog.handleCardHoverStart}
         onCardHoverEnd={cog.handleCardHoverEnd}
         onPriceHover={cog.handlePriceHover}

@@ -142,11 +142,22 @@ const MULTILINGUAL_CONCEPT_CLUSTERS: ReadonlyArray<{
   },
 ];
 
+const EMBEDDING_LRU_CACHE = new Map<string, Float32Array>();
+const EMBEDDING_LRU_MAX_SIZE = 512;
+
 /**
  * Deterministic 384-d L2-normalized Unicode n-gram + Cross-Lingual Concept Manifold projection
  * used for instant 384-d coordinates and cross-lingual retrieval across 100+ languages.
+ * Includes a bounded O(1) LRU cache to eliminate redundant vector allocations on slider/radar updates.
  */
 export function computeTextEmbedding(text: string): Float32Array {
+  const cached = EMBEDDING_LRU_CACHE.get(text);
+  if (cached) {
+    EMBEDDING_LRU_CACHE.delete(text);
+    EMBEDDING_LRU_CACHE.set(text, cached);
+    return cached;
+  }
+
   const vec = new Float32Array(EMBEDDING_DIM);
   let clean = text
     .toLowerCase()
@@ -228,6 +239,14 @@ export function computeTextEmbedding(text: string): Float32Array {
   for (let i = 0; i < EMBEDDING_DIM; i++) {
     vec[i] /= mag;
   }
+
+  if (EMBEDDING_LRU_CACHE.size >= EMBEDDING_LRU_MAX_SIZE) {
+    const oldestKey = EMBEDDING_LRU_CACHE.keys().next().value;
+    if (oldestKey !== undefined) {
+      EMBEDDING_LRU_CACHE.delete(oldestKey);
+    }
+  }
+  EMBEDDING_LRU_CACHE.set(text, vec);
 
   return vec;
 }

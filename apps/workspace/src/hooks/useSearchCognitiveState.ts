@@ -192,6 +192,19 @@ export function extractClientIntentPreview(query: string): InspectorExtractedInt
   };
 }
 
+export type VectorScenarioPresetId =
+  | 'baseline'
+  | 'kinetic_compare'
+  | 'night_serendipity'
+  | 'intent_budget';
+
+export interface CognitiveStageTimings {
+  vectorizeMs: number;
+  cognitiveMs: number;
+  paretoMs: number;
+  totalCognitiveMs: number;
+}
+
 export function useSearchCognitiveState(
   query: string,
   alpha: number,
@@ -207,6 +220,7 @@ export function useSearchCognitiveState(
   const [comparisonAlternations, setComparisonAlternations] = useState<number>(0);
   const [priceHoverCount, setPriceHoverCount] = useState<number>(0);
   const [simulatedHour, setSimulatedHour] = useState<number | null>(null);
+  const [activeScenarioId, setActiveScenarioId] = useState<VectorScenarioPresetId>('baseline');
 
   const hoverStartTimestampRef = useRef<Record<string, number>>({});
   const recentHoveredIdsRef = useRef<string[]>([]);
@@ -292,6 +306,52 @@ export function useSearchCognitiveState(
     []
   );
 
+  const applyScenarioPreset = useCallback(
+    (scenarioId: VectorScenarioPresetId): string | undefined => {
+      setActiveScenarioId(scenarioId);
+      if (scenarioId === 'baseline') {
+        setAlpha(0.7);
+        setRadarCoords({ axisDiscovery: 0, axisTier: 0 });
+        setSimulatedHour(10);
+        setScrollVelocityPxPerSec(85);
+        setComparisonAlternations(0);
+        setPriceHoverCount(0);
+        setHoverDwellByItemId({ '1': 1800 });
+        return undefined;
+      }
+      if (scenarioId === 'kinetic_compare') {
+        setAlpha(0.65);
+        setRadarCoords({ axisDiscovery: 0.15, axisTier: -0.55 });
+        setSimulatedHour(14);
+        setScrollVelocityPxPerSec(115);
+        setComparisonAlternations(5);
+        setPriceHoverCount(6);
+        setHoverDwellByItemId({ '1': 3100, '2': 2700 });
+        return undefined;
+      }
+      if (scenarioId === 'night_serendipity') {
+        setAlpha(0.8);
+        setRadarCoords({ axisDiscovery: 0.85, axisTier: 0.25 });
+        setSimulatedHour(23);
+        setScrollVelocityPxPerSec(980);
+        setComparisonAlternations(0);
+        setPriceHoverCount(0);
+        setHoverDwellByItemId({});
+        return undefined;
+      }
+      // intent_budget
+      setAlpha(0.6);
+      setRadarCoords({ axisDiscovery: -0.35, axisTier: -0.7 });
+      setSimulatedHour(11);
+      setScrollVelocityPxPerSec(90);
+      setComparisonAlternations(2);
+      setPriceHoverCount(5);
+      setHoverDwellByItemId({ '1': 2400 });
+      return 'недорогие наушники для бега';
+    },
+    [setAlpha]
+  );
+
   const kineticProfile = useMemo(
     () =>
       KineticAttentionEngine.analyze({
@@ -333,33 +393,69 @@ export function useSearchCognitiveState(
 
   const extractedIntent = useMemo(() => extractClientIntentPreview(query), [query]);
 
-  const hybridHits = useMemo(() => {
-    if (baseHybridHits.length === 0) return [];
+  // Pre-compute candidate item vectors, echo chamber centroid, and median price only when baseHybridHits change
+  const candidatePrep = useMemo(() => {
+    const t0 = performance.now();
+    if (baseHybridHits.length === 0) {
+      return {
+        itemVecs: [] as Float32Array[],
+        echoCentroid: new Float32Array(384),
+        dominantCategory: '',
+        medianPrice: 0,
+        parsedPrices: [] as Array<number | undefined>,
+        prepMs: 0,
+      };
+    }
 
-    const queryVec = computeTextEmbedding(`query: ${query}`);
     const itemVecs = baseHybridHits.map((h) =>
       computeTextEmbedding(`passage: ${h.item.title} ${h.item.description} ${h.item.category}`)
     );
     const echoCentroid = SerendipityOrthogonalEngine.computeEchoChamberCentroid(
       itemVecs.slice(0, 3)
     );
+    const dominantCategory = baseHybridHits[0]?.item.category || '';
+
+    const parsedPrices = baseHybridHits.map((h) => {
+      const rawPrice =
+        typeof h.item.price === 'number'
+          ? h.item.price
+          : parseFloat(String(h.item.price || '').replace(/[^\d.]/g, ''));
+      return Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : undefined;
+    });
+
+    const numericPrices = parsedPrices
+      .filter((p): p is number => p !== undefined && p > 0)
+      .sort((a, b) => a - b);
+    const medianPrice =
+      numericPrices.length > 0 ? numericPrices[Math.floor(numericPrices.length / 2)] : 0;
+
+    return {
+      itemVecs,
+      echoCentroid,
+      dominantCategory,
+      medianPrice,
+      parsedPrices,
+      prepMs: Math.round((performance.now() - t0) * 100) / 100,
+    };
+  }, [baseHybridHits]);
+
+  const { hybridHits, cognitiveMs, vectorizeMs } = useMemo(() => {
+    if (baseHybridHits.length === 0) {
+      return { hybridHits: [] as HybridSearchHit[], cognitiveMs: 0, vectorizeMs: 0 };
+    }
+
+    const tVec0 = performance.now();
+    const queryVec = computeTextEmbedding(`query: ${query}`);
+    const vecElapsed = Math.round((performance.now() - tVec0 + candidatePrep.prepMs) * 100) / 100;
+
+    const tCog0 = performance.now();
+    const { itemVecs, echoCentroid, dominantCategory, medianPrice, parsedPrices } = candidatePrep;
+
     const steeredQueryVec = SerendipityOrthogonalEngine.synthesizeSteeredQueryVector(
       queryVec,
       radarCoords,
       echoCentroid
     );
-    const dominantCategory = baseHybridHits[0]?.item.category || '';
-
-    const numericPrices = baseHybridHits
-      .map((h) => {
-        if (typeof h.item.price === 'number') return h.item.price;
-        const parsed = parseFloat(String(h.item.price || '').replace(/[^\d.]/g, ''));
-        return Number.isFinite(parsed) ? parsed : 0;
-      })
-      .filter((p) => p > 0)
-      .sort((a, b) => a - b);
-    const medianPrice =
-      numericPrices.length > 0 ? numericPrices[Math.floor(numericPrices.length / 2)] : 0;
 
     const discoveryWeight = Math.max(
       0,
@@ -379,11 +475,7 @@ export function useSearchCognitiveState(
         echoCentroidVec: echoCentroid,
       });
 
-      const rawPrice =
-        typeof hit.item.price === 'number'
-          ? hit.item.price
-          : parseFloat(String(hit.item.price || '').replace(/[^\d.]/g, ''));
-      const itemPrice = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : undefined;
+      const itemPrice = parsedPrices[idx];
 
       // Dynamic base score using effectiveAlpha so 2D Radar, Chrono, and Kinetic shifts re-rank live
       const dynamicHybridBase =
@@ -465,10 +557,18 @@ export function useSearchCognitiveState(
       };
     });
 
-    return enriched.sort((a, b) => b.fusedScore - a.fusedScore);
-  }, [baseHybridHits, query, radarCoords, kineticProfile, chronoProfile, effectiveAlpha, extractedIntent]);
+    const sorted = enriched.sort((a, b) => b.fusedScore - a.fusedScore);
+    const cogElapsed = Math.round((performance.now() - tCog0) * 100) / 100;
 
-  const paretoReport = useMemo(() => {
+    return {
+      hybridHits: sorted,
+      cognitiveMs: Math.max(0.08, cogElapsed),
+      vectorizeMs: Math.max(0.05, vecElapsed),
+    };
+  }, [baseHybridHits, candidatePrep, query, radarCoords, kineticProfile, chronoProfile, effectiveAlpha, extractedIntent]);
+
+  const { paretoReport, paretoMs } = useMemo(() => {
+    const tPar0 = performance.now();
     const avgDense =
       hybridHits.length > 0
         ? hybridHits.reduce((s, h) => s + h.denseScore, 0) / hybridHits.length
@@ -478,14 +578,29 @@ export function useSearchCognitiveState(
         ? hybridHits.reduce((s, h) => s + h.bm25Score, 0) / hybridHits.length
         : 0.54;
     const entropy = computeCategoryEntropy(hybridHits.map((h) => h.item));
-    return ParetoWeightOptimizer.optimize({
+    const report = ParetoWeightOptimizer.optimize({
       avgDenseScore: avgDense,
       avgBm25Score: avgBm25,
       categoryEntropyNormalized: entropy.normalizedPercent / 100,
       explorationTemperature: chronoProfile.explorationTemperature,
       priceSensitivity: Math.min(1, priceHoverCount / 5),
     });
+    const parElapsed = Math.round((performance.now() - tPar0) * 100) / 100;
+    return {
+      paretoReport: report,
+      paretoMs: Math.max(0.04, parElapsed),
+    };
   }, [hybridHits, chronoProfile.explorationTemperature, priceHoverCount]);
+
+  const stageTimingsMs: CognitiveStageTimings = useMemo(
+    () => ({
+      vectorizeMs,
+      cognitiveMs,
+      paretoMs,
+      totalCognitiveMs: Math.round((vectorizeMs + cognitiveMs + paretoMs) * 100) / 100,
+    }),
+    [vectorizeMs, cognitiveMs, paretoMs]
+  );
 
   const handleApplyParetoSolution = useCallback(
     (sol: ParetoCandidateSolution) => {
@@ -525,6 +640,9 @@ export function useSearchCognitiveState(
     priceHoverCount,
     simulatedHour,
     setSimulatedHour,
+    activeScenarioId,
+    applyScenarioPreset,
+    stageTimingsMs,
     actionCountRef,
     handleCardHoverStart,
     handleCardHoverEnd,
