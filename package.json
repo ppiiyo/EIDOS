@@ -83,12 +83,18 @@
     "pnpm": ">=9.0.0"
   },
   "pnpm": {
+    "ignoredBuiltDependencies": [
+      "sharp",
+      "onnxruntime-node"
+    ],
     "overrides": {
-      "protobufjs": ">=7.6.1"
+      "protobufjs": ">=7.6.1",
+      "sharp": "^0.33.5"
     }
   },
   "overrides": {
-    "protobufjs": ">=7.6.1"
+    "protobufjs": ">=7.6.1",
+    "sharp": "^0.33.5"
   },
   "packageManager": "pnpm@9.15.4"
 }
