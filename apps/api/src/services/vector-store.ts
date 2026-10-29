@@ -7,8 +7,13 @@ import {
   WriteAheadLog,
   BM25Index,
   HybridSearch,
+  Metrics,
 } from '@eidos/core';
 import { StoredItem } from '../types';
+import { CatalogItem } from '../demo/demo-catalog';
+import { ServerEmbedder } from './embedder';
+import { ApiQueryCache } from './query-cache';
+import { getCache, CacheKeys, getSemanticCache } from './cache';
 
 export interface SnapshotCatalogItem {
   id: string;
@@ -39,8 +44,10 @@ export class VectorStore {
   private bm25: BM25Index;
   private hybrid: HybridSearch;
   private wal: WriteAheadLog;
+  private options?: VectorStoreOptions;
 
   constructor(options?: VectorStoreOptions) {
+    this.options = options;
     this.hnsw = new HNSWIndex({
       M: options?.M ?? 16,
       M0: (options?.M ?? 16) * 2,
@@ -54,6 +61,75 @@ export class VectorStore {
   }
 
   private snapshotTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * Loads demo catalog items in batches of 100 using embedBatch.
+   */
+  public async loadDemoCatalog(
+    items: CatalogItem[],
+    embedder: ServerEmbedder = ServerEmbedder.getInstance()
+  ): Promise<void> {
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const batch = items.slice(i, i + BATCH_SIZE);
+      const texts = batch.map(
+        (it) => `${it.title}. ${it.category}. ${(it.tags || []).join(', ')}. ${it.description}`
+      );
+      const vectors = await embedder.embedBatch(texts);
+      for (let j = 0; j < batch.length; j++) {
+        const it = batch[j];
+        const vec = vectors[j];
+        this.upsert({
+          id: String(it.id),
+          title: it.title,
+          description: it.description || '',
+          category: it.category || 'General',
+          price: typeof it.price === 'number' ? it.price : 0,
+          inStock: typeof it.inStock === 'boolean' ? it.inStock : true,
+          tags: Array.isArray(it.tags) ? it.tags : [],
+          embedding: Array.from(vec),
+          normalizedVector: vec instanceof Float32Array ? vec : new Float32Array(vec),
+        });
+      }
+    }
+
+    Metrics.vectorStoreSize.set(this.count());
+    ApiQueryCache.invalidateAll();
+    getSemanticCache().clear();
+    const cache = getCache();
+    await Promise.all([
+      cache.invalidate('search:*'),
+      cache.invalidate('recommend:*'),
+      cache.del(CacheKeys.catalogStats()),
+    ]);
+  }
+
+  /**
+   * Clears HNSW index, BM25 index, in-memory item map, and query caches.
+   */
+  public async clear(): Promise<void> {
+    this.items.clear();
+    this.hnsw = new HNSWIndex({
+      M: this.options?.M ?? 16,
+      M0: (this.options?.M ?? 16) * 2,
+      efConstruction: this.options?.efConstruction ?? 64,
+      efSearch: this.options?.efSearch ?? 32,
+      useQuantization: this.options?.useQuantization ?? false,
+    });
+    this.bm25 = new BM25Index();
+    this.hybrid = new HybridSearch(this.hnsw, this.bm25);
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync());
+
+    Metrics.vectorStoreSize.set(0);
+    ApiQueryCache.invalidateAll();
+    getSemanticCache().clear();
+    const cache = getCache();
+    await Promise.all([
+      cache.invalidate('search:*'),
+      cache.invalidate('recommend:*'),
+      cache.del(CacheKeys.catalogStats()),
+    ]);
+  }
 
   public upsert(item: StoredItem, options?: { fastLeaf?: boolean }): void {
     const id = String(item.id);

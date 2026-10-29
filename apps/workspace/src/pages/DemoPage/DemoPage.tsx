@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { CatalogItem } from '../../types';
 import {
-  DEFAULT_CATALOG,
   HybridSearchHit,
   computeTextEmbedding,
   executeHybridCatalogSearch,
@@ -12,6 +11,7 @@ import { SearchView } from '../../components/SearchView';
 import { useDemoState } from './hooks/useDemoState';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { DemoBanner } from './components/DemoBanner';
+import { DemoMode } from './components/DemoMode';
 import { UploadModal } from './components/UploadModal';
 import { ParsedCatalogItem } from './lib/csv-parser';
 
@@ -52,21 +52,19 @@ export const DemoPage: React.FC<DemoPageProps> = ({
 }) => {
   const { state, ownItemsCount, setDemoState, resetToWelcome } = useDemoState();
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [customCatalog, setCustomCatalog] = useState<CatalogItem[] | null>(null);
+  const [ownCatalog, setOwnCatalog] = useState<CatalogItem[]>([]);
 
-  const activeCatalog = useMemo<CatalogItem[]>(() => {
-    if (state === 'own' && customCatalog && customCatalog.length > 0) {
-      return customCatalog;
+  // Основной продукт (state === 'own') работает ТОЛЬКО с пользовательскими данными без демо-каталога
+  const activeOwnCatalog = useMemo<CatalogItem[]>(() => {
+    if (ownCatalog.length > 0) {
+      return ownCatalog;
     }
-    if (state === 'demo') {
-      return DEFAULT_CATALOG;
-    }
-    return catalog && catalog.length > 0 ? catalog : DEFAULT_CATALOG;
-  }, [state, customCatalog, catalog]);
+    return catalog && catalog.length > 0 ? catalog : [];
+  }, [ownCatalog, catalog]);
 
-  const activeEmbeddings = useMemo(() => {
+  const ownEmbeddings = useMemo(() => {
     const map = new Map<string, Float32Array>();
-    for (const item of activeCatalog) {
+    for (const item of activeOwnCatalog) {
       map.set(
         String(item.id),
         computeTextEmbedding(
@@ -75,45 +73,48 @@ export const DemoPage: React.FC<DemoPageProps> = ({
       );
     }
     return map;
-  }, [activeCatalog]);
+  }, [activeOwnCatalog]);
 
-  const handleEffectiveHybridSearch = useCallback(
+  const handleOwnHybridSearch = useCallback(
     async (query: string, alpha: number, limit = 12): Promise<HybridSearchHit[]> => {
-      if (state === 'own' && customCatalog && customCatalog.length > 0) {
+      if (ownCatalog.length > 0) {
         const queryVec = computeTextEmbedding(`query: ${query}`);
         return executeHybridCatalogSearch(
           query,
           queryVec,
-          customCatalog,
-          activeEmbeddings,
+          ownCatalog,
+          ownEmbeddings,
           alpha,
           limit
         );
       }
-      if (onHybridSearch && state !== 'demo') {
+      if (onHybridSearch) {
         return onHybridSearch(query, alpha, limit);
+      }
+      if (activeOwnCatalog.length === 0) {
+        return [];
       }
       const queryVec = computeTextEmbedding(`query: ${query}`);
       return executeHybridCatalogSearch(
         query,
         queryVec,
-        activeCatalog,
-        activeEmbeddings,
+        activeOwnCatalog,
+        ownEmbeddings,
         alpha,
         limit
       );
     },
-    [state, customCatalog, onHybridSearch, activeCatalog, activeEmbeddings]
+    [ownCatalog, ownEmbeddings, onHybridSearch, activeOwnCatalog]
   );
 
-  const handleSelectDemo = useCallback(() => {
+  const handleTryDemo = useCallback(() => {
     setDemoState('demo');
   }, [setDemoState]);
 
   const handleUploadSuccess = useCallback(
     (itemsCount: number, uploadedItems?: ParsedCatalogItem[]) => {
       if (uploadedItems && uploadedItems.length > 0) {
-        setCustomCatalog(mapParsedToCatalogItems(uploadedItems));
+        setOwnCatalog(mapParsedToCatalogItems(uploadedItems));
       }
       setDemoState('own', itemsCount);
     },
@@ -121,28 +122,51 @@ export const DemoPage: React.FC<DemoPageProps> = ({
   );
 
   const handleReset = useCallback(() => {
-    setCustomCatalog(null);
+    setOwnCatalog([]);
+    void fetch(`${apiBaseUrl}/v1/demo/reset`, {
+      method: 'POST',
+    }).catch(() => {});
     resetToWelcome();
-  }, [resetToWelcome]);
+  }, [apiBaseUrl, resetToWelcome]);
 
   return (
     <div className="min-h-full bg-[#0f172a] text-[#f1f5f9]">
-      {state === 'welcome' ? (
+      {state === 'welcome' && (
         <WelcomeScreen
-          onSelectDemo={handleSelectDemo}
-          onOpenUpload={() => setIsUploadModalOpen(true)}
+          onUpload={() => setIsUploadModalOpen(true)}
+          onTryDemo={handleTryDemo}
         />
-      ) : (
+      )}
+
+      {state === 'demo' && (
         <div>
           <DemoBanner
-            state={state}
+            state="demo"
+            ownItemsCount={0}
+            onOpenUpload={() => setIsUploadModalOpen(true)}
+            onReset={handleReset}
+          />
+          <DemoMode
+            onSelectItem={onSelectItem}
+            onInspectIn3D={onInspectIn3D}
+            uiLang={uiLang}
+            embeddingState={embeddingState}
+            apiBaseUrl={apiBaseUrl}
+          />
+        </div>
+      )}
+
+      {state === 'own' && (
+        <div>
+          <DemoBanner
+            state="own"
             ownItemsCount={ownItemsCount}
             onOpenUpload={() => setIsUploadModalOpen(true)}
             onReset={handleReset}
           />
           <SearchView
-            catalog={activeCatalog}
-            onHybridSearch={handleEffectiveHybridSearch}
+            catalog={activeOwnCatalog}
+            onHybridSearch={handleOwnHybridSearch}
             onSelectItem={onSelectItem}
             onInspectIn3D={onInspectIn3D}
             uiLang={uiLang}

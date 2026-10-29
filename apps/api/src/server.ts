@@ -78,24 +78,25 @@ export async function buildServer(): Promise<FastifyInstance> {
   const embedder = ServerEmbedder.getInstance();
   const ail = AILManager.getInstance();
 
-  // Seed 5,005 catalog items deterministically with mulberry32(42) 384-d vectors in <35ms
-  const seedItems = await getPrecomputedSeedCatalog(embedder, 5005, DETERMINISTIC_SEED);
-  vectorStore.bulkSeed(seedItems);
+  if (process.env.EIDOS_DEMO_MODE === 'true') {
+    const seedItems = await getPrecomputedSeedCatalog(embedder, 5005, DETERMINISTIC_SEED);
+    vectorStore.bulkSeed(seedItems);
+
+    const prng = mulberry32(DETERMINISTIC_SEED);
+    for (let i = 0; i < Math.min(seedItems.length, 100); i++) {
+      const item = seedItems[i];
+      ail.metadataStore.add({
+        id: item.id,
+        category: item.category,
+        popularity: Math.round((0.65 + prng() * 0.25) * 1000) / 1000,
+        createdAt: DETERMINISTIC_EPOCH_MS - i * 3600_000,
+        attributes: {},
+      });
+    }
+  }
 
   // Load persisted catalog snapshot (if present on disk) before HTTP server starts
   await vectorStore.loadSnapshotFromDisk(embedder);
-
-  const prng = mulberry32(DETERMINISTIC_SEED);
-  for (let i = 0; i < Math.min(seedItems.length, 100); i++) {
-    const item = seedItems[i];
-    ail.metadataStore.add({
-      id: item.id,
-      category: item.category,
-      popularity: Math.round((0.65 + prng() * 0.25) * 1000) / 1000,
-      createdAt: DETERMINISTIC_EPOCH_MS - i * 3600_000,
-      attributes: {},
-    });
-  }
 
   Metrics.vectorStoreSize.set(vectorStore.count());
   Metrics.activeIndexesTotal.set(1);
@@ -120,17 +121,19 @@ export async function buildServer(): Promise<FastifyInstance> {
   // 4. Register API routes and 404/SPA fallback handler
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
 
-  // Warm up V8 JIT and Redis TCP socket for search & recommend hot paths without populating ApiQueryCache
+  // Warm up V8 JIT and Redis TCP socket without populating ApiQueryCache
   await getCache().healthCheck();
-  const warmupQueryVec = await embedder.embed('Quantum Spatial Audio Headphones');
-  vectorStore.hybridSearch('Quantum Spatial Audio Headphones', warmupQueryVec, 10);
-  const parsedWarmup = recommendSchema.safeParse({
-    item_id: 'item-10',
-    strategy: 'simple',
-    limit: 10,
-  });
-  if (parsedWarmup.success) {
-    await simpleRecommend(parsedWarmup.data, vectorStore);
+  if (vectorStore.count() > 0) {
+    const warmupQueryVec = await embedder.embed('Quantum Spatial Audio Headphones');
+    vectorStore.hybridSearch('Quantum Spatial Audio Headphones', warmupQueryVec, 10);
+    const parsedWarmup = recommendSchema.safeParse({
+      item_id: 'item-10',
+      strategy: 'simple',
+      limit: 10,
+    });
+    if (parsedWarmup.success) {
+      await simpleRecommend(parsedWarmup.data, vectorStore);
+    }
   }
 
   // Attach vectorStore cleanup, graceful drain & synchronous snapshot persistence on Fastify close

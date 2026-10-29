@@ -95,6 +95,7 @@ describe('Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regr
 
   it('5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel', async () => {
     app.funnelService.clear();
+    await app.inject({ method: 'POST', url: '/v1/demo/load' });
 
     const sRes = await app.inject({
       method: 'POST',
@@ -104,7 +105,7 @@ describe('Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regr
         'x-api-key': 'eidos_dev_key',
       },
       payload: {
-        query: 'Quantum Spatial Audio Headphones',
+        query: 'Беспроводные наушники SoundMax ANC',
         limit: 5,
         sessionId: 'reg-session-1',
       },

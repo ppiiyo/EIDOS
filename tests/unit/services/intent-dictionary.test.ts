@@ -101,6 +101,7 @@ describe('Phase 1 Regression: /v1/search with EIDOS_FEATURE_INTENT_AWARE_SEARCH'
   beforeAll(async () => {
     app = await buildServer();
     await app.ready();
+    await app.inject({ method: 'POST', url: '/v1/demo/load' });
   });
 
   afterAll(async () => {

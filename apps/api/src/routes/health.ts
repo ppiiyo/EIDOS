@@ -14,11 +14,11 @@ async function checkVectorStore(vectorStore: VectorStore): Promise<ComponentChec
     const itemCount = vectorStore.size();
     const hnswSize = vectorStore.getHNSW().size();
     return {
-      status: itemCount > 0 ? 'ok' : 'warning',
+      status: 'ok',
       itemCount,
       itemsCount: itemCount,
       hnswIndexedCount: hnswSize,
-      message: itemCount > 0 ? `Indexed ${itemCount} items` : 'Vector store is empty',
+      message: itemCount > 0 ? `Indexed ${itemCount} items` : 'Vector store ready (0 items indexed)',
     };
   } catch (err) {
     return {

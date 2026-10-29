@@ -8,7 +8,7 @@ import { useStudioWorkspace } from './hooks/useStudioWorkspace';
 import { useCatalogImportHandlers } from './hooks/useCatalogImportHandlers';
 
 export function App() {
-  const [view, setView] = useState<ViewId>('seo');
+  const [view, setView] = useState<ViewId>('search');
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);

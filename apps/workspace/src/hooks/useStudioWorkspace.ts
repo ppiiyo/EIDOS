@@ -35,19 +35,41 @@ import { saveBinaryEmbeddingsToIdb, loadBinaryEmbeddingsFromIdb } from '../lib/s
 
 export function useStudioWorkspace() {
   const [uiLang, setUiLang] = useState<UiLanguage>('ru');
-  const [catalog, setCatalog] = useState<CatalogItem[]>(DEFAULT_CATALOG);
+  const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (localStorage.getItem('eidos_demo_state') === 'demo') {
+          return DEFAULT_CATALOG;
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return [];
+  });
   const [embeddings, setEmbeddings] = useState<Map<string, Float32Array>>(() => {
     const map = new Map<string, Float32Array>();
-    for (const item of DEFAULT_CATALOG) {
-      map.set(
-        String(item.id),
-        computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
-      );
+    if (
+      typeof window !== 'undefined' &&
+      (() => {
+        try {
+          return localStorage.getItem('eidos_demo_state') === 'demo';
+        } catch {
+          return false;
+        }
+      })()
+    ) {
+      for (const item of DEFAULT_CATALOG) {
+        map.set(
+          String(item.id),
+          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
+        );
+      }
     }
     return map;
   });
 
-  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(DEFAULT_CATALOG[0] || null);
+  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
   const [isScaledCatalog, setIsScaledCatalog] = useState(false);
   const [activeDomain, setActiveDomain] = useState<PlatformDomainId>('marketplace');
   const [toasts, setToasts] = useState<ToastItem[]>([]);

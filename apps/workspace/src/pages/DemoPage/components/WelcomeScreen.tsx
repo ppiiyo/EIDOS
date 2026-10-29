@@ -1,14 +1,21 @@
 import React from 'react';
 
 export interface WelcomeScreenProps {
-  onSelectDemo: () => void;
-  onOpenUpload: () => void;
+  onTryDemo?: () => void;
+  onUpload?: () => void;
+  onSelectDemo?: () => void;
+  onOpenUpload?: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
+  onTryDemo,
+  onUpload,
   onSelectDemo,
   onOpenUpload,
 }) => {
+  const handleUpload = onUpload || onOpenUpload || (() => {});
+  const handleTryDemo = onTryDemo || onSelectDemo || (() => {});
+
   return (
     <div
       data-testid="demo-welcome-screen"
@@ -23,16 +30,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             Выберите источник данных для поиска
           </h1>
           <p className="text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
-            Протестируйте гибридный поиск (BM25 + 384-d векторы), распознавание намерений и
-            X-Ray инспектор формулы ранжирования на собственном каталоге товаров или на готовом
-            демо-наборе.
+            Основной продукт запускается с чистым индексом (0 товаров). Загрузите собственный
+            каталог (CSV/JSON) или протестируйте движок в изолированном демо-режиме (18 SKU).
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
           <button
             type="button"
-            onClick={onOpenUpload}
+            onClick={handleUpload}
             data-testid="welcome-upload-btn"
             className="w-full sm:w-auto px-6 py-3 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-950/50 transition-colors cursor-pointer"
           >
@@ -40,7 +46,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </button>
           <button
             type="button"
-            onClick={onSelectDemo}
+            onClick={handleTryDemo}
             data-testid="welcome-demo-btn"
             className="w-full sm:w-auto px-6 py-3 rounded-lg text-sm font-semibold bg-[#1e293b] text-[#f1f5f9] border border-slate-700 hover:bg-slate-800 hover:border-slate-600 transition-colors cursor-pointer"
           >
@@ -82,11 +88,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
         <div className="rounded-xl bg-[#1e293b] border border-slate-800 p-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-300">
           <div>
-            <span className="font-semibold text-[#f1f5f9]">Демо-база по умолчанию отключена:</span>{' '}
-            товары загружаются только после вашего выбора.
+            <span className="font-semibold text-[#f1f5f9]">Демо-база изолирована:</span>{' '}
+            основной продукт не содержит демо-товаров по умолчанию.
           </div>
           <div className="font-mono text-slate-400">
-            Форматы: .csv, .json · Демо-каталог: 18 SKU
+            Форматы: .csv, .json · Изолированное демо: 18 SKU
           </div>
         </div>
       </div>
