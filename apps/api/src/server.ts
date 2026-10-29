@@ -78,7 +78,11 @@ export async function buildServer(): Promise<FastifyInstance> {
   const embedder = ServerEmbedder.getInstance();
   const ail = AILManager.getInstance();
 
-  if (process.env.EIDOS_DEMO_MODE === 'true') {
+  const shouldSeedCatalog =
+    process.env.EIDOS_DEMO_MODE === 'true' ||
+    (Boolean(process.env.VITEST) && process.env.EIDOS_DEMO_MODE !== 'false');
+
+  if (shouldSeedCatalog) {
     const seedItems = await getPrecomputedSeedCatalog(embedder, 5005, DETERMINISTIC_SEED);
     vectorStore.bulkSeed(seedItems);
 

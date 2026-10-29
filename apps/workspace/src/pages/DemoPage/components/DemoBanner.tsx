@@ -4,6 +4,7 @@ import { DemoState } from '../hooks/useDemoState';
 export interface DemoBannerProps {
   state: DemoState;
   ownItemsCount: number;
+  demoItemsCount?: number;
   onOpenUpload: () => void;
   onReset: () => void;
 }
@@ -11,6 +12,7 @@ export interface DemoBannerProps {
 export const DemoBanner: React.FC<DemoBannerProps> = ({
   state,
   ownItemsCount,
+  demoItemsCount = 48,
   onOpenUpload,
   onReset,
 }) => {
@@ -38,8 +40,8 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
         />
         <span className="font-medium text-[#f1f5f9]">
           {isDemo
-            ? 'Вы смотрите демо-данные (18 товаров).'
-            : `Вы используете свой каталог (${ownItemsCount} товаров).`}
+            ? `Вы смотрите изолированный демо-каталог (${demoItemsCount} товаров: Маркетплейс, Стриминг, Видеохостинг JP, Мультиязычный корпус).`
+            : `Вы используете свой собственный каталог (${ownItemsCount} товаров). Все вкладки движка работают с вашей базой.`}
         </span>
       </div>
 
@@ -48,17 +50,17 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
           type="button"
           onClick={onOpenUpload}
           data-testid="banner-upload-btn"
-          className="px-3.5 py-1.5 rounded-md text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+          className="px-3.5 py-1.5 rounded-md text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors cursor-pointer"
         >
-          {isDemo ? 'Загрузить свой каталог' : 'Загрузить другой'}
+          {isDemo ? 'Загрузить свой каталог' : 'Загрузить другой CSV/JSON'}
         </button>
         <button
           type="button"
           onClick={onReset}
           data-testid="banner-reset-btn"
-          className="px-3.5 py-1.5 rounded-md text-xs font-medium bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700 transition-colors"
+          className="px-3.5 py-1.5 rounded-md text-xs font-medium bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700 transition-colors cursor-pointer"
         >
-          Сбросить
+          {isDemo ? 'Выйти из демо' : 'Очистить базу'}
         </button>
       </div>
     </div>

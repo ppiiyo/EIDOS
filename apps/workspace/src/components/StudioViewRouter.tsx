@@ -45,7 +45,9 @@ export interface StudioViewRouterProps {
   onDeleteItem: (id: string) => void;
   onScaleCatalog: (targetCount?: number) => void;
   onRestoreCatalog: () => void;
+  onClearCatalog?: () => void;
   onSelectDomainPreset: (preset: PlatformDomainPreset) => void;
+  onImportCustomDatabase?: (items: CatalogItem[], label?: string) => void;
   onImportVectorBundle: (items: CatalogItem[], embeddings: Map<string, Float32Array>) => void;
   onOpenApiConsole: () => void;
   onOpenCsvModal: () => void;
@@ -71,7 +73,9 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
   onDeleteItem,
   onScaleCatalog,
   onRestoreCatalog,
+  onClearCatalog,
   onSelectDomainPreset,
+  onImportCustomDatabase,
   onImportVectorBundle,
   onOpenApiConsole,
   onOpenCsvModal,
@@ -144,13 +148,32 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
           uiLang={uiLang}
         />
       );
+    case 'demo':
+      return (
+        <DemoPage
+          catalog={catalog}
+          forceMode="demo"
+          onHybridSearch={onHybridSearch}
+          onSelectItem={handleInspectRecommendations}
+          onInspectIn3D={handleInspectIn3D}
+          onImportCustomDatabase={onImportCustomDatabase}
+          onClearCatalog={onClearCatalog}
+          onNavigate={onNavigate}
+          uiLang={uiLang}
+          embeddingState={engineState}
+        />
+      );
     case 'search':
       return (
         <DemoPage
           catalog={catalog}
+          forceMode="normal"
           onHybridSearch={onHybridSearch}
           onSelectItem={handleInspectRecommendations}
           onInspectIn3D={handleInspectIn3D}
+          onImportCustomDatabase={onImportCustomDatabase}
+          onClearCatalog={onClearCatalog}
+          onNavigate={onNavigate}
           uiLang={uiLang}
           embeddingState={engineState}
         />

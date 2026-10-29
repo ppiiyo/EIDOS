@@ -694,19 +694,37 @@ export function executeHybridCatalogSearch(
     if (!item) continue;
 
     const dScore = denseScores.get(id) ?? 0;
-    const sScore = bm25Scores.get(id) ?? 0;
+    let sScore = bm25Scores.get(id) ?? 0;
+
+    const fullDocLower = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`.toLowerCase();
+    const matchedTokens = queryTokens
+      .filter((tok) => {
+        if (fullDocLower.includes(tok)) return true;
+        if (tok.length >= 4 && fullDocLower.includes(tok.slice(0, -1))) return true;
+        if (tok.length >= 5 && fullDocLower.includes(tok.slice(0, -2))) return true;
+        return false;
+      })
+      .slice(0, 6);
+
+    if (sScore === 0 && matchedTokens.length > 0 && queryTokens.length > 0) {
+      const titleLower = item.title.toLowerCase();
+      const titleHit = matchedTokens.some(
+        (tok) => titleLower.includes(tok) || (tok.length >= 4 && titleLower.includes(tok.slice(0, -1)))
+      );
+      sScore = Math.min(
+        0.92,
+        (matchedTokens.length / queryTokens.length) * (titleHit ? 0.85 : 0.65)
+      );
+    }
 
     // If pure BM25 (alpha === 0), filter out items with 0 BM25 score
     if (alpha === 0 && sScore === 0) continue;
 
     const dRank = denseRanks.get(id);
-    const sRank = sparseRanks.get(id);
+    const sRank = sparseRanks.get(id) ?? (sScore > 0 ? 5 : undefined);
     const rrfDenseContribution = dRank ? alpha / (RRF_K + dRank) : 0;
     const rrfSparseContribution = sRank ? (1 - alpha) / (RRF_K + sRank) : 0;
     const rrfScore = rrfDenseContribution + rrfSparseContribution;
-
-    const fullDocLower = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`.toLowerCase();
-    const matchedTokens = queryTokens.filter((tok) => fullDocLower.includes(tok)).slice(0, 6);
 
     const fusedScore = alpha * dScore + (1 - alpha) * sScore;
     let source: 'hybrid' | 'dense' | 'sparse' = 'hybrid';

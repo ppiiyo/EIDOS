@@ -11,6 +11,14 @@ export interface UploadModalProps {
 
 const BATCH_SIZE = 100;
 
+const SAMPLE_CSV_CONTENT = `id,title,category,price,description,tags
+custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,"Флагманские наушники с активным шумоподавлением ANC, 30 часов автономной работы, LDAC Bluetooth","наушники;sony;anc;bluetooth;музыка"
+custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,"Алюминиевый корпус CNC, беспроводная QMK/VIA клавиатура, переключатели Gateron, Hot-Swap","клавиатура;keychron;механика;гейминг;офис"
+custom-3,"Игровой монитор LG UltraGear 27 OLED 240Hz",Мониторы,64990,"OLED-матрица 2560x1440, время отклика 0.03 мс, частота 240 Гц, G-Sync и HDR10 для киберспорта","монитор;oled;240hz;гейминг;lg"
+custom-4,"Умные часы Garmin Fenix 7X Sapphire Solar",Гаджеты,72990,"Мультиспортивные GPS-часы с солнечной зарядкой, сапфировым стеклом, картами и пульсоксиметром","часы;garmin;спорт;туризм;gps"
+custom-5,"Кофемашина DeLonghi Magnifica Evo",Техника для дома,44990,"Автоматическая зерновая кофемашина с капучинатором LatteCrema для эспрессо, капучино и латте","кофемашина;delonghi;дом;кухня;кофе"
+custom-6,"Ноутбук Apple MacBook Air 15 M3 16/512GB",Ноутбуки,139990,"Тонкий и бесшумный ноутбук с чипом M3, дисплеем Liquid Retina 15.3 дюйма и 18 часами работы","ноутбук;macbook;apple;работа;программирование"`;
+
 export const UploadModal: React.FC<UploadModalProps> = ({
   isOpen,
   onClose,
@@ -113,6 +121,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     },
     [apiBaseUrl, apiKey, onClose, onSuccess, resetModalState]
   );
+
+  const handleDownloadSampleCsv = useCallback(() => {
+    const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'eidos-sample-catalog.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -251,7 +269,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           )}
 
           <div className="rounded-lg bg-[#0f172a] border border-slate-800 p-3.5 text-xs text-slate-300">
-            <div className="font-medium text-slate-200 mb-1.5">Пример формата CSV:</div>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="font-medium text-slate-200">Пример формата CSV:</span>
+              <button
+                type="button"
+                onClick={handleDownloadSampleCsv}
+                data-testid="download-sample-csv-btn"
+                className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+              >
+                ⬇ Скачать шаблон CSV (6 SKU)
+              </button>
+            </div>
             <pre className="font-mono text-[11px] text-slate-400 overflow-x-auto leading-relaxed">
 {`id,title,category,price,description,tags
 sku-1,"Беспроводные наушники Sony",Аудио,14990,"Шумоподавление ANC, 30ч работы","anc;bluetooth;хит"

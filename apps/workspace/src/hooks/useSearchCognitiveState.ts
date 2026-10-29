@@ -8,6 +8,7 @@ import {
   IntentRadarCoordinates,
   ParetoCandidateSolution,
 } from '@eidos/core';
+import { CatalogItem } from '../types';
 import {
   HybridSearchHit,
   computeTextEmbedding,
@@ -36,43 +37,92 @@ const SAMPLE_QUERIES_BY_LANG: Record<string, Array<{ label: string; note: string
   ],
 };
 
-export function getSampleQueriesForLang(lang: string): Array<{ label: string; note: string }> {
+export function getSampleQueriesForLang(
+  lang: string,
+  catalog?: CatalogItem[]
+): Array<{ label: string; note: string }> {
+  if (catalog && catalog.length > 0) {
+    const isDemoCatalog = catalog.some(
+      (i) => i.id === '1' || i.id === 'str_1' || i.id === 'jp_1' || i.id === 'zh_1'
+    );
+    if (!isDemoCatalog) {
+      const customQueries: Array<{ label: string; note: string }> = [];
+      const seen = new Set<string>();
+      for (const item of catalog.slice(0, 6)) {
+        const label = item.title.trim();
+        if (label && !seen.has(label.toLowerCase())) {
+          seen.add(label.toLowerCase());
+          customQueries.push({
+            label,
+            note: `${item.category || 'Каталог'} · Поиск по вашей базе`,
+          });
+        }
+        if (customQueries.length >= 4) break;
+      }
+      if (customQueries.length > 0) {
+        return customQueries;
+      }
+    }
+  }
   return SAMPLE_QUERIES_BY_LANG[lang] || SAMPLE_QUERIES_BY_LANG.ru;
 }
 
 const CLIENT_CATEGORY_MAP: Record<string, string> = {
-  наушники: 'наушники',
-  гарнитура: 'наушники',
+  наушник: 'наушники',
+  гарнитур: 'наушники',
   уши: 'наушники',
   ноутбук: 'ноутбуки',
-  ноутбуки: 'ноутбуки',
+  ультрабук: 'ноутбуки',
   смартфон: 'смартфоны',
   телефон: 'смартфоны',
-  кроссовки: 'кроссовки',
+  кроссовк: 'кроссовки',
+  обув: 'кроссовки',
   часы: 'умные часы',
-  клавиатура: 'клавиатуры',
+  браслет: 'фитнес-браслеты',
+  клавиатур: 'клавиатуры',
+  кофемашин: 'кофемашины',
+  эспрессо: 'кофе и техника',
+  книг: 'книги',
+  роман: 'книги',
+  игр: 'игры',
+  фильм: 'фильмы',
+  кино: 'фильмы',
   headphones: 'headphones',
   earbuds: 'headphones',
   laptop: 'laptops',
-  laptops: 'laptops',
   smartphone: 'smartphones',
   sneakers: 'sneakers',
+  coffee: 'coffee machines',
+  book: 'books',
+  movie: 'movies',
+  game: 'games',
 };
 
 const CLIENT_USECASE_MAP: Record<string, string> = {
   бега: 'бег',
   бег: 'бег',
+  марафон: 'бег',
   спорта: 'спорт',
   спорт: 'спорт',
+  тренировок: 'тренировки',
   игр: 'игры',
   игры: 'игры',
+  гейминга: 'игры',
   работы: 'работа',
   офиса: 'офис',
+  офис: 'офис',
   кодинга: 'программирование',
+  программирования: 'программирование',
+  учебы: 'обучение',
+  обучения: 'обучение',
+  дома: 'дом',
+  семьи: 'семья',
   running: 'running',
   gaming: 'gaming',
   work: 'work',
   coding: 'coding',
+  office: 'office',
+  study: 'study',
 };
 
 export function extractClientIntentPreview(query: string): InspectorExtractedIntent | null {
@@ -88,19 +138,32 @@ export function extractClientIntentPreview(query: string): InspectorExtractedInt
   }
 
   let useCase: string | undefined;
-  const forMatch = /(?:для|под|for)\s+([a-zа-яё]+)/i.exec(q);
+  const forMatch = /(?:для|под|в|на|for|in)\s+([a-zа-яё-]+)/i.exec(q);
   if (forMatch && forMatch[1]) {
     const rawUc = forMatch[1].toLowerCase();
     useCase = CLIENT_USECASE_MAP[rawUc] || rawUc;
+  } else {
+    for (const [token, canon] of Object.entries(CLIENT_USECASE_MAP)) {
+      if (q.includes(token)) {
+        useCase = canon;
+        break;
+      }
+    }
   }
 
   let priceRange: { min?: number; max?: number } | undefined;
-  const maxMatch = /(?:до|under|max)\s*\$?(\d{2,7})/i.exec(q);
-  if (maxMatch) {
+  const rangeMatch = /от\s*(\d{2,7})\s*до\s*(\d{2,7})/i.exec(q);
+  const maxMatch = /(?:до|under|max|дешевле)\s*\$?(\d{2,7})/i.exec(q);
+  const minMatch = /(?:от|over|min|дороже)\s*\$?(\d{2,7})/i.exec(q);
+  if (rangeMatch) {
+    priceRange = { min: Number(rangeMatch[1]), max: Number(rangeMatch[2]) };
+  } else if (maxMatch) {
     priceRange = { max: Number(maxMatch[1]) };
-  } else if (/(недорог|дешев|дешёв|бюджетн|cheap|budget|affordable)/i.test(q)) {
+  } else if (minMatch) {
+    priceRange = { min: Number(minMatch[1]) };
+  } else if (/(недорог|дешев|дешёв|бюджетн|эконом|cheap|budget|affordable)/i.test(q)) {
     priceRange = { max: 5000 };
-  } else if (/(премиум|флагман|дорог|premium|flagship)/i.test(q)) {
+  } else if (/(премиум|флагман|дорог|профи|premium|flagship|pro)/i.test(q)) {
     priceRange = { min: 15000 };
   }
 
@@ -117,7 +180,7 @@ export function extractClientIntentPreview(query: string): InspectorExtractedInt
     useCase,
     useCases: useCase ? [useCase] : undefined,
     priceRange,
-    confidence: Math.min(1, confidence),
+    confidence: Math.min(1, Number(confidence.toFixed(2))),
   };
 }
 

@@ -32,6 +32,13 @@ export const CatalogTable: React.FC<CatalogTableProps> = ({
           </tr>
         </thead>
         <tbody>
+          {items.length === 0 && (
+            <tr>
+              <td colSpan={6} className="py-10 px-4 text-center text-xs text-[var(--text-sec)]">
+                Каталог пуст (0 SKU). Загрузите свою базу данных (CSV / JSON) или добавьте товар вручную, либо откройте вкладку «Демо-каталог (48 SKU)».
+              </td>
+            </tr>
+          )}
           {items.slice(0, 150).map((item) => {
             const vec = embeddings.get(String(item.id));
             return (

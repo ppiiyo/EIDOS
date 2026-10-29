@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { CatalogItem } from '../../types';
 import {
   HybridSearchHit,
@@ -8,6 +8,7 @@ import {
 import { EmbeddingEngineState } from '../../lib/embeddings';
 import { UiLanguage } from '../../i18n/uiTranslations';
 import { SearchView } from '../../components/SearchView';
+import { ViewId } from '../../components/Sidebar';
 import { useDemoState } from './hooks/useDemoState';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { DemoBanner } from './components/DemoBanner';
@@ -20,6 +21,10 @@ export interface DemoPageProps {
   onHybridSearch?: (query: string, alpha: number, limit?: number) => Promise<HybridSearchHit[]>;
   onSelectItem?: (item: CatalogItem) => void;
   onInspectIn3D?: (item: CatalogItem) => void;
+  onImportCustomDatabase?: (items: CatalogItem[], label?: string) => void;
+  onClearCatalog?: () => void;
+  onNavigate?: (view: ViewId) => void;
+  forceMode?: 'demo' | 'normal';
   uiLang?: UiLanguage;
   embeddingState?: EmbeddingEngineState;
   apiKey?: string;
@@ -36,6 +41,7 @@ function mapParsedToCatalogItems(parsedItems: ParsedCatalogItem[]): CatalogItem[
     rating: 4.8,
     reviews: 100,
     tags: item.tags && item.tags.length > 0 ? item.tags : [item.category || 'custom'],
+    icon: '📦',
     emoji: '📦',
   }));
 }
@@ -45,6 +51,10 @@ export const DemoPage: React.FC<DemoPageProps> = ({
   onHybridSearch,
   onSelectItem = () => {},
   onInspectIn3D = () => {},
+  onImportCustomDatabase,
+  onClearCatalog,
+  onNavigate,
+  forceMode,
   uiLang = 'ru',
   embeddingState,
   apiKey = 'eidos_dev_key',
@@ -54,7 +64,29 @@ export const DemoPage: React.FC<DemoPageProps> = ({
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [ownCatalog, setOwnCatalog] = useState<CatalogItem[]>([]);
 
-  // Основной продукт (state === 'own') работает ТОЛЬКО с пользовательскими данными без демо-каталога
+  // На обычной странице (forceMode === 'normal') никогда не показываем демо-каталог:
+  // либо пользователь уже загрузил свою базу ('own'), либо видит чистый экран загрузки ('welcome')
+  const effectiveState = useMemo(() => {
+    if (forceMode === 'demo') {
+      return 'demo';
+    }
+    if (forceMode === 'normal') {
+      const hasUserItems = ownCatalog.length > 0 || (catalog && catalog.length > 0);
+      return hasUserItems ? 'own' : 'welcome';
+    }
+    return state;
+  }, [forceMode, ownCatalog.length, catalog, state]);
+
+  useEffect(() => {
+    if (forceMode === 'normal' && ownCatalog.length === 0 && (!catalog || catalog.length === 0)) {
+      // При переходе на обычную страницу без пользовательской базы очищаем демо-индекс на сервере
+      void fetch(`${apiBaseUrl}/v1/demo/reset`, {
+        method: 'POST',
+      }).catch(() => {});
+    }
+  }, [forceMode, ownCatalog.length, catalog, apiBaseUrl]);
+
+  // Основной продукт (effectiveState === 'own') работает ТОЛЬКО с пользовательскими данными без демо-каталога
   const activeOwnCatalog = useMemo<CatalogItem[]>(() => {
     if (ownCatalog.length > 0) {
       return ownCatalog;
@@ -77,12 +109,12 @@ export const DemoPage: React.FC<DemoPageProps> = ({
 
   const handleOwnHybridSearch = useCallback(
     async (query: string, alpha: number, limit = 12): Promise<HybridSearchHit[]> => {
-      if (ownCatalog.length > 0) {
+      if (activeOwnCatalog.length > 0) {
         const queryVec = computeTextEmbedding(`query: ${query}`);
         return executeHybridCatalogSearch(
           query,
           queryVec,
-          ownCatalog,
+          activeOwnCatalog,
           ownEmbeddings,
           alpha,
           limit
@@ -91,58 +123,60 @@ export const DemoPage: React.FC<DemoPageProps> = ({
       if (onHybridSearch) {
         return onHybridSearch(query, alpha, limit);
       }
-      if (activeOwnCatalog.length === 0) {
-        return [];
-      }
-      const queryVec = computeTextEmbedding(`query: ${query}`);
-      return executeHybridCatalogSearch(
-        query,
-        queryVec,
-        activeOwnCatalog,
-        ownEmbeddings,
-        alpha,
-        limit
-      );
+      return [];
     },
-    [ownCatalog, ownEmbeddings, onHybridSearch, activeOwnCatalog]
+    [activeOwnCatalog, ownEmbeddings, onHybridSearch]
   );
 
   const handleTryDemo = useCallback(() => {
     setDemoState('demo');
-  }, [setDemoState]);
+    if (onNavigate) {
+      onNavigate('demo');
+    }
+  }, [setDemoState, onNavigate]);
 
   const handleUploadSuccess = useCallback(
     (itemsCount: number, uploadedItems?: ParsedCatalogItem[]) => {
       if (uploadedItems && uploadedItems.length > 0) {
-        setOwnCatalog(mapParsedToCatalogItems(uploadedItems));
+        const mapped = mapParsedToCatalogItems(uploadedItems);
+        setOwnCatalog(mapped);
+        onImportCustomDatabase?.(mapped, 'Пользовательский каталог');
       }
       setDemoState('own', itemsCount);
+      if (forceMode === 'demo' && onNavigate) {
+        onNavigate('search');
+      }
     },
-    [setDemoState]
+    [setDemoState, onImportCustomDatabase, forceMode, onNavigate]
   );
 
   const handleReset = useCallback(() => {
     setOwnCatalog([]);
+    onClearCatalog?.();
     void fetch(`${apiBaseUrl}/v1/demo/reset`, {
       method: 'POST',
     }).catch(() => {});
     resetToWelcome();
-  }, [apiBaseUrl, resetToWelcome]);
+    if (forceMode === 'demo' && onNavigate) {
+      onNavigate('search');
+    }
+  }, [apiBaseUrl, resetToWelcome, onClearCatalog, forceMode, onNavigate]);
 
   return (
     <div className="min-h-full bg-[#0f172a] text-[#f1f5f9]">
-      {state === 'welcome' && (
+      {effectiveState === 'welcome' && (
         <WelcomeScreen
           onUpload={() => setIsUploadModalOpen(true)}
           onTryDemo={handleTryDemo}
         />
       )}
 
-      {state === 'demo' && (
+      {effectiveState === 'demo' && (
         <div>
           <DemoBanner
             state="demo"
             ownItemsCount={0}
+            demoItemsCount={48}
             onOpenUpload={() => setIsUploadModalOpen(true)}
             onReset={handleReset}
           />
@@ -156,11 +190,11 @@ export const DemoPage: React.FC<DemoPageProps> = ({
         </div>
       )}
 
-      {state === 'own' && (
+      {effectiveState === 'own' && (
         <div>
           <DemoBanner
             state="own"
-            ownItemsCount={ownItemsCount}
+            ownItemsCount={activeOwnCatalog.length || ownItemsCount}
             onOpenUpload={() => setIsUploadModalOpen(true)}
             onReset={handleReset}
           />

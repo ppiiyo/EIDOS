@@ -36,9 +36,12 @@ export const SearchView: React.FC<SearchViewProps> = ({
     return detectTextLanguage(sample);
   }, [catalog]);
 
-  const sampleQueries = getSampleQueriesForLang(dominantLang);
+  const sampleQueries = useMemo(
+    () => getSampleQueriesForLang(dominantLang, catalog),
+    [dominantLang, catalog]
+  );
 
-  const [query, setQuery] = useState(sampleQueries[0].label);
+  const [query, setQuery] = useState(sampleQueries[0]?.label || '');
   const [alpha, setAlpha] = useState<number>(0.7);
   const [compareMode, setCompareMode] = useState<boolean>(true);
   const [showXray, setShowXray] = useState<boolean>(true);
@@ -51,9 +54,29 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const cog = useSearchCognitiveState(query, alpha, setAlpha, baseHybridHits);
 
   const runSearch = async (targetQuery?: string, targetAlpha?: number) => {
+    if (catalog.length === 0) {
+      setBaseHybridHits([]);
+      setKeywordHits([]);
+      setLatencyMs(0);
+      return;
+    }
+
     const raw = (targetQuery ?? query).trim();
     const a = targetAlpha ?? alpha;
-    if (!raw) return;
+    if (!raw) {
+      const fallbackHits: HybridSearchHit[] = catalog.slice(0, 8).map((item, idx) => ({
+        item,
+        fusedScore: Number((0.95 - idx * 0.03).toFixed(4)),
+        denseScore: Number((0.95 - idx * 0.03).toFixed(4)),
+        bm25Score: Number((0.9 - idx * 0.03).toFixed(4)),
+        source: 'hybrid',
+        retrievalMode: 'hybrid-384d',
+        whyRecommended: 'Обзор загруженного каталога (введите запрос для ранжирования)',
+      }));
+      setBaseHybridHits(fallbackHits);
+      setKeywordHits(catalog.slice(0, 8).map((item) => ({ item, matchedWords: [] })));
+      return;
+    }
 
     cog.actionCountRef.current += 1;
     const scan = SecurityGuardrails.scanAndSanitize(raw);
@@ -83,14 +106,17 @@ export const SearchView: React.FC<SearchViewProps> = ({
   };
 
   useEffect(() => {
-    const defaultQ = sampleQueries[0].label;
+    const defaultQ = sampleQueries[0]?.label || '';
     setQuery(defaultQ);
-    runSearch(defaultQ, alpha);
-  }, [dominantLang, catalog[0]?.id]);
+    void runSearch(defaultQ, alpha);
+  }, [dominantLang, catalog[0]?.id, catalog.length]);
 
   useEffect(() => {
-    runSearch(query, alpha);
-  }, [alpha, catalog.length]);
+    const timer = setTimeout(() => {
+      void runSearch(query, alpha);
+    }, 90);
+    return () => clearTimeout(timer);
+  }, [query, alpha]);
 
   const modelStatusLabel =
     embeddingState?.status === 'ready'
@@ -142,10 +168,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
       <div className="card p-5 mb-4">
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            runSearch();
-          }}
+          onSubmit={(e) => { e.preventDefault(); void runSearch(); }}
           className="flex gap-2.5 mb-4"
         >
           <div className="relative flex-1">
@@ -158,11 +181,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
               placeholder={t.placeholder}
             />
           </div>
-          <button
-            type="submit"
-            className="btn btn-primary h-[42px]"
-            disabled={isLoading || !query.trim()}
-          >
+          <button type="submit" className="btn btn-primary h-[42px]" disabled={isLoading || !query.trim()}>
             {isLoading ? t.searchingBtn : t.executeBtn}
           </button>
         </form>
@@ -182,14 +201,14 @@ export const SearchView: React.FC<SearchViewProps> = ({
               { label: 'Balanced Hybrid (α=0.5)', val: 0.5 },
               { label: 'Semantic Heavy (α=0.7)', val: 0.7 },
               { label: 'Pure 384-d Vector (α=1.0)', val: 1.0 },
-            ].map((preset) => (
+            ].map((p) => (
               <button
-                key={preset.label}
+                key={p.label}
                 type="button"
-                onClick={() => setAlpha(preset.val)}
-                className={Math.abs(alpha - preset.val) < 0.02 ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+                onClick={() => setAlpha(p.val)}
+                className={Math.abs(alpha - p.val) < 0.02 ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
               >
-                {preset.label}
+                {p.label}
               </button>
             ))}
           </div>
@@ -198,11 +217,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
             <Sliders size={14} className="text-[var(--text-sec)]" />
             <span className="text-xs text-[var(--text-sec)]">{t.alphaWeight}</span>
             <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={alpha}
+              type="range" min={0} max={1} step={0.05} value={alpha}
               onChange={(e) => setAlpha(parseFloat(e.target.value))}
               className="flex-1 accent-[var(--accent)]"
             />
@@ -213,13 +228,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           <span className="text-xs text-[var(--text-sec)]">{t.testQueries}</span>
           {sampleQueries.map((sq) => (
-            <button
-              key={sq.label}
-              type="button"
-              onClick={() => runSearch(sq.label)}
-              className="btn btn-secondary btn-sm"
-              title={sq.note}
-            >
+            <button key={sq.label} type="button" onClick={() => void runSearch(sq.label)} className="btn btn-secondary btn-sm" title={sq.note}>
               {sq.label}
             </button>
           ))}

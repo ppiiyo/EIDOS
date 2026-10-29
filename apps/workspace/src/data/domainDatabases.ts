@@ -458,3 +458,24 @@ export const PLATFORM_DOMAIN_PRESETS: PlatformDomainPreset[] = [
     items: GLOBAL_MULTILINGUAL_CATALOG,
   },
 ];
+
+export const FULL_DEMO_CATALOG: CatalogItem[] = (() => {
+  const seen = new Set<string>();
+  const combined: CatalogItem[] = [];
+  for (const list of [
+    INITIAL_CATALOG,
+    STREAMING_PLATFORM_CATALOG,
+    JAPANESE_VIDEO_HOSTING_CATALOG,
+    GLOBAL_MULTILINGUAL_CATALOG,
+  ]) {
+    for (const item of list) {
+      const id = String(item.id);
+      if (!seen.has(id)) {
+        seen.add(id);
+        combined.push(item);
+      }
+    }
+  }
+  return combined;
+})();
+

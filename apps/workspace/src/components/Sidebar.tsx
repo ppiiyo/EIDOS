@@ -15,11 +15,13 @@ import {
   Settings,
   Network,
   HelpCircle,
+  Sparkles,
 } from 'lucide-react';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 export type ViewId =
   | 'dashboard'
+  | 'demo'
   | 'seo'
   | 'vectorspace'
   | 'adaptive'
@@ -80,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'Ядро движка',
           g2: 'Лаборатория и тесты',
           g3: 'Аналитика и эксплуатация',
+          demo: 'Демо-каталог (48 SKU)',
           indexes: 'Менеджер индексов HNSW',
           ranking: 'Песочница ранжирования',
           cluster: 'Кластер и отказоустойчивость',
@@ -92,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'コアエンジン',
           g2: 'プレイグラウンド & ラボ',
           g3: '分析 & オペレーション',
+          demo: 'デモカタログ (48 SKU)',
           indexes: 'インデックス管理',
           ranking: 'ランキング調整ラボ',
           cluster: 'クラスタ & フェイルオーバー',
@@ -103,6 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'Core Engine',
           g2: 'Playground & Labs',
           g3: 'Analytics & Ops',
+          demo: 'Demo Catalog (48 SKU)',
           indexes: 'Index Manager',
           ranking: 'Ranking Playground',
           cluster: 'Cluster & Failover',
@@ -115,10 +120,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: labels.g1,
       items: [
+        { id: 'search', label: t.nav.search, emoji: '🔍', icon: Search },
+        { id: 'demo', label: labels.demo, emoji: '🎮', icon: Sparkles },
         { id: 'dashboard', label: t.nav.dashboard, emoji: '📊', icon: LayoutDashboard },
         { id: 'catalog', label: t.nav.catalog, emoji: '📦', icon: Package },
         { id: 'indexes', label: labels.indexes, emoji: '🗄️', icon: Database },
-        { id: 'search', label: t.nav.search, emoji: '🔍', icon: Search },
         { id: 'recommendations', label: t.nav.recommendations, emoji: '✨', icon: Lightbulb },
       ],
     },

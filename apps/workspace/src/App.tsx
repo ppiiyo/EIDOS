@@ -33,6 +33,7 @@ export function App() {
     handleDeleteItem,
     handleScaleCatalog,
     handleRestoreCuratedCatalog,
+    handleClearCatalog,
     handleSelectDomainPreset,
     handleImportCustomDatabase,
     handleSearch,
@@ -62,7 +63,7 @@ export function App() {
 
       <main className="main-area">
         <StudioHeader
-          catalogCount={catalog.length}
+          catalogCount={view === 'demo' ? 48 : catalog.length}
           selectedItem={selectedItem}
           uiLang={uiLang}
           isScaledCatalog={isScaledCatalog}
@@ -93,7 +94,9 @@ export function App() {
           onDeleteItem={handleDeleteItem}
           onScaleCatalog={handleScaleCatalog}
           onRestoreCatalog={handleRestoreCuratedCatalog}
+          onClearCatalog={handleClearCatalog}
           onSelectDomainPreset={handleSelectDomainPreset}
+          onImportCustomDatabase={handleImportCustomDatabase}
           onImportVectorBundle={handleImportVectorBundle}
           onOpenApiConsole={() => setIsApiModalOpen(true)}
           onOpenCsvModal={() => setIsCsvModalOpen(true)}

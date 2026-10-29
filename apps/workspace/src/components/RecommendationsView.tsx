@@ -243,7 +243,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
           </div>
         </div>
 
-        {activeSeed && (
+        {activeSeed ? (
           <div data-testid="recommendations-panel">
             <div className="card p-4 mb-4 bg-[var(--bg-alt)] flex justify-between items-center gap-4">
               <div>
@@ -282,6 +282,10 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                 />
               ))}
             </div>
+          </div>
+        ) : (
+          <div className="card p-8 text-center text-sm text-[var(--text-sec)]" data-testid="recommendations-empty">
+            Каталог пуст (0 SKU). Загрузите свою базу данных (CSV / JSON) во вкладке «Поиск» или «Каталог», либо перейдите во вкладку «Демо-каталог (48 SKU)».
           </div>
         )}
       </div>

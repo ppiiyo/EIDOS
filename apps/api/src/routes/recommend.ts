@@ -131,23 +131,6 @@ export async function simpleRecommend(
 
   const sourceItem = vectorStore.get(itemId);
   if (!sourceItem) {
-    if (vectorStore.count() === 0) {
-      const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
-      return {
-        notFound: false as const,
-        payload: {
-          strategy: 'simple' as const,
-          source_item_id: itemId,
-          recommendations: [],
-          latencyMs,
-          entropy: 0,
-          debug: {
-            totalCandidates: 0,
-            diversityFactor,
-          },
-        },
-      };
-    }
     return {
       notFound: true as const,
       message: `Item with id '${itemId}' does not exist in the index.`,

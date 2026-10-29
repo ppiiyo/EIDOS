@@ -35,39 +35,11 @@ import { saveBinaryEmbeddingsToIdb, loadBinaryEmbeddingsFromIdb } from '../lib/s
 
 export function useStudioWorkspace() {
   const [uiLang, setUiLang] = useState<UiLanguage>('ru');
-  const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        if (localStorage.getItem('eidos_demo_state') === 'demo') {
-          return DEFAULT_CATALOG;
-        }
-      } catch {
-        // Ignore storage errors
-      }
-    }
-    return [];
-  });
-  const [embeddings, setEmbeddings] = useState<Map<string, Float32Array>>(() => {
-    const map = new Map<string, Float32Array>();
-    if (
-      typeof window !== 'undefined' &&
-      (() => {
-        try {
-          return localStorage.getItem('eidos_demo_state') === 'demo';
-        } catch {
-          return false;
-        }
-      })()
-    ) {
-      for (const item of DEFAULT_CATALOG) {
-        map.set(
-          String(item.id),
-          computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description}`)
-        );
-      }
-    }
-    return map;
-  });
+  // Основной продукт всегда запускается с чистым каталогом (0 SKU); демо-данные живут только во вкладке Демо-каталог
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [embeddings, setEmbeddings] = useState<Map<string, Float32Array>>(
+    () => new Map<string, Float32Array>()
+  );
 
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
   const [isScaledCatalog, setIsScaledCatalog] = useState(false);
@@ -89,14 +61,8 @@ export function useStudioWorkspace() {
     void initEmbeddingModel().catch(() => {
       // Honest fallback: remains in BM25 / deterministic index mode if offline
     });
-    void loadBinaryEmbeddingsFromIdb().then((stored) => {
-      if (stored.size > 0) {
-        setEmbeddings((prev) => {
-          const merged = new Map(prev);
-          for (const [k, v] of stored.entries()) merged.set(k, v);
-          return merged;
-        });
-      }
+    void loadBinaryEmbeddingsFromIdb().then(() => {
+      // IndexedDB cache warmed; embeddings are populated when user uploads catalog
     });
     return unsub;
   }, []);
@@ -211,23 +177,19 @@ export function useStudioWorkspace() {
   );
 
   const handleRestoreCuratedCatalog = useCallback(() => {
-    const preset = PLATFORM_DOMAIN_PRESETS.find((p) => p.id === activeDomain);
-    const baseItems = preset ? preset.items : DEFAULT_CATALOG;
-    const map = new Map<string, Float32Array>();
-    for (const item of baseItems) {
-      map.set(
-        String(item.id),
-        computeTextEmbedding(
-          `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
-        )
-      );
-    }
-    setEmbeddings(map);
-    setCatalog(baseItems);
-    setSelectedItem(baseItems[0] || null);
+    setEmbeddings(new Map());
+    setCatalog([]);
+    setSelectedItem(null);
     setIsScaledCatalog(false);
-    showToast(`Restored curated ${preset?.name || 'Eidos'} catalog (${baseItems.length} items)`, 'info');
-  }, [activeDomain, showToast]);
+    showToast('Пользовательский каталог очищен (0 SKU)', 'info');
+  }, [showToast]);
+
+  const handleClearCatalog = useCallback(() => {
+    setEmbeddings(new Map());
+    setCatalog([]);
+    setSelectedItem(null);
+    setIsScaledCatalog(false);
+  }, []);
 
   const handleSelectDomainPreset = useCallback(
     (preset: PlatformDomainPreset) => {
@@ -539,6 +501,7 @@ export function useStudioWorkspace() {
     handleDeleteItem,
     handleScaleCatalog,
     handleRestoreCuratedCatalog,
+    handleClearCatalog,
     handleSelectDomainPreset,
     handleImportCustomDatabase,
     handleSearch,
