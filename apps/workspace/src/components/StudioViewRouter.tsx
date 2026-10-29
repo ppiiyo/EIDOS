@@ -8,7 +8,6 @@ import { ConversationalAgent } from '../lib/agent/conversational-agent';
 import { ViewId } from './Sidebar';
 import { DashboardView } from './DashboardView';
 import { CatalogView } from './CatalogView';
-import { SearchView } from './SearchView';
 import { RankingPlayground } from './RankingPlayground';
 import { RecommendationsView } from './RecommendationsView';
 import { ABTestView } from './ABTestView';
@@ -21,6 +20,7 @@ import { ClusterTopologyView } from './ClusterTopologyView';
 import { SettingsView } from './SettingsView';
 import { FaqGuideView } from './FaqGuideView';
 import { SEODashboard } from '../pages/SEODashboard/SEODashboard';
+import { DemoPage } from '../pages/DemoPage/DemoPage';
 
 export interface StudioViewRouterProps {
   view: ViewId;
@@ -146,7 +146,7 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
       );
     case 'search':
       return (
-        <SearchView
+        <DemoPage
           catalog={catalog}
           onHybridSearch={onHybridSearch}
           onSelectItem={handleInspectRecommendations}
