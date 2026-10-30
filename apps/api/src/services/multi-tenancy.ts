@@ -105,8 +105,17 @@ export class RBACManager {
     if (request.demoMode) return 'readonly';
 
     const ctxRole = (request as { apiKeyContext?: { role?: string } }).apiKeyContext?.role;
-    if (ctxRole === 'master' || ctxRole === 'admin') return 'admin';
     if (ctxRole === 'search') return 'readonly';
+
+    const explicitRole = String(request.headers['x-eidos-role'] || '').toLowerCase();
+    if (explicitRole === 'readonly' || explicitRole === 'viewer') {
+      return explicitRole === 'viewer' ? 'viewer' : 'readonly';
+    }
+    if (explicitRole === 'merchandiser' || explicitRole === 'editor') {
+      return explicitRole === 'editor' ? 'editor' : 'merchandiser';
+    }
+
+    if (ctxRole === 'master' || ctxRole === 'admin') return 'admin';
     if (ctxRole === 'merchandiser') return 'merchandiser';
 
     const apiKey = String(request.headers['x-api-key'] || '');
@@ -119,18 +128,12 @@ export class RBACManager {
       return 'readonly';
     }
 
-    const explicitRole = String(request.headers['x-eidos-role'] || '').toLowerCase();
     if (
-      explicitRole === 'merchandiser' ||
-      explicitRole === 'editor' ||
       apiKey.startsWith('eidos_merch_') ||
       apiKey.startsWith('eidos_editor_') ||
       apiKey.startsWith('eidos_mk_')
     ) {
-      return explicitRole === 'editor' ? 'editor' : 'merchandiser';
-    }
-    if (explicitRole === 'readonly' || explicitRole === 'viewer') {
-      return explicitRole === 'viewer' ? 'viewer' : 'readonly';
+      return 'merchandiser';
     }
 
     return 'admin';

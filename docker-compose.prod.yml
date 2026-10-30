@@ -46,6 +46,7 @@ services:
       EIDOS_SNAPSHOT_PATH: /data/snapshots
       EIDOS_SNAPSHOT_INTERVAL_MS: ${EIDOS_SNAPSHOT_INTERVAL_MS:-3600000}
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgresql://eidos:eidos_prod@postgres:5432/eidos}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://search.yourdomain.com}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
       NODE_OPTIONS: "--max-old-space-size=4096"
@@ -54,6 +55,8 @@ services:
       - eidos_snapshots:/data/snapshots
       - eidos_models:/app/models
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -73,8 +76,26 @@ services:
     networks:
       - eidos-prod
 
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: eidos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eidos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eidos_prod}
+      POSTGRES_DB: ${POSTGRES_DB:-eidos}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eidos} -d ${POSTGRES_DB:-eidos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - eidos-prod
+
   redis:
-    image: redis:7.2-alpine
+    image: redis:7-alpine
     container_name: eidos-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
@@ -137,6 +158,7 @@ volumes:
   eidos_data:
   eidos_snapshots:
   eidos_models:
+  postgres_data:
   redis_data:
   prometheus_data:
   grafana_data:

@@ -1,0 +1,599 @@
+2026-10-30T19:20:06.8761876Z ##[group]Run pnpm test
+2026-10-30T19:20:06.8762054Z [36;1mpnpm test[0m
+2026-10-30T19:20:06.8778326Z shell: /usr/bin/bash -e {0}
+2026-10-30T19:20:06.8778464Z env:
+2026-10-30T19:20:06.8778605Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-10-30T19:20:06.8778779Z ##[endgroup]
+2026-10-30T19:20:07.1072907Z 
+2026-10-30T19:20:07.1073686Z > eidos@3.4.0 test /home/runner/work/EIDOS/EIDOS
+2026-10-30T19:20:07.1074040Z > vitest run
+2026-10-30T19:20:07.1074186Z 
+2026-10-30T19:20:07.3214320Z [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+2026-10-30T19:20:07.3423662Z 
+2026-10-30T19:20:07.3424813Z [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/EIDOS/EIDOS[39m
+2026-10-30T19:20:07.3425170Z 
+2026-10-30T19:20:08.3997757Z {"level":30,"time":1793388008398,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.3234837Z {"level":30,"time":1793388009322,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":922.5582599999907,"msg":"request completed"}
+2026-10-30T19:20:09.3276128Z {"level":30,"time":1793388009322,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.3278183Z {"level":30,"time":1793388009323,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":403},"responseTime":1.1363640000054147,"msg":"request completed"}
+2026-10-30T19:20:09.3319259Z {"level":30,"time":1793388009324,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.3321150Z {"level":30,"time":1793388009324,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":403},"responseTime":0.6751539999968372,"msg":"request completed"}
+2026-10-30T19:20:09.3324389Z {"level":30,"time":1793388009325,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"POST","url":"/v1/keys/generate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.3530954Z {"level":30,"time":1793388009327,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":403},"responseTime":1.6140500000037719,"msg":"request completed"}
+2026-10-30T19:20:09.6693904Z {"level":30,"time":1793388009667,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.6803524Z {"level":30,"time":1793388009678,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":10.541777000005823,"msg":"request completed"}
+2026-10-30T19:20:09.6913631Z {"level":30,"time":1793388009679,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/v1/catalog/export?format=json","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.6915054Z {"level":30,"time":1793388009680,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.7672439999878407,"msg":"request completed"}
+2026-10-30T19:20:09.7063157Z {"level":30,"time":1793388009702,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/admin/keys","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7073077Z {"level":30,"time":1793388009704,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":201},"responseTime":1.0299230000237003,"msg":"request completed"}
+2026-10-30T19:20:09.7074378Z {"level":30,"time":1793388009704,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/keys/rotate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7076168Z {"level":30,"time":1793388009705,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":1.0290019999956712,"msg":"request completed"}
+2026-10-30T19:20:09.7077404Z {"level":30,"time":1793388009706,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7132984Z {"level":30,"time":1793388009710,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":3.456434000021545,"msg":"request completed"}
+2026-10-30T19:20:09.7153389Z {"level":30,"time":1793388009710,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7183526Z {"level":30,"time":1793388009711,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":1.183374999993248,"msg":"request completed"}
+2026-10-30T19:20:09.7280425Z {"level":30,"time":1793388009727,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"GET","url":"/v1/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7375901Z {"level":30,"time":1793388009728,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":1.075180999992881,"msg":"request completed"}
+2026-10-30T19:20:09.7377620Z {"level":30,"time":1793388009729,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/v1/ready","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7378842Z {"level":30,"time":1793388009729,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.2955179999989923,"msg":"request completed"}
+2026-10-30T19:20:09.7483607Z {"level":30,"time":1793388009745,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7576004Z {"level":30,"time":1793388009749,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":4.0508670000126585,"msg":"request completed"}
+2026-10-30T19:20:09.7583467Z {"level":30,"time":1793388009750,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/metrics","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7584942Z {"level":30,"time":1793388009751,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":1.0928189999831375,"msg":"request completed"}
+2026-10-30T19:20:09.7736480Z {"level":30,"time":1793388009771,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.7889941Z {"level":40,"time":1793388009784,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","event":"auth_failed","reason":"invalid_key","requestId":"req_c73f375bf3ba","keyId":"invali...00 (id:83fe5847)","ip":"127.0.0.1","path":"/v1/catalog/upsert"}
+2026-10-30T19:20:09.7891764Z {"level":30,"time":1793388009785,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":401},"responseTime":13.117666000005556,"msg":"request completed"}
+2026-10-30T19:20:09.7893615Z {"level":30,"time":1793388009785,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8042614Z {"level":30,"time":1793388009792,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":6.844406000018353,"msg":"request completed"}
+2026-10-30T19:20:09.8043974Z {"level":30,"time":1793388009792,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/logs?limit=20","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8044934Z {"level":30,"time":1793388009792,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":0.4500129999942146,"msg":"request completed"}
+2026-10-30T19:20:09.8157463Z {"level":30,"time":1793388009814,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8233403Z {"level":30,"time":1793388009819,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":5.323538999975426,"msg":"request completed"}
+2026-10-30T19:20:09.8253530Z {"level":30,"time":1793388009819,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8263451Z {"level":30,"time":1793388009821,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":201},"responseTime":1.4105910000216682,"msg":"request completed"}
+2026-10-30T19:20:09.8273712Z {"level":30,"time":1793388009821,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8275438Z {"level":30,"time":1793388009821,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":0.3091889999923296,"msg":"request completed"}
+2026-10-30T19:20:09.8276891Z {"level":30,"time":1793388009822,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"GET","url":"/v1/catalog/export?format=csv","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8303234Z {"level":30,"time":1793388009822,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":0.3324150000116788,"msg":"request completed"}
+2026-10-30T19:20:09.8310916Z {"level":30,"time":1793388009822,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-5","req":{"method":"DELETE","url":"/v1/catalog/items/snap-item-1","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8312540Z {"level":30,"time":1793388009823,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-5","res":{"statusCode":200},"responseTime":0.6483140000200365,"msg":"request completed"}
+2026-10-30T19:20:09.8313922Z {"level":30,"time":1793388009823,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-6","req":{"method":"POST","url":"/v1/snapshots/restore","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8315248Z {"level":30,"time":1793388009829,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-6","res":{"statusCode":200},"responseTime":5.861024000012549,"msg":"request completed"}
+2026-10-30T19:20:09.8454315Z {"level":30,"time":1793388009844,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8623921Z {"level":30,"time":1793388009846,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":1.3239490000123624,"msg":"request completed"}
+2026-10-30T19:20:09.8633565Z {"level":30,"time":1793388009846,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/optimize","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8639726Z {"level":30,"time":1793388009854,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":7.643435000005411,"msg":"request completed"}
+2026-10-30T19:20:09.8653237Z {"level":30,"time":1793388009854,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"POST","url":"/v1/admin/reindex","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8663119Z {"level":30,"time":1793388009857,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":2.457978999998886,"msg":"request completed"}
+2026-10-30T19:20:09.8698192Z {"level":30,"time":1793388009857,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"GET","url":"/v1/analytics/queries","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-30T19:20:09.8699590Z {"level":30,"time":1793388009858,"pid":2343,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":0.6952049999963492,"msg":"request completed"}
+2026-10-30T19:20:09.8700921Z  [32m✓[39m apps/api/tests/v35-production-gate.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1592[2mms[22m[39m
+2026-10-30T19:20:09.8702478Z    [33m[2m✓[22m[39m EIDOS v3.5 Production Gate & Operational Readiness[2m > [22m1. Security & API Key Hierarchy (P0)[2m > [22mallows Search Key on /v1/search and /v1/recommend, but returns 403 Forbidden on write & admin endpoints [33m947[2mms[22m[39m
+2026-10-30T19:20:09.8704549Z    [33m[2m✓[22m[39m EIDOS v3.5 Production Gate & Operational Readiness[2m > [22m1. Security & API Key Hierarchy (P0)[2m > [22mallows Admin Key on catalog upsert, snapshots, and admin stats, while sanitizing prompt injection / XSS payloads [33m353[2mms[22m[39m
+2026-10-30T19:20:10.3099342Z  [32m✓[39m apps/api/tests/phase1-api-hardening.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2043[2mms[22m[39m
+2026-10-30T19:20:10.3100537Z    [33m[2m✓[22m[39m PHASE 1: Critical API Fixes & Security Hardening[2m > [22mTASK 1.2: Security Stack (CORS, Helmet CSP, Rate Limiting)[2m > [22menforces rate limiting with 429 Too Many Requests when threshold is exceeded [33m444[2mms[22m[39m
+2026-10-30T19:20:11.6565792Z  [32m✓[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 297[2mms[22m[39m
+2026-10-30T19:20:11.9248605Z  [32m✓[39m tests/integration/phase2-ui-completion.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 246[2mms[22m[39m
+2026-10-30T19:20:12.8706812Z  [32m✓[39m packages/core/src/tests/strict-validation.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+2026-10-30T19:20:13.3008620Z  [32m✓[39m tests/connectors/bitrix-and-all-in-one-docker.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 144[2mms[22m[39m
+2026-10-30T19:20:13.6092431Z  [32m✓[39m tests/benchmarks/search-sla.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 509[2mms[22m[39m
+2026-10-30T19:20:13.8300099Z  [32m✓[39m packages/core/src/tests/cognitive-vectors.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-10-30T19:20:15.1948470Z  [32m✓[39m tests/integration/prometheus-metrics.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 904[2mms[22m[39m
+2026-10-30T19:20:15.1949933Z    [33m[2m✓[22m[39m PHASE 3: Prometheus Metrics & Observability Integration Suite[2m > [22m1. Records non-zero HTTP request counters, request duration histograms, and search latencies on /metrics [33m798[2mms[22m[39m
+2026-10-30T19:20:15.2237860Z  [32m✓[39m apps/api/tests/redis-cache.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1131[2mms[22m[39m
+2026-10-30T19:20:16.5168794Z  [32m✓[39m tests/unit/multilingual-crosslingual.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+2026-10-30T19:20:16.7314028Z  [32m✓[39m packages/core/src/tests/hnsw-quantization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 51[2mms[22m[39m
+2026-10-30T19:20:17.5564643Z  [32m✓[39m tests/unit/services/intent-dictionary.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 848[2mms[22m[39m
+2026-10-30T19:20:17.5995289Z  [32m✓[39m apps/api/tests/ten-bugs-fixes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 333[2mms[22m[39m
+2026-10-30T19:20:18.8380822Z  [32m✓[39m packages/core/src/tests/v3-enterprise.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+2026-10-30T19:20:19.9763467Z  [32m✓[39m tests/integration/critical-routes.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 825[2mms[22m[39m
+2026-10-30T19:20:20.5771877Z  [32m✓[39m apps/api/tests/phase2-product-improvements.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1193[2mms[22m[39m
+2026-10-30T19:20:20.5776009Z    [33m[2m✓[22m[39m PHASE 2: Product Improvements (5,000+ Seed Dataset, OpenAPI 3.0.3, Sentry Error Tracker, Observability & SLA)[2m > [22mTASK 3 / Checkpoint 3 & 5: Catalog starts empty (0 items), loads demo items on demand, memory <512MB, /v1/search <30ms, /v1/recommend <50ms [33m766[2mms[22m[39m
+2026-10-30T19:20:21.6229719Z  [32m✓[39m tests/integration/modernization-phases-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 163[2mms[22m[39m
+2026-10-30T19:20:21.7176926Z  [32m✓[39m tests/integration/split-brain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 256[2mms[22m[39m
+2026-10-30T19:20:23.6864651Z  [32m✓[39m tests/unit/phase3-deterministic-seeding-metrics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 584[2mms[22m[39m
+2026-10-30T19:20:23.6865771Z    [33m[2m✓[22m[39m PHASE 3: Deterministic Seeding (mulberry32) & Real Search Latency Metrics[2m > [22mGET /v1/metrics and GET /v1/catalog/stats reflect real search and recommend latencies [33m567[2mms[22m[39m
+2026-10-30T19:20:23.9261907Z  [32m✓[39m tests/unit/services/search-funnel.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 837[2mms[22m[39m
+2026-10-30T19:20:23.9265693Z    [33m[2m✓[22m[39m Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regression[2m > [22m5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel [33m740[2mms[22m[39m
+2026-10-30T19:20:24.8906153Z  [32m✓[39m tests/unit/phase2-rate-limit-lru.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+2026-10-30T19:20:25.0708249Z  [32m✓[39m packages/core/src/tests/adaptive/explainability-steering.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:25.6753820Z  [32m✓[39m apps/api/tests/phase3-competitive-edge.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 216[2mms[22m[39m
+2026-10-30T19:20:26.5386066Z  [32m✓[39m apps/api/tests/cache-hardening.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1348[2mms[22m[39m
+2026-10-30T19:20:26.5386721Z    [33m[2m✓[22m[39m Cache Hardening Tests[2m > [22mInMemoryCache[2m > [22mshould expire keys correctly [33m1101[2mms[22m[39m
+2026-10-30T19:20:26.8421301Z  [32m✓[39m packages/core/src/tests/adaptive/multi-interest-tower.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-10-30T19:20:27.0224627Z  [32m✓[39m packages/core/src/tests/csv-parser.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-30T19:20:27.2104645Z  [32m✓[39m tests/unit/architecture-constraints.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+2026-10-30T19:20:27.4074162Z  [31m❯[39m tests/multi-tenancy/tenant-isolation.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 239[2mms[22m[39m
+2026-10-30T19:20:27.4075945Z [31m   [31m×[31m EIDOS v3.2 - Multi-Tenancy Isolation, RBAC & Audit Logging[2m > [22menforces RBAC permissions (viewer blocked from write, admin allowed to view audit logs)[90m 9[2mms[22m[31m[39m
+2026-10-30T19:20:27.4077234Z [31m     → expected 200 to be 403 // Object.is equality[39m
+2026-10-30T19:20:27.4254163Z  [32m✓[39m packages/core/src/tests/audit-regressions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-30T19:20:27.6319766Z  [32m✓[39m packages/core/tests/multilingual-bm25.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-10-30T19:20:27.8324132Z  [32m✓[39m packages/sdk/tests/sdk-client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-10-30T19:20:27.8795609Z  [32m✓[39m tests/unit/store-registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+2026-10-30T19:20:28.0528596Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-explorer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-30T19:20:28.3023654Z  [32m✓[39m tests/unit/indexeddb-storage.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+2026-10-30T19:20:28.3661481Z  [32m✓[39m tests/integration/shopify-webhook.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 143[2mms[22m[39m
+2026-10-30T19:20:28.5564170Z  [32m✓[39m packages/core/src/tests/priority2-v2.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-30T19:20:28.7500961Z  [32m✓[39m packages/core/src/tests/persistence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-30T19:20:28.9640700Z  [32m✓[39m tests/connectors/postgres-cdc.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 264[2mms[22m[39m
+2026-10-30T19:20:29.2363926Z  [32m✓[39m tests/unit/honest-embeddings-and-determinism.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+2026-10-30T19:20:29.2784467Z  [32m✓[39m tests/integration/postgres-cdc.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 152[2mms[22m[39m
+2026-10-30T19:20:29.5514504Z  [32m✓[39m tests/unit/components/query-inspector.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+2026-10-30T19:20:29.7691492Z  [32m✓[39m tests/sharding/lsh-router.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+2026-10-30T19:20:29.9353580Z  [32m✓[39m tests/integration/cluster.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 408[2mms[22m[39m
+2026-10-30T19:20:29.9355378Z    [33m[2m✓[22m[39m PHASE 1 - Task 1.1: Multi-Node Cluster Integration Test (3 Shards + Coordinator)[2m > [22mspins up a 3-node HNSW cluster, indexes 300 items, executes 1,000 search queries, and verifies all 3 shards respond with balanced load [33m407[2mms[22m[39m
+2026-10-30T19:20:30.0263810Z  [32m✓[39m apps/api/tests/cache-invalidation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-30T19:20:30.1024108Z  [32m✓[39m packages/core/src/tests/adaptive/cross-encoder.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:30.2151000Z  [32m✓[39m packages/core/src/tests/comprehensive-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-10-30T19:20:30.6593839Z  [32m✓[39m tests/integration/mongodb-changestream.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 159[2mms[22m[39m
+2026-10-30T19:20:30.7934123Z  [32m✓[39m tests/unit/phase2-modern-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+2026-10-30T19:20:30.9223924Z  [32m✓[39m tests/unit/pipeline-sync-and-agent.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+2026-10-30T19:20:31.2234793Z  [32m✓[39m tests/cache/semantic-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:31.5534577Z  [32m✓[39m apps/api/tests/hnsw-store-security.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 292[2mms[22m[39m
+2026-10-30T19:20:31.8080175Z  [31m❯[39m tests/integration/phase3-docs-and-deploy.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 132[2mms[22m[39m
+2026-10-30T19:20:31.8081710Z [31m   [31m×[31m Phase 3 Tasks 3.2 & 3.3: OpenAPI Documentation & Production Deployment Config[2m > [22mTask 3.3: provides production docker-compose.prod.yml with API, PostgreSQL, Redis, Prometheus, and Grafana[90m 6[2mms[22m[31m[39m
+2026-10-30T19:20:31.8082630Z [31m     → expected 'version: \'3.9\'\n\n# ===============…' to contain 'postgres:'[39m
+2026-10-30T19:20:32.7231969Z  [32m✓[39m packages/core/src/tests/adaptive/feature-scaler.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-30T19:20:32.9233591Z  [32m✓[39m packages/core/src/tests/security-guardrails.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-10-30T19:20:33.2279368Z  [32m✓[39m tests/integration/failover.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 106[2mms[22m[39m
+2026-10-30T19:20:33.9196964Z  [32m✓[39m apps/api/tests/v31-release-features.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 874[2mms[22m[39m
+2026-10-30T19:20:33.9198563Z    [33m[2m✓[22m[39m EIDOS v3.1 Release Features & Production Hardening[2m > [22m2. /v1/catalog/stats is public and returns indexed categories after loading demo catalog [33m684[2mms[22m[39m
+2026-10-30T19:20:33.9289741Z  [32m✓[39m tests/unit/phase1-type-safety-csp.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 213[2mms[22m[39m
+2026-10-30T19:20:35.1218447Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-cholesky.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+2026-10-30T19:20:35.1623859Z  [32m✓[39m tests/reranker/cross-encoder.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 17[2mms[22m[39m
+2026-10-30T19:20:35.2848284Z  [32m✓[39m packages/core/src/tests/adaptive/user-tower.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:35.4837406Z  [32m✓[39m packages/core/src/tests/adaptive/ranker.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-10-30T19:20:35.6444417Z  [32m✓[39m packages/core/src/tests/adaptive/candidate-fusion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:36.6194414Z  [32m✓[39m tests/unit/api-key-manager.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 526[2mms[22m[39m
+2026-10-30T19:20:36.6210033Z    [33m[2m✓[22m[39m ApiKeyManager & /v1/keys/revoke Rotation[2m > [22mPOST /v1/keys/revoke revokes key and middleware rejects subsequent requests with 401 [33m524[2mms[22m[39m
+2026-10-30T19:20:36.6238984Z  [32m✓[39m apps/api/tests/recommend-adaptive.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 992[2mms[22m[39m
+2026-10-30T19:20:37.7806999Z  [32m✓[39m packages/core/src/tests/adaptive/feedback-loop.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-30T19:20:37.7863208Z  [32m✓[39m packages/core/src/tests/adaptive/metadata-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:37.9342871Z  [32m✓[39m packages/core/src/tests/adaptive/kg-enricher.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:38.0943737Z  [32m✓[39m packages/core/src/tests/clip-embedder.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-30T19:20:38.9407427Z  [32m✓[39m apps/api/tests/recommend-user.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 691[2mms[22m[39m
+2026-10-30T19:20:38.9572774Z  [32m✓[39m apps/api/tests/feedback.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 430[2mms[22m[39m
+2026-10-30T19:20:40.3473627Z  [32m✓[39m tests/unit/vector-store.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-30T19:20:40.5750683Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould register /v1/search route
+2026-10-30T19:20:40.5751596Z [22m[39mRegistered routes:
+2026-10-30T19:20:40.5751931Z  ├── /v1/telemetry (GET, HEAD)
+2026-10-30T19:20:40.5752339Z ├── /v1/tenants (GET, HEAD)
+2026-10-30T19:20:40.5752675Z ├── /v1/metrics (GET, HEAD)
+2026-10-30T19:20:40.5752960Z │   └── /prometheus (GET, HEAD)
+2026-10-30T19:20:40.5753293Z ├── /v1/merchandising/rules (POST)
+2026-10-30T19:20:40.5753660Z ├── /v1/diagnostics/errors (GET, HEAD)
+2026-10-30T19:20:40.5754344Z ├── /v1/demo/search (POST)
+2026-10-30T19:20:40.5754986Z ├── /v1/demo/optimize/pareto (POST)
+2026-10-30T19:20:40.5755488Z ├── /v1/demo/recommend (POST)
+2026-10-30T19:20:40.5758918Z ├── /v1/demo/reset (POST)
+2026-10-30T19:20:40.5760648Z ├── /v1/demo/load (POST)
+2026-10-30T19:20:40.5761283Z ├── /v1/openapi.json (GET, HEAD)
+2026-10-30T19:20:40.5761737Z ├── /v1/optimize/pareto (POST)
+2026-10-30T19:20:40.5762397Z ├── /v1/health (GET, HEAD)
+2026-10-30T19:20:40.5762915Z │   ├── /ready (GET, HEAD)
+2026-10-30T19:20:40.5763857Z │   └── /live (GET, HEAD)
+2026-10-30T19:20:40.5764254Z ├── /v1/ready (GET, HEAD)
+2026-10-30T19:20:40.5764645Z ├── /v1/recommend (POST)
+2026-10-30T19:20:40.5765031Z │   ├── /user (POST)
+2026-10-30T19:20:40.5765405Z │   └── /adaptive (POST)
+2026-10-30T19:20:40.5765801Z ├── /v1/routes (GET, HEAD)
+2026-10-30T19:20:40.5766227Z ├── /v1/cluster/status (GET, HEAD)
+2026-10-30T19:20:40.5766711Z ├── /v1/cluster/shards/:shardId/health (POST)
+2026-10-30T19:20:40.5767299Z ├── /v1/cluster/drain (POST)
+2026-10-30T19:20:40.5767712Z ├── /v1/catalog (POST)
+2026-10-30T19:20:40.5768103Z │   ├── /stats (GET, HEAD)
+2026-10-30T19:20:40.5768501Z │   ├── /upsert (POST)
+2026-10-30T19:20:40.5768882Z │   ├── /items (POST)
+2026-10-30T19:20:40.5769268Z │   │   └── /:id (DELETE)
+2026-10-30T19:20:40.5769672Z │   └── /export (GET, HEAD)
+2026-10-30T19:20:40.5770071Z ├── /v1/search (POST)
+2026-10-30T19:20:40.5770626Z ├── /v1/settings (GET, HEAD, PUT)
+2026-10-30T19:20:40.5771052Z │   └── /webhooks (POST)
+2026-10-30T19:20:40.5771441Z │       └── /:id (DELETE)
+2026-10-30T19:20:40.5771849Z ├── /v1/snapshots (POST, GET, HEAD)
+2026-10-30T19:20:40.5772374Z │   └── /restore (POST)
+2026-10-30T19:20:40.5772745Z ├── /v1/feedback (POST)
+2026-10-30T19:20:40.5773141Z ├── /v1/audit/logs (GET, HEAD)
+2026-10-30T19:20:40.5773547Z ├── /v1/analytics (GET, HEAD)
+2026-10-30T19:20:40.5773936Z │   ├── /seo (GET, HEAD)
+2026-10-30T19:20:40.5774311Z │   ├── /synonym (POST)
+2026-10-30T19:20:40.5775069Z │   ├── /queries (GET, HEAD)
+2026-10-30T19:20:40.5775462Z │   ├── /metrics (GET, HEAD)
+2026-10-30T19:20:40.5775839Z │   ├── /boost (POST)
+2026-10-30T19:20:40.5776212Z │   └── /funnel (GET, HEAD)
+2026-10-30T19:20:40.5776592Z │       └── /event (POST)
+2026-10-30T19:20:40.5776995Z ├── /v1/admin/stats (GET, HEAD)
+2026-10-30T19:20:40.5777429Z ├── /v1/admin/keys (GET, HEAD, POST)
+2026-10-30T19:20:40.5777831Z │   ├── /rotate (POST)
+2026-10-30T19:20:40.5778205Z │   └── /:keyHash (DELETE)
+2026-10-30T19:20:40.5778597Z ├── /v1/admin/reindex (POST)
+2026-10-30T19:20:40.5779006Z ├── /v1/admin/optimize (POST)
+2026-10-30T19:20:40.5779419Z ├── /v1/admin/logs (GET, HEAD)
+2026-10-30T19:20:40.5779808Z ├── /v1/keys (GET, HEAD)
+2026-10-30T19:20:40.5780177Z │   ├── /revoke (POST)
+2026-10-30T19:20:40.5780540Z │   ├── /rotate (POST)
+2026-10-30T19:20:40.5780908Z │   └── /generate (POST)
+2026-10-30T19:20:40.5781316Z ├── /v1/indexes (GET, HEAD, POST)
+2026-10-30T19:20:40.5781712Z │   └── /:name (DELETE)
+2026-10-30T19:20:40.5782233Z │       └── /documents (POST)
+2026-10-30T19:20:40.5782614Z ├── /docs (GET, HEAD)
+2026-10-30T19:20:40.5783025Z │   ├── /static/index.html (GET, HEAD)
+2026-10-30T19:20:40.5783538Z │   ├── /static/swagger-initializer.js (GET, HEAD)
+2026-10-30T19:20:40.5784033Z │   ├── * (HEAD, GET)
+2026-10-30T19:20:40.5784551Z │   ├── /json (GET, HEAD)
+2026-10-30T19:20:40.5784943Z │   └── /yaml (GET, HEAD)
+2026-10-30T19:20:40.5785324Z ├── /metrics (GET, HEAD)
+2026-10-30T19:20:40.5785708Z ├── /health (GET, HEAD)
+2026-10-30T19:20:40.5786089Z ├── /api/health (GET, HEAD)
+2026-10-30T19:20:40.5786492Z ├── /ready (GET, HEAD)
+2026-10-30T19:20:40.5786860Z ├── /live (GET, HEAD)
+2026-10-30T19:20:40.5787214Z └── * (OPTIONS)
+2026-10-30T19:20:40.5787464Z 
+2026-10-30T19:20:40.5787606Z 
+2026-10-30T19:20:40.7096089Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould respond to POST /v1/demo/search with valid payload
+2026-10-30T19:20:40.7097240Z [22m[39mResponse status: [33m200[39m
+2026-10-30T19:20:40.7104399Z Response body: {"query":"wireless headphones","mode":"hybrid","results":[],"count":0,"latencyMs":136.27,"cacheHit":false,"cognitiveDiagnostics":{"routeDecision":{"route":"HYBRID_SEMANTIC_PATH","routeLabelRu":"Сбалансированный гибридный контур (BM25 + HNSW RRF)","complexityScore":0.47,"efSearch":56,"recommendedAlpha":0.6,"enableCrossEncoder":true,"enableSerendipity":true,"estimatedComputeSavingsPct":38,"rationale":"Стандартный гибридный запрос (2 токена) — оптимальный баланс RRF (efSearch=56, экономия 38% вычислительного бюджета)."},"kineticProfile":{"archetype":"decisive_sniper","archetypeLabelRu":"Целевой снайпер (Точный фокус)","archetypeLabelEn":"Decisive Sniper Focus","confidence":0.74,"biometricVector":[0.0475,0,0,0,0,0,0,0.0891,0,0,0.0475,0,0,0.7086,0,0.6967],"alphaAdjustment":0,"recommendedMmrLambda":0.2,"priceElasticityBoost":1,"serendipityBoost":0.15,"comparedItemIds":[],"diagnosticSummary":"Стабильный целевой паттерн внимания; сохраняется максимальная точность ранжирования без избыточной диверсификации."},"chronoProfile":{"mode":"balanced_flow","modeLabelRu":"Сбалансированный когнитивный поток","modeLabelEn":"Balanced Cognitive Flow","explorationTemperature":0.45,"choiceFatigueIndex":0,"recommendedSerendipityWeight":0.22,"recommendedMmrLambda":0.37,"recommendedAlphaShift":0,"rationale":"Сбалансированный хроно-когнитивный поток (19:00, усталость выбора 0%)."},"serendipityDiscoveriesCount":0}}
+2026-10-30T19:20:40.7109283Z 
+2026-10-30T19:20:40.7109846Z  [32m✓[39m tests/integration/route-registration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 261[2mms[22m[39m
+2026-10-30T19:20:41.0171273Z  [32m✓[39m apps/api/tests/production-hardening.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 222[2mms[22m[39m
+2026-10-30T19:20:41.8697009Z  [32m✓[39m packages/core/src/tests/adaptive/smmr.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-30T19:20:41.8732788Z  [32m✓[39m packages/core/src/tests/adaptive/context-signals.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-30T19:20:42.0240350Z  [32m✓[39m packages/core/src/tests/graph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-30T19:20:42.3543965Z  [32m✓[39m apps/api/tests/singleflight.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 154[2mms[22m[39m
+2026-10-30T19:20:42.5607521Z  [32m✓[39m apps/api/tests/similarity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-30T19:20:42.7448718Z  [32m✓[39m tests/unit/xai-explainer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-30T19:20:42.9205598Z  [32m✓[39m tests/unit/splade-lite.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:43.0854203Z  [32m✓[39m packages/core/src/tests/cosine.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:43.2271600Z  [32m✓[39m apps/api/tests/recommend.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 900[2mms[22m[39m
+2026-10-30T19:20:43.2445297Z  [32m✓[39m tests/unit/sequential-recommender.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-30T19:20:43.4021138Z  [32m✓[39m tests/unit/prometheus.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-30T19:20:43.4045723Z  [32m✓[39m tests/unit/query-understanding.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:43.5563644Z  [32m✓[39m tests/unit/tracing.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:43.5594197Z  [32m✓[39m packages/core/src/tests/entropy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:43.7061546Z  [32m✓[39m tests/unit/webhook-dispatcher.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:43.7541706Z  [32m✓[39m tests/unit/benchmark.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-30T19:20:44.2549688Z 
+2026-10-30T19:20:44.2557301Z [31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-30T19:20:44.2557492Z 
+2026-10-30T19:20:44.2558916Z [31m[1m[7m FAIL [27m[22m[39m tests/integration/phase3-docs-and-deploy.test.ts[2m > [22mPhase 3 Tasks 3.2 & 3.3: OpenAPI Documentation & Production Deployment Config[2m > [22mTask 3.3: provides production docker-compose.prod.yml with API, PostgreSQL, Redis, Prometheus, and Grafana
+2026-10-30T19:20:44.2570507Z [31m[1mAssertionError[22m: expected 'version: \'3.9\'\n\n# ===============…' to contain 'postgres:'[39m
+2026-10-30T19:20:44.2570889Z 
+2026-10-30T19:20:44.2571009Z [32m- Expected[39m
+2026-10-30T19:20:44.2571236Z [31m+ Received[39m
+2026-10-30T19:20:44.2571370Z 
+2026-10-30T19:20:44.2571483Z [32m- postgres:[39m
+2026-10-30T19:20:44.2571717Z [31m+ version: '3.9'[39m
+2026-10-30T19:20:44.2571932Z [31m+[39m
+2026-10-30T19:20:44.2572383Z [31m+ # ==============================================================================[39m
+2026-10-30T19:20:44.2572658Z [31m+ # EIDOS v3.5 Production Deployment Stack[39m
+2026-10-30T19:20:44.2573227Z [31m+ # Components: EIDOS API + Redis 7 (AOF) + Prometheus + Grafana + Caddy HTTPS[39m
+2026-10-30T19:20:44.2573566Z [31m+ # ==============================================================================[39m
+2026-10-30T19:20:44.2573754Z [31m+[39m
+2026-10-30T19:20:44.2573885Z [31m+ services:[39m
+2026-10-30T19:20:44.2574025Z [31m+   caddy:[39m
+2026-10-30T19:20:44.2574205Z [31m+     image: caddy:2.8-alpine[39m
+2026-10-30T19:20:44.2574412Z [31m+     container_name: eidos-caddy[39m
+2026-10-30T19:20:44.2574624Z [31m+     restart: unless-stopped[39m
+2026-10-30T19:20:44.2574797Z [31m+     ports:[39m
+2026-10-30T19:20:44.2574958Z [31m+       - "80:80"[39m
+2026-10-30T19:20:44.2575122Z [31m+       - "443:443"[39m
+2026-10-30T19:20:44.2575308Z [31m+       - "443:443/udp"[39m
+2026-10-30T19:20:44.2575470Z [31m+     volumes:[39m
+2026-10-30T19:20:44.2575698Z [31m+       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro[39m
+2026-10-30T19:20:44.2575927Z [31m+       - caddy_data:/data[39m
+2026-10-30T19:20:44.2576119Z [31m+       - caddy_config:/config[39m
+2026-10-30T19:20:44.2576293Z [31m+     depends_on:[39m
+2026-10-30T19:20:44.2576454Z [31m+       eidos-api:[39m
+2026-10-30T19:20:44.2576652Z [31m+         condition: service_healthy[39m
+2026-10-30T19:20:44.2576834Z [31m+     networks:[39m
+2026-10-30T19:20:44.2577001Z [31m+       - eidos-prod[39m
+2026-10-30T19:20:44.2577144Z [31m+[39m
+2026-10-30T19:20:44.2577274Z [31m+   eidos-api:[39m
+2026-10-30T19:20:44.2577421Z [31m+     build:[39m
+2026-10-30T19:20:44.2577571Z [31m+       context: .[39m
+2026-10-30T19:20:44.2577755Z [31m+       dockerfile: Dockerfile[39m
+2026-10-30T19:20:44.2577954Z [31m+     container_name: eidos-api[39m
+2026-10-30T19:20:44.2578157Z [31m+     restart: unless-stopped[39m
+2026-10-30T19:20:44.2578327Z [31m+     expose:[39m
+2026-10-30T19:20:44.2578479Z [31m+       - "8080"[39m
+2026-10-30T19:20:44.2578625Z [31m+     ports:[39m
+2026-10-30T19:20:44.2578805Z [31m+       - "127.0.0.1:8080:8080"[39m
+2026-10-30T19:20:44.2578977Z [31m+     environment:[39m
+2026-10-30T19:20:44.2579156Z [31m+       NODE_ENV: production[39m
+2026-10-30T19:20:44.2579338Z [31m+       PORT: "8080"[39m
+2026-10-30T19:20:44.2579530Z [31m+       EIDOS_STRICT_PROD_BOOT: "true"[39m
+2026-10-30T19:20:44.2579867Z [31m+       EIDOS_MASTER_KEY: ${EIDOS_MASTER_KEY:?EIDOS_MASTER_KEY must be set in production}[39m
+2026-10-30T19:20:44.2580273Z [31m+       EIDOS_ADMIN_KEY: ${EIDOS_ADMIN_KEY:?EIDOS_ADMIN_KEY must be set in production}[39m
+2026-10-30T19:20:44.2580709Z [31m+       EIDOS_SEARCH_KEY: ${EIDOS_SEARCH_KEY:-}[39m
+2026-10-30T19:20:44.2580965Z [31m+       EIDOS_LOG_LEVEL: ${EIDOS_LOG_LEVEL:-info}[39m
+2026-10-30T19:20:44.2581190Z [31m+       EIDOS_DATA_DIR: /data/db[39m
+2026-10-30T19:20:44.2581416Z [31m+       EIDOS_SNAPSHOT_PATH: /data/snapshots[39m
+2026-10-30T19:20:44.2581728Z [31m+       EIDOS_SNAPSHOT_INTERVAL_MS: ${EIDOS_SNAPSHOT_INTERVAL_MS:-3600000}[39m
+2026-10-30T19:20:44.2582019Z [31m+       REDIS_URL: redis://redis:6379[39m
+2026-10-30T19:20:44.2582474Z [31m+       CORS_ORIGIN: ${CORS_ORIGIN:-https://search.yourdomain.com}[39m
+2026-10-30T19:20:44.2582761Z [31m+       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}[39m
+2026-10-30T19:20:44.2583015Z [31m+       NODE_OPTIONS: "--max-old-space-size=4096"[39m
+2026-10-30T19:20:44.2583215Z [31m+     volumes:[39m
+2026-10-30T19:20:44.2583390Z [31m+       - eidos_data:/data/db[39m
+2026-10-30T19:20:44.2583606Z [31m+       - eidos_snapshots:/data/snapshots[39m
+2026-10-30T19:20:44.2583836Z [31m+       - eidos_models:/app/models[39m
+2026-10-30T19:20:44.2584016Z [31m+     depends_on:[39m
+2026-10-30T19:20:44.2584171Z [31m+       redis:[39m
+2026-10-30T19:20:44.2584359Z [31m+         condition: service_healthy[39m
+2026-10-30T19:20:44.2584543Z [31m+     healthcheck:[39m
+2026-10-30T19:20:44.2584891Z [31m+       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/v1/ready"][39m
+2026-10-30T19:20:44.2585275Z [31m+       interval: 15s[39m
+2026-10-30T19:20:44.2585441Z [31m+       timeout: 5s[39m
+2026-10-30T19:20:44.2585603Z [31m+       retries: 3[39m
+2026-10-30T19:20:44.2585778Z [31m+       start_period: 25s[39m
+2026-10-30T19:20:44.2585944Z [31m+     deploy:[39m
+2026-10-30T19:20:44.2586096Z [31m+       resources:[39m
+2026-10-30T19:20:44.2586251Z [31m+         limits:[39m
+2026-10-30T19:20:44.2586423Z [31m+           cpus: "4.0"[39m
+2026-10-30T19:20:44.2586598Z [31m+           memory: 6G[39m
+2026-10-30T19:20:44.2586772Z [31m+         reservations:[39m
+2026-10-30T19:20:44.2586949Z [31m+           cpus: "2.0"[39m
+2026-10-30T19:20:44.2587123Z [31m+           memory: 2G[39m
+2026-10-30T19:20:44.2587281Z [31m+     networks:[39m
+2026-10-30T19:20:44.2587448Z [31m+       - eidos-prod[39m
+2026-10-30T19:20:44.2587593Z [31m+[39m
+2026-10-30T19:20:44.2587720Z [31m+   redis:[39m
+2026-10-30T19:20:44.2587891Z [31m+     image: redis:7.2-alpine[39m
+2026-10-30T19:20:44.2588095Z [31m+     container_name: eidos-redis[39m
+2026-10-30T19:20:44.2588301Z [31m+     restart: unless-stopped[39m
+2026-10-30T19:20:44.2588686Z [31m+     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"][39m
+2026-10-30T19:20:44.2588989Z [31m+     volumes:[39m
+2026-10-30T19:20:44.2589160Z [31m+       - redis_data:/data[39m
+2026-10-30T19:20:44.2589330Z [31m+     healthcheck:[39m
+2026-10-30T19:20:44.2589532Z [31m+       test: ["CMD", "redis-cli", "ping"][39m
+2026-10-30T19:20:44.2589736Z [31m+       interval: 10s[39m
+2026-10-30T19:20:44.2589902Z [31m+       timeout: 3s[39m
+2026-10-30T19:20:44.2590061Z [31m+       retries: 5[39m
+2026-10-30T19:20:44.2590216Z [31m+     deploy:[39m
+2026-10-30T19:20:44.2590365Z [31m+       resources:[39m
+2026-10-30T19:20:44.2590521Z [31m+         limits:[39m
+2026-10-30T19:20:44.2590690Z [31m+           cpus: "1.0"[39m
+2026-10-30T19:20:44.2590867Z [31m+           memory: 1536M[39m
+2026-10-30T19:20:44.2591030Z [31m+     networks:[39m
+2026-10-30T19:20:44.2591196Z [31m+       - eidos-prod[39m
+2026-10-30T19:20:44.2591341Z [31m+[39m
+2026-10-30T19:20:44.2591475Z [31m+   prometheus:[39m
+2026-10-30T19:20:44.2591668Z [31m+     image: prom/prometheus:v2.53.0[39m
+2026-10-30T19:20:44.2591893Z [31m+     container_name: eidos-prometheus[39m
+2026-10-30T19:20:44.2592220Z [31m+     restart: unless-stopped[39m
+2026-10-30T19:20:44.2592389Z [31m+     command:[39m
+2026-10-30T19:20:44.2592622Z [31m+       - '--config.file=/etc/prometheus/prometheus.yml'[39m
+2026-10-30T19:20:44.2592983Z [31m+       - '--storage.tsdb.path=/prometheus'[39m
+2026-10-30T19:20:44.2593229Z [31m+       - '--storage.tsdb.retention.time=15d'[39m
+2026-10-30T19:20:44.2593455Z [31m+       - '--web.enable-lifecycle'[39m
+2026-10-30T19:20:44.2593633Z [31m+     volumes:[39m
+2026-10-30T19:20:44.2593868Z [31m+       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro[39m
+2026-10-30T19:20:44.2594121Z [31m+       - prometheus_data:/prometheus[39m
+2026-10-30T19:20:44.2594306Z [31m+     expose:[39m
+2026-10-30T19:20:44.2594456Z [31m+       - "9090"[39m
+2026-10-30T19:20:44.2594604Z [31m+     ports:[39m
+2026-10-30T19:20:44.2594782Z [31m+       - "127.0.0.1:9090:9090"[39m
+2026-10-30T19:20:44.2594954Z [31m+     depends_on:[39m
+2026-10-30T19:20:44.2595115Z [31m+       - eidos-api[39m
+2026-10-30T19:20:44.2595276Z [31m+     networks:[39m
+2026-10-30T19:20:44.2595440Z [31m+       - eidos-prod[39m
+2026-10-30T19:20:44.2595581Z [31m+[39m
+2026-10-30T19:20:44.2595710Z [31m+   grafana:[39m
+2026-10-30T19:20:44.2595901Z [31m+     image: grafana/grafana:11.1.0[39m
+2026-10-30T19:20:44.2596115Z [31m+     container_name: eidos-grafana[39m
+2026-10-30T19:20:44.2596318Z [31m+     restart: unless-stopped[39m
+2026-10-30T19:20:44.2596487Z [31m+     ports:[39m
+2026-10-30T19:20:44.2596660Z [31m+       - "127.0.0.1:3001:3000"[39m
+2026-10-30T19:20:44.2596832Z [31m+     environment:[39m
+2026-10-30T19:20:44.2597097Z [31m+       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}[39m
+2026-10-30T19:20:44.2597586Z [31m+       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}[39m
+2026-10-30T19:20:44.2597903Z [31m+       GF_USERS_ALLOW_SIGN_UP: "false"[39m
+2026-10-30T19:20:44.2598086Z [31m+     volumes:[39m
+2026-10-30T19:20:44.2598275Z [31m+       - grafana_data:/var/lib/grafana[39m
+2026-10-30T19:20:44.2598550Z [31m+       - ./grafana/provisioning:/etc/grafana/provisioning:ro[39m
+2026-10-30T19:20:44.2598886Z [31m+       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro[39m
+2026-10-30T19:20:44.2599127Z [31m+     depends_on:[39m
+2026-10-30T19:20:44.2599300Z [31m+       - prometheus[39m
+2026-10-30T19:20:44.2599460Z [31m+     networks:[39m
+2026-10-30T19:20:44.2599625Z [31m+       - eidos-prod[39m
+2026-10-30T19:20:44.2599765Z [31m+[39m
+2026-10-30T19:20:44.2599893Z [31m+ volumes:[39m
+2026-10-30T19:20:44.2600038Z [31m+   eidos_data:[39m
+2026-10-30T19:20:44.2600201Z [31m+   eidos_snapshots:[39m
+2026-10-30T19:20:44.2600365Z [31m+   eidos_models:[39m
+2026-10-30T19:20:44.2600520Z [31m+   redis_data:[39m
+2026-10-30T19:20:44.2600681Z [31m+   prometheus_data:[39m
+2026-10-30T19:20:44.2600841Z [31m+   grafana_data:[39m
+2026-10-30T19:20:44.2600992Z [31m+   caddy_data:[39m
+2026-10-30T19:20:44.2601143Z [31m+   caddy_config:[39m
+2026-10-30T19:20:44.2601346Z [31m+[39m
+2026-10-30T19:20:44.2601483Z [31m+ networks:[39m
+2026-10-30T19:20:44.2601631Z [31m+   eidos-prod:[39m
+2026-10-30T19:20:44.2601795Z [31m+     driver: bridge[39m
+2026-10-30T19:20:44.2601941Z [31m+[39m
+2026-10-30T19:20:44.2602001Z 
+2026-10-30T19:20:44.2602320Z [36m [2m❯[22m tests/integration/phase3-docs-and-deploy.test.ts:[2m51:21[22m[39m
+2026-10-30T19:20:44.2669356Z     [90m 49| [39m
+2026-10-30T19:20:44.2669791Z     [90m 50| [39m    [34mexpect[39m(content)[33m.[39m[34mtoContain[39m([32m'api:'[39m)[33m;[39m
+2026-10-30T19:20:44.2671988Z     [90m 51| [39m    [34mexpect[39m(content)[33m.[39m[34mtoContain[39m([32m'postgres:'[39m)[33m;[39m
+2026-10-30T19:20:44.2672610Z     [90m   | [39m                    [31m^[39m
+2026-10-30T19:20:44.2673145Z     [90m 52| [39m    [34mexpect[39m(content)[33m.[39m[34mtoContain[39m([32m'pgvector/pgvector:pg16'[39m)[33m;[39m
+2026-10-30T19:20:44.2673569Z     [90m 53| [39m    [34mexpect[39m(content)[33m.[39m[34mtoContain[39m([32m'redis:'[39m)[33m;[39m
+2026-10-30T19:20:44.2673835Z 
+2026-10-30T19:20:44.2674022Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+2026-10-30T19:20:44.2674197Z 
+2026-10-30T19:20:44.2674954Z [31m[1m[7m FAIL [27m[22m[39m tests/multi-tenancy/tenant-isolation.test.ts[2m > [22mEIDOS v3.2 - Multi-Tenancy Isolation, RBAC & Audit Logging[2m > [22menforces RBAC permissions (viewer blocked from write, admin allowed to view audit logs)
+2026-10-30T19:20:44.2675609Z [31m[1mAssertionError[22m: expected 200 to be 403 // Object.is equality[39m
+2026-10-30T19:20:44.2675777Z 
+2026-10-30T19:20:44.2675850Z [32m- Expected[39m
+2026-10-30T19:20:44.2675996Z [31m+ Received[39m
+2026-10-30T19:20:44.2676070Z 
+2026-10-30T19:20:44.2676133Z [32m- 403[39m
+2026-10-30T19:20:44.2676257Z [31m+ 200[39m
+2026-10-30T19:20:44.2676323Z 
+2026-10-30T19:20:44.2676522Z [36m [2m❯[22m tests/multi-tenancy/tenant-isolation.test.ts:[2m124:38[22m[39m
+2026-10-30T19:20:44.2684934Z     [90m122| [39m      }[33m,[39m
+2026-10-30T19:20:44.2685197Z     [90m123| [39m    })[33m;[39m
+2026-10-30T19:20:44.2685766Z     [90m124| [39m    [34mexpect[39m(viewerAttempt[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m403[39m)[33m;[39m
+2026-10-30T19:20:44.2686329Z     [90m   | [39m                                     [31m^[39m
+2026-10-30T19:20:44.2686621Z     [90m125| [39m
+2026-10-30T19:20:44.2687049Z     [90m126| [39m    [90m// Editor role attempting to read /v1/audit/logs -> 403 Forbidden[39m
+2026-10-30T19:20:44.2687342Z 
+2026-10-30T19:20:44.2687548Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+2026-10-30T19:20:44.2687727Z 
+2026-10-30T19:20:44.2691234Z [2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m88 passed[39m[22m[90m (90)[39m
+2026-10-30T19:20:44.2692008Z [2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m382 passed[39m[22m[90m (384)[39m
+2026-10-30T19:20:44.2692645Z [2m   Start at [22m 19:20:07
+2026-10-30T19:20:44.2694327Z [2m   Duration [22m 36.91s[2m (transform 1.25s, setup 0ms, collect 14.55s, tests 21.20s, environment 15ms, prepare 4.47s)[22m
+2026-10-30T19:20:44.2694708Z 
+2026-10-30T19:20:44.2705083Z 
+2026-10-30T19:20:44.2741159Z ##[error]AssertionError: expected 'version: \'3.9\'\n\n# ===============…' to contain 'postgres:'
+
+- Expected
++ Received
+
+- postgres:
++ version: '3.9'
++
++ # ==============================================================================
++ # EIDOS v3.5 Production Deployment Stack
++ # Components: EIDOS API + Redis 7 (AOF) + Prometheus + Grafana + Caddy HTTPS
++ # ==============================================================================
++
++ services:
++   caddy:
++     image: caddy:2.8-alpine
++     container_name: eidos-caddy
++     restart: unless-stopped
++     ports:
++       - "80:80"
++       - "443:443"
++       - "443:443/udp"
++     volumes:
++       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
++       - caddy_data:/data
++       - caddy_config:/config
++     depends_on:
++       eidos-api:
++         condition: service_healthy
++     networks:
++       - eidos-prod
++
++   eidos-api:
++     build:
++       context: .
++       dockerfile: Dockerfile
++     container_name: eidos-api
++     restart: unless-stopped
++     expose:
++       - "8080"
++     ports:
++       - "127.0.0.1:8080:8080"
++     environment:
++       NODE_ENV: production
++       PORT: "8080"
++       EIDOS_STRICT_PROD_BOOT: "true"
++       EIDOS_MASTER_KEY: ${EIDOS_MASTER_KEY:?EIDOS_MASTER_KEY must be set in production}
++       EIDOS_ADMIN_KEY: ${EIDOS_ADMIN_KEY:?EIDOS_ADMIN_KEY must be set in production}
++       EIDOS_SEARCH_KEY: ${EIDOS_SEARCH_KEY:-}
++       EIDOS_LOG_LEVEL: ${EIDOS_LOG_LEVEL:-info}
++       EIDOS_DATA_DIR: /data/db
++       EIDOS_SNAPSHOT_PATH: /data/snapshots
++       EIDOS_SNAPSHOT_INTERVAL_MS: ${EIDOS_SNAPSHOT_INTERVAL_MS:-3600000}
++       REDIS_URL: redis://redis:6379
++       CORS_ORIGIN: ${CORS_ORIGIN:-https://search.yourdomain.com}
++       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
++       NODE_OPTIONS: "--max-old-space-size=4096"
++     volumes:
++       - eidos_data:/data/db
++       - eidos_snapshots:/data/snapshots
++       - eidos_models:/app/models
++     depends_on:
++       redis:
++         condition: service_healthy
++     healthcheck:
++       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/v1/ready"]
++       interval: 15s
++       timeout: 5s
++       retries: 3
++       start_period: 25s
++     deploy:
++       resources:
++         limits:
++           cpus: "4.0"
++           memory: 6G
++         reservations:
++           cpus: "2.0"
++           memory: 2G
++     networks:
++       - eidos-prod
++
++   redis:
++     image: redis:7.2-alpine
++     container_name: eidos-redis
++     restart: unless-stopped
++     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
++     volumes:
++       - redis_data:/data
++     healthcheck:
++       test: ["CMD", "redis-cli", "ping"]
++       interval: 10s
++       timeout: 3s
++       retries: 5
++     deploy:
++       resources:
++         limits:
++           cpus: "1.0"
++           memory: 1536M
++     networks:
++       - eidos-prod
++
++   prometheus:
++     image: prom/prometheus:v2.53.0
++     container_name: eidos-prometheus
++     restart: unless-stopped
++     command:
++       - '--config.file=/etc/prometheus/prometheus.yml'
++       - '--storage.tsdb.path=/prometheus'
++       - '--storage.tsdb.retention.time=15d'
++       - '--web.enable-lifecycle'
++     volumes:
++       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
++       - prometheus_data:/prometheus
++     expose:
++       - "9090"
++     ports:
++       - "127.0.0.1:9090:9090"
++     depends_on:
++       - eidos-api
++     networks:
++       - eidos-prod
++
++   grafana:
++     image: grafana/grafana:11.1.0
++     container_name: eidos-grafana
++     restart: unless-stopped
++     ports:
++       - "127.0.0.1:3001:3000"
++     environment:
++       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
++       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
++       GF_USERS_ALLOW_SIGN_UP: "false"
++     volumes:
++       - grafana_data:/var/lib/grafana
++       - ./grafana/provisioning:/etc/grafana/provisioning:ro
++       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+2026-10-30T19:20:44.2758005Z 
+2026-10-30T19:20:44.2759756Z ##[error]AssertionError: expected 200 to be 403 // Object.is equality
+
+- Expected
++ Received
+
+- 403
++ 200
+
+ ❯ tests/multi-tenancy/tenant-isolation.test.ts:124:38
+
+
+2026-10-30T19:20:44.2986058Z  ELIFECYCLE  Test failed. See above for more details.
+2026-10-30T19:20:44.3181768Z ##[error]Process completed with exit code 1.
