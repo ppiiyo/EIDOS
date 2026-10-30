@@ -286,19 +286,17 @@ export const DemoMode: React.FC<DemoModeProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'click', itemId: String(item.id), sessionId: 'demo-session' }),
       }).catch(() => {});
-      onSelectItem(item);
       setSubView('recommendations');
     },
-    [apiBaseUrl, onSelectItem]
+    [apiBaseUrl]
   );
 
   const handleInspectDemo3D = useCallback(
     (item: CatalogItem) => {
       setInspectedDemoItem(item);
-      onInspectIn3D(item);
       setSubView('vectorspace');
     },
-    [onInspectIn3D]
+    []
   );
 
   const handleSimulateConversion = useCallback(
