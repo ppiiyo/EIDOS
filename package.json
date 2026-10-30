@@ -1,8 +1,8 @@
 {
   "name": "eidos",
-  "version": "3.2.0",
+  "version": "3.4.0",
   "private": true,
-  "description": "Eidos v3.2 — Enterprise Hybrid Search, Distributed HNSW Sharding & Adaptive Recommendation Engine",
+  "description": "Eidos v3.4 — Enterprise Hybrid Search, 7-Component Explainable X-Ray, Distributed HNSW Sharding & Adaptive Recommendation Engine",
   "workspaces": [
     "apps/api",
     "apps/workspace",

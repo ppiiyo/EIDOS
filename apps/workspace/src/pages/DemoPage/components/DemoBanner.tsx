@@ -24,26 +24,33 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
   const isDemo = state === 'demo';
 
   return (
-    <div className="max-w-[1280px] mx-auto px-6 pt-5">
+    <div className="max-w-[1280px] mx-auto px-6 pt-4">
       <div
         data-testid="demo-state-banner"
-        className={`card px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs ${
+        className={`card px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs border-2 ${
           isDemo
-            ? 'border-[var(--warning)]/50 bg-[var(--warning-bg)]'
-            : 'border-[var(--success)]/50 bg-[var(--success-bg)]'
+            ? 'border-[var(--warning)]/60 bg-[var(--warning-bg)]'
+            : 'border-[var(--success)]/60 bg-[var(--success-bg)]'
         }`}
       >
         <div className="flex items-center gap-2.5">
           {isDemo ? (
-            <Sparkles size={15} className="text-[var(--warning)] shrink-0" />
+            <Sparkles size={16} className="text-[var(--warning)] shrink-0" />
           ) : (
-            <CheckCircle2 size={15} className="text-[var(--success)] shrink-0" />
+            <CheckCircle2 size={16} className="text-[var(--success)] shrink-0" />
           )}
-          <span className="font-medium text-[var(--text)]">
-            {isDemo
-              ? `Режим «Демо-каталог»: загружен полный демонстрационный корпус (${demoItemsCount} SKU · 4 домена: Маркетплейс, Стриминг, Видео JP, Мультиязычный).`
-              : `Активен ваш пользовательский каталог (${ownItemsCount} SKU). Все разделы движка работают с вашей базой.`}
-          </span>
+          <div>
+            <span className="font-bold text-[var(--text)]">
+              {isDemo
+                ? `Вы сейчас в демо-режиме (${demoItemsCount} SKU). Данные изолированы.`
+                : `Режим «Мой каталог» (${ownItemsCount} SKU). Чистый рабочий контур.`}
+            </span>
+            <span className="hidden sm:inline text-[var(--text-sec)] ml-2">
+              {isDemo
+                ? 'Все эксперименты с весами, X-Ray и 3 когнитивными векторами выполняются в песочнице.'
+                : 'Все разделы движка работают исключительно с вашей загруженной базой товаров.'}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -63,7 +70,7 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
             className="btn btn-secondary btn-sm"
           >
             <RotateCcw size={13} />
-            <span>{isDemo ? 'Выйти к своей базе' : 'Очистить базу (0 SKU)'}</span>
+            <span>{isDemo ? 'Выйти из демо и очистить' : 'Очистить базу (0 SKU)'}</span>
           </button>
         </div>
       </div>

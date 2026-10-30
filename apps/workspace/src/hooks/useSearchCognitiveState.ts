@@ -221,6 +221,8 @@ export function useSearchCognitiveState(
   const [priceHoverCount, setPriceHoverCount] = useState<number>(0);
   const [simulatedHour, setSimulatedHour] = useState<number | null>(null);
   const [activeScenarioId, setActiveScenarioId] = useState<VectorScenarioPresetId>('baseline');
+  const [disableIntentBoost, setDisableIntentBoost] = useState<boolean>(false);
+  const [disableMmrPenalty, setDisableMmrPenalty] = useState<boolean>(false);
 
   const hoverStartTimestampRef = useRef<Record<string, number>>({});
   const recentHoveredIdsRef = useRef<string[]>([]);
@@ -490,7 +492,7 @@ export function useSearchCognitiveState(
 
       // Intent-Aware boost when query intent matches item category, use-case, or price budget
       let intentBoost = 0;
-      if (extractedIntent) {
+      if (extractedIntent && !disableIntentBoost) {
         const hay = `${hit.item.title} ${hit.item.category} ${hit.item.description} ${(hit.item.tags || []).join(' ')}`.toLowerCase();
         if (extractedIntent.category && hay.includes(extractedIntent.category.slice(0, 5))) {
           intentBoost += 0.06;
@@ -530,6 +532,11 @@ export function useSearchCognitiveState(
         ? serendipityEval.serendipityScore * discoveryWeight * 0.32
         : 0;
 
+      const mmrPenaltyVal =
+        !disableMmrPenalty && idx > 0 && !serendipityEval.isSerendipityDiscovery
+          ? -Number((idx * 0.015).toFixed(4))
+          : 0;
+
       const totalBoost =
         kineticMod.kineticBonus + intentBoost + Math.max(0, tierBonus) + serendipityContribution;
 
@@ -541,7 +548,8 @@ export function useSearchCognitiveState(
             intentBoost +
             tierBonus +
             sniperPenalty +
-            serendipityContribution
+            serendipityContribution +
+            mmrPenaltyVal
         )
       );
 
@@ -565,7 +573,18 @@ export function useSearchCognitiveState(
       cognitiveMs: Math.max(0.08, cogElapsed),
       vectorizeMs: Math.max(0.05, vecElapsed),
     };
-  }, [baseHybridHits, candidatePrep, query, radarCoords, kineticProfile, chronoProfile, effectiveAlpha, extractedIntent]);
+  }, [
+    baseHybridHits,
+    candidatePrep,
+    query,
+    radarCoords,
+    kineticProfile,
+    chronoProfile,
+    effectiveAlpha,
+    extractedIntent,
+    disableIntentBoost,
+    disableMmrPenalty,
+  ]);
 
   const { paretoReport, paretoMs } = useMemo(() => {
     const tPar0 = performance.now();
@@ -626,10 +645,17 @@ export function useSearchCognitiveState(
           sparseBm25Component: Number(((1 - effectiveAlpha) * h.bm25Score).toFixed(4)),
           rrfScore: h.rrfScore ?? Number((h.fusedScore * 0.016).toFixed(4)),
           businessBoost: Math.max(0, Number((h.kineticBonus ?? 0).toFixed(4))),
-          mmrPenalty: i > 0 && !h.isSerendipityDiscovery ? -Number((i * 0.025).toFixed(3)) : 0,
+          mmrPenalty:
+            !disableMmrPenalty && i > 0 && !h.isSerendipityDiscovery
+              ? -Number((i * 0.025).toFixed(3))
+              : 0,
+          kineticBonus: Number(Math.max(0, h.kineticBonus ?? 0).toFixed(4)),
+          serendipityScore: Number(
+            (h.isSerendipityDiscovery ? (h.serendipityScore ?? 0) : 0).toFixed(4)
+          ),
         },
       })),
-    [hybridHits, effectiveAlpha]
+    [hybridHits, effectiveAlpha, disableMmrPenalty]
   );
 
   return {
@@ -642,6 +668,10 @@ export function useSearchCognitiveState(
     setSimulatedHour,
     activeScenarioId,
     applyScenarioPreset,
+    disableIntentBoost,
+    setDisableIntentBoost,
+    disableMmrPenalty,
+    setDisableMmrPenalty,
     stageTimingsMs,
     actionCountRef,
     handleCardHoverStart,

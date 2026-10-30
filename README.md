@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ EIDOS v3.3.0 GA
+# ⚡ EIDOS v3.4.0 GA
 
 ### Cognitive Hybrid Vector Search, 3-Vector Behavioral Reranking, Explainable X-Ray, Distributed HNSW Cluster & Multi-Objective Recommendation Engine
 ### Когнитивная платформа гибридного векторного поиска, 3-векторного поведенческого ранжирования, объяснимого рентгена (X-Ray), распределённого HNSW-кластера и мультицелевых рекомендаций

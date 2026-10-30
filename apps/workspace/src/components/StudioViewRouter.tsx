@@ -106,135 +106,163 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
     [catalog, embeddings]
   );
 
-  switch (view) {
-    case 'dashboard':
-      return (
-        <DashboardView
-          catalog={catalog}
-          embeddings={embeddings}
-          selectedItem={selectedItem}
-          isScaledCatalog={isScaledCatalog}
-          activeDomain={activeDomain}
-          uiLang={uiLang}
-          onNavigate={onNavigate}
-          onSearch={onSearch}
-          onSelectItem={onSelectItem}
-          onScaleCatalog={onScaleCatalog}
-          onRestoreCatalog={onRestoreCatalog}
-          onOpenApiConsole={onOpenApiConsole}
-          onSelectDomainPreset={onSelectDomainPreset}
-          onOpenDatabaseConnector={onOpenDatabaseConnector}
-        />
-      );
-    case 'vectorspace':
-      return (
-        <VectorSpaceView
-          catalog={catalog}
-          embeddings={embeddings}
-          selectedItem={selectedItem}
-          onSelectItem={onSelectItem}
-          onInspectRecommendations={handleInspectRecommendations}
-          uiLang={uiLang}
-        />
-      );
-    case 'adaptive':
-      return (
-        <AdaptivePanel
-          catalog={catalog}
-          embeddings={embeddings}
-          selectedItem={selectedItem}
-          onSelectItem={onSelectItem}
-          onShowToast={onShowToast}
-          uiLang={uiLang}
-        />
-      );
-    case 'demo':
-      return (
-        <DemoPage
-          catalog={catalog}
-          forceMode="demo"
-          onHybridSearch={onHybridSearch}
-          onSelectItem={handleInspectRecommendations}
-          onInspectIn3D={handleInspectIn3D}
-          onImportCustomDatabase={onImportCustomDatabase}
-          onClearCatalog={onClearCatalog}
-          onNavigate={onNavigate}
-          uiLang={uiLang}
-          embeddingState={engineState}
-        />
-      );
-    case 'search':
-      return (
-        <DemoPage
-          catalog={catalog}
-          forceMode="normal"
-          onHybridSearch={onHybridSearch}
-          onSelectItem={handleInspectRecommendations}
-          onInspectIn3D={handleInspectIn3D}
-          onImportCustomDatabase={onImportCustomDatabase}
-          onClearCatalog={onClearCatalog}
-          onNavigate={onNavigate}
-          uiLang={uiLang}
-          embeddingState={engineState}
-        />
-      );
-    case 'ranking':
-      return <RankingPlayground catalog={catalog} uiLang={uiLang} />;
-    case 'recommendations':
-      return (
-        <RecommendationsView
-          catalog={catalog}
-          embeddings={embeddings}
-          selectedItem={selectedItem}
-          onSelectItem={onSelectItem}
-          onRecommend={onRecommend}
-          onInspectIn3D={handleInspectIn3D}
-          uiLang={uiLang}
-        />
-      );
-    case 'catalog':
-      return (
-        <CatalogView
-          catalog={catalog}
-          embeddings={embeddings}
-          onAddItem={onAddItem}
-          onDeleteItem={onDeleteItem}
-          onSelectItem={handleInspectRecommendations}
-          onInspectIn3D={handleInspectIn3D}
-          onImportVectorBundle={onImportVectorBundle}
-          onOpenCsvModal={onOpenCsvModal}
-          uiLang={uiLang}
-        />
-      );
-    case 'indexes':
-      return <IndexManagerView onShowToast={onShowToast} uiLang={uiLang} />;
-    case 'cluster':
-      return <ClusterTopologyView onShowToast={onShowToast} uiLang={uiLang} />;
-    case 'seo':
-      return <SEODashboard uiLang={uiLang} />;
-    case 'analytics':
-      return <AnalyticsView uiLang={uiLang} />;
-    case 'abtest':
-      return <ABTestView uiLang={uiLang} />;
-    case 'conversational':
-      return (
-        <ConversationalView
-          agent={agent}
-          onSelectItem={handleInspectRecommendations}
-          uiLang={uiLang}
-        />
-      );
-    case 'settings':
-      return <SettingsView onShowToast={onShowToast} uiLang={uiLang} />;
-    case 'faq':
-      return (
-        <FaqGuideView
-          uiLang={uiLang}
-          onNavigate={onNavigate}
-          onOpenDatabaseConnector={onOpenDatabaseConnector}
-        />
-      );
-    default:
-      return <SEODashboard uiLang={uiLang} />;
-  }
+  const renderActiveView = () => {
+    switch (view) {
+      case 'dashboard':
+        return (
+          <DashboardView
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            isScaledCatalog={isScaledCatalog}
+            activeDomain={activeDomain}
+            uiLang={uiLang}
+            onNavigate={onNavigate}
+            onSearch={onSearch}
+            onSelectItem={onSelectItem}
+            onScaleCatalog={onScaleCatalog}
+            onRestoreCatalog={onRestoreCatalog}
+            onOpenApiConsole={onOpenApiConsole}
+            onSelectDomainPreset={onSelectDomainPreset}
+            onOpenDatabaseConnector={onOpenDatabaseConnector}
+          />
+        );
+      case 'vectorspace':
+        return (
+          <VectorSpaceView
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            onSelectItem={onSelectItem}
+            onInspectRecommendations={handleInspectRecommendations}
+            uiLang={uiLang}
+          />
+        );
+      case 'adaptive':
+        return (
+          <AdaptivePanel
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            onSelectItem={onSelectItem}
+            onShowToast={onShowToast}
+            uiLang={uiLang}
+          />
+        );
+      case 'demo':
+        return (
+          <DemoPage
+            catalog={catalog}
+            forceMode="demo"
+            onHybridSearch={onHybridSearch}
+            onSelectItem={handleInspectRecommendations}
+            onInspectIn3D={handleInspectIn3D}
+            onImportCustomDatabase={onImportCustomDatabase}
+            onClearCatalog={onClearCatalog}
+            onNavigate={onNavigate}
+            uiLang={uiLang}
+            embeddingState={engineState}
+          />
+        );
+      case 'search':
+        return (
+          <DemoPage
+            catalog={catalog}
+            forceMode="normal"
+            onHybridSearch={onHybridSearch}
+            onSelectItem={handleInspectRecommendations}
+            onInspectIn3D={handleInspectIn3D}
+            onImportCustomDatabase={onImportCustomDatabase}
+            onClearCatalog={onClearCatalog}
+            onNavigate={onNavigate}
+            uiLang={uiLang}
+            embeddingState={engineState}
+          />
+        );
+      case 'ranking':
+        return <RankingPlayground catalog={catalog} uiLang={uiLang} />;
+      case 'recommendations':
+        return (
+          <RecommendationsView
+            catalog={catalog}
+            embeddings={embeddings}
+            selectedItem={selectedItem}
+            onSelectItem={onSelectItem}
+            onRecommend={onRecommend}
+            onInspectIn3D={handleInspectIn3D}
+            uiLang={uiLang}
+          />
+        );
+      case 'catalog':
+        return (
+          <CatalogView
+            catalog={catalog}
+            embeddings={embeddings}
+            onAddItem={onAddItem}
+            onDeleteItem={onDeleteItem}
+            onSelectItem={handleInspectRecommendations}
+            onInspectIn3D={handleInspectIn3D}
+            onImportVectorBundle={onImportVectorBundle}
+            onOpenCsvModal={onOpenCsvModal}
+            uiLang={uiLang}
+          />
+        );
+      case 'indexes':
+        return <IndexManagerView onShowToast={onShowToast} uiLang={uiLang} />;
+      case 'cluster':
+        return <ClusterTopologyView onShowToast={onShowToast} uiLang={uiLang} />;
+      case 'seo':
+        return <SEODashboard uiLang={uiLang} />;
+      case 'analytics':
+        return <AnalyticsView uiLang={uiLang} />;
+      case 'abtest':
+        return <ABTestView uiLang={uiLang} />;
+      case 'conversational':
+        return (
+          <ConversationalView
+            agent={agent}
+            onSelectItem={handleInspectRecommendations}
+            uiLang={uiLang}
+          />
+        );
+      case 'settings':
+        return <SettingsView onShowToast={onShowToast} uiLang={uiLang} />;
+      case 'faq':
+        return (
+          <FaqGuideView
+            uiLang={uiLang}
+            onNavigate={onNavigate}
+            onOpenDatabaseConnector={onOpenDatabaseConnector}
+          />
+        );
+      default:
+        return <SEODashboard uiLang={uiLang} />;
+    }
+  };
+
+  return (
+    <div className="relative w-full" data-testid="studio-view-router">
+      {engineState.status === 'loading-model' && (
+        <div
+          data-testid="studio-router-loading-indicator"
+          role="status"
+          aria-live="polite"
+          className="px-6 py-1.5 bg-[var(--accent)]/10 border-b border-[var(--accent)]/30 flex items-center justify-between text-xs text-[var(--text)]"
+        >
+          <span className="flex items-center gap-2 font-medium">
+            <span className="inline-block w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
+            <span>
+              {uiLang === 'ru'
+                ? `Инициализация нейросетевого движка ONNX (${engineState.progress}%) — локальный 384-d + BM25 поиск уже активен`
+                : `Initializing ONNX neural engine (${engineState.progress}%) — local 384-d + BM25 search is active`}
+            </span>
+          </span>
+          <span className="mono text-[11px] font-bold text-[var(--accent)]">
+            {engineState.progress}%
+          </span>
+        </div>
+      )}
+      {renderActiveView()}
+    </div>
+  );
 };

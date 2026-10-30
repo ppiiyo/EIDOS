@@ -160,8 +160,8 @@ export const UI_TRANSLATIONS: Record<UiLanguage, UiTranslations> = {
       abtest: 'A/B Эксперименты',
       conversational: 'Диалоговый NLU Агент',
       apiButton: 'Консоль REST API и SDK',
-      engineFooterTitle: '384-d Dense + CJK BM25',
-      engineFooterSub: 'HNSW Int32 · < 2 мс p50',
+      engineFooterTitle: 'EIDOS v3.4.0 · 384-d + BM25',
+      engineFooterSub: 'HNSW Int32 · < 1 мс p50',
     },
     topbar: {
       activeSeed: 'Активный якорь:',
