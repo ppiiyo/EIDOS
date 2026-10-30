@@ -17,6 +17,8 @@ export const upsertItemSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),
   category: z.string().max(100).optional().default('General'),
+  sku: z.string().max(100).optional(),
+  brand: z.string().max(100).optional(),
   tags: z.array(z.string()).max(20).optional().default([]),
   price: z.number().nonnegative().optional().default(0),
   inStock: z.boolean().optional().default(true),
@@ -31,6 +33,8 @@ const catalogItemSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),
   category: z.string().max(100).optional().default('General'),
+  sku: z.string().max(100).optional(),
+  brand: z.string().max(100).optional(),
   tags: z.array(z.string()).default([]),
   price: z.number().nonnegative().optional().default(0),
   inStock: z.boolean().optional().default(true),
@@ -130,6 +134,17 @@ export async function catalogRoutes(
       // Batch mode: {"items": [...]}
       if (rawBody && typeof rawBody === 'object' && 'items' in rawBody && Array.isArray(rawBody.items)) {
         const rawItems = rawBody.items as unknown[];
+        if (rawItems.length === 0) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Validation Error',
+            message: 'Field "items" must contain at least 1 catalog item.',
+            upserted: 0,
+            failed: 0,
+            errors: ['items: Array must contain at least 1 element'],
+          });
+        }
+
         const validItems: Array<z.infer<typeof upsertItemSchema>> = [];
         const errors: string[] = [];
         let failed = 0;
@@ -140,9 +155,23 @@ export async function catalogRoutes(
             validItems.push(parsed.data);
           } else {
             failed++;
-            const msg = parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
-            errors.push(`items[${idx}]: ${msg}`);
+            const msg = parsed.error.errors
+              .map((e) => `field "${e.path.join('.') || 'item'}": ${e.message}`)
+              .join(', ');
+            errors.push(`row ${idx + 1} (items[${idx}]): ${msg}`);
           }
+        }
+
+        if (validItems.length === 0 && failed > 0) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Validation Error',
+            message: errors.join('; '),
+            upserted: 0,
+            failed,
+            errors,
+            details: errors,
+          });
         }
 
         storeRegistry.assertItemQuota(tenantId, indexName, validItems.length);

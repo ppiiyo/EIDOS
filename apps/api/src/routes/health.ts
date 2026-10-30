@@ -132,7 +132,7 @@ export async function healthRoutes(
       status: isHealthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       responseTimeMs: responseTime,
-      version: process.env.npm_package_version || '1.0.0',
+      version: process.env.npm_package_version || '3.4.0',
       itemsIndexed: itemCount,
       itemsCount: itemCount,
       initialItemsIndexed,

@@ -2,6 +2,9 @@ import React from 'react';
 import { Boxes, Lightbulb, AlertCircle } from 'lucide-react';
 import { CatalogItem } from '../../types';
 import { HybridSearchHit } from '../../utils/recommenderEngine';
+import { UiLanguage } from '../../i18n/uiTranslations';
+import { ZeroResultsCard } from './ZeroResultsCard';
+import { FirstHitHumanExplanation } from './FirstHitHumanExplanation';
 
 interface SearchResultsColumnsProps {
   compareMode: boolean;
@@ -10,6 +13,11 @@ interface SearchResultsColumnsProps {
   keywordHits: Array<{ item: CatalogItem; matchedWords: string[] }>;
   latencyMs: number;
   alpha: number;
+  query?: string;
+  uiLang?: UiLanguage;
+  suggestedQueries?: string[];
+  onRetryQuery?: (nextQuery: string, nextAlpha?: number) => void;
+  onResetFilters?: () => void;
   t: {
     hybridHitsTitle: string;
     legacyHitsTitle: string;
@@ -31,6 +39,11 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
   keywordHits,
   latencyMs,
   alpha,
+  query = '',
+  uiLang = 'ru',
+  suggestedQueries = [],
+  onRetryQuery = () => {},
+  onResetFilters = () => {},
   t,
   onSelectItem,
   onInspectIn3D,
@@ -39,11 +52,7 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
   onPriceHover,
 }) => {
   return (
-    <div
-      className={`grid gap-5 ${
-        compareMode ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'
-      }`}
-    >
+    <div className={`grid gap-5 ${compareMode ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
       {/* Column 1: Eidos Hybrid Search */}
       <div>
         <div className="flex justify-between items-center mb-2.5">
@@ -56,9 +65,14 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
         </div>
 
         {hybridHits.length === 0 ? (
-          <div className="card p-9 text-center text-[var(--text-sec)]">
-            No matches found for this threshold.
-          </div>
+          <ZeroResultsCard
+            query={query}
+            alpha={alpha}
+            uiLang={uiLang}
+            suggestedQueries={suggestedQueries}
+            onRetryQuery={onRetryQuery}
+            onResetFilters={onResetFilters}
+          />
         ) : (
           <div className="flex flex-col gap-2.5">
             {hybridHits.map((hit, idx) => (
@@ -106,9 +120,7 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
                           {hit.item.price || '—'}
                         </span>
                         <span> · </span>
-                        <span className="mono text-[var(--accent)]">
-                          {hit.source.toUpperCase()}
-                        </span>
+                        <span className="mono text-[var(--accent)]">{hit.source.toUpperCase()}</span>
                       </div>
                     </div>
                   </div>
@@ -123,16 +135,16 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
                   </div>
                 </div>
 
-                <p className="text-[0.8125rem] text-[var(--text-sec)] my-2">
-                  {hit.item.description}
-                </p>
+                <p className="text-[0.8125rem] text-[var(--text-sec)] my-2">{hit.item.description}</p>
                 {hit.isSerendipityDiscovery && hit.discoveryReason && (
                   <div className="text-[0.6875rem] text-[var(--accent)] mb-2 font-medium">
                     ⚡ {hit.discoveryReason}
                   </div>
                 )}
 
-                {showXray && (
+                {idx === 0 && <FirstHitHumanExplanation hit={hit} alpha={alpha} uiLang={uiLang} />}
+
+                {(showXray || idx === 0) && (
                   <div
                     data-testid="search-xray-panel"
                     className="px-3 py-2.5 bg-[var(--bg-alt)] border border-[var(--border)] rounded-md text-[0.6875rem] mb-2.5"
@@ -143,9 +155,7 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
                           <span className="text-[var(--text-sec)]">
                             HNSW 384-d {hit.denseRank ? `(#${hit.denseRank})` : ''}
                           </span>
-                          <span className="mono font-semibold">
-                            {(hit.denseScore * 100).toFixed(1)}%
-                          </span>
+                          <span className="mono font-semibold">{(hit.denseScore * 100).toFixed(1)}%</span>
                         </div>
                         <div className="h-1 bg-[var(--border)] rounded overflow-hidden">
                           <div
@@ -160,9 +170,7 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
                           <span className="text-[var(--text-sec)]">
                             BM25 Okapi {hit.sparseRank ? `(#${hit.sparseRank})` : '(0)'}
                           </span>
-                          <span className="mono font-semibold">
-                            {(hit.bm25Score * 100).toFixed(1)}%
-                          </span>
+                          <span className="mono font-semibold">{(hit.bm25Score * 100).toFixed(1)}%</span>
                         </div>
                         <div className="h-1 bg-[var(--border)] rounded overflow-hidden">
                           <div
@@ -196,9 +204,7 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
                       <span className="mono">
                         Fused = {alpha.toFixed(2)}·D({(hit.denseScore * 100).toFixed(0)}%) +{' '}
                         {(1 - alpha).toFixed(2)}·BM25({(hit.bm25Score * 100).toFixed(0)}%) ={' '}
-                        <strong className="text-[var(--text)]">
-                          {(hit.fusedScore * 100).toFixed(1)}%
-                        </strong>
+                        <strong className="text-[var(--text)]">{(hit.fusedScore * 100).toFixed(1)}%</strong>
                       </span>
                       {hit.matchedTokens && hit.matchedTokens.length > 0 && (
                         <span className="mono text-[var(--success)]">
@@ -249,18 +255,14 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
             <div className="text-sm font-bold text-[var(--text-sec)]">
               {t.legacyHitsTitle} ({keywordHits.length} hits)
             </div>
-            <span className="mono text-xs text-[var(--warning)] font-semibold">
-              {t.legacySubtitle}
-            </span>
+            <span className="mono text-xs text-[var(--warning)] font-semibold">{t.legacySubtitle}</span>
           </div>
 
           {keywordHits.length === 0 ? (
             <div className="card p-9 text-center text-[var(--text-sec)]">
               <AlertCircle size={22} className="mx-auto mb-2 text-[var(--warning)]" />
               <div className="font-semibold text-[var(--text)]">{t.legacyZeroTitle}</div>
-              <p className="text-[0.8125rem] text-[var(--text-sec)] mt-1.5">
-                {t.legacyZeroDesc}
-              </p>
+              <p className="text-[0.8125rem] text-[var(--text-sec)] mt-1.5">{t.legacyZeroDesc}</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2.5">
@@ -279,9 +281,7 @@ export const SearchResultsColumns: React.FC<SearchResultsColumnsProps> = React.m
                       {matchedWords.length} word match
                     </span>
                   </div>
-                  <p className="text-[0.8125rem] text-[var(--text-sec)] mt-2">
-                    {item.description}
-                  </p>
+                  <p className="text-[0.8125rem] text-[var(--text-sec)] mt-2">{item.description}</p>
                   <div className="text-xs text-[var(--text-mut)] mt-1.5">
                     Matched tokens: <span className="mono">{matchedWords.join(', ')}</span>
                   </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, RotateCcw, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Upload, RotateCcw, Sparkles, CheckCircle2, Search } from 'lucide-react';
 import { DemoState } from '../hooks/useDemoState';
 
 export interface DemoBannerProps {
@@ -23,6 +23,14 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
 
   const isDemo = state === 'demo';
 
+  const handleFocusOwnSearch = () => {
+    const input = document.querySelector<HTMLInputElement>('[data-testid="search-input"]');
+    if (input) {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
+    }
+  };
+
   return (
     <div className="max-w-[1280px] mx-auto px-6 pt-4">
       <div
@@ -33,32 +41,49 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
             : 'border-[var(--success)]/60 bg-[var(--success-bg)]'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {isDemo ? (
             <Sparkles size={16} className="text-[var(--warning)] shrink-0" />
           ) : (
             <CheckCircle2 size={16} className="text-[var(--success)] shrink-0" />
           )}
           <div>
-            <span className="font-bold text-[var(--text)]">
+            <span className="font-bold text-[var(--text)]" data-testid="indexed-items-count">
               {isDemo
-                ? `Вы сейчас в демо-режиме (${demoItemsCount} SKU). Данные изолированы.`
-                : `Режим «Мой каталог» (${ownItemsCount} SKU). Чистый рабочий контур.`}
+                ? `Вы сейчас в демо-режиме (${demoItemsCount} SKU проиндексировано). Данные изолированы.`
+                : `${ownItemsCount} товаров проиндексировано · Режим «Мой каталог»`}
             </span>
-            <span className="hidden sm:inline text-[var(--text-sec)] ml-2">
+            <span
+              data-testid="demo-index-ready-badge"
+              className="ml-2 px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] mono text-[11px] font-semibold text-[var(--success)]"
+            >
+              ✓ Индекс готов
+            </span>
+            <span className="hidden lg:inline text-[var(--text-sec)] ml-2">
               {isDemo
-                ? 'Все эксперименты с весами, X-Ray и 3 когнитивными векторами выполняются в песочнице.'
-                : 'Все разделы движка работают исключительно с вашей загруженной базой товаров.'}
+                ? 'Эксперименты с гибридным поиском, весом α и X-Ray выполняются в изолированной песочнице.'
+                : 'Поиск и рекомендации работают исключительно по вашему загруженному каталогу.'}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {!isDemo && (
+            <button
+              type="button"
+              onClick={handleFocusOwnSearch}
+              data-testid="search-own-catalog-btn"
+              className="btn btn-primary btn-sm"
+            >
+              <Search size={13} />
+              <span>Найти по вашему каталогу</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenUpload}
             data-testid="banner-upload-btn"
-            className="btn btn-primary btn-sm"
+            className={isDemo ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
           >
             <Upload size={13} />
             <span>{isDemo ? 'Загрузить свой каталог' : 'Загрузить другой CSV/JSON'}</span>

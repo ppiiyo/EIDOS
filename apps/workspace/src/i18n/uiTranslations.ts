@@ -326,7 +326,7 @@ export const UI_TRANSLATIONS: Record<UiLanguage, UiTranslations> = {
       abtest: 'A/B Experiments',
       conversational: 'Conversational NLU',
       apiButton: 'Live REST API & SDK',
-      engineFooterTitle: '384-d Dense + CJK BM25',
+      engineFooterTitle: 'EIDOS v3.4.0 · 384-d + BM25',
       engineFooterSub: 'HNSW Int32 · < 2ms p50',
     },
     topbar: {
@@ -492,7 +492,7 @@ export const UI_TRANSLATIONS: Record<UiLanguage, UiTranslations> = {
       abtest: 'A/Bテスト検証',
       conversational: '対話型NLUエージェント',
       apiButton: 'REST API＆SDKコンソール',
-      engineFooterTitle: '384次元Dense + CJK BM25',
+      engineFooterTitle: 'EIDOS v3.4.0 · 384次元Dense + BM25',
       engineFooterSub: 'HNSW Int32 · 遅延 < 2ms p50',
     },
     topbar: {

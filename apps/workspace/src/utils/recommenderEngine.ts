@@ -705,6 +705,7 @@ export function executeHybridCatalogSearch(
   ]);
 
   const queryLang = detectTextLanguage(trimmed);
+  const hasQueryConceptCluster = MULTILINGUAL_CONCEPT_CLUSTERS.some((c) => c.pattern.test(trimmed));
   const RRF_K = 60;
 
   const results: HybridSearchHit[] = [];
@@ -738,6 +739,8 @@ export function executeHybridCatalogSearch(
 
     // If pure BM25 (alpha === 0), filter out items with 0 BM25 score
     if (alpha === 0 && sScore === 0) continue;
+    // Filter out pure hash noise when query has no concept cluster, no lexical overlap, and low dense similarity
+    if (!hasQueryConceptCluster && sScore === 0 && matchedTokens.length === 0 && dScore < 0.24) continue;
 
     const dRank = denseRanks.get(id);
     const sRank = sparseRanks.get(id) ?? (sScore > 0 ? 5 : undefined);

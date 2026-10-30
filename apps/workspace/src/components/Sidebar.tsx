@@ -67,6 +67,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   });
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
+  const simpleIds: ViewId[] = ['search', 'demo', 'catalog', 'analytics', 'settings', 'faq'];
+  const [navMode, setNavMode] = useState<'simple' | 'expert'>(() =>
+    simpleIds.includes(active) ? 'simple' : 'expert'
+  );
+  const effectiveExpert = navMode === 'expert' || !simpleIds.includes(active);
 
   useEffect(() => {
     try {
@@ -89,6 +94,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           seo: 'SEO и мерчандайзинг',
           settings: 'Настройки и API-ключи',
           faq: 'FAQ и Гид по функциям',
+          modeSimple: 'Простой режим',
+          modeExpert: 'Эксперт (16 вкладок)',
         }
       : uiLang === 'ja'
       ? {
@@ -102,6 +109,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           seo: 'SEO & マーチャンダイジング',
           settings: '設定 & APIキー',
           faq: 'FAQ & 使い方ガイド',
+          modeSimple: 'シンプル表示',
+          modeExpert: 'エキスパート表示',
         }
       : {
           g1: 'Core Engine',
@@ -114,6 +123,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           seo: 'SEO Insights',
           settings: 'Settings & Keys',
           faq: 'FAQ & Feature Guide',
+          modeSimple: 'Simple Mode',
+          modeExpert: 'Expert (All Labs)',
         };
 
   const navGroups: Array<{ title: string; items: NavGroupItem[] }> = [
@@ -149,6 +160,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
   ];
+
+  const visibleGroups = effectiveExpert
+    ? navGroups
+    : navGroups
+        .map((g) => ({ ...g, items: g.items.filter((i) => simpleIds.includes(i.id)) }))
+        .filter((g) => g.items.length > 0);
 
   return (
     <>
@@ -192,8 +209,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
+        {!isCollapsed && (
+          <div className="px-3 pt-2 pb-1">
+            <button
+              type="button"
+              data-testid="sidebar-mode-toggle"
+              onClick={() => setNavMode(effectiveExpert ? 'simple' : 'expert')}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-slate-800/70 hover:bg-slate-800 text-slate-300 border border-slate-700/60 transition-colors"
+            >
+              <span>{effectiveExpert ? labels.modeExpert : labels.modeSimple}</span>
+              <span className="text-[10px] text-emerald-400 font-mono">
+                {effectiveExpert ? 'Simple' : 'Expert →'}
+              </span>
+            </button>
+          </div>
+        )}
+
         <nav className="sidebar-nav">
-          {navGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.title} className="sidebar-group">
               {!isCollapsed && (
                 <div className="sidebar-group-title">{group.title}</div>

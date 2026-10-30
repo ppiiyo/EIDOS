@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.4.0] - 2026-10-30
+
+### Added
+- **Guided 20-Second Demo Onboarding & One-Click Wow Flow** (`apps/workspace/src/pages/DemoPage/`):
+  - Simplified Welcome screen with explicit choice between **Try Demo Catalog (48 SKU)** and **Upload Custom CSV / JSON**.
+  - Automatic readiness check + default intent query (`недорогие наушники для бега`) with side-by-side Lexical vs. Hybrid comparison and expanded 7-factor X-Ray breakdown on first hit.
+  - Human-readable natural language explanation (RU/EN) on the top result with one-click copy button.
+  - Zero-results recovery card with diagnostics, reformulation hints, and one-click filter/query reset.
+- **CSV / JSON Client Contract & Post-Upload Confirmation**:
+  - Standardized CSV contract (`id`, `title` required; `description`, `price`, `category`, `sku`, `brand`, `tags` recommended) documented in `docs/CSV_CONTRACT.md` with downloadable sample `examples/sample-catalog.csv`.
+  - Line-level and field-level `400 Bad Request` validation errors on `/v1/catalog/upsert` and post-upload indexing banner (`N items indexed` + `Search Your Catalog` CTA).
+- **Progressive Disclosure Mode (`Simple` vs. `Expert`)**:
+  - `Simple` mode focuses on core search, alpha slider, side-by-side lexical comparison, and X-Ray inspector while hiding experimental lab modules from the primary navigation.
+- **Production Operations Runbook (`docs/PRODUCTION.md`)**:
+  - Concise production checklist covering `NODE_ENV=production`, API key hierarchy (`EIDOS_MASTER_KEY`, `EIDOS_ADMIN_KEY`, `EIDOS_SEARCH_KEY`), Redis cache, HTTPS reverse proxy, `/v1/health` & `/v1/ready` probes, rate limiting, disk snapshots, and RAM/CPU sizing estimates.
+
+### Changed
+- Unified semantic version `3.4.0` across root manifest, all workspace packages (`@eidos/core`, `@eidos/sdk`, `@eidos/api`, `@eidos/workspace`), OpenAPI spec, UI badges, and documentation.
+
+---
+
+## [3.3.0] - 2026-10-28
+
+### Added
+- **Clean-Start Architecture (`0 SKU`) & Isolated Demo Sandbox**:
+  - Main production store initializes empty (`itemsIndexed = 0`, `initializedEmpty: true` on `/v1/health`).
+  - On-demand demo endpoints (`POST /v1/demo/load`, `POST /v1/demo/reset`) isolate the 48-SKU showcase catalog from user workspaces.
+- **Intent-Aware Search, Search Conversion Funnel & 7-Component X-Ray**:
+  - `IntentDictionary` extraction (`category`, `useCase`, `priceRange`) and funnel telemetry (`GET /v1/analytics/funnel`, `POST /v1/analytics/funnel/event`).
+
+---
+
 ## [3.2.0] - 2026-10-25
 
 ### Added

@@ -14,7 +14,7 @@ export async function registerOpenAPI(fastify: FastifyInstance): Promise<void> {
         title: 'Eidos API — Semantic Search & Adaptive Recommendation Engine',
         description:
           'Production Hybrid Vector Search (BM25 + 384-d HNSW), Cross-Encoder Reranker, Semantic Cache, Index Manager, Multi-Interest User Tower, Contextual Bandits (LinUCB), and SMMR Diversity Re-ranking API.',
-        version: '3.5.0',
+        version: '3.4.0',
         contact: {
           name: 'Eidos Engineering Team',
           url: 'https://github.com/ppiiyo/EIDOS',

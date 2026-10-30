@@ -1,6 +1,6 @@
 {
   "name": "@eidos/sdk",
-  "version": "1.0.0",
+  "version": "3.4.0",
   "description": "Official TypeScript and JavaScript client SDK for Eidos Semantic Recommender API",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

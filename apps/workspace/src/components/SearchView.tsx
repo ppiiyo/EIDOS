@@ -20,6 +20,7 @@ interface SearchViewProps {
   onInspectIn3D: (item: CatalogItem) => void;
   uiLang?: UiLanguage;
   embeddingState?: EmbeddingEngineState;
+  defaultComplexity?: SearchComplexityLevel;
 }
 
 export const SearchView: React.FC<SearchViewProps> = ({
@@ -29,6 +30,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onInspectIn3D,
   uiLang = 'ru',
   embeddingState,
+  defaultComplexity = 'simple',
 }) => {
   const t = UI_TRANSLATIONS[uiLang].search;
   const dominantLang = useMemo(() => {
@@ -41,7 +43,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const [alpha, setAlpha] = useState<number>(0.7);
   const [compareMode, setCompareMode] = useState<boolean>(true);
   const [showXray, setShowXray] = useState<boolean>(true);
-  const [complexityLevel, setComplexityLevel] = useState<SearchComplexityLevel>('expert');
+  const [complexityLevel, setComplexityLevel] = useState<SearchComplexityLevel>(defaultComplexity);
   const [wowTourActive, setWowTourActive] = useState<boolean>(false);
   const [baseHybridHits, setBaseHybridHits] = useState<HybridSearchHit[]>([]);
   const [keywordHits, setKeywordHits] = useState<Array<{ item: CatalogItem; matchedWords: string[] }>>([]);
@@ -64,6 +66,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
     }
     const raw = (targetQuery ?? query).trim();
     const a = targetAlpha ?? alpha;
+    if (targetAlpha !== undefined) setAlpha(targetAlpha);
     if (!raw) {
       setBaseHybridHits(catalog.slice(0, 8).map((item, idx) => ({
         item, fusedScore: Number((0.95 - idx * 0.03).toFixed(4)), denseScore: Number((0.95 - idx * 0.03).toFixed(4)),
@@ -131,13 +134,15 @@ export const SearchView: React.FC<SearchViewProps> = ({
   }, [query, alpha]);
 
   const handleTriggerWowMoment = () => {
-    const wowQuery = dominantLang === 'ru' ? 'недорогие наушники для бега' : 'wireless running headphones under $100';
-    setShowXray(true);
-    setWowTourActive(true);
-    cog.setDisableIntentBoost(false);
-    cog.setDisableMmrPenalty(false);
-    const presetQ = cog.applyScenarioPreset('intent_budget') || wowQuery;
-    void runSearch(presetQ, 0.65);
+    const wowQuery = dominantLang === 'ru' ? 'недорогие наушники для бега' : sampleQueries[0]?.label || 'wireless running headphones';
+    setShowXray(true); setCompareMode(true); setWowTourActive(true);
+    cog.setDisableIntentBoost(false); cog.setDisableMmrPenalty(false);
+    void runSearch(cog.applyScenarioPreset('intent_budget') || wowQuery, 0.65);
+  };
+
+  const handleResetZeroResults = () => {
+    cog.setDisableIntentBoost(false); cog.setDisableMmrPenalty(false);
+    void runSearch(sampleQueries[0]?.label || 'недорогие наушники для бега', 0.7);
   };
 
   const modelStatusLabel =
@@ -158,19 +163,16 @@ export const SearchView: React.FC<SearchViewProps> = ({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span data-testid="embedding-status-badge" className={`badge ${embeddingState?.status === 'ready' ? 'badge-success' : 'badge-warning'}`}>
-            <Cpu size={12} />
-            <span>{modelStatusLabel}</span>
+            <Cpu size={12} /><span>{modelStatusLabel}</span>
           </span>
           <span className="badge badge-accent">
-            <Globe size={12} />
-            <span>{t.corpusScript} {dominantLang.toUpperCase()}</span>
+            <Globe size={12} /><span>{t.corpusScript} {dominantLang.toUpperCase()}</span>
           </span>
           <button type="button" data-testid="toggle-search-xray" onClick={() => setShowXray((v) => !v)} className={showXray ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}>
             <span>{showXray ? 'X-Ray Formula: ON' : 'X-Ray Formula: OFF'}</span>
           </button>
           <button type="button" onClick={() => setCompareMode((v) => !v)} className={compareMode ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}>
-            <Columns size={14} />
-            <span>{compareMode ? t.sideBySideOn : t.sideBySideOff}</span>
+            <Columns size={14} /><span>{compareMode ? t.sideBySideOn : t.sideBySideOff}</span>
           </button>
         </div>
       </div>
@@ -188,25 +190,21 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
         {isLoading && (
           <div data-testid="search-loading-skeleton" className="text-xs text-[var(--accent)] mb-2 animate-pulse">
-            {uiLang === 'ru' ? 'Выполняется гибридный поиск (384-d + BM25 + 3 вектора)...' : 'Running hybrid search (384-d + BM25 + 3 vectors)...'}
+            {uiLang === 'ru' ? 'Выполняется гибридный поиск (384-d + BM25)...' : 'Running hybrid search (384-d + BM25)...'}
           </div>
         )}
 
         {searchError && (
-          <div className="flex items-center justify-between gap-2 p-2.5 mb-3 rounded bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-xs text-[var(--danger)]">
+          <div data-testid="search-error-banner" className="flex items-center justify-between gap-2 p-2.5 mb-3 rounded bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-xs text-[var(--danger)]">
             <span>{searchError}</span>
             <button type="button" data-testid="search-error-retry" onClick={() => void runSearch()} className="btn btn-secondary btn-sm">
-              <RotateCcw size={12} />
-              <span>{uiLang === 'ru' ? 'Повторить' : 'Retry'}</span>
+              <RotateCcw size={12} /><span>{uiLang === 'ru' ? 'Повторить' : 'Retry'}</span>
             </button>
           </div>
         )}
 
         {wasSanitized && (
-          <div className="badge badge-success mb-3">
-            <ShieldCheck size={14} />
-            <span>{t.securityFilteredBadge}</span>
-          </div>
+          <div className="badge badge-success mb-3"><ShieldCheck size={14} /><span>{t.securityFilteredBadge}</span></div>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-4 pt-3.5 border-t border-[var(--border)]">
@@ -235,7 +233,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
         <div className="mt-3 flex items-center gap-2 flex-wrap">
           <span className="text-xs text-[var(--text-sec)]">{t.testQueries}</span>
           {sampleQueries.map((sq) => (
-            <button key={sq.label} type="button" onClick={() => void runSearch(sq.label)} className="btn btn-secondary btn-sm" title={sq.note}>
+            <button key={sq.label} type="button" data-testid="sample-query-chip" onClick={() => void runSearch(sq.label)} className="btn btn-secondary btn-sm" title={sq.note}>
               {sq.label}
             </button>
           ))}
@@ -284,8 +282,11 @@ export const SearchView: React.FC<SearchViewProps> = ({
       <SearchResultsColumns
         compareMode={compareMode} showXray={showXray}
         hybridHits={cog.hybridHits.slice(0, 8)} keywordHits={keywordHits}
-        latencyMs={latencyMs} alpha={cog.effectiveAlpha} t={t}
-        onSelectItem={onSelectItem} onInspectIn3D={onInspectIn3D}
+        latencyMs={latencyMs} alpha={cog.effectiveAlpha} query={query} uiLang={uiLang}
+        suggestedQueries={sampleQueries.map((s) => s.label)}
+        onRetryQuery={(nextQ, nextA) => void runSearch(nextQ, nextA)}
+        onResetFilters={handleResetZeroResults}
+        t={t} onSelectItem={onSelectItem} onInspectIn3D={onInspectIn3D}
         onCardHoverStart={cog.handleCardHoverStart} onCardHoverEnd={cog.handleCardHoverEnd} onPriceHover={cog.handlePriceHover}
       />
     </div>

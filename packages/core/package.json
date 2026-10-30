@@ -1,6 +1,6 @@
 {
   "name": "@eidos/core",
-  "version": "1.0.0",
+  "version": "3.4.0",
   "description": "High-performance vector similarity, graph clustering, HNSW ANN indexing, and entropy algorithms for recommendation systems.",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

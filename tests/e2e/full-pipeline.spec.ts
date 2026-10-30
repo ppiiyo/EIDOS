@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Eidos Full Pipeline E2E Critical Paths', () => {
-  test('1. User searches -> views recommendations -> likes item -> sees updated analytics', async ({
+  test('1. User opens Demo -> waits for index ready -> searches "недорогие наушники для бега" -> sees results & X-Ray -> likes item -> sees updated analytics', async ({
     page,
   }) => {
     await page.goto('/');
 
-    // 1. Navigate to Hybrid Search view and activate Demo mode if on Welcome screen
+    // 1. Activate Demo mode from Welcome screen or Search view
     await page.locator('[data-testid="nav-search"]').first().click();
     const tryDemoBtn = page
       .locator('[data-testid="welcome-demo-btn"], [data-testid="try-demo-btn"]')
@@ -15,16 +15,24 @@ test.describe('Eidos Full Pipeline E2E Critical Paths', () => {
       await tryDemoBtn.click();
     }
 
-    // 2. Search for an item
+    // Wait for Demo Index Ready badge & Search input
+    await expect(page.locator('[data-testid="demo-index-ready-badge"]')).toBeVisible({
+      timeout: 10000,
+    });
     const searchInput = page.locator('[data-testid="search-input"]');
     await expect(searchInput).toBeVisible({ timeout: 10000 });
-    await searchInput.fill('camera');
+
+    // 2. Verify showcase query "недорогие наушники для бега" renders >= 1 hit + X-Ray + human explanation
+    await searchInput.fill('недорогие наушники для бега');
     await searchInput.press('Enter');
 
-    // Wait for results
     const results = page.locator('[data-testid="search-result"]');
     await expect(results.first()).toBeVisible({ timeout: 10000 });
     expect(await results.count()).toBeGreaterThan(0);
+
+    // Verify X-Ray panel and human-readable explanation on first hit
+    await expect(page.locator('[data-testid="search-xray-panel"]').first()).toBeVisible();
+    await expect(page.locator('[data-testid="first-hit-human-explanation"]')).toBeVisible();
 
     // 3. Click first result to open MMR Recommendations
     await results.first().click();

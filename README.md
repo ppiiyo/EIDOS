@@ -10,7 +10,7 @@
 [![Tests](https://img.shields.io/badge/Tests-89_Suites_%7C_374_Passing-10B981?style=for-the-badge)](./tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](./LICENSE)
 
-**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🇬🇧 English Guide ](#-english-documentation)** · **[ 🇷🇺 Руководство на русском ](#-документация-на-русском-языке)** · **[ 🔄 Migration Blueprints ](./docs/MIGRATION.md)**
+**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🇬🇧 English Guide ](#-english-documentation)** · **[ 🇷🇺 Руководство на русском ](#-документация-на-русском-языке)** · **[ 🛡️ Production Runbook ](./docs/PRODUCTION.md)** · **[ 📄 CSV Contract ](./docs/CSV_CONTRACT.md)** · **[ 🔄 Migration Blueprints ](./docs/MIGRATION.md)**
 
 </div>
 
@@ -19,8 +19,8 @@
 # 🇬🇧 English Documentation
 
 ## Table of Contents (EN)
-1. [What is EIDOS v3.0 & Why It Exists](#1-what-is-eidos-v30--why-it-exists)
-2. [Who EIDOS Is For & High-ROI Business Use Cases](#2-who-eidos-is-for--high-roi-business-use-cases)
+1. [What is EIDOS v3.4.0 & Why It Exists](#1-what-is-eidos-v340--why-it-exists)
+2. [Who EIDOS Is For & Business Use Cases](#2-who-eidos-is-for--high-roi-business-use-cases)
 3. [Competitive Comparison Matrix (vs. Algolia, Pinecone, Meilisearch, Constructor.io)](#3-competitive-comparison-matrix)
 4. [60-Second Quick Start & Production Deployment (Docker / Cloud Run)](#4-60-second-quick-start--production-deployment)
 5. [Connecting Your Own Databases (PostgreSQL, MongoDB, CSV, Webhooks)](#5-connecting-your-own-databases-postgresql-mongodb-csv-webhooks)
@@ -34,13 +34,15 @@
 
 ---
 
-## 1. What is EIDOS v3.0 & Why It Exists
+## 1. What is EIDOS v3.4.0 & Why It Exists
 
-**EIDOS v3.0** is an open, self-hostable, sub-15ms **Hybrid Vector Search and Multi-Objective Recommendation Platform** with a built-in **Visual Merchandising & Explainable Ranking Studio**.
+**EIDOS v3.4.0** is an open, self-hostable, sub-15ms **Hybrid Vector Search and Multi-Objective Recommendation Platform** with a built-in **Visual Merchandising & Explainable Ranking Studio**.
 
 Traditional search engines (like Elasticsearch or Meilisearch) fail when users search by meaning or intent, while pure vector databases (like Pinecone or Qdrant) lack lexical precision, business merchandising rules, MMR diversification, and visual tooling for product managers. Enterprise SaaS platforms (like Algolia or Constructor.io) charge steep per-request and per-record fees while operating as opaque black boxes.
 
-**EIDOS v3.3 solves all three problems in a single unified runtime:**
+**EIDOS v3.4.0 solves all three problems in a single unified runtime:**
+- **Production Core (Out-of-the-Box)**: `384-d HNSW + BM25+ + RRF` hybrid retrieval, 7-component Explainable X-Ray + human-readable ranking summary, JSON/CSV catalog upsert with row-level validation ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)), Clean Start (`0 SKU`) + Isolated Demo Sandbox (`48 SKU`), and role-based API keys + atomic snapshots ([`docs/PRODUCTION.md`](./docs/PRODUCTION.md)).
+- **Experimental / Lab Modules**: Kinetic Attention micro-biometrics, Gram-Schmidt Serendipity Ray, Chrono-Cognitive session tempo, and 3D Pareto Weight Optimizer (available in Studio Expert / Lab mode).
 - **True Hybrid Retrieval (`HNSW + BM25+ + RRF`)**: Combines 384-dimensional L2-normalized semantic vectors (`HNSWGraph` with optional `INT8` scalar quantization for 4× RAM savings) with exact lexical `BM25+` matching and Reciprocal Rank Fusion.
 - **3 Next-Gen Cognitive Ranking Vectors + 2D Intent Synthesizer Radar**:
   1. **Vector 1 — Sub-Second Micro-Biometrics (`KineticAttentionEngine`)**: Analyzes live scroll velocity (`px/s`), card hover dwell time (`ms`), A↔B comparison alternations, and price-tag hover frequency into a 16-d kinetic vector—automatically classifying the user as a `sniper`, `comparer`, `price_hesitant`, or `scanner`.
@@ -61,33 +63,35 @@ Traditional search engines (like Elasticsearch or Meilisearch) fail when users s
 | **2. Gram-Schmidt Serendipity Ray (`SerendipityOrthogonalEngine`)** | Projects query vector $\vec{q}$ orthogonally to the top-3 echo-chamber centroid $\vec{u}$: $\vec{v}_\perp = \text{norm}(\vec{q} - (\vec{q}\cdot\vec{u})\vec{u})$. | Eliminates filter bubbles by surfacing cross-category items with $\cos(\vec{c}, \vec{q}) \ge 0.16$ and $|\cos(\vec{c}, \vec{u})| \le 0.62$. |
 | **3. Chrono-Cognitive Tempo (`ChronoCognitiveEngine`)** | Evaluates local hour (`0..23`), session duration, and actions/min (`APM`) to compute exploration temperature $T \in [0.1, 0.95]$. | Shifts ranking from exact SKU precision at `09:00` to serendipitous dopamine discovery at `23:00`. |
 | **4. 2D Intent Synthesizer Radar & Live SDK Exporter** | Interactive XY pad (`axisDiscovery ∈ [-1, 1]`, `axisTier ∈ [-1, 1]`) + 1-click A/B vector scenario presets. | Memoized candidate vectors allow 60 FPS live re-ranking + instant export to `JSON`, `cURL`, `@eidos/sdk`, and `eidos-sdk`. |
-| **5. Intent-Aware Search & Search Funnel ROI (`IntentDictionary`)** | Extracts `category`, `useCase`, and `priceRange` before retrieval; tracks `Searches → Clicks → Cart → Purchases` (`GET /v1/analytics/funnel`). | Controlled via feature flags (`EIDOS_FEATURE_INTENT`, `EIDOS_FEATURE_FUNNEL`, `EIDOS_FEATURE_XRAY`). Delivers +35.3% relative CVR lift. |
+| **5. Intent-Aware Search & Search Funnel ROI (`IntentDictionary`)** | Extracts `category`, `useCase`, and `priceRange` before retrieval; tracks `Searches → Clicks → Cart → Purchases` (`GET /v1/analytics/funnel`). | Controlled via feature flags (`EIDOS_FEATURE_INTENT`, `EIDOS_FEATURE_FUNNEL`, `EIDOS_FEATURE_XRAY`). Tracks conversion funnel in real time during store pilots. |
 | **6. Clean Start (`0 SKU`) vs. Isolated Demo Mode** | `buildServer()` initializes `VectorStore` with `itemsIndexed = 0` (`initializedEmpty: true` in `/v1/health`). Demo items live exclusively in `DemoMode` / `/v1/demo/*`. | Strict separation of concerns: zero demo noise in production workspaces, full 48–1,200 SKU playground on demand. |
 
 ---
 
 ## 2. Who EIDOS Is For & High-ROI Business Use Cases
 
-| Target Audience | How They Use EIDOS v3.0 | Business Impact |
+| Target Audience | How They Use EIDOS v3.4.0 | Business Impact |
 | :--- | :--- | :--- |
-| **E-Commerce & Marketplaces** | Hybrid catalog search, "Similar Items", "Complete the Look", and high-margin inventory boosting. | Higher conversion rate (CVR), higher average order value (AOV), zero "0 results found" pages. |
-| **Media, Streaming & Gaming Platforms** | Personalized feeds (`strategy: 'user'`), Submodular MMR diversity to prevent echo-chamber fatigue, cross-lingual discovery. | +25–40% session depth and discovery of long-tail catalog titles. |
-| **B2B SaaS & Enterprise Catalogs** | Instant semantic + SKU/part-number search across millions of technical items with strict role/tenant metadata filters. | Sub-15ms p99 search latency and 100% data sovereignty on your own infrastructure. |
-| **AI Engineers & RAG Pipelines** | High-recall hybrid retrieval with built-in prompt injection guardrails (`SecurityGuardrails`), CircuitBreaker, and O(1) LRU cache. | Eliminates LLM hallucinations and cuts vector retrieval latency by 10×. |
+| **E-Commerce & Marketplaces** | Hybrid catalog search, "Similar Items", "Complete the Look", and high-margin inventory boosting. | Reduces zero-result pages on natural-language queries and provides transparent ranking telemetry. |
+| **Media, Streaming & Gaming Platforms** | Personalized feeds (`strategy: 'user'`), Submodular MMR diversity to prevent echo-chamber fatigue, cross-lingual discovery. | Improves discovery of long-tail catalog titles via tunable MMR diversity ($\lambda$). |
+| **B2B SaaS & Enterprise Catalogs** | Instant semantic + SKU/part-number search across technical items with strict role/tenant metadata filters. | Sub-15ms p99 in-memory search latency (up to ~50k SKU per node) and 100% data sovereignty. |
+| **AI Engineers & RAG Pipelines** | High-recall hybrid retrieval with built-in prompt injection guardrails (`SecurityGuardrails`), CircuitBreaker, and O(1) LRU cache. | Deterministic hybrid retrieval combining exact keyword BM25+ with 384-d semantic vectors. |
 
 ---
 
 ## 3. Competitive Comparison Matrix
 
-| Capability | **EIDOS v3.0** | **Algolia** | **Pinecone** | **Meilisearch** | **Constructor.io** |
+> **Scope Caveat**: The comparison below evaluates out-of-the-box capabilities for **self-hosted single-node deployments (up to ~50k–100k SKUs in RAM)**. Managed cloud SLAs, multi-region replication, and enterprise dashboards differ across commercial SaaS vendors.
+
+| Capability | **EIDOS v3.4.0** | **Algolia** | **Pinecone** | **Meilisearch** | **Constructor.io** |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Hybrid Search (384-d HNSW + BM25+)** | ✅ Native (`alpha` 0..1) | ⚠️ Paid Enterprise Add-on | ⚠️ Requires external sparse pipeline | ⚠️ Experimental | ✅ Proprietary SaaS |
-| **Built-in 384-d Embeddings (Zero API Cost)** | ✅ Included (CPU + WebGPU) | ❌ Paid quota | ❌ Requires OpenAI / Cohere | ❌ Requires external API | ✅ Included |
-| **Explainable Ranking X-Ray (Per-Hit Math)** | ✅ Full Component Breakdown | ⚠️ Basic rule trace | ❌ Raw score only | ⚠️ Basic score details | ❌ Black-box |
-| **Multi-Objective Business Sliders (Margin / Stock)** | ✅ Real-time in UI & API | ⚠️ Manual rules | ❌ None | ❌ Static sorting only | ✅ Paid Enterprise |
+| **Hybrid Search (384-d HNSW + BM25+)** | ✅ Native (`alpha` 0..1) | ⚠️ Paid Enterprise Add-on | ⚠️ Requires external sparse pipeline | ✅ Supported (v1.3+ w/ embedder) | ✅ Proprietary SaaS |
+| **Built-in 384-d Embeddings (Zero API Cost)** | ✅ Included (CPU + WebGPU) | ⚠️ Paid / NeuralSearch tier | ⚠️ Integrated inference (billed) | ⚠️ Requires external/local embedder | ✅ Included |
+| **Explainable Ranking X-Ray (Per-Hit Math)** | ✅ Full Component Breakdown | ⚠️ Basic rule trace | ❌ Raw score only | ⚠️ `_rankingScoreDetails` | ❌ Black-box |
+| **Multi-Objective Business Sliders (Margin / Stock)** | ✅ Real-time in UI & API | ⚠️ Manual rules | ❌ None | ⚠️ Custom ranking rules | ✅ Paid Enterprise |
 | **Native MMR & Submodular Diversification** | ✅ Built-in ($\lambda \in [0, 1]$) | ❌ Distinct grouping only | ❌ Manual post-processing | ❌ Distinct attribute only | ⚠️ Pod rules |
-| **Contextual Bandits (LinUCB + Online Feedback)** | ✅ Built-in (`/v1/feedback`) | ❌ Separate tier | ❌ None | ❌ None | ✅ Paid Enterprise |
-| **INT8 Vector Quantization (4× RAM Reduction)** | ✅ Native (`Int8Quantizer`) | ❌ Managed only | ✅ Managed only | ❌ None | ❌ Managed only |
+| **Contextual Bandits (LinUCB + Online Feedback)** | ✅ Built-in (`/v1/feedback`) | ⚠️ Separate tier | ❌ None | ❌ None | ✅ Paid Enterprise |
+| **INT8 Vector Quantization (4× RAM Reduction)** | ✅ Native (`Int8Quantizer`) | ❌ Managed only | ✅ Managed only | ⚠️ Binary quantization | ❌ Managed only |
 | **Self-Hosted / Data Privacy / Zero Vendor Lock-in** | ✅ 100% Open & Self-Hostable | ❌ Cloud SaaS only | ❌ Cloud SaaS only | ✅ Open Source | ❌ Cloud SaaS only |
 
 ---
@@ -651,9 +655,9 @@ We build EIDOS in the open. Here's our development plan for the next 12 months:
 
 ---
 
-### ✅ v3.5.0 GA — Production Gate & Operational Foundation (Current Release)
+### ✅ v3.4.0 GA — Post-v3.4 Hardening & Operational Foundation (Current Release)
 
-**Focus:** Meilisearch/Typesense-Grade Security Hierarchy, Structured Logging, Atomic Snapshots & Production Deployment
+**Focus:** Unified Semver (`3.4.0`), 20-Second Unbreakable Demo & Onboarding, Human-Readable X-Ray, Zero-Results UX, CSV Contract & Production Checklist ([`docs/PRODUCTION.md`](./docs/PRODUCTION.md))
 
 - [x] **Role-Based API Key Hierarchy & Zero-Downtime Rotation (P0)**
   - [x] `EIDOS_MASTER_KEY` (root key creation, rotation & revocation only — never exposed to clients)
@@ -670,11 +674,11 @@ We build EIDOS in the open. Here's our development plan for the next 12 months:
 - [x] **Atomic Disk Snapshots, Backups & Operational Admin API (P0/P1)**
   - [x] Scheduled & on-demand atomic snapshots (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) + full catalog export (`GET /v1/catalog/export?format=csv|json`)
   - [x] Lightweight operational endpoints (`GET /v1/admin/stats`, `POST /v1/admin/reindex`, `POST /v1/admin/optimize`, `GET /v1/analytics/queries`)
-  - [x] Production deployment stack (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`)
+  - [x] Production deployment stack (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`, [`docs/PRODUCTION.md`](./docs/PRODUCTION.md))
 
 ---
 
-## 11.1 🛡️ Production Gate & Operational Runbook (v3.5)
+## 11.1 🛡️ Production Gate & Operational Runbook (v3.4.0)
 
 ### Recommended Production Architecture (100k–300k SKU Single-Node)
 
@@ -830,61 +834,64 @@ If you can't contribute financially right now, the single best way to support EI
 
 ---
 
-## 1. О продукте EIDOS v3.0 и его супервозможностях
+## 1. О продукте EIDOS v3.4.0 и его возможностях
 
-**EIDOS v3.0** — это высокопроизводительная self-hosted платформа **гибридного векторного поиска и мультицелевых рекомендаций** с откликом `<15 мс` и встроенной визуальной студией **Explainable Ranking X-Ray**.
+**EIDOS v3.4.0** — это высокопроизводительная self-hosted платформа **гибридного векторного поиска и мультицелевых рекомендаций** с откликом `<15 мс` (на in-memory индексах до ~50k SKU) и встроенной визуальной студией **Explainable Ranking X-Ray**.
 
-Классические поисковики (Elasticsearch, Meilisearch) не понимают смысловой контекст и синонимы, чистые векторные БД (Pinecone, Qdrant) требуют платных внешних эмбеддингов и не имеют инструментов коммерческого мерчандайзинга, а облачные SaaS-гиганты (Algolia, Constructor.io) работают как закрытый «чёрный ящик» с высокими тарифами за каждый запрос.
+Классические поисковики (Elasticsearch, Meilisearch) требуют внешней инфраструктуры для семантики, чистые векторные БД (Pinecone, Qdrant) не имеют встроенного коммерческого мерчандайзинга, а облачные SaaS-решения (Algolia, Constructor.io) работают по по-запросной тарификации.
 
-**Ключевые преимущества EIDOS v3.3.0:**
-- **Гибридное ядро (`384-d HNSW + BM25+ + RRF`)**: Сочетает глубокое семантическое понимание смысла (граф `HNSW` с поддержкой `INT8`-квантования, сжимающего память в 4 раза) и точный лексический поиск по артикулам, брендам и характеристикам (`BM25+`).
-- **3 когнитивных вектора ранжирования + 2D-радар синтеза намерения (`Intent Vector Synthesizer`)**:
-  1. **Вектор 1 — Кинетическая физика внимания (`KineticAttentionEngine`)**: Анализирует микродвижения пользователя в реальном времени (скорость скролла `px/s`, время удержания курсора на карточке `ms`, возвратные переключения сравнения `A↔B`, наведения на ценник) в 16-мерный вектор и мгновенно определяет архетип сессии (`sniper`, `comparer`, `price_hesitant`, `scanner`).
-  2. **Вектор 2 — Ортогональная серендипность против «пузыря фильтров» (`SerendipityOrthogonalEngine`)**: Вычисляет центроид доминирующей выдачи $\vec{u}$ и применяет **ортогонализацию Грама-Шмидта** ($\vec{v}_\perp = \vec{q} - \text{proj}_{\vec{u}}(\vec{q})$), чтобы находить неожиданные, но релевантные междисциплинарные товары (`✦ Serendipity Ray`).
-  3. **Вектор 3 — Хроно-когнитивный биоритм сессии (`ChronoCognitiveEngine`)**: Адаптирует баланс семантики $\alpha$ и температуру исследования $T$ под локальное время суток и усталость сессии (`morning_precision` утром, `afternoon_analytical` днём, `evening_leisure` вечером и `dopamine_discovery` ночью `22:00–05:59`).
-- **Понимание намерения (`Intent-Aware Search`) и 7-компонентный рентген (`QueryInspector X-Ray`)**: Движок автоматически извлекает из поисковой строки категорию (`category`), сценарий использования (`useCase`) и ценовой бюджет (`priceRange`, например, по запросу *«недорогие наушники для бега»*) и визуализирует вклад каждого из 7 факторов (`Dense HNSW`, `BM25+`, `RRF`, `MMR Penalty`, `Business Boost`, `Kinetic Bonus`, `Serendipity Ray`).
-- **Адаптивный маршрутизатор запросов (`AdaptiveQueryRouter`) и Парето-оптимизатор (`ParetoWeightOptimizer`)**: Автоматически выбирает глубину обхода графа (`efSearch = 24 / 64 / 128 + Cross-Encoder`) в зависимости от сложности запроса и строит 3D Парето-фронт (`Релевантность × Разнообразие × Маржинальность`) с выбором оптимальной точки перегиба (`Knee-Point`) за `<0.2 мс`.
-- **Архитектура чистого старта (`0 SKU`) и изолированный Демо-режим**: Основной продукт запускается абсолютно чистым (`itemsIndexed = 0`, `initialItemsIndexed = 0`, `initializedEmpty = true` в `/v1/health`) без зашитых демо-товаров — пользователь сразу загружает свой JSON/CSV каталог или подключает БД. Для знакомства с платформой предусмотрен полностью изолированный **Демо-режим (`48 SKU` + масштабирование до `1 200 SKU`)**, который при выходе очищает песочницу обратно в `0 SKU`.
-- **Оптимизированное ядро (`O(1) LRU Embedding Cache` + мемоизация кандидатов)**: Встроенный LRU-кэш эмбеддингов на 512 ключей (`<0.01 мс` при повторных запросах) и предрасчёт векторов кандидатов обеспечивают плавный отклик 2D-радара (`60 FPS`) и профилирование каждого этапа конвейера (`Embed`, `HNSW+BM25`, `3-Vectors`, `Pareto`).
+**Что входит в EIDOS v3.4.0 (Базовое ядро vs. Лабораторные модули):**
+- **Базовое production-ядро (работает из коробки)**:
+  - Гибридный поиск `384-d HNSW + BM25+ + RRF` с настраиваемым балансом $\alpha \in [0, 1]$.
+  - 7-компонентный рентген ранжирования (`QueryInspector X-Ray`) + человекочитаемое объяснение на русском/английском языке для первого результата.
+  - Пакетная загрузка каталога через CSV/JSON (`POST /v1/catalog/upsert`) с построчной валидацией и образцом [`examples/sample-catalog.csv`](./examples/sample-catalog.csv) (см. [`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)).
+  - Архитектура чистого старта (`0 SKU`) и изолированный Демо-режим (`48 SKU` по кнопке `/v1/demo/load`, полный сброс по `/v1/demo/reset`).
+  - Чек-лист и конфигурация для продакшена: ролевые ключи (`MASTER` / `ADMIN` / `SEARCH`), `/v1/health` + `/v1/ready`, снапшоты на диск с SHA-256 (см. [`docs/PRODUCTION.md`](./docs/PRODUCTION.md)).
+- **Экспериментальные / Лабораторные модули (режим «Эксперт» в Studio UI)**:
+  1. **Вектор 1 — Кинетическая физика внимания (`KineticAttentionEngine`)**: кодирование скорости скролла и наведений курсора в 16-мерный вектор.
+  2. **Вектор 2 — Ортогональная серендипность (`SerendipityOrthogonalEngine`)**: проекция Грама-Шмидта ($\vec{v}_\perp = \vec{q} - \text{proj}_{\vec{u}}(\vec{q})$) для кросс-категорийных открытий.
+  3. **Вектор 3 — Хроно-когнитивный биоритм (`ChronoCognitiveEngine`)** и **3D Парето-оптимизатор весов (`ParetoWeightOptimizer`)**.
 
 ---
 
-### 1.1 Архитектура 3 когнитивных векторов, Intent-Aware Search и оптимизаций движка
+### 1.1 Архитектура модулей движка
 
-| Модуль / Инновация | Математическая и инженерная реализация (`@eidos/core` & `apps/api`) | Бизнес-эффект и оптимизация скорости |
+| Модуль | Реализация (`@eidos/core` & `apps/api`) | Назначение |
 | :--- | :--- | :--- |
-| **1. Кинетический вектор внимания (`KineticAttentionEngine`)** | Сворачивает `[scrollVelocity, hoverDwell, A↔B alternations, priceHovers]` в L2-нормализованный 16-d вектор (`POST /v1/telemetry/kinetic`). | Повышает приоритет выгодных по цене SKU для сомневающихся покупателей (`price_hesitant`) и усиливает точность для `sniper` (`<0.1 мс`). |
-| **2. Луч серендипности Грама-Шмидта (`SerendipityOrthogonalEngine`)** | Проецирует вектор запроса $\vec{q}$ ортогонально центроиду топ-3 хитов $\vec{u}$: $\vec{v}_\perp = \text{norm}(\vec{q} - (\vec{q}\cdot\vec{u})\vec{u})$. | Разрушает «эхо-камеру» однотипных товаров, поднимая кросс-категорийные открытия с $\cos(\vec{c}, \vec{q}) \ge 0.16$ и $|\cos(\vec{c}, \vec{u})| \le 0.62$. |
-| **3. Хроно-когнитивный темпоритм (`ChronoCognitiveEngine`)** | Оценивает час (`0..23`), длительность сессии и `APM`, вычисляя температуру исследования $T \in [0.1, 0.95]$. | Переключает выдачу от утреннего целевого поиска (`09:00`) к вечернему вдохновляющему серфингу (`23:00`). |
-| **4. 2D-радар намерения, 1-клик A/B сценарии и Экспорт SDK** | Интерактивная 2D-координатная плоскость (`Ось открытий X` × `Ось ценового сегмента Y`) + панель экспорта конфигурации. | Мгновенное сравнение 4 пресетов в 1 клик и генерация готового кода (`JSON`, `cURL`, `@eidos/sdk`, `eidos-sdk`). |
-| **5. Воронка поиска (`Search Funnel`) и Калькулятор ROI** | Сквозная аналитика `Поиски → Клики (CTR) → Корзина → Покупки (CVR)` (`GET /v1/analytics/funnel`) и интерактивный расчёт прироста GMV. | Управляется фича-флагами (`EIDOS_FEATURE_INTENT`, `EIDOS_FEATURE_FUNNEL`, `EIDOS_FEATURE_XRAY`). Даёт до `+35.3%` прироста конверсии. |
-| **6. Чистый старт (`0 SKU`) и Изолированная Демо-песочница** | `buildServer()` стартует с пустым `VectorStore` (`itemsIndexed = 0`). Демо-данные загружаются только по запросу (`POST /v1/demo/load`, `POST /v1/demo/reset`). | Полное разделение ответственности (Separation of Concerns): чистый продакшен-контур и наглядная песочница на 48 / 1 200 SKU. |
+| **1. Кинетический вектор внимания (`KineticAttentionEngine`)** | Сворачивает `[scrollVelocity, hoverDwell, A↔B alternations, priceHovers]` в L2-нормализованный 16-d вектор (`POST /v1/telemetry/kinetic`). | Экспериментальное поведенческое реранжирование внутри сессии (`<0.1 мс`). |
+| **2. Луч серендипности Грама-Шмидта (`SerendipityOrthogonalEngine`)** | Проецирует вектор запроса $\vec{q}$ ортогонально центроиду топ-3 хитов $\vec{u}$: $\vec{v}_\perp = \text{norm}(\vec{q} - (\vec{q}\cdot\vec{u})\vec{u})$. | Поднимает кросс-категорийные товары при высоком однообразии топ-выдачи. |
+| **3. Хроно-когнитивный темпоритм (`ChronoCognitiveEngine`)** | Оценивает час (`0..23`), длительность сессии и `APM`, вычисляя температуру исследования $T \in [0.1, 0.95]$. | Адаптация коэффициента $\alpha$ по времени сессии (опциональный модуль). |
+| **4. 2D-радар намерения и Экспорт SDK** | Интерактивная 2D-координатная плоскость (`Ось открытий X` × `Ось ценового сегмента Y`) + панель экспорта конфигурации. | Быстрое тестирование весов и генерация кода (`JSON`, `cURL`, `@eidos/sdk`, `eidos-sdk`). |
+| **5. Воронка поиска (`Search Funnel`)** | Сквозная аналитика `Поиски → Клики (CTR) → Корзина → Покупки (CVR)` (`GET /v1/analytics/funnel`). | Управляется фича-флагами (`EIDOS_FEATURE_INTENT`, `EIDOS_FEATURE_FUNNEL`, `EIDOS_FEATURE_XRAY`) для замера результатов пилота. |
+| **6. Чистый старт (`0 SKU`) и Изолированная Демо-песочница** | `buildServer()` стартует с пустым `VectorStore` (`itemsIndexed = 0`). Демо-данные загружаются только по запросу (`POST /v1/demo/load`, `POST /v1/demo/reset`). | Полное разделение рабочего каталога и демо-песочницы на 48 SKU. |
 
 ---
 
 ## 2. Для кого создан продукт и какие бизнес-задачи он решает
 
-| Сегмент бизнеса | Сценарий использования EIDOS v3.0 | Измеримый бизнес-эффект |
+| Сегмент бизнеса | Сценарий использования EIDOS v3.4.0 | Практический эффект |
 | :--- | :--- | :--- |
-| **E-Commerce и Маркетплейсы** | Умный гибридный поиск по каталогу, блоки «Похожие товары», «С этим покупают», приоритезация высокомаржинальных товаров в наличии. | Рост конверсии в покупку (CVR), увеличение среднего чека (AOV), полное устранение пустой выдачи «Ничего не найдено». |
-| **Медиа, Стриминг и Игровые Платформы** | Персональные ленты рекомендаций (`strategy: 'user'`), субмодулярная диверсификация (SMMR) против «пузыря фильтров». | +25–40% к глубине сессии и вовлечению в «длинный хвост» каталога. |
-| **B2B SaaS и Промышленные Каталоги** | Поиск по миллионам позиций одновременно по смыслу и точным SKU/парт-номерам с фильтрацией по категориям и ценам. | Задержка p99 `< 15 мс` и 100% приватность данных на ваших серверах. |
-| **AI-команды и RAG-системы** | Сверхбыстрый гибридный ретривер со встроенной защитой от Prompt Injection / XSS / SQLi (`SecurityGuardrails`) и `LRUQueryCache`. | Снижение галлюцинаций LLM и ускорение векторного поиска в 10 раз. |
+| **E-Commerce и Маркетплейсы** | Гибридный поиск по смыслу и характеристикам, блоки «Похожие товары», учёт остатков и маржинальности. | Сокращение пустой выдачи («0 результатов») на разговорных запросах и прозрачная настройка весов. |
+| **Медиа и Контентные Платформы** | Персональные ленты рекомендаций (`strategy: 'user'`), диверсификация выдачи через MMR ($\lambda$). | Снижение однообразия рекомендаций и показ позиций из «длинного хвоста» каталога. |
+| **B2B и Технические Каталоги** | Одновременный поиск по смыслу и точным артикулам (`SKU`) с фильтрацией по категориям и ценам. | Задержка p99 `< 15 мс` (на in-memory каталогах до ~50k SKU) и 100% локальное хранение данных. |
+| **AI-команды и RAG-пайплайны** | Гибридный ретривер со встроенной санитизацией запросов (`SecurityGuardrails`) и `LRUQueryCache`. | Сочетание точного совпадения терминов (`BM25+`) и 384-мерной семантики без внешних API-ключей. |
 
 ---
 
 ## 3. Сравнение с конкурентами
 
-| Возможность | **EIDOS v3.0** | **Algolia** | **Pinecone** | **Meilisearch** | **Constructor.io** |
+> **Оговорка об условиях сравнения**: Таблица ниже сравнивает возможности в сценарии **self-hosted single-node инсталляции (до ~50–100 тыс. SKU в оперативной памяти)**. Облачные SLA, гео-репликация и готовые коннекторы к внешним сервисам у коммерческих SaaS-платформ отличаются.
+
+| Возможность | **EIDOS v3.4.0** | **Algolia** | **Pinecone** | **Meilisearch** | **Constructor.io** |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Гибридный поиск (384-d HNSW + BM25+)** | ✅ Из коробки (`alpha` 0..1) | ⚠️ Только в Enterprise-тарифе | ⚠️ Требует отдельного sparse-индекса | ⚠️ Экспериментальный | ✅ Закрытый SaaS |
-| **Встроенная векторизация (0 ₽ / $0 за API)** | ✅ Встроена (CPU + WebGPU) | ❌ Платная квота | ❌ Нужен OpenAI / Cohere API | ❌ Нужен внешний API | ✅ Встроена |
-| **Рентген ранжирования (Explainable X-Ray)** | ✅ Полная формула по каждому SKU | ⚠️ Базовый лог правил | ❌ Только сырой score | ⚠️ Базовый score | ❌ Чёрный ящик |
-| **Бизнес-реранжирование (Маржа / Остатки / Новизна)** | ✅ На лету в UI и API | ⚠️ Ручные правила | ❌ Нет | ❌ Только стат. сортировка | ✅ Дорогой Enterprise |
+| **Гибридный поиск (384-d HNSW + BM25+)** | ✅ Из коробки (`alpha` 0..1) | ⚠️ В старших тарифах | ⚠️ Требует sparse-пайплайна | ✅ Поддерживается (v1.3+) | ✅ Закрытый SaaS |
+| **Локальная векторизация без внешних API** | ✅ Встроена (CPU + WebGPU) | ⚠️ Облачная квота | ⚠️ Тарифицируемый inference | ⚠️ Требует настройки embedder | ✅ Встроена |
+| **Рентген ранжирования (Explainable X-Ray)** | ✅ Полная формула + текст по #1 SKU | ⚠️ Базовый лог правил | ❌ Только сырой score | ⚠️ `_rankingScoreDetails` | ❌ Чёрный ящик |
+| **Бизнес-реранжирование (Маржа / Остатки / Новизна)** | ✅ На лету в UI и API | ⚠️ Ручные правила | ❌ Нет | ⚠️ Пользовательские правила | ✅ Enterprise SaaS |
 | **Нативная диверсификация MMR и SMMR** | ✅ Встроена ($\lambda \in [0, 1]$) | ❌ Только группировка | ❌ Вручную на клиенте | ❌ Только distinct-поле | ⚠️ Правила подов |
-| **Онлайн-обучение LinUCB по кликам и покупкам** | ✅ Встроено (`/v1/feedback`) | ❌ Отдельный продукт | ❌ Нет | ❌ Нет | ✅ Дорогой Enterprise |
-| **Сжатие памяти INT8 Quantization (в 4 раза)** | ✅ Нативно (`Int8Quantizer`) | ❌ Облако | ✅ Облако | ❌ Нет | ❌ Облако |
-| **Self-Hosted / Полный контроль данных** | ✅ 100% открытый и автономный | ❌ Только облако | ❌ Только облако | ✅ Open Source | ❌ Только облако |
+| **Онлайн-обучение LinUCB по кликам и покупкам** | ✅ Встроено (`/v1/feedback`) | ⚠️ Отдельный модуль | ❌ Нет | ❌ Нет | ✅ Enterprise SaaS |
+| **Сжатие памяти INT8 Quantization (в 4 раза)** | ✅ Нативно (`Int8Quantizer`) | ❌ Облако | ✅ Облако | ⚠️ Бинарное квантование | ❌ Облако |
+| **Self-Hosted / Полный контроль данных** | ✅ 100% открытый (MIT) | ❌ Только облако | ❌ Только облако | ✅ Open Source (MIT) | ❌ Только облако |
 
 ---
 
@@ -1415,9 +1422,9 @@ CACHE_TTL_SECONDS=300
 
 ---
 
-### ✅ v3.5.0 GA — Production Gate и операционный фундамент (Текущий релиз)
+### ✅ v3.4.0 GA — Post-v3.4 Hardening и операционный фундамент (Текущий релиз)
 
-**Фокус:** Иерархия ключей безопасности (Meilisearch/Typesense паттерн), структурированное логирование, атомарные снапшоты и готовность к бою
+**Фокус:** Единая версия (`3.4.0`), 20-секундный демо-сценарий, человекочитаемый X-Ray, Zero-Results UX, CSV-контракт ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)) и Production Runbook ([`docs/PRODUCTION.md`](./docs/PRODUCTION.md))
 
 - [x] **Ролевая иерархия API-ключей и ротация без даунтайма (P0)**
   - [x] `EIDOS_MASTER_KEY` — только для выпуска, ротации и отзыва ключей (никогда не передаётся на клиент)
@@ -1434,11 +1441,11 @@ CACHE_TTL_SECONDS=300
 - [x] **Атомарные снапшоты на диск, бэкапы и операционный Admin API (P0/P1)**
   - [x] Автоматические и ручные снапшоты (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) и выгрузка каталога (`GET /v1/catalog/export?format=csv|json`)
   - [x] Операционные эндпоинты без лишнего UI-шума (`GET /v1/admin/stats`, `POST /v1/admin/reindex`, `POST /v1/admin/optimize`, `GET /v1/analytics/queries`)
-  - [x] Готовый продакшен-стек (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`)
+  - [x] Готовый продакшен-стек (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`, [`docs/PRODUCTION.md`](./docs/PRODUCTION.md))
 
 ---
 
-## 11.1 🛡️ Чек-лист готовности к Production и сайзинг ресурсов (v3.5)
+## 11.1 🛡️ Чек-лист готовности к Production и сайзинг ресурсов (v3.4.0)
 
 ### Таблица расчёта ресурсов (RAM и CPU под размер каталога)
 
@@ -1564,7 +1571,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 <div align="center">
 
 **Built with precision for high-velocity engineering & product teams.**
-**[🚀 Open Live EIDOS v3.0 Studio](https://eidos-semantic-ideation-platform.ai.studio/)**
+**[🚀 Open Live EIDOS v3.4.0 Studio](https://eidos-semantic-ideation-platform.ai.studio/)**
 
 </div>
 

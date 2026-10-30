@@ -12,15 +12,15 @@ export interface UploadModalProps {
 
 const BATCH_SIZE = 100;
 
-const SAMPLE_CSV_CONTENT = `id,title,category,price,description,tags
-custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,"Флагманские наушники с активным шумоподавлением ANC, 30 часов автономной работы, LDAC Bluetooth","наушники;sony;anc;bluetooth;музыка"
-custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,"Алюминиевый корпус CNC, беспроводная QMK/VIA клавиатура, переключатели Gateron, Hot-Swap","клавиатура;keychron;механика;гейминг;офис"
-custom-3,"Игровой монитор LG UltraGear 27 OLED 240Hz",Мониторы,64990,"OLED-матрица 2560x1440, время отклика 0.03 мс, частота 240 Гц, G-Sync и HDR10 для киберспорта","монитор;oled;240hz;гейминг;lg"
-custom-4,"Умные часы Garmin Fenix 7X Sapphire Solar",Гаджеты,72990,"Мультиспортивные GPS-часы с солнечной зарядкой, сапфировым стеклом, картами и пульсоксиметром","часы;garmin;спорт;бег;gps"
-custom-5,"Кофемашина DeLonghi Magnifica Evo",Техника для дома,44990,"Автоматическая зерновая кофемашина с капучинатором LatteCrema для эспрессо, капучино и латте","кофемашина;delonghi;дом;кухня;кофе"
-custom-6,"Ноутбук Apple MacBook Air 15 M3 16/512GB",Ноутбуки,139990,"Тонкий и бесшумный ноутбук с чипом M3, дисплеем Liquid Retina 15.3 дюйма и 18 часами работы","ноутбук;macbook;apple;работа;программирование"
-custom-7,"Беговые кроссовки Nike ZoomX Vaporfly Next%",Спорт и обувь,19990,"Ультралегкие марафонские кроссовки с карбоновой пластиной и пеной ZoomX для бега и тренировок","кроссовки;бег;спорт;nike;марафон"
-custom-8,"Эргономичное кресло Herman Miller Aeron",Мебель и офис,119000,"Дышащая сетка Pellicle, поддержка поясницы PostureFit SL для долгой работы за компьютером","кресло;офис;работа;эргономика;дом"`;
+const SAMPLE_CSV_CONTENT = `id,title,category,price,sku,brand,description,tags
+custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,SNY-WH1000XM5,Sony,"Флагманские наушники с активным шумоподавлением ANC, 30 часов автономной работы, LDAC Bluetooth","наушники;sony;anc;bluetooth;музыка"
+custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,KCH-Q1PRO,Keychron,"Алюминиевый корпус CNC, беспроводная QMK/VIA клавиатура, переключатели Gateron, Hot-Swap","клавиатура;keychron;механика;гейминг;офис"
+custom-3,"Игровой монитор LG UltraGear 27 OLED 240Hz",Мониторы,64990,LG-27GR95QE,LG,"OLED-матрица 2560x1440, время отклика 0.03 мс, частота 240 Гц, G-Sync и HDR10 для киберспорта","монитор;oled;240hz;гейминг;lg"
+custom-4,"Умные часы Garmin Fenix 7X Sapphire Solar",Гаджеты,72990,GRM-FENIX7X,Garmin,"Мультиспортивные GPS-часы с солнечной зарядкой, сапфировым стеклом, картами и пульсоксиметром","часы;garmin;спорт;бег;gps"
+custom-5,"Кофемашина DeLonghi Magnifica Evo",Техника для дома,44990,DLG-ECAM290,DeLonghi,"Автоматическая зерновая кофемашина с капучинатором LatteCrema для эспрессо, капучино и латте","кофемашина;delonghi;дом;кухня;кофе"
+custom-6,"Ноутбук Apple MacBook Air 15 M3 16/512GB",Ноутбуки,139990,APL-MBA15M3,Apple,"Тонкий и бесшумный ноутбук с чипом M3, дисплеем Liquid Retina 15.3 дюйма и 18 часами работы","ноутбук;macbook;apple;работа;программирование"
+custom-7,"Беговые кроссовки Nike ZoomX Vaporfly Next%",Спорт и обувь,19990,NKE-ZMXVP,Nike,"Ультралегкие марафонские кроссовки с карбоновой пластиной и пеной ZoomX для бега и тренировок","кроссовки;бег;спорт;nike;марафон"
+custom-8,"Эргономичное кресло Herman Miller Aeron",Мебель и офис,119000,HM-AERON-B,Herman Miller,"Дышащая сетка Pellicle, поддержка поясницы PostureFit SL для долгой работы за компьютером","кресло;офис;работа;эргономика;дом"`;
 
 export const UploadModal: React.FC<UploadModalProps> = ({
   isOpen,

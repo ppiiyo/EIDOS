@@ -4,6 +4,8 @@ export interface ParsedCatalogItem {
   description?: string;
   category?: string;
   price?: number;
+  sku?: string;
+  brand?: string;
   tags?: string[];
   inStock?: boolean;
   [key: string]: unknown;
@@ -54,7 +56,7 @@ export function parseCsvLine(line: string): string[] {
 
 /**
  * Разбирает CSV-текст в массив товаров CatalogItem.
- * Обязательные колонки: id, title.
+ * Обязательные колонки: id, title. Рекомендуемые: description, price, category, sku, brand, tags.
  */
 export function parseCsv(text: string): ParseResult {
   const items: ParsedCatalogItem[] = [];
@@ -79,7 +81,10 @@ export function parseCsv(text: string): ParseResult {
   const titleIdx = headers.indexOf('title');
 
   if (idIdx === -1 || titleIdx === -1) {
-    errors.push('Отсутствуют обязательные колонки: "id" и/или "title".');
+    const missing = [idIdx === -1 ? '"id"' : '', titleIdx === -1 ? '"title"' : '']
+      .filter(Boolean)
+      .join(' и ');
+    errors.push(`Строка 1 (заголовок): отсутствуют обязательные колонки ${missing}.`);
     return { items, errors, warnings };
   }
 
@@ -91,7 +96,8 @@ export function parseCsv(text: string): ParseResult {
     const title = (values[titleIdx] ?? '').trim();
 
     if (!id || !title) {
-      warnings.push(`Строка ${rowNumber}: пропущена (пустой id или title).`);
+      const missingField = !id && !title ? '"id" и "title"' : !id ? '"id"' : '"title"';
+      warnings.push(`Строка ${rowNumber}: пропущена (пустое обязательное поле ${missingField}).`);
       continue;
     }
 
@@ -106,7 +112,7 @@ export function parseCsv(text: string): ParseResult {
         const cleaned = rawVal.replace(/[^\d.-]/g, '');
         const num = parseFloat(cleaned);
         if (Number.isNaN(num) || num < 0) {
-          warnings.push(`Строка ${rowNumber}: некорректная цена "${rawVal}", поле пропущено.`);
+          warnings.push(`Строка ${rowNumber}: некорректное поле "price" ("${rawVal}"), поле пропущено.`);
         } else {
           item.price = num;
         }
@@ -121,6 +127,10 @@ export function parseCsv(text: string): ParseResult {
         item.category = rawVal;
       } else if (header === 'description') {
         item.description = rawVal;
+      } else if (header === 'sku') {
+        item.sku = rawVal;
+      } else if (header === 'brand') {
+        item.brand = rawVal;
       } else {
         item[rawHeaders[colIdx].trim()] = rawVal;
       }
@@ -130,7 +140,11 @@ export function parseCsv(text: string): ParseResult {
   }
 
   if (items.length === 0 && errors.length === 0) {
-    errors.push('Не удалось извлечь ни одного валидного товара из CSV.');
+    if (warnings.length > 0) {
+      errors.push(...warnings);
+    } else {
+      errors.push('Не удалось извлечь ни одного валидного товара из CSV.');
+    }
   }
 
   return { items, errors, warnings };
