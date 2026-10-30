@@ -311,15 +311,50 @@ export class MetricsRegistry {
   public metrics(): string {
     const parts = this.metricsList.map((m) => m.render());
 
-    // Include process runtime metrics if running in Node.js
+    // Include process runtime & memory metrics if running in Node.js
     if (typeof process !== 'undefined' && typeof process.uptime === 'function') {
       try {
         parts.push(
           `# HELP nodejs_process_uptime_seconds Process uptime in seconds\n# TYPE nodejs_process_uptime_seconds gauge\nnodejs_process_uptime_seconds ${process.uptime()}`
         );
+        if (typeof process.memoryUsage === 'function') {
+          const mem = process.memoryUsage();
+          parts.push(
+            `# HELP process_resident_memory_bytes Resident memory size in bytes\n# TYPE process_resident_memory_bytes gauge\nprocess_resident_memory_bytes ${mem.rss}`
+          );
+          parts.push(
+            `# HELP nodejs_heap_used_bytes Process heap used in bytes\n# TYPE nodejs_heap_used_bytes gauge\nnodejs_heap_used_bytes ${mem.heapUsed}`
+          );
+          parts.push(
+            `# HELP nodejs_heap_total_bytes Process heap total in bytes\n# TYPE nodejs_heap_total_bytes gauge\nnodejs_heap_total_bytes ${mem.heapTotal}`
+          );
+        }
       } catch {
         // ignore
       }
+    }
+
+    // Also render standard unprefixed production Prometheus metric names for compatibility with standard Grafana/Alertmanager rules
+    const findMetric = (name: string) => this.metricsList.find((m) => m.name === name);
+    const searchLat = findMetric('eidos_search_latency_seconds');
+    if (searchLat) {
+      parts.push(searchLat.render().replace(/eidos_search_latency_seconds/g, 'search_latency_seconds'));
+    }
+    const reqTotal = findMetric('eidos_requests_total');
+    if (reqTotal) {
+      parts.push(reqTotal.render().replace(/eidos_requests_total/g, 'search_requests_total'));
+    }
+    const storeSize = findMetric('eidos_vector_store_size');
+    if (storeSize) {
+      parts.push(storeSize.render().replace(/eidos_vector_store_size/g, 'index_size_items'));
+    }
+    const hitRate = findMetric('eidos_cache_hit_rate');
+    if (hitRate) {
+      parts.push(hitRate.render().replace(/eidos_cache_hit_rate/g, 'cache_hit_ratio'));
+    }
+    const embedLat = findMetric('eidos_embedding_latency_seconds');
+    if (embedLat) {
+      parts.push(embedLat.render().replace(/eidos_embedding_latency_seconds/g, 'embedding_time_seconds'));
     }
 
     return parts.join('\n\n') + '\n';

@@ -28,6 +28,7 @@ import { NeuralCrossEncoderReranker } from '../services/reranker';
 import { intentDictionary } from '../services/intent-dictionary';
 import { traceSpan } from '../tracing';
 import { recordSearchLatency } from '../plugins/observability';
+import { OperationalLogStore, summarizeQueryForLog } from '../services/structured-logger';
 
 const cognitiveContextSchema = z
   .object({
@@ -139,7 +140,11 @@ export async function searchRoutes(
         cognitiveContext,
       } = parseResult.data;
       const limit = rawLimit ?? topK ?? 10;
-      const effectiveCategory = filterCategory ?? filters?.category;
+      const scopedCategory =
+        typeof request.apiKeyContext?.allowedFilters?.category === 'string'
+          ? request.apiKeyContext.allowedFilters.category
+          : undefined;
+      const effectiveCategory = scopedCategory ?? filterCategory ?? filters?.category;
 
       let activeStore: VectorStore;
       let tenantId: string;
@@ -235,6 +240,20 @@ export async function searchRoutes(
         const hitLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
         recordSearchLatency(hitLatencyMs, `${mode}_cache_hit`);
         reply.header('x-cache', 'HIT');
+        const qSummary = summarizeQueryForLog(safeQuery);
+        OperationalLogStore.getInstance().record('info', 'search.executed', {
+          requestId: request.headers['x-request-id'] as string,
+          tenantId,
+          indexName,
+          keyId: request.apiKeyContext?.keyId,
+          latencyMs: hitLatencyMs,
+          details: {
+            ...qSummary,
+            resultCount: Array.isArray(cachedResponse.results) ? cachedResponse.results.length : 0,
+            cacheStatus: 'HIT',
+            mode,
+          },
+        });
         const { extractedIntent: _cachedIntent, ...restCached } = cachedResponse;
         return {
           ...restCached,
@@ -519,6 +538,21 @@ export async function searchRoutes(
           serendipityDiscoveriesCount: freshResults.filter((r) => r.isSerendipityDiscovery).length,
         },
       };
+
+      const qSummary = summarizeQueryForLog(safeQuery);
+      OperationalLogStore.getInstance().record('info', 'search.executed', {
+        requestId: request.headers['x-request-id'] as string,
+        tenantId,
+        indexName,
+        keyId: request.apiKeyContext?.keyId,
+        latencyMs,
+        details: {
+          ...qSummary,
+          resultCount: freshResults.length,
+          cacheStatus: 'MISS',
+          mode,
+        },
+      });
 
       // 3. Only cache if key and response are safe (Cache Poisoning Protection)
       if (keySafe && isResponseCacheable(responsePayload)) {

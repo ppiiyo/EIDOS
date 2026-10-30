@@ -1,8 +1,17 @@
 import 'fastify';
-import { ApiKeyManager } from '../services/api-key-manager';
+import { ApiKeyManager, ApiKeyScopeRole } from '../services/api-key-manager';
 import { StoreRegistry } from '../services/store-registry';
 import { ClusterStateCoordinator } from '../services/cluster-coordinator';
 import { SearchFunnelService } from '../services/search-funnel';
+
+export interface AuthenticatedKeyContext {
+  keyId: string;
+  role: ApiKeyScopeRole;
+  tenantId: string;
+  isMasterKey?: boolean;
+  allowedIndexes?: string[];
+  allowedFilters?: Record<string, unknown>;
+}
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -37,6 +46,10 @@ declare module 'fastify' {
      * Resolved multi-tenant namespace identifier (defaults to 'default').
      */
     tenantId?: string;
+    /**
+     * Resolved API key hierarchy & scope context attached by authenticate middleware.
+     */
+    apiKeyContext?: AuthenticatedKeyContext;
     /**
      * High-resolution request start timestamp recorded by observabilityPlugin.
      */

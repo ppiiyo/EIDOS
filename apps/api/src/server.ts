@@ -17,6 +17,7 @@ import {
 import { initTracing } from './tracing';
 import { getCache } from './services/cache';
 import { ClusterStateCoordinator } from './services/cluster-coordinator';
+import { validateProductionKeyPolicy } from './middleware/auth';
 
 export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache, intentDictionary };
 
@@ -38,15 +39,26 @@ function ensureProcessShutdownSnapshotHooks(): void {
 }
 
 export async function buildServer(): Promise<FastifyInstance> {
+  if (process.env.EIDOS_STRICT_PROD_BOOT === 'true') {
+    const keyPolicy = validateProductionKeyPolicy(process.env);
+    if (!keyPolicy.valid) {
+      throw new Error(`[EIDOS Production Security Gate] ${keyPolicy.reason}`);
+    }
+  }
+
   initTracing();
   ensureProcessShutdownSnapshotHooks();
 
+  const configuredLogLevel = process.env.EIDOS_LOG_LEVEL || 'info';
   const fastify = Fastify({
     logger:
       process.env.DEBUG_ROUTES === 'true'
         ? { level: 'debug', transport: { target: 'pino-pretty' } }
-        : process.env.NODE_ENV === 'production'
-          ? { level: 'info' }
+        : process.env.NODE_ENV === 'production' || Boolean(process.env.EIDOS_LOG_LEVEL)
+          ? {
+              level: configuredLogLevel,
+              redact: ['req.headers.authorization', 'req.headers["x-api-key"]'],
+            }
           : false,
     ignoreTrailingSlash: true,
     connectionTimeout: 15_000,
@@ -77,6 +89,18 @@ export async function buildServer(): Promise<FastifyInstance> {
     await vectorStore.loadSnapshotFromDisk(embedder);
   }
 
+  // Optional periodic automatic snapshot scheduler
+  const snapshotIntervalMs = Number(process.env.EIDOS_SNAPSHOT_INTERVAL_MS || 0);
+  let periodicSnapshotTimer: NodeJS.Timeout | null = null;
+  if (snapshotIntervalMs >= 1000) {
+    periodicSnapshotTimer = setInterval(() => {
+      void vectorStore.saveSnapshotAsync();
+    }, snapshotIntervalMs);
+    if (periodicSnapshotTimer.unref) {
+      periodicSnapshotTimer.unref();
+    }
+  }
+
   Metrics.vectorStoreSize.set(vectorStore.count());
   Metrics.activeIndexesTotal.set(1);
 
@@ -105,6 +129,10 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Attach vectorStore cleanup, graceful drain & synchronous snapshot persistence on Fastify close
   fastify.addHook('onClose', async () => {
+    if (periodicSnapshotTimer) {
+      clearInterval(periodicSnapshotTimer);
+      periodicSnapshotTimer = null;
+    }
     clusterCoordinator.setDraining(true);
     clusterCoordinator.close();
     vectorStore.saveSnapshotSync();
@@ -127,6 +155,11 @@ export async function buildServer(): Promise<FastifyInstance> {
 export const buildApp = buildServer;
 
 if (require.main === module) {
+  const keyPolicy = validateProductionKeyPolicy(process.env);
+  if (!keyPolicy.valid) {
+    console.error(`[EIDOS Production Security Gate] ${keyPolicy.reason}`);
+    process.exit(1);
+  }
   const port = Number(process.env.PORT || 8080);
   buildServer()
     .then(async (app) => {

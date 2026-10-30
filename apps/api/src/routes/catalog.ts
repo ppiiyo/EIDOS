@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { Metrics } from '@eidos/core';
+import { Metrics, SecurityGuardrails } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { ServerEmbedder } from '../services/embedder';
 import { VectorStore } from '../services/vector-store';
@@ -10,6 +10,7 @@ import { getCache, CacheKeys, getSemanticCache } from '../services/cache';
 import { RBACManager, AuditLogger } from '../services/multi-tenancy';
 import { StoreError, StoreRegistry, withTimeout } from '../services/store-registry';
 import { getAverageSearchLatencyMs } from '../plugins/observability';
+import { OperationalLogStore } from '../services/structured-logger';
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -168,12 +169,18 @@ export async function catalogRoutes(
         }
 
         let upserted = 0;
+        const batchStartMs = performance.now();
         const useFastLeaf = validItems.length >= 100 && store.count() >= 500;
         for (const item of validItems) {
+          const cleanTitle = SecurityGuardrails.scanAndSanitize(item.title).sanitizedInput || item.title;
+          const cleanDesc = item.description
+            ? SecurityGuardrails.scanAndSanitize(item.description).sanitizedInput || item.description
+            : '';
           store.upsert(
             {
               ...item,
-              description: item.description || '',
+              title: cleanTitle,
+              description: cleanDesc,
               category: item.category || 'General',
               tags: item.tags || [],
               embedding: item.embedding!,
@@ -202,6 +209,15 @@ export async function catalogRoutes(
             metadata: { upserted, failed },
           });
 
+          OperationalLogStore.getInstance().record('info', 'catalog.indexing', {
+            requestId: request.headers['x-request-id'] as string,
+            tenantId,
+            indexName,
+            keyId: request.apiKeyContext?.keyId,
+            latencyMs: Math.round((performance.now() - batchStartMs) * 100) / 100,
+            details: { operation: 'upsert_batch', batchSize: upserted, failed },
+          });
+
           void store.saveSnapshotAsync();
         }
 
@@ -213,19 +229,26 @@ export async function catalogRoutes(
       }
 
       // Single item mode: {id, title, ...}
+      const singleStartMs = performance.now();
       const validated = upsertItemSchema.parse(request.body);
       storeRegistry.assertItemQuota(tenantId, indexName, 1);
 
+      const cleanTitle = SecurityGuardrails.scanAndSanitize(validated.title).sanitizedInput || validated.title;
+      const cleanDesc = validated.description
+        ? SecurityGuardrails.scanAndSanitize(validated.description).sanitizedInput || validated.description
+        : '';
+
       let embedding = validated.embedding;
       if (!embedding || embedding.length === 0) {
-        const text = `${validated.title}. ${validated.category}. ${validated.tags.join(', ')}. ${validated.description}`;
+        const text = `${cleanTitle}. ${validated.category}. ${validated.tags.join(', ')}. ${cleanDesc}`;
         const vec = await withTimeout(opts.embedder.embed(text), 5_000, 'catalog.upsertEmbed');
         embedding = Array.from(vec);
       }
 
       store.upsert({
         ...validated,
-        description: validated.description || '',
+        title: cleanTitle,
+        description: cleanDesc,
         category: validated.category || 'General',
         tags: validated.tags || [],
         embedding,
@@ -249,6 +272,15 @@ export async function catalogRoutes(
         resourceId: validated.id,
       });
 
+      OperationalLogStore.getInstance().record('info', 'catalog.indexing', {
+        requestId: request.headers['x-request-id'] as string,
+        tenantId,
+        indexName,
+        keyId: request.apiKeyContext?.keyId,
+        latencyMs: Math.round((performance.now() - singleStartMs) * 100) / 100,
+        details: { operation: 'upsert_single', batchSize: 1, itemId: validated.id },
+      });
+
       void store.saveSnapshotAsync();
 
       return reply.status(200).send({
@@ -258,7 +290,7 @@ export async function catalogRoutes(
         errors: [],
         item: {
           id: validated.id,
-          title: validated.title,
+          title: cleanTitle,
           category: validated.category,
         },
       });

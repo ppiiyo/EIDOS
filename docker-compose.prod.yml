@@ -1,72 +1,83 @@
 version: '3.9'
 
+# ==============================================================================
+# EIDOS v3.5 Production Deployment Stack
+# Components: EIDOS API + Redis 7 (AOF) + Prometheus + Grafana + Caddy HTTPS
+# ==============================================================================
+
 services:
-  api:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: eidos-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      eidos-api:
+        condition: service_healthy
+    networks:
+      - eidos-prod
+
+  eidos-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: eidos-api-prod
-    restart: always
+    container_name: eidos-api
+    restart: unless-stopped
+    expose:
+      - "8080"
     ports:
-      - "${PORT:-8080}:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       NODE_ENV: production
-      PORT: 8080
-      EIDOS_PORT: 8080
-      EIDOS_API_KEY: ${EIDOS_API_KEY:?EIDOS_API_KEY is required in production}
-      EIDOS_MASTER_KEY: ${EIDOS_MASTER_KEY:-}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://eidos:eidos_prod_password@postgres:5432/eidos}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
-      SEMANTIC_CACHE_SIMILARITY_THRESHOLD: ${SEMANTIC_CACHE_SIMILARITY_THRESHOLD:-0.95}
-      HNSW_M: ${HNSW_M:-16}
-      HNSW_EF_CONSTRUCTION: ${HNSW_EF_CONSTRUCTION:-200}
-      HNSW_EF_SEARCH: ${HNSW_EF_SEARCH:-64}
-      RERANKER_ENABLED: ${RERANKER_ENABLED:-true}
-      AIL_ENABLED: ${AIL_ENABLED:-true}
+      PORT: "8080"
+      EIDOS_STRICT_PROD_BOOT: "true"
+      EIDOS_MASTER_KEY: ${EIDOS_MASTER_KEY:?EIDOS_MASTER_KEY must be set in production}
+      EIDOS_ADMIN_KEY: ${EIDOS_ADMIN_KEY:?EIDOS_ADMIN_KEY must be set in production}
+      EIDOS_SEARCH_KEY: ${EIDOS_SEARCH_KEY:-}
+      EIDOS_LOG_LEVEL: ${EIDOS_LOG_LEVEL:-info}
+      EIDOS_DATA_DIR: /data/db
+      EIDOS_SNAPSHOT_PATH: /data/snapshots
+      EIDOS_SNAPSHOT_INTERVAL_MS: ${EIDOS_SNAPSHOT_INTERVAL_MS:-3600000}
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://search.yourdomain.com}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      NODE_OPTIONS: "--max-old-space-size=4096"
+    volumes:
+      - eidos_data:/data/db
+      - eidos_snapshots:/data/snapshots
+      - eidos_models:/app/models
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/v1/health/live').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/v1/ready"]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 20s
-    volumes:
-      - eidos_data:/app/data
+      retries: 3
+      start_period: 25s
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 6G
+        reservations:
+          cpus: "2.0"
+          memory: 2G
     networks:
-      - eidos_prod_net
-
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: eidos-postgres-prod
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-eidos}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eidos_prod_password}
-      POSTGRES_DB: ${POSTGRES_DB:-eidos}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eidos} -d ${POSTGRES_DB:-eidos}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - eidos_prod_net
+      - eidos-prod
 
   redis:
-    image: redis:7-alpine
-    container_name: eidos-redis-prod
-    restart: always
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    image: redis:7.2-alpine
+    container_name: eidos-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -74,51 +85,64 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1536M
     networks:
-      - eidos_prod_net
+      - eidos-prod
 
   prometheus:
     image: prom/prometheus:v2.53.0
-    container_name: eidos-prometheus-prod
-    restart: always
+    container_name: eidos-prometheus
+    restart: unless-stopped
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - '--web.enable-lifecycle'
     volumes:
-      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+    expose:
+      - "9090"
+    ports:
+      - "127.0.0.1:9090:9090"
     depends_on:
-      - api
+      - eidos-api
     networks:
-      - eidos_prod_net
+      - eidos-prod
 
   grafana:
     image: grafana/grafana:11.1.0
-    container_name: eidos-grafana-prod
-    restart: always
+    container_name: eidos-grafana
+    restart: unless-stopped
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-eidos_admin_2026}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
     networks:
-      - eidos_prod_net
+      - eidos-prod
 
 volumes:
   eidos_data:
-  postgres_data:
+  eidos_snapshots:
+  eidos_models:
   redis_data:
   prometheus_data:
   grafana_data:
+  caddy_data:
+  caddy_config:
 
 networks:
-  eidos_prod_net:
+  eidos-prod:
     driver: bridge

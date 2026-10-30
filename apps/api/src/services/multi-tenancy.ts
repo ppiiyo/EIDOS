@@ -99,16 +99,22 @@ export class TenantNamespaceManager {
  */
 export class RBACManager {
   public static resolveRole(
-    request?: FastifyRequest | { headers?: Record<string, unknown>; demoMode?: boolean }
+    request?: FastifyRequest | { headers?: Record<string, unknown>; demoMode?: boolean; apiKeyContext?: { role?: string } }
   ): EidosRole {
     if (!request || !request.headers) return 'readonly';
     if (request.demoMode) return 'readonly';
+
+    const ctxRole = (request as { apiKeyContext?: { role?: string } }).apiKeyContext?.role;
+    if (ctxRole === 'master' || ctxRole === 'admin') return 'admin';
+    if (ctxRole === 'search') return 'readonly';
+    if (ctxRole === 'merchandiser') return 'merchandiser';
 
     const apiKey = String(request.headers['x-api-key'] || '');
     if (
       apiKey.includes('demo_key') ||
       apiKey.startsWith('eidos_readonly_') ||
-      apiKey.startsWith('eidos_viewer_')
+      apiKey.startsWith('eidos_viewer_') ||
+      apiKey.startsWith('eidos_pk_')
     ) {
       return 'readonly';
     }
@@ -118,7 +124,8 @@ export class RBACManager {
       explicitRole === 'merchandiser' ||
       explicitRole === 'editor' ||
       apiKey.startsWith('eidos_merch_') ||
-      apiKey.startsWith('eidos_editor_')
+      apiKey.startsWith('eidos_editor_') ||
+      apiKey.startsWith('eidos_mk_')
     ) {
       return explicitRole === 'editor' ? 'editor' : 'merchandiser';
     }

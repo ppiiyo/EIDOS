@@ -651,21 +651,67 @@ We build EIDOS in the open. Here's our development plan for the next 12 months:
 
 ---
 
-### 🔮 v3.5 — Future (Q4 2026)
+### ✅ v3.5.0 GA — Production Gate & Operational Foundation (Current Release)
 
-**Focus:** Multimodal Search & Cloud-Native Ecosystem
+**Focus:** Meilisearch/Typesense-Grade Security Hierarchy, Structured Logging, Atomic Snapshots & Production Deployment
 
-- [ ] **Multimodal Search (Text + Image + Audio)**
-  - [ ] Visual similarity search (`CLIP` / `SigLIP` INT8 quantized embeddings)
-  - [ ] "Search by photo" and "Find similar styles" for fashion & home decor
-- [ ] **Cloud-Native Deployment**
-  - [ ] Official Helm chart for Kubernetes with Horizontal Pod Autoscaler (HPA)
-  - [ ] Terraform modules for AWS ECS, Google Cloud Run, and DigitalOcean
-  - [ ] One-click deploy templates for Railway, Render, and Fly.io
-- [ ] **Developer Experience**
-  - [ ] Go SDK (`eidos-go`) and Rust SDK (`eidos-rs`)
-  - [ ] GraphQL API layer alongside REST and OpenAPI 3.1
-  - [ ] CLI tool (`npx eidos-cli`) for index migrations and local benchmarking
+- [x] **Role-Based API Key Hierarchy & Zero-Downtime Rotation (P0)**
+  - [x] `EIDOS_MASTER_KEY` (root key creation, rotation & revocation only — never exposed to clients)
+  - [x] `EIDOS_ADMIN_KEY` (`role: 'admin'`) — full operational access (`catalog/upsert`, `snapshots`, `admin/stats`, `analytics`)
+  - [x] `EIDOS_SEARCH_KEY` (`role: 'search'`, `eidos_pk_*`) — strictly limited to `/v1/search`, `/v1/recommend`, and public reads (`403 Forbidden` on write/admin routes)
+  - [x] Scoped Tenant & Filter keys (`tenant_id`, `allowed_indexes`, `allowed_filters`, `expires_at`) + zero-downtime key rotation (`POST /v1/admin/keys/rotate` with configurable `grace_period_seconds`)
+  - [x] Strict production boot check (`validateProductionKeyPolicy`) refusing weak/missing keys when `NODE_ENV=production`
+- [x] **Structured JSON Logging & Operational Audit Trail (P0)**
+  - [x] Configurable `EIDOS_LOG_LEVEL` (`error | warn | info | debug`) with automatic API key masking (`eidos_mk_...26`)
+  - [x] Structured telemetry for every search (`queryHash`, `latencyMs`, `resultCount`, `cacheStatus`), indexing batch, auth failure, and key rotation (`GET /v1/admin/logs`)
+- [x] **Readiness Probes & Production Prometheus Metrics (P0)**
+  - [x] Liveness (`GET /v1/health`) and deep readiness (`GET /v1/ready` verifying `vectorStore`, `WAL/database`, `embeddingModel`, and `redis`)
+  - [x] Standard Prometheus metrics on `/metrics`: `search_latency_seconds`, `search_requests_total`, `index_size_items`, `cache_hit_ratio`, `embedding_time_seconds`, `process_resident_memory_bytes`
+- [x] **Atomic Disk Snapshots, Backups & Operational Admin API (P0/P1)**
+  - [x] Scheduled & on-demand atomic snapshots (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) + full catalog export (`GET /v1/catalog/export?format=csv|json`)
+  - [x] Lightweight operational endpoints (`GET /v1/admin/stats`, `POST /v1/admin/reindex`, `POST /v1/admin/optimize`, `GET /v1/analytics/queries`)
+  - [x] Production deployment stack (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`)
+
+---
+
+## 11.1 🛡️ Production Gate & Operational Runbook (v3.5)
+
+### Recommended Production Architecture (100k–300k SKU Single-Node)
+
+```text
+[Client / Storefront] ──(HTTPS + EIDOS_SEARCH_KEY)──► [Caddy / Nginx Reverse Proxy (TLS, Rate Limit)]
+                                                               │
+[Backend / ERP / CDC] ──(HTTPS + EIDOS_ADMIN_KEY)───► [EIDOS API Node (HNSW + BM25+ + WAL)]
+                                                        ├──► [Redis 7 (AOF Query & Embedding Cache)]
+                                                        ├──► [/data/db & /data/snapshots (NVMe Volume)]
+                                                        └──► [Prometheus + Grafana (Internal /metrics)]
+```
+
+### Resource Sizing Guide (RAM & CPU by Catalog Size)
+
+| Catalog Size (SKUs) | Vector Precision | Recommended RAM | Recommended vCPU | Expected P95 Search Latency |
+| :--- | :--- | :--- | :--- | :--- |
+| **Up to 10,000 SKUs** | `FP32` (384-d) | **2 GB RAM** | 2 vCPU | `< 5 ms` |
+| **50,000 – 100,000 SKUs** | `FP32` / `INT8` | **4 GB – 6 GB RAM** | 4 vCPU | `< 12 ms` |
+| **250,000 – 500,000 SKUs** | `INT8 Quantized` (4x compression) | **8 GB – 12 GB RAM** | 4–8 vCPU | `< 18 ms` |
+| **1,000,000+ SKUs** | `INT8` + Sharded Cluster (3 shards) | **16 GB+ RAM** | 8+ vCPU | `< 25 ms` |
+
+### Production Readiness Checklist
+
+- [ ] **1. Configure API Key Hierarchy**: Set strong `EIDOS_MASTER_KEY` and `EIDOS_ADMIN_KEY` (`>= 12` chars) in `.env`. Issue scoped `Search Keys` (`POST /v1/admin/keys` with `"role": "search"`) for browser/mobile clients.
+- [ ] **2. Enable Strict Production Boot**: Run with `NODE_ENV=production` and `EIDOS_STRICT_PROD_BOOT=true` (enabled by default in `docker-compose.prod.yml`).
+- [ ] **3. Mount Persistent Volumes**: Mount `/data/db` (`EIDOS_DATA_DIR`) and `/data/snapshots` (`EIDOS_SNAPSHOT_PATH`) on persistent SSD/NVMe storage.
+- [ ] **4. Configure Automated Snapshots & Backups**: Set `EIDOS_SNAPSHOT_INTERVAL_MS=3600000` (hourly snapshots) and archive `/data/snapshots/*.json` or `GET /v1/catalog/export?format=csv` to S3/GCS.
+- [ ] **5. Place Behind HTTPS Reverse Proxy**: Use `deploy/Caddyfile` or `deploy/nginx.conf` to enforce TLS 1.3, HSTS, and restrict `/metrics` to internal monitoring IPs.
+- [ ] **6. Configure Monitoring & Alerts**: Point Prometheus at `eidos-api:8080/metrics` and alert on:
+  - `histogram_quantile(0.95, sum(rate(search_latency_seconds_bucket[5m])) by (le)) > 0.15` (P95 latency > 150ms)
+  - `process_resident_memory_bytes / (6 * 1024 * 1024 * 1024) > 0.85` (RAM > 85% of container limit)
+  - `/v1/ready` returning HTTP `503`
+
+```bash
+# Launch the complete Production Stack (EIDOS + Redis + Prometheus + Grafana + Caddy HTTPS)
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
 ---
 
@@ -1369,21 +1415,53 @@ CACHE_TTL_SECONDS=300
 
 ---
 
-### 🔮 v3.5 — Будущее (Q4 2026)
+### ✅ v3.5.0 GA — Production Gate и операционный фундамент (Текущий релиз)
 
-**Фокус:** Мультимодальный поиск и облачная экосистема
+**Фокус:** Иерархия ключей безопасности (Meilisearch/Typesense паттерн), структурированное логирование, атомарные снапшоты и готовность к бою
 
-- [ ] **Мультимодальный поиск (Текст + Изображения + Аудио)**
-  - [ ] Визуальный поиск по картинкам (`CLIP` / `SigLIP` с квантованием INT8)
-  - [ ] «Поиск по фото» и «Найти похожий стиль» для fashion и товаров для дома
-- [ ] **Cloud-Native развёртывание**
-  - [ ] Официальный Helm-чарт для Kubernetes с автоскейлингом (HPA)
-  - [ ] Terraform-модули для AWS ECS, Google Cloud Run и Yandex Cloud
-  - [ ] Шаблоны быстрого деплоя для Railway, Render и Fly.io
-- [ ] **Инструменты для разработчиков (DX)**
-  - [ ] Официальные SDK для Go (`eidos-go`) и Rust (`eidos-rs`)
-  - [ ] Поддержка GraphQL API наряду с REST и OpenAPI 3.1
-  - [ ] CLI-утилита (`npx eidos-cli`) для миграции индексов и локальных бенчмарков
+- [x] **Ролевая иерархия API-ключей и ротация без даунтайма (P0)**
+  - [x] `EIDOS_MASTER_KEY` — только для выпуска, ротации и отзыва ключей (никогда не передаётся на клиент)
+  - [x] `EIDOS_ADMIN_KEY` (`role: 'admin'`) — полный доступ к записи (`catalog/upsert`, `snapshots`, `admin/stats`, `analytics`)
+  - [x] `EIDOS_SEARCH_KEY` (`role: 'search'`, `eidos_pk_*`) — безопасный публичный ключ только для `/v1/search` и `/v1/recommend` (возвращает `403 Forbidden` при попытке записи или доступа к `/v1/admin/*`)
+  - [x] Scoped / Tenant-ключи (`tenant_id`, `allowed_indexes`, `allowed_filters`, `expires_at`) и бесшовная ротация ключей (`POST /v1/admin/keys/rotate` с окном `grace_period_seconds`)
+  - [x] Жёсткая проверка безопасности при старте в продакшене (`validateProductionKeyPolicy`)
+- [x] **Структурированные JSON-логи и журнал операций (P0)**
+  - [x] Настраиваемый уровень `EIDOS_LOG_LEVEL` (`error | warn | info | debug`) с автоматическим маскированием секретных ключей (`eidos_mk_...26`)
+  - [x] Логирование каждого поискового запроса (`queryHash`, `latencyMs`, `resultCount`, `cacheStatus`), пакетной индексации, отказов авторизации и снапшотов (`GET /v1/admin/logs`)
+- [x] **Readiness-пробы и метрики Prometheus (P0)**
+  - [x] Проверка живучести (`GET /v1/health`) и полной готовности компонентов (`GET /v1/ready`: проверка `vectorStore`, `WAL/database`, `embeddingModel`, `redis`)
+  - [x] Стандартные метрики на `/metrics`: `search_latency_seconds`, `search_requests_total`, `index_size_items`, `cache_hit_ratio`, `embedding_time_seconds`, `process_resident_memory_bytes`
+- [x] **Атомарные снапшоты на диск, бэкапы и операционный Admin API (P0/P1)**
+  - [x] Автоматические и ручные снапшоты (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) и выгрузка каталога (`GET /v1/catalog/export?format=csv|json`)
+  - [x] Операционные эндпоинты без лишнего UI-шума (`GET /v1/admin/stats`, `POST /v1/admin/reindex`, `POST /v1/admin/optimize`, `GET /v1/analytics/queries`)
+  - [x] Готовый продакшен-стек (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`)
+
+---
+
+## 11.1 🛡️ Чек-лист готовности к Production и сайзинг ресурсов (v3.5)
+
+### Таблица расчёта ресурсов (RAM и CPU под размер каталога)
+
+| Размер каталога (SKU) | Точность векторов | Рекомендуемая RAM | Рекомендуемый vCPU | Ожидаемая задержка P95 |
+| :--- | :--- | :--- | :--- | :--- |
+| **До 10 000 SKU** | `FP32` (384-d) | **2 ГБ RAM** | 2 vCPU | `< 5 мс` |
+| **50 000 – 100 000 SKU** | `FP32` / `INT8` | **4 ГБ – 6 ГБ RAM** | 4 vCPU | `< 12 мс` |
+| **250 000 – 500 000 SKU** | `INT8 Quantized` (сжатие 4x) | **8 ГБ – 12 ГБ RAM** | 4–8 vCPU | `< 18 мс` |
+| **1 000 000+ SKU** | `INT8` + Шардированный кластер | **16 ГБ+ RAM** | 8+ vCPU | `< 25 мс` |
+
+### Чек-лист перед запуском в Production
+
+- [ ] **1. Разделите ключи доступа**: Задайте сложные `EIDOS_MASTER_KEY` и `EIDOS_ADMIN_KEY` (от 12 символов) на сервере. Для фронтенда и мобильных приложений выпустите `Search Key` через `POST /v1/admin/keys` (`"role": "search"`).
+- [ ] **2. Включите строгий режим старта**: Используйте `NODE_ENV=production` и `EIDOS_STRICT_PROD_BOOT=true` (включено по умолчанию в `docker-compose.prod.yml`).
+- [ ] **3. Подключите постоянные тома (Volumes)**: Смонтируйте `/data/db` (`EIDOS_DATA_DIR`) и `/data/snapshots` (`EIDOS_SNAPSHOT_PATH`) на быстрый SSD/NVMe-диск.
+- [ ] **4. Настройте регулярные снапшоты и бэкапы**: Укажите `EIDOS_SNAPSHOT_INTERVAL_MS=3600000` (снапшот каждый час) и копируйте файлы из `/data/snapshots` или выгрузку `GET /v1/catalog/export?format=csv` в объектное хранилище S3.
+- [ ] **5. Закройте сервис за HTTPS Reverse Proxy**: Используйте готовые конфигурации `deploy/Caddyfile` или `deploy/nginx.conf` (TLS 1.3, HSTS, ограничение доступа к `/metrics` только для внутренней сети).
+- [ ] **6. Подключите алерты Prometheus/Grafana**: Настройте уведомления при `P95 search_latency_seconds > 150ms`, заполнении памяти `> 85%` или ответе `503` от `/v1/ready`.
+
+```bash
+# Запуск полного Production-стека (EIDOS + Redis + Prometheus + Grafana + Caddy HTTPS)
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
 ---
 

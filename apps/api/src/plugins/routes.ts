@@ -15,6 +15,7 @@ import { keyRoutes } from '../routes/keys';
 import { indexRoutes } from '../routes/indexes';
 import { settingsRoutes } from '../routes/settings';
 import { demoRoutes } from '../routes/demo';
+import { adminRoutes } from '../routes/admin';
 import { funnelPlugin } from './funnel';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
@@ -103,6 +104,10 @@ export async function apiRoutesPlugin(
   });
   await fastify.register(settingsRoutes);
   await fastify.register(demoRoutes, {
+    vectorStore: opts.vectorStore,
+    embedder: opts.embedder,
+  });
+  await fastify.register(adminRoutes, {
     vectorStore: opts.vectorStore,
     embedder: opts.embedder,
   });

@@ -162,16 +162,18 @@ export async function healthRoutes(
       });
     }
 
-    const [vectorStore, database, embeddingModel] = await Promise.all([
+    const [vectorStore, database, embeddingModel, redisHealthy] = await Promise.all([
       checkVectorStore(opts.vectorStore, initialItemsIndexed),
       checkDatabase(opts.vectorStore),
       checkEmbeddingModel(opts.embedder),
+      cache.healthCheck(),
     ]);
 
     const isReady =
       vectorStore.status === 'ok' &&
       database.status === 'ok' &&
-      embeddingModel.status === 'ok';
+      embeddingModel.status === 'ok' &&
+      redisHealthy;
 
     return reply.status(isReady ? 200 : 503).send({
       status: isReady ? 'ready' : 'not ready',
@@ -184,10 +186,12 @@ export async function healthRoutes(
         vectorStore,
         database,
         embeddingModel,
+        redis: { status: redisHealthy ? 'ok' : 'degraded', connected: redisHealthy },
       },
     });
   };
 
+  fastify.get('/v1/ready', handleReadinessProbe);
   fastify.get('/v1/health/ready', handleReadinessProbe);
   fastify.get('/ready', handleReadinessProbe);
 

@@ -458,6 +458,7 @@ export async function analyticsRoutes(
 
   fastify.get('/v1/analytics/seo', handleGetSeoAnalytics);
   fastify.get('/v1/analytics', handleGetSeoAnalytics);
+  fastify.get('/v1/analytics/queries', { preHandler: authenticate }, handleGetSeoAnalytics);
 
   fastify.get('/v1/analytics/metrics', async () => {
     ensureInitialized(opts.vectorStore);
