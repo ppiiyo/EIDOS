@@ -8,7 +8,16 @@ import { useStudioWorkspace } from './hooks/useStudioWorkspace';
 import { useCatalogImportHandlers } from './hooks/useCatalogImportHandlers';
 
 export function App() {
-  const [view, setView] = useState<ViewId>('search');
+  const [view, setView] = useState<ViewId>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location?.pathname || '';
+      const search = window.location?.search || '';
+      if (path.startsWith('/onboarding') || search.includes('onboarding=1')) {
+        return 'onboarding';
+      }
+    }
+    return 'search';
+  });
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);

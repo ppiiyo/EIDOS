@@ -8,6 +8,8 @@ import {
   BM25Index,
   HybridSearch,
   Metrics,
+  normalizeQueryWithLayoutRecovery,
+  evaluateCandidateGuardrail,
 } from '@eidos/core';
 import { StoredItem } from '../types';
 import { CatalogItem } from '../demo/demo-catalog';
@@ -578,18 +580,55 @@ export class VectorStore {
     sparseWeight = 1.0,
     filterCategory?: string
   ): { item: StoredItem; score: number; source?: string }[] {
+    if (this.items.size === 0) {
+      return [];
+    }
+    const queryInfo = normalizeQueryWithLayoutRecovery(queryText);
+    const effectiveQuery = queryInfo.normalizedQuery || queryText;
     const qVec = queryVector instanceof Float32Array ? queryVector : new Float32Array(queryVector);
-    const fused = this.hybrid.search(queryText, qVec, {
-      limit: Math.max(limit * 3, 20),
+    const fused = this.hybrid.search(effectiveQuery, qVec, {
+      limit: Math.max(limit * 4, 30),
       denseWeight,
       sparseWeight,
     });
+
+    // Also include any direct title/category stem matches from the store that might have been missed by approximate walk
+    const seenCandidateIds = new Set<string>(fused.map((r) => r.id));
+    if (queryInfo.coreStems.length > 0 && this.items.size <= 5000) {
+      for (const stored of this.items.values()) {
+        if (seenCandidateIds.has(stored.id)) continue;
+        const textLower = `${stored.title} ${stored.category} ${(stored.tags || []).join(' ')}`.toLowerCase();
+        if (queryInfo.coreStems.some((stem) => stem.length >= 3 && textLower.includes(stem))) {
+          fused.push({
+            id: stored.id,
+            score: sparseWeight * (1 / (60 + 2)),
+            sparseScore: 1.0,
+            source: 'hybrid',
+          });
+          seenCandidateIds.add(stored.id);
+        }
+      }
+    }
+
+    let catalogHasLexicalMatches = false;
+    for (const res of fused) {
+      const stored = this.items.get(res.id);
+      if (!stored) continue;
+      if (filterCategory && stored.category !== filterCategory) continue;
+      const g = evaluateCandidateGuardrail(queryInfo, stored, 0.5, res.sparseScore ?? 0, false);
+      if (g.titleMatchCount > 0 || g.categoryOrTagMatchCount > 0 || (res.sparseScore ?? 0) > 0) {
+        catalogHasLexicalMatches = true;
+        break;
+      }
+    }
 
     const scoredCandidates: {
       item: StoredItem;
       rawScore: number;
       sparseScore: number;
       exactDense: number;
+      titleMatches: number;
+      passesGate: boolean;
       source?: string;
     }[] = [];
 
@@ -604,13 +643,28 @@ export class VectorStore {
       let rawScore = res.score;
       let source = res.source;
 
-      // If item matched via BM25 (sparse) and HNSW approximate walk missed it,
+      const guardrail = evaluateCandidateGuardrail(
+        queryInfo,
+        stored,
+        exactDense,
+        sparseScore,
+        catalogHasLexicalMatches
+      );
+
+      // If item matched via BM25 or stem overlap and HNSW approximate walk missed it,
       // add its verified dense RRF contribution when exact cosine similarity is strong.
       if (res.denseScore === undefined && denseWeight > 0 && exactDense >= 0.35) {
         rawScore += denseWeight * (1 / (60 + 1));
-        if (sparseWeight > 0 && sparseScore > 0) {
+        if (sparseWeight > 0 && (sparseScore > 0 || guardrail.totalLexicalMatchCount > 0)) {
           source = 'hybrid';
         }
+      }
+
+      // Apply title/category consistency boost so exact domain/product matches rank #1
+      if (guardrail.consistencyBoost > 0) {
+        rawScore += guardrail.consistencyBoost * 0.045;
+      } else if (catalogHasLexicalMatches && !guardrail.passesLexicalGate) {
+        rawScore *= 0.2;
       }
 
       scoredCandidates.push({
@@ -618,11 +672,23 @@ export class VectorStore {
         rawScore,
         sparseScore,
         exactDense,
+        titleMatches: guardrail.titleMatchCount,
+        passesGate: guardrail.passesLexicalGate,
         source,
       });
     }
 
-    scoredCandidates.sort((a, b) => {
+    const gatedCandidates = catalogHasLexicalMatches
+      ? scoredCandidates.filter((c) => c.passesGate)
+      : scoredCandidates;
+    const finalPool = gatedCandidates.length > 0 ? gatedCandidates : scoredCandidates;
+
+    finalPool.sort((a, b) => {
+      if (a.titleMatches !== b.titleMatches && (a.titleMatches === 0 || b.titleMatches === 0)) {
+        if (Math.abs(b.rawScore - a.rawScore) < 0.035) {
+          return b.titleMatches - a.titleMatches;
+        }
+      }
       if (Math.abs(b.rawScore - a.rawScore) > 1e-6) {
         return b.rawScore - a.rawScore;
       }
@@ -632,7 +698,7 @@ export class VectorStore {
       return b.exactDense - a.exactDense;
     });
 
-    return scoredCandidates.slice(0, limit).map((c) => ({
+    return finalPool.slice(0, limit).map((c) => ({
       item: c.item,
       score: Math.round(c.rawScore * 10000) / 10000,
       source: c.source,

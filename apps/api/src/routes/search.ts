@@ -9,6 +9,9 @@ import {
   SerendipityOrthogonalEngine,
   ChronoCognitiveEngine,
   ParetoWeightOptimizer,
+  normalizeQueryWithLayoutRecovery,
+  evaluateCandidateGuardrail,
+  calibrateScorePercent,
 } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { demoRateLimit } from '../middleware/rate-limit-demo';
@@ -172,7 +175,9 @@ export async function searchRoutes(
         });
       }
 
-      const safeQuery = securityScan.sanitizedInput;
+      const rawSanitized = securityScan.sanitizedInput;
+      const queryInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
+      const safeQuery = queryInfo.normalizedQuery || rawSanitized;
 
       // Record search event in SearchFunnelService singleton decorator
       const resolvedSessionId =
@@ -187,6 +192,21 @@ export async function searchRoutes(
           query: safeQuery,
           sessionId: resolvedSessionId,
         });
+      }
+
+      // Fast-path: if the active catalog is empty (0 SKU), return 200 OK with count: 0 immediately
+      if (activeStore.count() === 0) {
+        const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
+        reply.header('x-cache', 'MISS');
+        return {
+          query: safeQuery,
+          mode,
+          results: [],
+          count: 0,
+          total: 0,
+          latencyMs,
+          cacheHit: false,
+        };
       }
 
       // Feature Flag: Intent-Aware Search (Phase 1)
@@ -450,7 +470,9 @@ export async function searchRoutes(
             const medianPrice =
               pricedValues.length > 0 ? pricedValues[Math.floor(pricedValues.length / 2)] : 0;
 
-            return results.map((r) => {
+            const maxRawScore = results.reduce((max, item) => Math.max(max, item.score), 0);
+
+            return results.map((r, rankIndex) => {
               const itemVec = r.item.normalizedVector || r.item.embedding;
               const rawDense =
                 mode === 'sparse' || !itemVec ? 0 : Math.max(0, cosineSimilarity(cleanVector, itemVec));
@@ -459,16 +481,31 @@ export async function searchRoutes(
               const sparseBm25Component = Math.round(rawSparse * 10000) / 10000;
               const rrfScore = Math.round((r.rrfScore ?? r.score) * 10000) / 10000;
 
-              const serendipityEval = itemVec
-                ? SerendipityOrthogonalEngine.evaluateCandidate({
-                    id: r.item.id,
-                    category: r.item.category,
-                    dominantCategory,
-                    candidateVec: itemVec,
-                    queryVec: cleanVector,
-                    echoCentroidVec: echoCentroid,
-                  })
-                : undefined;
+              const guardrail = evaluateCandidateGuardrail(
+                queryInfo,
+                r.item,
+                denseComponent,
+                sparseBm25Component,
+                true
+              );
+
+              // Suppress cross-domain serendipity unless explicitly enabled in cognitiveContext
+              const allowSerendipity = Boolean(
+                cognitiveContext?.enableSerendipity ||
+                  (cognitiveContext?.intentRadar && cognitiveContext.intentRadar.axisDiscovery > 0.35)
+              );
+
+              const serendipityEval =
+                allowSerendipity && itemVec
+                  ? SerendipityOrthogonalEngine.evaluateCandidate({
+                      id: r.item.id,
+                      category: r.item.category,
+                      dominantCategory,
+                      candidateVec: itemVec,
+                      queryVec: cleanVector,
+                      echoCentroidVec: echoCentroid,
+                    })
+                  : undefined;
 
               const kineticMod = KineticAttentionEngine.modulateCandidateScore(
                 r.score,
@@ -477,6 +514,28 @@ export async function searchRoutes(
                 kineticProfile
               );
 
+              const finalScore = cognitiveContext ? kineticMod.adjustedScore : r.score;
+              const scorePercent = calibrateScorePercent({
+                rawScore: finalScore,
+                maxRawScore: Math.max(maxRawScore, finalScore),
+                denseScore: denseComponent,
+                sparseScore: sparseBm25Component,
+                titleMatchCount: guardrail.titleMatchCount,
+                categoryOrTagMatchCount: guardrail.categoryOrTagMatchCount,
+                rankIndex,
+              });
+
+              const explanation = {
+                denseComponent,
+                sparseBm25Component,
+                rrfScore,
+                mmrPenalty: 0,
+                businessBoost:
+                  Math.round((kineticMod.kineticBonus + guardrail.consistencyBoost) * 10000) / 10000,
+                serendipityScore: serendipityEval?.serendipityScore ?? 0,
+                kineticBonus: kineticMod.kineticBonus,
+              };
+
               return {
                 id: r.item.id,
                 title: r.item.title,
@@ -484,19 +543,14 @@ export async function searchRoutes(
                 category: r.item.category,
                 tags: r.item.tags,
                 price: r.item.price,
-                score: cognitiveContext ? kineticMod.adjustedScore : r.score,
+                ...(r.item.url ? { url: r.item.url } : {}),
+                score: finalScore,
+                scorePercent,
                 source: r.source,
-                isSerendipityDiscovery: serendipityEval?.isSerendipityDiscovery,
+                isSerendipityDiscovery: serendipityEval?.isSerendipityDiscovery ?? false,
                 discoveryReason: serendipityEval?.discoveryReason,
-                explanation: {
-                  denseComponent,
-                  sparseBm25Component,
-                  rrfScore,
-                  mmrPenalty: 0,
-                  businessBoost: kineticMod.kineticBonus,
-                  serendipityScore: serendipityEval?.serendipityScore ?? 0,
-                  kineticBonus: kineticMod.kineticBonus,
-                },
+                explanation,
+                xray: explanation,
               };
             });
           },

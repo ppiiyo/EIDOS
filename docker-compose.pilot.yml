@@ -1,0 +1,73 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eidos/eidos-pilot:3.4.0
+    container_name: eidos-pilot-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - EIDOS_STRICT_PROD_BOOT=true
+      - EIDOS_MASTER_KEY=${EIDOS_MASTER_KEY}
+      - EIDOS_ADMIN_KEY=${EIDOS_ADMIN_KEY}
+      - EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY}
+      - EIDOS_API_KEY=${EIDOS_ADMIN_KEY}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - REDIS_URL=redis://redis:6379
+      - EIDOS_SNAPSHOT_PATH=/app/data/snapshots/catalog.snapshot.json
+      - EIDOS_SNAPSHOT_INTERVAL_MS=300000
+      - EIDOS_AUTO_RESTORE_SNAPSHOT=true
+      - EIDOS_RATE_LIMIT_MAX=${EIDOS_RATE_LIMIT_MAX:-600}
+    volumes:
+      - eidos_pilot_snapshots:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/v1/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    container_name: eidos-pilot-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - eidos_pilot_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: eidos-pilot-caddy
+    restart: unless-stopped
+    profiles:
+      - https
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - eidos_pilot_caddy_data:/data
+      - eidos_pilot_caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  eidos_pilot_snapshots:
+  eidos_pilot_redis:
+  eidos_pilot_caddy_data:
+  eidos_pilot_caddy_config:

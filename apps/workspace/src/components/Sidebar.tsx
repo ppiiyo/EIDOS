@@ -21,6 +21,7 @@ import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 export type ViewId =
   | 'dashboard'
+  | 'onboarding'
   | 'demo'
   | 'seo'
   | 'vectorspace'
@@ -67,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   });
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
-  const simpleIds: ViewId[] = ['search', 'demo', 'catalog', 'analytics', 'settings', 'faq'];
+  const simpleIds: ViewId[] = ['search', 'onboarding', 'demo', 'catalog', 'analytics', 'settings', 'faq'];
   const [navMode, setNavMode] = useState<'simple' | 'expert'>(() =>
     simpleIds.includes(active) ? 'simple' : 'expert'
   );
@@ -87,6 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'Ядро движка',
           g2: 'Лаборатория и тесты',
           g3: 'Аналитика и эксплуатация',
+          onboarding: 'Мастер пилота (No-Code)',
           demo: 'Демо-каталог (48 SKU)',
           indexes: 'Менеджер индексов HNSW',
           ranking: 'Песочница ранжирования',
@@ -102,6 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'コアエンジン',
           g2: 'プレイグラウンド & ラボ',
           g3: '分析 & オペレーション',
+          onboarding: 'パイロット導入ウィザード',
           demo: 'デモカタログ (48 SKU)',
           indexes: 'インデックス管理',
           ranking: 'ランキング調整ラボ',
@@ -116,6 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'Core Engine',
           g2: 'Playground & Labs',
           g3: 'Analytics & Ops',
+          onboarding: 'Pilot Wizard (No-Code)',
           demo: 'Demo Catalog (48 SKU)',
           indexes: 'Index Manager',
           ranking: 'Ranking Playground',
@@ -132,6 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: labels.g1,
       items: [
         { id: 'search', label: t.nav.search, emoji: '🔍', icon: Search },
+        { id: 'onboarding', label: labels.onboarding, emoji: '🚀', icon: Sparkles },
         { id: 'demo', label: labels.demo, emoji: '🎮', icon: Sparkles },
         { id: 'dashboard', label: t.nav.dashboard, emoji: '📊', icon: LayoutDashboard },
         { id: 'catalog', label: t.nav.catalog, emoji: '📦', icon: Package },

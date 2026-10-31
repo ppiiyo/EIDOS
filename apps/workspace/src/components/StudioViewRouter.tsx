@@ -21,6 +21,7 @@ import { SettingsView } from './SettingsView';
 import { FaqGuideView } from './FaqGuideView';
 import { SEODashboard } from '../pages/SEODashboard/SEODashboard';
 import { DemoPage } from '../pages/DemoPage/DemoPage';
+import { OnboardingWizard } from '../pages/OnboardingPage/OnboardingWizard';
 
 export interface StudioViewRouterProps {
   view: ViewId;
@@ -147,6 +148,16 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
             onSelectItem={onSelectItem}
             onShowToast={onShowToast}
             uiLang={uiLang}
+          />
+        );
+      case 'onboarding':
+        return (
+          <OnboardingWizard
+            catalog={catalog}
+            onImportCustomDatabase={onImportCustomDatabase}
+            onHybridSearch={onHybridSearch}
+            onNavigate={onNavigate}
+            onShowToast={onShowToast}
           />
         );
       case 'demo':

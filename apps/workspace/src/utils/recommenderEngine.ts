@@ -1,5 +1,12 @@
 import { CatalogItem, CatalogRecommendation, CatalogEdge } from "../types";
-import { HNSWIndex, BM25Index, HybridSearch, cosineSimilarity as coreCosineSimilarity } from '@eidos/core';
+import {
+  HNSWIndex,
+  BM25Index,
+  HybridSearch,
+  cosineSimilarity as coreCosineSimilarity,
+  normalizeQueryWithLayoutRecovery,
+  evaluateCandidateGuardrail,
+} from '@eidos/core';
 import { INITIAL_CATALOG } from '../data/catalog';
 
 export { INITIAL_CATALOG };
@@ -640,7 +647,8 @@ export function executeHybridCatalogSearch(
   alpha = 0.7,
   limit = 10
 ): HybridSearchHit[] {
-  const trimmed = query.trim();
+  const queryInfo = normalizeQueryWithLayoutRecovery(query);
+  const trimmed = queryInfo.normalizedQuery || query.trim();
   if (!trimmed) return [];
 
   const { hnsw, bm25 } = getOrBuildCatalogIndices(catalog, embeddings);
@@ -684,16 +692,13 @@ export function executeHybridCatalogSearch(
     if (h.score > 0) sparseRanks.set(String(h.id), idx + 1);
   });
 
-  // Extract query tokens for X-Ray lexical token attribution
+  // Extract query tokens for X-Ray lexical token attribution (excluding stopwords)
   const cjkChars: string[] = (trimmed.match(CJK_RUN_MATCH) || []).flatMap((run) =>
     run.split('')
   );
   const queryTokens: string[] = Array.from(
     new Set<string>([
-      ...trimmed
-        .toLowerCase()
-        .split(/[\s,_\-—"«»'().:;!?、。「」『』【】・]+/)
-        .filter((w) => w.length >= 2),
+      ...queryInfo.coreTokens,
       ...cjkChars,
     ])
   );
@@ -708,6 +713,28 @@ export function executeHybridCatalogSearch(
   const hasQueryConceptCluster = MULTILINGUAL_CONCEPT_CLUSTERS.some((c) => c.pattern.test(trimmed));
   const RRF_K = 60;
 
+  // Check if the catalog contains any items with direct title/category/tag overlap
+  let catalogHasLexicalMatches = false;
+  for (const item of catalog) {
+    const g = evaluateCandidateGuardrail(
+      queryInfo,
+      {
+        id: String(item.id),
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        tags: item.tags,
+      },
+      0.5,
+      bm25Scores.get(String(item.id)) ?? 0,
+      false
+    );
+    if (g.titleMatchCount > 0 || g.categoryOrTagMatchCount > 0) {
+      catalogHasLexicalMatches = true;
+      break;
+    }
+  }
+
   const results: HybridSearchHit[] = [];
   for (const id of candidateIds) {
     const item = catalogMap.get(id);
@@ -716,21 +743,24 @@ export function executeHybridCatalogSearch(
     const dScore = denseScores.get(id) ?? 0;
     let sScore = bm25Scores.get(id) ?? 0;
 
-    const fullDocLower = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`.toLowerCase();
-    const matchedTokens = queryTokens
-      .filter((tok) => {
-        if (fullDocLower.includes(tok)) return true;
-        if (tok.length >= 4 && fullDocLower.includes(tok.slice(0, -1))) return true;
-        if (tok.length >= 5 && fullDocLower.includes(tok.slice(0, -2))) return true;
-        return false;
-      })
-      .slice(0, 6);
+    const guardrail = evaluateCandidateGuardrail(
+      queryInfo,
+      {
+        id: String(item.id),
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        tags: item.tags,
+      },
+      dScore,
+      sScore,
+      catalogHasLexicalMatches
+    );
+
+    const matchedTokens = guardrail.matchedTokens.slice(0, 6);
 
     if (sScore === 0 && matchedTokens.length > 0 && queryTokens.length > 0) {
-      const titleLower = item.title.toLowerCase();
-      const titleHit = matchedTokens.some(
-        (tok) => titleLower.includes(tok) || (tok.length >= 4 && titleLower.includes(tok.slice(0, -1)))
-      );
+      const titleHit = guardrail.titleMatchCount > 0;
       sScore = Math.min(
         0.92,
         (matchedTokens.length / queryTokens.length) * (titleHit ? 0.85 : 0.65)
@@ -741,6 +771,8 @@ export function executeHybridCatalogSearch(
     if (alpha === 0 && sScore === 0) continue;
     // Filter out pure hash noise when query has no concept cluster, no lexical overlap, and low dense similarity
     if (!hasQueryConceptCluster && sScore === 0 && matchedTokens.length === 0 && dScore < 0.24) continue;
+    // Off-domain guardrail: if catalog has lexical/category matches for the query, suppress off-domain items with 0 lexical overlap and weak dense similarity
+    if (catalogHasLexicalMatches && !guardrail.passesLexicalGate && alpha < 0.98) continue;
 
     const dRank = denseRanks.get(id);
     const sRank = sparseRanks.get(id) ?? (sScore > 0 ? 5 : undefined);
@@ -748,7 +780,8 @@ export function executeHybridCatalogSearch(
     const rrfSparseContribution = sRank ? (1 - alpha) / (RRF_K + sRank) : 0;
     const rrfScore = rrfDenseContribution + rrfSparseContribution;
 
-    const fusedScore = alpha * dScore + (1 - alpha) * sScore;
+    const baseFused = alpha * dScore + (1 - alpha) * sScore;
+    const fusedScore = Math.min(0.99, baseFused + guardrail.consistencyBoost * 0.35);
     let source: 'hybrid' | 'dense' | 'sparse' = 'hybrid';
     if (sScore === 0 || alpha >= 0.99) source = 'dense';
     else if (dScore < 0.05 || alpha <= 0.01) source = 'sparse';
@@ -997,10 +1030,8 @@ export function simulateKeywordSearch(
 ): Array<{ item: CatalogItem; matchedWords: string[] }> {
   const cleanQuery = query.replace(/\((?:jp|en|ru|zh)\s*query\)/gi, '').trim();
   if (!cleanQuery) return [];
-  const queryWords = cleanQuery
-    .toLowerCase()
-    .split(/[\s,_\-—"«»'().:;!?、。「」『』【】・]+/)
-    .filter((w) => w.length >= 2);
+  const queryInfo = normalizeQueryWithLayoutRecovery(cleanQuery);
+  const queryWords = queryInfo.coreTokens;
 
   const results: Array<{ item: CatalogItem; matchedWords: string[] }> = [];
 

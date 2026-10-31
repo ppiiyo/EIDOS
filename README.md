@@ -10,9 +10,33 @@
 [![Tests](https://img.shields.io/badge/Tests-89_Suites_%7C_374_Passing-10B981?style=for-the-badge)](./tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](./LICENSE)
 
-**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🇬🇧 English Guide ](#-english-documentation)** · **[ 🇷🇺 Руководство на русском ](#-документация-на-русском-языке)** · **[ 🛡️ Production Runbook ](./docs/PRODUCTION.md)** · **[ 📄 CSV Contract ](./docs/CSV_CONTRACT.md)** · **[ 🔄 Migration Blueprints ](./docs/MIGRATION.md)**
+**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🚀 No-Code Pilot Guide ](./docs/PILOT_NO_CODE.md)** · **[ 🛒 1C-Bitrix Storefront Widget ](./docs/integrations/bitrix-widget.md)** · **[ 🛡️ Production Runbook ](./docs/PRODUCTION.md)** · **[ 📄 CSV Contract ](./docs/CSV_CONTRACT.md)** · **[ 🔄 Migration Blueprints ](./docs/MIGRATION.md)**
 
 </div>
+
+---
+
+## 🚀 3-Step Store Pilot Path (Without an In-House Developer)
+
+1. **Step 1 — Spin up self-hosted EIDOS in 1 command** (generates `MASTER_KEY`, `ADMIN_KEY`, and `SEARCH_KEY`, launches `eidos-api` + `redis`, and waits for `GET /v1/ready == 200`):
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/ppiiyo/EIDOS/main/scripts/install-pilot.sh | bash
+   ```
+2. **Step 2 — Upload your CSV catalog & run 5 automated quality checks in the browser**:
+   Open **`http://<your-server>:3000/onboarding`** (or click **"Pilot Wizard (No-Code)"** in the Studio sidebar), drag & drop your CSV catalog ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)), and run the built-in 5-query verification suite.
+3. **Step 3 — Drop 1 `<script>` tag onto your storefront (including 1C-Bitrix, WooCommerce, Tilda, or custom sites)**:
+   ```html
+   <script
+     src="http://<your-server>:3000/widget.js"
+     defer
+     data-api="http://<your-server>:3000"
+     data-key="eidos_sk_YOUR_READ_ONLY_SEARCH_KEY"
+     data-input="#title-search-input, input[name='q'], .search-input"
+     data-limit="8"
+     data-product-url-template="/catalog/#ID#/"
+   ></script>
+   ```
+   See [**`docs/PILOT_NO_CODE.md`**](./docs/PILOT_NO_CODE.md) and [**`docs/integrations/bitrix-widget.md`**](./docs/integrations/bitrix-widget.md) for the complete non-developer setup and 1C-Bitrix server-side proxy (`packages/connectors/bitrix/tools/eidos_search.php`).
 
 ---
 

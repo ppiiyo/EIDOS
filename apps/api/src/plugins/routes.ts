@@ -112,6 +112,27 @@ export async function apiRoutesPlugin(
     embedder: opts.embedder,
   });
 
+  // Serve storefront widget.js directly from API host
+  fastify.get('/widget.js', async (_request, reply) => {
+    const widgetCandidates = [
+      path.resolve(process.cwd(), 'public/widget.js'),
+      path.resolve(process.cwd(), 'apps/workspace/public/widget.js'),
+      path.resolve(process.cwd(), 'dist/widget.js'),
+    ];
+    for (const candidate of widgetCandidates) {
+      if (fs.existsSync(candidate)) {
+        const script = fs.readFileSync(candidate, 'utf-8');
+        return reply
+          .status(200)
+          .header('content-type', 'application/javascript; charset=utf-8')
+          .header('access-control-allow-origin', '*')
+          .header('cache-control', 'public, max-age=300')
+          .send(script);
+      }
+    }
+    return reply.status(404).send('// widget.js not found');
+  });
+
   // Diagnostic endpoint for route verification (disabled in production)
   if (process.env.NODE_ENV !== 'production') {
     fastify.get('/v1/routes', async () => {
