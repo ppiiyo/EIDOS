@@ -402,10 +402,10 @@ export const PLATFORM_DOMAIN_PRESETS: PlatformDomainPreset[] = [
     icon: '🛍️',
     description: 'Мультикатегорийный маркетплейс электроники, книг, игр, бытовой техники и спорттоваров (18 SKU).',
     sampleQueries: [
+      { label: 'недорогие наушники для бега', note: 'Intent-Aware Search (категория + сценарий + бюджет)' },
       { label: 'релятивистское время и космос', note: 'Находит Интерстеллар и Дюну без совпадения слов' },
       { label: 'симуляция реальности и нейросети', note: 'Концептуальный поиск: Матрица и Cyberpunk 2077' },
       { label: 'утренний эспрессо и продуктивная работа', note: 'Кросс-категорийный подбор: Кофемашина + Ультрабук' },
-      { label: 'программирование и алгоритмы python', note: 'Образование и техника для разработчиков' },
     ],
     items: INITIAL_CATALOG,
   },
@@ -459,6 +459,194 @@ export const PLATFORM_DOMAIN_PRESETS: PlatformDomainPreset[] = [
   },
 ];
 
+const LOCALIZED_PRESET_META: Record<
+  PlatformDomainId,
+  Record<
+    'ru' | 'en' | 'ja',
+    {
+      name: string;
+      shortLabel: string;
+      description: string;
+      sampleQueries: Array<{ label: string; note: string }>;
+    }
+  >
+> = {
+  marketplace: {
+    ru: {
+      name: 'Маркетплейс & E-Commerce (RU / EN)',
+      shortLabel: '🛍️ Маркетплейс',
+      description: 'Мультикатегорийный маркетплейс электроники, книг, игр, бытовой техники и спорттоваров (18 SKU).',
+      sampleQueries: [
+        { label: 'недорогие наушники для бега', note: 'Intent-Aware Search (категория + сценарий + бюджет)' },
+        { label: 'релятивистское время и космос', note: 'Находит Интерстеллар и Дюну без совпадения слов' },
+        { label: 'симуляция реальности и нейросети', note: 'Концептуальный поиск: Матрица и Cyberpunk 2077' },
+        { label: 'утренний эспрессо и продуктивная работа', note: 'Кросс-категорийный подбор: Кофемашина + Ультрабук' },
+      ],
+    },
+    en: {
+      name: 'Marketplace & E-Commerce (RU / EN)',
+      shortLabel: '🛍️ Marketplace',
+      description: 'Multi-category e-commerce store of electronics, books, games, appliances, and sports gear (18 SKUs).',
+      sampleQueries: [
+        { label: 'wireless running headphones', note: 'Cross-lingual EN → RU search: finds Sony WH-1000XM5 & sports gear' },
+        { label: 'relativistic time dilation and black holes in space', note: 'Cross-lingual EN → RU search: finds Interstellar & Dune' },
+        { label: 'cyberpunk neural networks and simulated reality', note: 'Finds The Matrix & Cyberpunk 2077 across languages' },
+        { label: 'morning espresso coffee and laptop workstation', note: 'Cross-category match: Barista Coffee Machine + Ultrabook' },
+      ],
+    },
+    ja: {
+      name: 'マーケットプレイス & Eコマース (RU / EN)',
+      shortLabel: '🛍️ マーケットプレイス',
+      description: '家電・書籍・ゲーム・スポーツ用品を含むマルチカテゴリECカタログ（18 SKU・多言語ベクトル検索対応）。',
+      sampleQueries: [
+        { label: '宇宙とブラックホールの科学', note: '言語横断検索 (JA → RU)：インターステラーとデューンを検出' },
+        { label: 'サイバーパンクと人工知能シミュレーション', note: '言語横断検索：マトリックスとCyberpunk 2077を検出' },
+        { label: '朝のエスプレッソコーヒーとノートパソコン', note: 'クロスカテゴリ検索：コーヒーマシンとUltrabook' },
+        { label: 'ランニングと音楽用ノイズキャンセリングヘッドホン', note: 'スポーツ用品とワイヤレスヘッドホンを検出' },
+      ],
+    },
+  },
+  streaming: {
+    ru: {
+      name: 'Стриминг-платформа: Кино и Аудио (EN)',
+      shortLabel: '🎬 Стриминг (EN)',
+      description: 'Онлайн-кинотеатр и аудио-стриминг (Netflix / MUBI / Spotify стиль): 4K фильмы, аниме-сериалы, документалистика и саундтреки.',
+      sampleQueries: [
+        { label: 'relativistic time dilation and black holes in space', note: 'Находит Interstellar, Dune и документалку о космосе (EN)' },
+        { label: 'релятивистское время и черные дыры в космосе', note: 'Кросс-языковой поиск (RU → EN): Interstellar, Dune, Cosmos' },
+        { label: 'neon cyberpunk artificial intelligence and simulated reality', note: 'Находит Edgerunners, The Matrix и Synthwave Stream' },
+        { label: 'rust vector databases and deep coding focus', note: 'Находит документалку о Rust/WASM и Synthwave для кодинга' },
+      ],
+    },
+    en: {
+      name: 'Streaming Platform: Cinema & Audio (EN)',
+      shortLabel: '🎬 Streaming (EN)',
+      description: 'Cinema VOD & audio streaming catalog (Netflix / MUBI / Spotify style): 4K movies, anime series, documentaries, and soundtracks.',
+      sampleQueries: [
+        { label: 'relativistic time dilation and black holes in space', note: 'Finds Interstellar, Dune & Cosmos Documentary' },
+        { label: 'neon cyberpunk artificial intelligence and simulated reality', note: 'Finds Edgerunners, The Matrix & Synthwave Stream' },
+        { label: 'subconscious dreams and psychological mind thriller', note: 'Finds Inception & 1984' },
+        { label: 'rust vector databases and deep coding focus', note: 'Finds Silicon & Rust Doc + Coding Synthwave Audio' },
+      ],
+    },
+    ja: {
+      name: 'ストリーミング配信：映画＆オーディオ (EN)',
+      shortLabel: '🎬 ストリーミング (EN)',
+      description: '4K映画、アニメシリーズ、科学ドキュメンタリー、サウンドトラックを収録したVOD・音楽カタログ（12 SKU）。',
+      sampleQueries: [
+        { label: 'relativistic time dilation and black holes in space', note: 'Interstellar・Dune・宇宙ドキュメンタリーを検索 (EN)' },
+        { label: '宇宙とブラックホールの科学と相対性理論', note: '言語横断検索 (JA → EN)：英語のSF映画・宇宙番組を検出' },
+        { label: 'neon cyberpunk artificial intelligence and simulated reality', note: 'Edgerunners・The Matrix・Synthwaveを検索' },
+        { label: 'rust vector databases and deep coding focus', note: 'Rust/WASMドキュメンタリーと作業用BGMを検索' },
+      ],
+    },
+  },
+  video_jp: {
+    ru: {
+      name: 'Видеохостинг — Япония (日本語)',
+      shortLabel: '📹 Видеохостинг (JP)',
+      description: 'Японский видеохостинг (YouTube JP / Niconico стиль): 14 видеороликов на японском языке (космос, киберпанк, Rust/Python, влоги, музыка, аниме).',
+      sampleQueries: [
+        { label: '宇宙とブラックホールの科学と相対性理論', note: 'Находит 4K документалку о космосе и разбор Интерстеллар (JP)' },
+        { label: 'космос и черные дыры и теория относительности', note: 'Кросс-языковой поиск (RU → JP) по японским научным видео' },
+        { label: 'サイバーパンクと人工知能のゲーム実況', note: 'Находит стримы по Cyberpunk 2077 и Stray в неоновом кибергороде' },
+        { label: 'RustとPythonによる高速データベース開発', note: 'Находит лекции по Rust/WASM векторным БД и Python AI' },
+      ],
+    },
+    en: {
+      name: 'Video Hosting Platform — Japan (日本語)',
+      shortLabel: '📹 Video Hub (JP)',
+      description: 'Japanese video hosting platform (YouTube JP / Niconico style): 14 Japanese videos across science, space, gaming, Rust/Python, vlogs, music, and anime.',
+      sampleQueries: [
+        { label: '宇宙とブラックホールの科学と相対性理論', note: 'Finds 4K astrophysics documentary & Interstellar breakdown (JP)' },
+        { label: 'black holes and relativistic time dilation in space', note: 'Cross-lingual EN → JP search across Japanese science videos' },
+        { label: 'サイバーパンクと人工知能のゲーム実況', note: 'Finds Cyberpunk 2077 & Stray gameplay streams in Japanese' },
+        { label: 'RustとPythonによる高速データベース開発', note: 'Finds Rust/WASM vector database & Python AI engineering lectures' },
+      ],
+    },
+    ja: {
+      name: '動画共有プラットフォーム — 日本 (日本語)',
+      shortLabel: '📹 動画ホスト (JP)',
+      description: '日本の動画共有プラットフォーム（YouTube JP / ニコニコ動画スタイル）：宇宙科学、ゲーム実況、Rust/Python開発、京都カフェVlog、作業用BGMなど14本。',
+      sampleQueries: [
+        { label: '宇宙とブラックホールの科学と相対性理論', note: '4K宇宙科学ドキュメンタリーとインターステラー考察を検索' },
+        { label: 'サイバーパンクと人工知能のゲーム実況', note: 'サイバーパンク2077と猫の冒険Strayの実況配信を検索' },
+        { label: 'RustとPythonによる高速データベース開発', note: 'Rust/WASMベクトルDB講座とPython AI開発解説を検索' },
+        { label: '京都の朝カフェと深夜の作業用BGM音楽', note: '京都エスプレッソVlogと深夜ローファイBGMを横断検索' },
+      ],
+    },
+  },
+  global_multilingual: {
+    ru: {
+      name: 'Глобальный Мультиязычный Хаб (JA / ZH / EN / RU / ES / DE)',
+      shortLabel: '🌐 Мультиязычный (6 яз.)',
+      description: 'Единая мультиязычная база контента на 6 языках (Японский, Китайский, Английский, Русский, Испанский, Немецкий) — кросс-языковой векторный поиск.',
+      sampleQueries: [
+        { label: '宇宙 ブラックホール space космос 黑洞', note: 'Кросс-языковой поиск: находит материалы на JP, ZH, EN, ES' },
+        { label: 'Rust database データベース 数据库 программирование', note: 'Находит инженерные материалы на японском, китайском и немецком' },
+        { label: 'サイバーパンク cyberpunk киберпанк matrix', note: 'Связывает контент по киберпанку независимо от языка' },
+        { label: 'コーヒー эспрессо cafe vlog', note: 'Находит японский влог о кофе и технику бариста' },
+      ],
+    },
+    en: {
+      name: 'Global Cross-Lingual Hub (JA / ZH / EN / RU / ES / DE)',
+      shortLabel: '🌐 Multilingual (6 langs)',
+      description: 'Unified multi-script content catalog across 6 languages (Japanese, Chinese, English, Russian, Spanish, German) demonstrating cross-lingual 384-d retrieval.',
+      sampleQueries: [
+        { label: '宇宙 ブラックホール space космос 黑洞', note: 'Cross-lingual query: retrieves cosmic items in JP, ZH, EN, ES' },
+        { label: 'Rust database データベース 数据库 программирование', note: 'Retrieves vector DB engineering talks in JA, ZH, and DE' },
+        { label: 'サイバーパンク cyberpunk киберпанк matrix', note: 'Matches cyberpunk & AI content across all scripts' },
+        { label: 'コーヒー эспрессо cafe vlog', note: 'Finds Kyoto morning coffee vlog & barista gear across languages' },
+      ],
+    },
+    ja: {
+      name: 'グローバル多言語ハブ (JA / ZH / EN / RU / ES / DE)',
+      shortLabel: '🌐 多言語ハブ (6言語)',
+      description: '日本語・中国語・英語・ロシア語・スペイン語・ドイツ語の6言語コンテンツを統合した384次元クロスリンガル検索データベース。',
+      sampleQueries: [
+        { label: '宇宙 ブラックホール space космос 黑洞', note: '多言語横断検索：日・中・英・西の宇宙科学コンテンツを同時検出' },
+        { label: 'Rust database データベース 数据库 программирование', note: '日本語・中国語・ドイツ語のRust/DB技術講座を横断検索' },
+        { label: 'サイバーパンク cyberpunk киберпанк matrix', note: '言語を問わずサイバーパンク＆AI関連コンテンツを結合' },
+        { label: 'コーヒー эспрессо cafe vlog', note: '京都カフェVlogとバリスタ機器を言語横断で検索' },
+      ],
+    },
+  },
+};
+
+export function getLocalizedPresetMeta(
+  preset: PlatformDomainPreset,
+  uiLang: 'ru' | 'en' | 'ja' = 'ru'
+) {
+  const byLang = LOCALIZED_PRESET_META[preset.id];
+  if (!byLang) {
+    return {
+      name: preset.name,
+      shortLabel: preset.shortLabel,
+      description: preset.description,
+      sampleQueries: preset.sampleQueries,
+    };
+  }
+  return byLang[uiLang] || byLang.ru;
+}
+
+export function detectPresetFromCatalog(catalog?: CatalogItem[]): PlatformDomainPreset | null {
+  if (!catalog || catalog.length === 0) return null;
+  const ids = new Set(catalog.map((i) => String(i.id)));
+  if (ids.has('zh_1') && ids.has('es_1') && ids.has('de_1')) {
+    return PLATFORM_DOMAIN_PRESETS.find((p) => p.id === 'global_multilingual') || null;
+  }
+  if (catalog[0]?.id === 'jp_1' || (ids.has('jp_1') && !ids.has('str_1') && !ids.has('1'))) {
+    return PLATFORM_DOMAIN_PRESETS.find((p) => p.id === 'video_jp') || null;
+  }
+  if (catalog[0]?.id === 'str_1' || (ids.has('str_1') && !ids.has('jp_1') && !ids.has('1'))) {
+    return PLATFORM_DOMAIN_PRESETS.find((p) => p.id === 'streaming') || null;
+  }
+  if (catalog[0]?.id === '1' && catalog.length <= 20) {
+    return PLATFORM_DOMAIN_PRESETS.find((p) => p.id === 'marketplace') || null;
+  }
+  return null;
+}
+
 export const FULL_DEMO_CATALOG: CatalogItem[] = (() => {
   const seen = new Set<string>();
   const combined: CatalogItem[] = [];
@@ -478,4 +666,5 @@ export const FULL_DEMO_CATALOG: CatalogItem[] = (() => {
   }
   return combined;
 })();
+
 

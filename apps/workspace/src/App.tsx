@@ -124,12 +124,19 @@ export function App() {
         catalog={catalog}
         selectedItem={selectedItem}
         activeDomain={activeDomain}
+        uiLang={uiLang}
         csvProject={csvProject}
         onHybridSearch={handleHybridSearch}
         onRecommend={handleRecommend}
         onImportCsvConcepts={handleCsvImportConcepts}
-        onSelectDomainPreset={handleSelectDomainPreset}
-        onImportCustomDatabase={handleImportCustomDatabase}
+        onSelectDomainPreset={(preset) => {
+          handleSelectDomainPreset(preset);
+          if (view === 'demo') setView('search');
+        }}
+        onImportCustomDatabase={(items, label) => {
+          handleImportCustomDatabase(items, label);
+          if (view === 'demo') setView('search');
+        }}
         onShowToast={showToast}
       />
 

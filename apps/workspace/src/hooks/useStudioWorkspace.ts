@@ -22,6 +22,7 @@ import {
   PLATFORM_DOMAIN_PRESETS,
   PlatformDomainId,
   PlatformDomainPreset,
+  getLocalizedPresetMeta,
 } from '../data/domainDatabases';
 import { UiLanguage } from '../i18n/uiTranslations';
 import {
@@ -215,15 +216,19 @@ export function useStudioWorkspace() {
       setSelectedItem(preset.items[0] || null);
       setIsScaledCatalog(false);
       setActiveDomain(preset.id);
-      if (preset.id === 'video_jp') setUiLang('ja');
-      else if (preset.id === 'streaming') setUiLang('en');
-      else if (preset.id === 'marketplace') setUiLang('ru');
+      const meta = getLocalizedPresetMeta(preset, uiLang);
+      const indexedLabel =
+        uiLang === 'ja'
+          ? `${preset.items.length} SKU インデックス完了 (${elapsed} ms)`
+          : uiLang === 'en'
+          ? `${preset.items.length} SKU indexed (${elapsed} ms)`
+          : `${preset.items.length} SKU проиндексировано (${elapsed} мс)`;
       showToast(
-        `${preset.icon} ${preset.name} (${preset.languageLabel}) — ${preset.items.length} SKU indexed (${elapsed} ms)`,
+        `${preset.icon} ${meta.name} (${preset.languageLabel}) — ${indexedLabel}`,
         'success'
       );
     },
-    [showToast]
+    [showToast, uiLang]
   );
 
   const handleImportCustomDatabase = useCallback(

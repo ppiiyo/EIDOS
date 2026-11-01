@@ -6,13 +6,16 @@ import {
   PLATFORM_DOMAIN_PRESETS,
   PlatformDomainId,
   PlatformDomainPreset,
+  getLocalizedPresetMeta,
 } from '../data/domainDatabases';
+import { UiLanguage } from '../i18n/uiTranslations';
 import { CustomJsonConnectorTab, DbSyncConnectorsTab } from './modals/DatabaseConnectorTabs';
 
 interface DatabaseConnectorModalProps {
   isOpen: boolean;
   activeDomain: PlatformDomainId;
   catalogCount: number;
+  uiLang?: UiLanguage;
   onClose: () => void;
   onSelectDomainPreset: (preset: PlatformDomainPreset) => void;
   onImportCustomDatabase: (items: CatalogItem[], label?: string) => void;
@@ -49,6 +52,7 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
   isOpen,
   activeDomain,
   catalogCount,
+  uiLang = 'ru',
   onClose,
   onSelectDomainPreset,
   onImportCustomDatabase,
@@ -158,10 +162,18 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
             <Globe size={18} className="text-[var(--accent)]" />
             <div>
               <div className="font-bold text-base text-[var(--text)]">
-                Platform Domain, Live JSON & DB Sync Connector
+                {uiLang === 'ja'
+                  ? '業界プリセット・JSON・DB接続ハブ'
+                  : uiLang === 'en'
+                  ? 'Industry Presets, Live JSON & DB Sync Connector'
+                  : 'Отраслевые пресеты, JSON и подключение БД'}
               </div>
               <div className="text-xs text-[var(--text-sec)]">
-                Active Index: {catalogCount.toLocaleString()} items in IndexedDB + 384-d HNSW
+                {uiLang === 'ja'
+                  ? `アクティブインデックス: ${catalogCount.toLocaleString()} SKU (384次元 HNSW)`
+                  : uiLang === 'en'
+                  ? `Active Index: ${catalogCount.toLocaleString()} items in IndexedDB + 384-d HNSW`
+                  : `Активный индекс: ${catalogCount.toLocaleString()} SKU в 384-d HNSW`}
               </div>
             </div>
           </div>
@@ -173,7 +185,9 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
               className={tab === 'presets' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
             >
               <Database size={13} />
-              <span>Industry Presets</span>
+              <span>
+                {uiLang === 'ja' ? '業界プリセット' : uiLang === 'en' ? 'Industry Presets' : 'Пресеты отраслей'}
+              </span>
             </button>
             <button
               type="button"
@@ -181,7 +195,7 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
               className={tab === 'json' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
             >
               <FileJson size={13} />
-              <span>Import JSON</span>
+              <span>{uiLang === 'ja' ? 'JSON読込' : uiLang === 'en' ? 'Import JSON' : 'Импорт JSON'}</span>
             </button>
             <button
               type="button"
@@ -201,10 +215,12 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
           {tab === 'presets' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {PLATFORM_DOMAIN_PRESETS.map((preset) => {
-                const isSelected = activeDomain === preset.id;
+                const isSelected = catalogCount > 0 && activeDomain === preset.id;
+                const meta = getLocalizedPresetMeta(preset, uiLang);
                 return (
                   <div
                     key={preset.id}
+                    data-testid={`modal-preset-${preset.id}`}
                     onClick={() => {
                       onSelectDomainPreset(preset);
                       onClose();
@@ -216,15 +232,15 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-lg font-bold text-[var(--text)]">
-                        {preset.icon} {preset.name}
+                      <span className="text-base font-bold text-[var(--text)]">
+                        {preset.icon} {meta.name}
                       </span>
                       {isSelected && <CheckCircle2 size={16} className="text-[var(--accent)]" />}
                     </div>
-                    <p className="text-xs text-[var(--text-sec)] mb-3">{preset.description}</p>
+                    <p className="text-xs text-[var(--text-sec)] mb-3">{meta.description}</p>
                     <div className="flex items-center justify-between text-xs mono text-[var(--text-mut)]">
                       <span>{preset.languageLabel}</span>
-                      <span>{preset.items.length} curated SKUs</span>
+                      <span>{preset.items.length} SKU</span>
                     </div>
                   </div>
                 );

@@ -85,6 +85,12 @@ export const DemoPage: React.FC<DemoPageProps> = ({
     }
   }, [forceMode, ownCatalog.length, catalog, apiBaseUrl]);
 
+  useEffect(() => {
+    if (catalog && catalog.length > 0) {
+      setOwnCatalog([]);
+    }
+  }, [catalog]);
+
   // Основной продукт (effectiveState === 'own') работает ТОЛЬКО с пользовательскими данными без демо-каталога
   const activeOwnCatalog = useMemo<CatalogItem[]>(() => {
     if (ownCatalog.length > 0) {

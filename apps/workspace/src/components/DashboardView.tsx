@@ -14,6 +14,7 @@ import {
   PLATFORM_DOMAIN_PRESETS,
   PlatformDomainId,
   PlatformDomainPreset,
+  getLocalizedPresetMeta,
 } from '../data/domainDatabases';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 import { HnswBenchmarkCard } from './dashboard/HnswBenchmarkCard';
@@ -60,10 +61,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [catalog]);
 
   const quickPresets = useMemo(() => {
-    if (dominantLang === 'ja') return ['宇宙とブラックホールの科学', 'サイバーパンク2077 ゲーム実況', 'Rust 高速データベース開発'];
-    if (dominantLang === 'en') return ['relativistic time and black holes', 'cyberpunk neural simulation', 'rust vector database'];
+    const activePreset = PLATFORM_DOMAIN_PRESETS.find((p) => p.id === activeDomain);
+    if (activePreset && catalog.length > 0) {
+      return getLocalizedPresetMeta(activePreset, uiLang).sampleQueries.slice(0, 3).map((q) => q.label);
+    }
+    if (uiLang === 'ja') return ['宇宙とブラックホールの科学', 'サイバーパンク2077 ゲーム実況', 'Rust 高速データベース開発'];
+    if (uiLang === 'en') return ['relativistic time and black holes', 'cyberpunk neural simulation', 'rust vector database'];
     return ['космос и черные дыры', 'киберпанк симуляция', 'быстрая база данных rust'];
-  }, [dominantLang]);
+  }, [activeDomain, catalog.length, uiLang]);
 
   const stats = useMemo(() => {
     const events = getEvents();
@@ -110,84 +115,70 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <p className="page-sub mt-1">{t.subtitle}</p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => onNavigate('faq')}
-            data-testid="open-faq-guide-btn"
-          >
-            <HelpCircle size={14} />
-            <span>{uiLang === 'ru' ? 'FAQ и Гид по функциям' : 'FAQ & Feature Guide'}</span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onNavigate('faq')} data-testid="open-faq-guide-btn">
+            <HelpCircle size={14} /><span>{uiLang === 'ru' ? 'FAQ и Гид по функциям' : uiLang === 'ja' ? 'FAQ＆機能ガイド' : 'FAQ & Feature Guide'}</span>
           </button>
           {onOpenDatabaseConnector && (
             <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenDatabaseConnector} data-testid="open-db-connector-btn">
-              <Globe size={14} />
-              <span>{t.connectDbBtn}</span>
+              <Globe size={14} /><span>{t.connectDbBtn}</span>
             </button>
           )}
           {!isScaledCatalog ? (
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => onScaleCatalog(1200)}>
-              <Database size={14} />
-              <span>{t.scaleBtn}</span>
+              <Database size={14} /><span>{t.scaleBtn}</span>
             </button>
           ) : (
             <button type="button" className="btn btn-secondary btn-sm" onClick={onRestoreCatalog}>
-              <RotateCcw size={14} />
-              <span>{t.restoreBtn}</span>
+              <RotateCcw size={14} /><span>{t.restoreBtn}</span>
             </button>
           )}
           <button type="button" className="btn btn-primary btn-sm" onClick={onOpenApiConsole}>
-            <Terminal size={14} />
-            <span>{t.openApiBtn}</span>
+            <Terminal size={14} /><span>{t.openApiBtn}</span>
           </button>
         </div>
       </div>
 
-      {catalog.length === 0 ? (
-        <div className="card px-5 py-4 mb-5 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-[var(--accent)]">
+      {catalog.length === 0 && (
+        <div className="card px-5 py-4 mb-4 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-[var(--accent)]">
           <div>
             <div className="text-sm font-semibold text-[var(--text)]">
-              {uiLang === 'ru'
-                ? 'Пользовательская база пуста (0 SKU) — загрузите свой каталог или откройте Демо-стенд'
-                : 'User database is empty (0 SKU) — upload your catalog or open the Demo Catalog'}
+              {uiLang === 'ru' ? 'Пользовательская база пуста (0 SKU) — загрузите свой каталог или выберите пресет' : uiLang === 'ja' ? 'カタログが空です (0 SKU) — CSVをアップロードするかプリセットを選択してください' : 'User database is empty (0 SKU) — upload your catalog or select an Industry Preset'}
             </div>
             <p className="text-xs text-[var(--text-sec)] mt-0.5">
-              {uiLang === 'ru'
-                ? 'В основном рабочем пространстве нет предзагруженных демо-товаров. Импортируйте CSV/JSON или протестируйте все 48 SKU во вкладке «Демо-каталог».'
-                : 'No preloaded demo items in the main workspace. Import CSV/JSON or test all 48 SKU in the Demo Catalog tab.'}
+              {uiLang === 'ru' ? 'Импортируйте CSV/JSON, выберите отраслевой пресет ниже или протестируйте 48 SKU во вкладке «Демо-каталог».' : uiLang === 'ja' ? 'CSV/JSONのインポート、下の業界プリセットの選択、またはデモカタログ（48 SKU）をお試しください。' : 'Import CSV/JSON, pick an Industry Preset below, or test all 48 SKUs in the Demo Catalog tab.'}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button type="button" onClick={() => onNavigate('search')} className="btn btn-primary btn-sm">
-              <span>{uiLang === 'ru' ? '📤 Загрузить свою базу (CSV/JSON)' : '📤 Upload Own Catalog'}</span>
+              <span>{uiLang === 'ru' ? '📤 Загрузить базу (CSV)' : uiLang === 'ja' ? '📤 カタログ読込 (CSV)' : '📤 Upload Own Catalog'}</span>
             </button>
             <button type="button" onClick={() => onNavigate('demo')} className="btn btn-secondary btn-sm">
-              <span>{uiLang === 'ru' ? '🧪 Открыть Демо-каталог (48 SKU)' : '🧪 Open Demo Catalog (48 SKU)'}</span>
+              <span>{uiLang === 'ru' ? '🧪 Демо-каталог (48 SKU)' : uiLang === 'ja' ? '🧪 デモ (48 SKU)' : '🧪 Demo Catalog (48 SKU)'}</span>
             </button>
           </div>
         </div>
-      ) : (
-        onSelectDomainPreset && (
-          <div className="card px-4 py-3 mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Globe size={15} color="var(--accent)" />
-              <span className="text-[0.8125rem] font-semibold text-[var(--text)]">{t.platformDomainLabel}</span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {PLATFORM_DOMAIN_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  data-testid={`switch-domain-${preset.id}`}
-                  onClick={() => { setQuickResults([]); onSelectDomainPreset(preset); }}
-                  className={activeDomain === preset.id ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
-                >
-                  <span>{preset.shortLabel}</span>
-                </button>
-              ))}
-            </div>
+      )}
+
+      {onSelectDomainPreset && (
+        <div className="card px-4 py-3 mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Globe size={15} color="var(--accent)" />
+            <span className="text-[0.8125rem] font-semibold text-[var(--text)]">{t.platformDomainLabel}</span>
           </div>
-        )
+          <div className="flex items-center gap-2 flex-wrap">
+            {PLATFORM_DOMAIN_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                data-testid={`switch-domain-${preset.id}`}
+                onClick={() => { setQuickResults([]); onSelectDomainPreset(preset); }}
+                className={catalog.length > 0 && activeDomain === preset.id ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
+              >
+                <span>{getLocalizedPresetMeta(preset, uiLang).shortLabel}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <DashboardKpiGrid stats={stats} dominantLang={dominantLang} onNavigate={onNavigate} t={t} />

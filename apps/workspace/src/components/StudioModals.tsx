@@ -2,6 +2,7 @@ import React from 'react';
 import { CatalogItem, CatalogRecommendation, Project } from '../types';
 import { HybridSearchHit } from '../utils/recommenderEngine';
 import { PlatformDomainId, PlatformDomainPreset } from '../data/domainDatabases';
+import { UiLanguage } from '../i18n/uiTranslations';
 import { ApiConsoleModal } from './ApiConsoleModal';
 import { CsvImporterModal } from './CsvImporterModal';
 import { DatabaseConnectorModal } from './DatabaseConnectorModal';
@@ -16,6 +17,7 @@ export interface StudioModalsProps {
   catalog: CatalogItem[];
   selectedItem: CatalogItem | null;
   activeDomain: PlatformDomainId;
+  uiLang?: UiLanguage;
   csvProject: Project;
   onHybridSearch: (query: string, alpha: number, limit?: number) => Promise<HybridSearchHit[]>;
   onRecommend: (
@@ -42,6 +44,7 @@ export const StudioModals: React.FC<StudioModalsProps> = ({
   catalog,
   selectedItem,
   activeDomain,
+  uiLang = 'ru',
   csvProject,
   onHybridSearch,
   onRecommend,
@@ -75,6 +78,7 @@ export const StudioModals: React.FC<StudioModalsProps> = ({
         isOpen={isDbConnectorOpen}
         activeDomain={activeDomain}
         catalogCount={catalog.length}
+        uiLang={uiLang}
         onClose={onCloseDbConnector}
         onSelectDomainPreset={onSelectDomainPreset}
         onImportCustomDatabase={onImportCustomDatabase}
@@ -82,3 +86,4 @@ export const StudioModals: React.FC<StudioModalsProps> = ({
     </>
   );
 };
+

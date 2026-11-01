@@ -47,6 +47,9 @@ function isApiOrTelemetryRoute(url: string): boolean {
     cleanUrl.startsWith('/api/v1/') ||
     cleanUrl === '/health' ||
     cleanUrl === '/api/health' ||
+    cleanUrl === '/ready' ||
+    cleanUrl === '/live' ||
+    cleanUrl === '/widget.js' ||
     cleanUrl === '/docs' ||
     cleanUrl.startsWith('/docs/') ||
     cleanUrl === '/metrics'
@@ -187,9 +190,7 @@ async function startUnifiedServer() {
         configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
         server: {
           middlewareMode: true,
-          hmr: {
-            server,
-          },
+          hmr: process.env.DISABLE_HMR === 'true' ? false : { server },
           watch: null,
         },
         appType: 'spa',

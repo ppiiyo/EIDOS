@@ -12,7 +12,11 @@ import {
   JAPANESE_VIDEO_HOSTING_CATALOG,
   STREAMING_PLATFORM_CATALOG,
   GLOBAL_MULTILINGUAL_CATALOG,
+  PLATFORM_DOMAIN_PRESETS,
+  getLocalizedPresetMeta,
+  detectPresetFromCatalog,
 } from '../../apps/workspace/src/data/domainDatabases';
+import { getSampleQueriesForLang } from '../../apps/workspace/src/hooks/useSearchCognitiveState';
 import { ConversationalAgent } from '../../apps/workspace/src/lib/agent/conversational-agent';
 
 function buildEmbeddingsMap(items = INITIAL_CATALOG): Map<string, Float32Array> {
@@ -116,6 +120,55 @@ describe('Multilingual & Cross-Lingual 384-d Retrieval, CJK BM25 & NLU Verificat
     expect(rustIds).toContain('de_1');
   });
 
+  it('works across all 4 Industry Presets in RU, EN, and JA without forcing language switches or returning 0 results', () => {
+    const uiLangs: Array<'ru' | 'en' | 'ja'> = ['ru', 'en', 'ja'];
+    const crossLingualQueries = [
+      'космос и черные дыры и теория относительности',
+      'relativistic time dilation and black holes in space',
+      '宇宙とブラックホールの科学と相対性理論',
+    ];
+
+    for (const preset of PLATFORM_DOMAIN_PRESETS) {
+      expect(detectPresetFromCatalog(preset.items)?.id).toBe(preset.id);
+      const embeddings = buildEmbeddingsMap(preset.items);
+
+      for (const uiLang of uiLangs) {
+        const meta = getLocalizedPresetMeta(preset, uiLang);
+        expect(meta.name.length).toBeGreaterThan(3);
+        expect(meta.shortLabel.length).toBeGreaterThan(2);
+        expect(meta.description.length).toBeGreaterThan(10);
+        expect(meta.sampleQueries.length).toBeGreaterThanOrEqual(4);
+
+        const queriesFromHook = getSampleQueriesForLang('ru', preset.items, uiLang);
+        expect(queriesFromHook).toEqual(meta.sampleQueries);
+
+        for (const sq of meta.sampleQueries) {
+          const hits = executeHybridCatalogSearch(
+            sq.label,
+            computeTextEmbedding(`query: ${sq.label}`),
+            preset.items,
+            embeddings,
+            0.7,
+            5
+          );
+          expect(hits.length).toBeGreaterThan(0);
+        }
+      }
+
+      for (const q of crossLingualQueries) {
+        const hits = executeHybridCatalogSearch(
+          q,
+          computeTextEmbedding(`query: ${q}`),
+          preset.items,
+          embeddings,
+          0.7,
+          5
+        );
+        expect(hits.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it('localizes explanations and ConversationalAgent responses across RU, EN, and JA', async () => {
     // 1. Japanese video catalog explanations & agent
     const jpEmbeddings = buildEmbeddingsMap(JAPANESE_VIDEO_HOSTING_CATALOG);
@@ -150,3 +203,4 @@ describe('Multilingual & Cross-Lingual 384-d Retrieval, CJK BM25 & NLU Verificat
     expect(enReply.text).toContain('Found');
   });
 });
+

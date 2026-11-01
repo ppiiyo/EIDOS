@@ -710,7 +710,10 @@ export function executeHybridCatalogSearch(
   ]);
 
   const queryLang = detectTextLanguage(trimmed);
-  const hasQueryConceptCluster = MULTILINGUAL_CONCEPT_CLUSTERS.some((c) => c.pattern.test(trimmed));
+  const queryClusterIndices = MULTILINGUAL_CONCEPT_CLUSTERS.map((c, idx) =>
+    c.pattern.test(trimmed) ? idx : -1
+  ).filter((idx) => idx !== -1);
+  const hasQueryConceptCluster = queryClusterIndices.length > 0;
   const RRF_K = 60;
 
   // Check if the catalog contains any items with direct title/category/tag overlap
@@ -767,12 +770,20 @@ export function executeHybridCatalogSearch(
       );
     }
 
+    const itemTextForClusters = `${item.title} ${item.category} ${item.description} ${(item.tags || []).join(' ')}`;
+    const sharedClusterCount = queryClusterIndices.filter((idx) =>
+      MULTILINGUAL_CONCEPT_CLUSTERS[idx].pattern.test(itemTextForClusters)
+    ).length;
+    const itemMatchesQueryCluster = sharedClusterCount > 0;
+
     // If pure BM25 (alpha === 0), filter out items with 0 BM25 score
     if (alpha === 0 && sScore === 0) continue;
     // Filter out pure hash noise when query has no concept cluster, no lexical overlap, and low dense similarity
     if (!hasQueryConceptCluster && sScore === 0 && matchedTokens.length === 0 && dScore < 0.24) continue;
-    // Off-domain guardrail: if catalog has lexical/category matches for the query, suppress off-domain items with 0 lexical overlap and weak dense similarity
-    if (catalogHasLexicalMatches && !guardrail.passesLexicalGate && alpha < 0.98) continue;
+    // Filter out off-domain items on cross-lingual concept queries when item shares neither lexical tokens nor concept clusters
+    if (hasQueryConceptCluster && !itemMatchesQueryCluster && sScore === 0 && matchedTokens.length === 0 && dScore < 0.32) continue;
+    // Off-domain guardrail: if catalog has lexical/category matches for the query, suppress off-domain items with 0 lexical overlap and weak dense similarity (unless confirmed cross-lingual concept match)
+    if (catalogHasLexicalMatches && !guardrail.passesLexicalGate && !itemMatchesQueryCluster && alpha < 0.98) continue;
 
     const dRank = denseRanks.get(id);
     const sRank = sparseRanks.get(id) ?? (sScore > 0 ? 5 : undefined);
@@ -780,8 +791,13 @@ export function executeHybridCatalogSearch(
     const rrfSparseContribution = sRank ? (1 - alpha) / (RRF_K + sRank) : 0;
     const rrfScore = rrfDenseContribution + rrfSparseContribution;
 
+    const crossLingualClusterBoost =
+      itemMatchesQueryCluster && sScore === 0 ? Math.min(0.24, sharedClusterCount * 0.14) : 0;
     const baseFused = alpha * dScore + (1 - alpha) * sScore;
-    const fusedScore = Math.min(0.99, baseFused + guardrail.consistencyBoost * 0.35);
+    const fusedScore = Math.min(
+      0.99,
+      baseFused + guardrail.consistencyBoost * 0.35 + crossLingualClusterBoost
+    );
     let source: 'hybrid' | 'dense' | 'sparse' = 'hybrid';
     if (sScore === 0 || alpha >= 0.99) source = 'dense';
     else if (dScore < 0.05 || alpha <= 0.01) source = 'sparse';

@@ -15,6 +15,7 @@ import {
   computeCategoryEntropy,
 } from '../utils/recommenderEngine';
 import { InspectorExtractedIntent, InspectorResultItem } from '../components/QueryInspector';
+import { detectPresetFromCatalog, getLocalizedPresetMeta } from '../data/domainDatabases';
 
 const SAMPLE_QUERIES_BY_LANG: Record<string, Array<{ label: string; note: string }>> = {
   ja: [
@@ -39,22 +40,35 @@ const SAMPLE_QUERIES_BY_LANG: Record<string, Array<{ label: string; note: string
 
 export function getSampleQueriesForLang(
   lang: string,
-  catalog?: CatalogItem[]
+  catalog?: CatalogItem[],
+  uiLang?: 'ru' | 'en' | 'ja'
 ): Array<{ label: string; note: string }> {
+  const effectiveUiLang: 'ru' | 'en' | 'ja' =
+    uiLang || (lang === 'ja' ? 'ja' : lang === 'en' ? 'en' : 'ru');
   if (catalog && catalog.length > 0) {
+    const matchedPreset = detectPresetFromCatalog(catalog);
+    if (matchedPreset) {
+      return getLocalizedPresetMeta(matchedPreset, effectiveUiLang).sampleQueries;
+    }
     const isDemoCatalog = catalog.some(
       (i) => i.id === '1' || i.id === 'str_1' || i.id === 'jp_1' || i.id === 'zh_1'
     );
     if (!isDemoCatalog) {
       const customQueries: Array<{ label: string; note: string }> = [];
       const seen = new Set<string>();
+      const customNoteSuffix =
+        effectiveUiLang === 'ja'
+          ? 'カスタムカタログ検索'
+          : effectiveUiLang === 'en'
+          ? 'Search your custom catalog'
+          : 'Поиск по вашей базе';
       for (const item of catalog.slice(0, 6)) {
         const label = item.title.trim();
         if (label && !seen.has(label.toLowerCase())) {
           seen.add(label.toLowerCase());
           customQueries.push({
             label,
-            note: `${item.category || 'Каталог'} · Поиск по вашей базе`,
+            note: `${item.category || 'Catalog'} · ${customNoteSuffix}`,
           });
         }
         if (customQueries.length >= 4) break;
@@ -64,7 +78,7 @@ export function getSampleQueriesForLang(
       }
     }
   }
-  return SAMPLE_QUERIES_BY_LANG[lang] || SAMPLE_QUERIES_BY_LANG.ru;
+  return SAMPLE_QUERIES_BY_LANG[lang] || SAMPLE_QUERIES_BY_LANG[effectiveUiLang] || SAMPLE_QUERIES_BY_LANG.ru;
 }
 
 const CLIENT_CATEGORY_MAP: Record<string, string> = {

@@ -37,7 +37,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
     const sample = catalog.slice(0, 4).map((i) => `${i.title} ${i.description}`).join(' ');
     return detectTextLanguage(sample);
   }, [catalog]);
-  const sampleQueries = useMemo(() => getSampleQueriesForLang(dominantLang, catalog), [dominantLang, catalog]);
+  const sampleQueries = useMemo(() => getSampleQueriesForLang(dominantLang, catalog, uiLang), [dominantLang, catalog, uiLang]);
 
   const [query, setQuery] = useState(sampleQueries[0]?.label || '');
   const [alpha, setAlpha] = useState<number>(0.7);
@@ -134,10 +134,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
   }, [query, alpha]);
 
   const handleTriggerWowMoment = () => {
-    const wowQuery = dominantLang === 'ru' ? 'недорогие наушники для бега' : sampleQueries[0]?.label || 'wireless running headphones';
+    const wowQuery = sampleQueries[0]?.label || 'недорогие наушники для бега';
     setShowXray(true); setCompareMode(true); setWowTourActive(true);
     cog.setDisableIntentBoost(false); cog.setDisableMmrPenalty(false);
-    void runSearch(cog.applyScenarioPreset('intent_budget') || wowQuery, 0.65);
+    cog.applyScenarioPreset('intent_budget'); void runSearch(wowQuery, 0.65);
   };
 
   const handleResetZeroResults = () => {
