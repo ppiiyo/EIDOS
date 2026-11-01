@@ -1,11 +1,13 @@
 import React from 'react';
 import { Upload, RotateCcw, Sparkles, CheckCircle2, Search } from 'lucide-react';
 import { DemoState } from '../hooks/useDemoState';
+import { UiLanguage } from '../../../i18n/uiTranslations';
 
 export interface DemoBannerProps {
   state: DemoState;
   ownItemsCount: number;
   demoItemsCount?: number;
+  uiLang?: UiLanguage;
   onOpenUpload: () => void;
   onReset: () => void;
 }
@@ -14,6 +16,7 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
   state,
   ownItemsCount,
   demoItemsCount = 48,
+  uiLang = 'ru',
   onOpenUpload,
   onReset,
 }) => {
@@ -50,18 +53,34 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
           <div>
             <span className="font-bold text-[var(--text)]" data-testid="indexed-items-count">
               {isDemo
-                ? `Вы сейчас в демо-режиме (${demoItemsCount} SKU проиндексировано). Данные изолированы.`
+                ? uiLang === 'ja'
+                  ? `デモモード実行中 (${demoItemsCount} SKU インデックス済)・データは分離されています`
+                  : uiLang === 'en'
+                  ? `Demo Mode Active (${demoItemsCount} SKUs indexed). Sandbox is isolated.`
+                  : `Вы сейчас в демо-режиме (${demoItemsCount} SKU проиндексировано). Данные изолированы.`
+                : uiLang === 'ja'
+                ? `${ownItemsCount} 商品インデックス済 · マイカタログモード`
+                : uiLang === 'en'
+                ? `${ownItemsCount} items indexed · My Catalog Mode`
                 : `${ownItemsCount} товаров проиндексировано · Режим «Мой каталог»`}
             </span>
             <span
               data-testid="demo-index-ready-badge"
               className="ml-2 px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] mono text-[11px] font-semibold text-[var(--success)]"
             >
-              ✓ Индекс готов
+              {uiLang === 'ja' ? '✓ インデックス準備完了' : uiLang === 'en' ? '✓ Index Ready' : '✓ Индекс готов'}
             </span>
             <span className="hidden lg:inline text-[var(--text-sec)] ml-2">
               {isDemo
-                ? 'Эксперименты с гибридным поиском, весом α и X-Ray выполняются в изолированной песочнице.'
+                ? uiLang === 'ja'
+                  ? 'ハイブリッド検索・αウェイト・X-Rayの実験は分離サンドボックス内で実行されます。'
+                  : uiLang === 'en'
+                  ? 'Hybrid search, alpha weights, and X-Ray experiments run in an isolated sandbox.'
+                  : 'Эксперименты с гибридным поиском, весом α и X-Ray выполняются в изолированной песочнице.'
+                : uiLang === 'ja'
+                ? '検索と推薦はインポートされたカタログデータのみを対象に実行されます。'
+                : uiLang === 'en'
+                ? 'Search and recommendations operate exclusively on your active catalog.'
                 : 'Поиск и рекомендации работают исключительно по вашему загруженному каталогу.'}
             </span>
           </div>
@@ -76,7 +95,9 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
               className="btn btn-primary btn-sm"
             >
               <Search size={13} />
-              <span>Найти по вашему каталогу</span>
+              <span>
+                {uiLang === 'ja' ? 'カタログを検索' : uiLang === 'en' ? 'Search Your Catalog' : 'Найти по вашему каталогу'}
+              </span>
             </button>
           )}
           <button
@@ -86,7 +107,19 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
             className={isDemo ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'}
           >
             <Upload size={13} />
-            <span>{isDemo ? 'Загрузить свой каталог' : 'Загрузить другой CSV/JSON'}</span>
+            <span>
+              {isDemo
+                ? uiLang === 'ja'
+                  ? '自分のカタログを読込'
+                  : uiLang === 'en'
+                  ? 'Upload Your Catalog'
+                  : 'Загрузить свой каталог'
+                : uiLang === 'ja'
+                ? '別のCSV/JSONを読込'
+                : uiLang === 'en'
+                ? 'Upload Another CSV/JSON'
+                : 'Загрузить другой CSV/JSON'}
+            </span>
           </button>
           <button
             type="button"
@@ -95,10 +128,23 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
             className="btn btn-secondary btn-sm"
           >
             <RotateCcw size={13} />
-            <span>{isDemo ? 'Выйти из демо и очистить' : 'Очистить базу (0 SKU)'}</span>
+            <span>
+              {isDemo
+                ? uiLang === 'ja'
+                  ? 'デモを終了してリセット'
+                  : uiLang === 'en'
+                  ? 'Exit Demo & Reset'
+                  : 'Выйти из демо и очистить'
+                : uiLang === 'ja'
+                ? 'カタログをクリア (0 SKU)'
+                : uiLang === 'en'
+                ? 'Clear Catalog (0 SKU)'
+                : 'Очистить базу (0 SKU)'}
+            </span>
           </button>
         </div>
       </div>
     </div>
   );
 };
+

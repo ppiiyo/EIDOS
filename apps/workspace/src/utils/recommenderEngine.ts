@@ -8,6 +8,7 @@ import {
   evaluateCandidateGuardrail,
 } from '@eidos/core';
 import { INITIAL_CATALOG } from '../data/catalog';
+import { expandQueryWithSynonyms } from '../data/industrySynonyms';
 
 export { INITIAL_CATALOG };
 export const DEFAULT_CATALOG = INITIAL_CATALOG;
@@ -596,8 +597,9 @@ let cachedIndices: {
 export function getOrBuildCatalogIndices(
   catalog: CatalogItem[],
   embeddings: Map<string, Float32Array>,
-  useQuantization = false
+  useQuantization?: boolean
 ): { hnsw: HNSWIndex; bm25: BM25Index; hybrid: HybridSearch } {
+  const effectiveQuantization = useQuantization ?? catalog.length >= 5000;
   const firstId = catalog[0]?.id ? String(catalog[0].id) : '';
   if (
     cachedIndices &&
@@ -608,7 +610,7 @@ export function getOrBuildCatalogIndices(
     return cachedIndices;
   }
 
-  const hnsw = buildCatalogHNSWIndex(catalog, embeddings, useQuantization);
+  const hnsw = buildCatalogHNSWIndex(catalog, embeddings, effectiveQuantization);
   const bm25 = new BM25Index();
   for (const item of catalog) {
     const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
@@ -630,7 +632,7 @@ export function getOrBuildCatalogIndices(
 export function getOrBuildCatalogHNSWIndex(
   catalog: CatalogItem[],
   embeddings: Map<string, Float32Array>,
-  useQuantization = false
+  useQuantization?: boolean
 ): HNSWIndex {
   return getOrBuildCatalogIndices(catalog, embeddings, useQuantization).hnsw;
 }
@@ -648,8 +650,15 @@ export function executeHybridCatalogSearch(
   limit = 10
 ): HybridSearchHit[] {
   const queryInfo = normalizeQueryWithLayoutRecovery(query);
-  const trimmed = queryInfo.normalizedQuery || query.trim();
-  if (!trimmed) return [];
+  const baseTrimmed = queryInfo.normalizedQuery || query.trim();
+  if (!baseTrimmed) return [];
+
+  const synExpansion = expandQueryWithSynonyms(baseTrimmed);
+  const trimmed = synExpansion.expandedQuery || baseTrimmed;
+  const effectiveQueryVec =
+    synExpansion.matchedSynonyms.length > 0
+      ? computeTextEmbedding(`query: ${trimmed}`)
+      : queryVec;
 
   const { hnsw, bm25 } = getOrBuildCatalogIndices(catalog, embeddings);
   const catalogMap = new Map<string, CatalogItem>(catalog.map((c) => [String(c.id), c]));
@@ -658,7 +667,7 @@ export function executeHybridCatalogSearch(
   const denseScores = new Map<string, number>();
   const denseRanks = new Map<string, number>();
   if (catalog.length >= 400) {
-    const annHits = hnsw.search(queryVec, Math.min(catalog.length, Math.max(limit * 4, 60)), 64);
+    const annHits = hnsw.search(effectiveQueryVec, Math.min(catalog.length, Math.max(limit * 4, 60)), 64);
     annHits.forEach((h, idx) => {
       denseScores.set(String(h.id), Math.max(0, h.score));
       denseRanks.set(String(h.id), idx + 1);
@@ -668,7 +677,7 @@ export function executeHybridCatalogSearch(
     for (const item of catalog) {
       const vec = embeddings.get(String(item.id));
       if (vec) {
-        const s = cosineSimilarity(queryVec, vec);
+        const s = cosineSimilarity(effectiveQueryVec, vec);
         denseScores.set(String(item.id), s);
         denseList.push({ id: String(item.id), score: s });
       }

@@ -33,6 +33,7 @@ import {
   EmbeddingEngineState,
 } from '../lib/embeddings';
 import { saveBinaryEmbeddingsToIdb, loadBinaryEmbeddingsFromIdb } from '../lib/storage';
+import { vectorizeCatalogInWorker } from '../lib/embeddings/vectorWorkerPool';
 
 export function useStudioWorkspace() {
   const [uiLang, setUiLang] = useState<UiLanguage>('ru');
@@ -234,35 +235,47 @@ export function useStudioWorkspace() {
   const handleImportCustomDatabase = useCallback(
     (items: CatalogItem[], label = 'Custom DB') => {
       if (items.length === 0) return;
-      const map = new Map<string, Float32Array>();
-      for (const item of items) {
-        map.set(
-          String(item.id),
-          computeTextEmbedding(
-            `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
-          )
-        );
+
+      const applyEmbeddingsMap = (map: Map<string, Float32Array>) => {
+        getOrBuildCatalogHNSWIndex(items, map);
+        setEmbeddings(map);
+        setCatalog(items);
+        setSelectedItem(items[0] || null);
+        setIsScaledCatalog(false);
+        showToast(`${label}: ${items.length} items vectorized into 384-d HNSW index`, 'success');
+      };
+
+      if (items.length >= 250) {
+        void vectorizeCatalogInWorker(items).then(applyEmbeddingsMap);
+      } else {
+        const map = new Map<string, Float32Array>();
+        for (const item of items) {
+          map.set(
+            String(item.id),
+            computeTextEmbedding(
+              `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
+            )
+          );
+        }
+        applyEmbeddingsMap(map);
       }
-      getOrBuildCatalogHNSWIndex(items, map);
-      setEmbeddings(map);
-      setCatalog(items);
-      setSelectedItem(items[0] || null);
-      setIsScaledCatalog(false);
-      showToast(`${label}: ${items.length} items vectorized into 384-d HNSW index`, 'success');
+
       if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
-        for (const item of items.slice(0, 25)) {
+        const BATCH_CHUNK = 250;
+        for (let i = 0; i < items.length; i += BATCH_CHUNK) {
+          const chunk = items.slice(i, i + BATCH_CHUNK).map((item) => ({
+            id: String(item.id),
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            price: Number(String(item.price || '0').replace(/[^\d.]/g, '')) || 49,
+            tags: item.tags || [item.category.toLowerCase()],
+          }));
           void window
             .fetch('/v1/catalog/upsert', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
-              body: JSON.stringify({
-                id: String(item.id),
-                title: item.title,
-                description: item.description,
-                category: item.category,
-                price: Number(String(item.price || '0').replace(/[^\d.]/g, '')) || 49,
-                tags: item.tags || [item.category.toLowerCase()],
-              }),
+              body: JSON.stringify({ items: chunk }),
             })
             .catch(() => {});
         }

@@ -1,3 +1,5 @@
+import { parseYmlXmlContent } from './yml-parser';
+
 export interface ParsedCatalogItem {
   id: string;
   title: string;
@@ -15,7 +17,10 @@ export interface ParseResult {
   items: ParsedCatalogItem[];
   errors: string[];
   warnings: string[];
+  totalRows?: number;
 }
+
+export type CsvParseResult = ParseResult;
 
 /**
  * Разбирает одну строку CSV с учётом кавычек и экранирования ("").
@@ -239,12 +244,15 @@ export function parseJson(text: string): ParseResult {
 }
 
 /**
- * Автоматически определяет формат файла (.csv или .json) и парсит его.
+ * Автоматически определяет формат файла (.csv, .json, .yml, .xml) и парсит его.
  */
 export async function parseFile(file: File): Promise<ParseResult> {
   const fileName = file.name.toLowerCase();
   const text = await file.text();
 
+  if (fileName.endsWith('.yml') || fileName.endsWith('.xml')) {
+    return parseYmlXmlContent(text);
+  }
   if (fileName.endsWith('.csv')) {
     return parseCsv(text);
   }
@@ -253,6 +261,13 @@ export async function parseFile(file: File): Promise<ParseResult> {
   }
 
   const trimmed = text.trim();
+  if (
+    trimmed.startsWith('<?xml') ||
+    trimmed.startsWith('<yml_catalog') ||
+    trimmed.startsWith('<КоммерческаяИнформация')
+  ) {
+    return parseYmlXmlContent(text);
+  }
   if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
     return parseJson(text);
   }

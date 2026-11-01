@@ -1,6 +1,6 @@
 {
-  "summary":  "Комплексный план финальной доводки платформы EIDOS v3.3: обновление двуязычной документации README (EN/RU) по всем новым векторам и архитектуре, алгоритмическая и UI-оптимизация скорости без аллокаций в цикле, премиальная визуальная полировка Studio, интерактивный A/B-компаратор векторов, панель экспорта конфигурации (JSON/cURL/SDK) и калькулятор ROI поисковой воронки.",
-  "updatedAt":  "2026-10-29T21:48:05.297216113Z",
+  "summary":  "Comprehensive implementation plan for EIDOS v3.4.0 Performance & Architecture Optimizations (Web Worker vectorization, batch catalog upsert, automatic Int8 scalar quantization at 5,000+ SKUs, and React.lazy code-splitting) and Priority 1 & 2 Product/UX Conversion Upgrades (Full-screen Storefront Widget Live Preview, YML/XML Feed URL & File Importer, Industry Synonym & Stopword Dictionaries, Visual 1-Click Pinning/Hiding on Search Cards, Zero-Result Revenue Recovery Report, and Side-by-Side Storefront URL Benchmark).",
+  "updatedAt":  "2026-11-01T04:14:27.840362347Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

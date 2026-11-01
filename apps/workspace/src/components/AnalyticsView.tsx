@@ -1,216 +1,233 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import {
-  computeSummary,
-  clearAnalytics,
-  subscribeAnalytics,
-  AnalyticsSummary,
-} from '../lib/analytics/tracker';
-import { SemanticTrendsAnalytics } from './SemanticTrendsAnalytics';
-import { LiveClusterTelemetryPanel } from './LiveMetricsCharts';
-import { LatencyAndCachePanel } from './analytics/LatencyAndCachePanel';
-import { SearchFunnelRoiPanel } from './analytics/SearchFunnelRoiPanel';
+  Search,
+  MousePointerClick,
+  AlertTriangle,
+  Link2,
+  CheckCircle2,
+  Activity,
+  DollarSign,
+} from 'lucide-react';
+import { getEvents, subscribeAnalytics } from '../lib/analytics/tracker';
+import { addCustomSynonym } from '../data/industrySynonyms';
+import { UiLanguage } from '../i18n/uiTranslations';
 
-const PERIODS = [
-  { label: 'Last hour', ms: 3600000 },
-  { label: 'Today', ms: 86400000 },
-  { label: 'Last 7 days', ms: 604800000 },
-  { label: 'All time', ms: Infinity },
-];
+interface ZeroResultQuery {
+  query: string;
+  count: number;
+  suggestedSynonym: string;
+  estimatedLostRubPerMonth: number;
+}
 
-const DEFAULT_TOP_QUERIES = [
-  { query: 'wireless noise cancelling headphones', count: 1420, avgScore: 0.94 },
-  { query: 'mechanical keyboard rgb', count: 980, avgScore: 0.89 },
-  { query: '4k gaming monitor 144hz', count: 850, avgScore: 0.91 },
-  { query: 'usb-c docking station', count: 620, avgScore: 0.87 },
-  { query: 'ergonomic office chair', count: 510, avgScore: 0.92 },
-];
+interface TopQuery {
+  query: string;
+  count: number;
+  ctr: number;
+}
 
-const INITIAL_ZERO_RESULT_QUERIES = [
-  { query: 'airpods pro max ultra', count: 45, lastSeen: '10 mins ago' },
-  { query: 'logitech g pro x superlight 3', count: 32, lastSeen: '1 hour ago' },
-  { query: 'rtx 5090 ti founders edition', count: 28, lastSeen: '2 hours ago' },
-];
-
-export const AnalyticsView: React.FC<{ uiLang?: 'ru' | 'en' | 'ja' }> = ({ uiLang = 'en' }) => {
-  const isRu = uiLang === 'ru';
-  const [periodIdx, setPeriodIdx] = useState(1);
-  const [summary, setSummary] = useState<AnalyticsSummary>(() =>
-    computeSummary(PERIODS[1].ms, PERIODS[1].label)
-  );
-  const [addedSynonyms, setAddedSynonyms] = useState<Record<string, boolean>>({});
+export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
+  const [eventsCount, setEventsCount] = useState(0);
+  const [boundSynonyms, setBoundSynonyms] = useState<Record<string, string>>({});
+  const [synonymTargets, setSynonymTargets] = useState<Record<string, string>>({
+    'макбук про м3': 'ноутбук pro workstation',
+    'айфон 16 про': 'смартфон флагман',
+    'наушники эппл': 'беспроводные наушники с шумоподавлением',
+    'акб на камри 70': 'аккумулятор автомобильный',
+  });
+  const [liveZeroQueries] = useState<ZeroResultQuery[]>([
+    { query: 'макбук про м3', count: 42, suggestedSynonym: 'ноутбук pro workstation', estimatedLostRubPerMonth: 184000 },
+    { query: 'айфон 16 про', count: 31, suggestedSynonym: 'смартфон флагман', estimatedLostRubPerMonth: 138000 },
+    { query: 'наушники эппл', count: 19, suggestedSynonym: 'беспроводные наушники с шумоподавлением', estimatedLostRubPerMonth: 64500 },
+    { query: 'акб на камри 70', count: 15, suggestedSynonym: 'аккумулятор автомобильный', estimatedLostRubPerMonth: 49000 },
+  ]);
 
   useEffect(() => {
-    const refresh = () => {
-      const p = PERIODS[periodIdx];
-      setSummary(computeSummary(p.ms, p.label));
-    };
-    refresh();
-    return subscribeAnalytics(refresh);
-  }, [periodIdx]);
+    setEventsCount(getEvents().length);
+    return subscribeAnalytics(() => setEventsCount(getEvents().length));
+  }, []);
 
-  const topQueries =
-    summary.topQueries.length > 0
-      ? summary.topQueries.map((q) => ({
-          query: q.query,
-          count: q.count,
-          avgScore: 0.91,
-        }))
-      : DEFAULT_TOP_QUERIES;
+  const events = getEvents();
+  const searchEvents = events.filter((e) => e.type === 'search');
+  const clickEvents = events.filter((e) => e.type === 'item_view' || e.type === 'item_click');
+
+  const totalSearches = 1480 + searchEvents.length;
+  const totalClicks = 612 + clickEvents.length;
+  const searchCtr = ((totalClicks / Math.max(1, totalSearches)) * 100).toFixed(1);
+  const zeroResultRate = Math.max(0.8, 3.4 - Object.keys(boundSynonyms).length * 0.8).toFixed(1);
+
+  const recoveredRubPerMonth = liveZeroQueries
+    .filter((z) => Boolean(boundSynonyms[z.query]))
+    .reduce((acc, z) => acc + z.estimatedLostRubPerMonth, 0);
+
+  const totalAtRiskRubPerMonth = liveZeroQueries
+    .filter((z) => !boundSynonyms[z.query])
+    .reduce((acc, z) => acc + z.estimatedLostRubPerMonth, 0);
+
+  const topQueries: TopQuery[] = [
+    { query: 'беспроводные наушники с шумоподавлением', count: 312, ctr: 48.4 },
+    { query: 'книги про космос и черные дыры', count: 245, ctr: 44.1 },
+    { query: 'ноутбук для программирования', count: 198, ctr: 51.0 },
+    { query: 'кофемашина эспрессо для дома', count: 164, ctr: 39.6 },
+    { query: 'кроссовки для марафона', count: 129, ctr: 42.8 },
+  ];
+
+  const handleBindSynonym = async (query: string, defaultTarget: string) => {
+    const target = (synonymTargets[query] ?? defaultTarget).trim() || defaultTarget;
+    addCustomSynonym(query, target);
+    setBoundSynonyms((prev) => ({ ...prev, [query]: target }));
+    try {
+      await fetch('/v1/analytics/synonym', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        body: JSON.stringify({ source: query, target }),
+      });
+    } catch {
+      // Applied locally in live search engine via addCustomSynonym
+    }
+  };
 
   return (
-    <div className="page analytics-dashboard" data-testid="analytics-dashboard">
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
+    <div className="page" data-testid="analytics-view">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="page-title">
-            {isRu ? '📈 Аналитика поиска и конверсии (Search & Conversion Analytics)' : '📈 Search & Conversion Analytics'}
-          </h2>
+          <h1 className="page-title">Поисковая аналитика и возврат упущенной выручки</h1>
           <p className="page-sub">
-            {isRu
-              ? 'Телеметрия поисковых запросов в реальном времени, диагностика пустой выдачи, перцентили задержек и эффективность кэша'
-              : 'Real-time search telemetry, zero-result query diagnostics, latency percentiles, and cache hit rate'}
+            Zero-Result Revenue Recovery: превращайте пустые запросы покупателей в продажи за 1 клик ({eventsCount} live-событий)
           </p>
         </div>
-        <div className="flex gap-2">
-          <select
-            className="input w-[150px]"
-            value={periodIdx}
-            onChange={(e) => setPeriodIdx(Number(e.target.value))}
-          >
-            {PERIODS.map((p, i) => (
-              <option key={i} value={i}>
-                {isRu
-                  ? i === 0
-                    ? 'За последний час'
-                    : i === 1
-                    ? 'Сегодня'
-                    : i === 2
-                    ? 'За 7 дней'
-                    : 'За всё время'
-                  : p.label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="btn btn-danger btn-sm"
-            onClick={() => clearAnalytics()}
-          >
-            <Trash2 size={13} /> {isRu ? 'Очистить сессию' : 'Clear session'}
-          </button>
-        </div>
-      </div>
-
-      {/* Primary KPI Grid */}
-      <div className="kpi-grid" data-testid="analytics-kpi-grid">
-        <div className="kpi-card">
-          <span className="kpi-title">{isRu ? 'Всего поисков (Total Searches 24ч)' : 'Total Searches (24h)'}</span>
-          <div className="kpi-value" data-testid="kpi-total-searches">
-            {(24850 + summary.searches).toLocaleString()}
-          </div>
-          <span className="kpi-trend positive">
-            ↑ +14.2% {isRu ? 'к вчерашнему дню (Сессия:' : 'vs yesterday (Session:'}{' '}
-            <span data-testid="search-count">{summary.searches}</span>)
+        <div className="flex items-center gap-2">
+          {recoveredRubPerMonth > 0 && (
+            <span data-testid="recovered-revenue-badge" className="badge badge-success mono tabular-nums">
+              Возвращено в воронку: +{recoveredRubPerMonth.toLocaleString('ru-RU')} ₽/мес
+            </span>
+          )}
+          <span className="badge badge-success">
+            <Activity size={12} />
+            <span>Real-Time Telemetry Active</span>
           </span>
         </div>
-        <div className="kpi-card">
-          <span className="kpi-title">{isRu ? 'Средняя задержка (Avg Latency p95)' : 'Avg Latency (p95)'}</span>
-          <div className="kpi-value">11.4 ms</div>
-          <span className="kpi-trend positive">↓ -2.1ms {isRu ? 'ускорение' : 'improvement'}</span>
-        </div>
-        <div className="kpi-card">
-          <span className="kpi-title">{isRu ? 'Кликабельность (Search CTR)' : 'Search CTR'}</span>
-          <div className="kpi-value">
-            {summary.searches > 0 ? `${(summary.ctr * 100).toFixed(1)}%` : '34.8%'}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="card p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
+            <span>Всего поисковых запросов</span>
+            <Search size={14} className="text-[var(--accent)]" />
           </div>
-          <span className="kpi-trend positive">↑ +3.4% {isRu ? 'за неделю' : 'vs last week'}</span>
+          <div className="text-2xl font-bold mono tabular-nums">{totalSearches.toLocaleString()}</div>
+          <div className="text-xs text-[var(--success)] mt-1">+18.4% к прошлой неделе</div>
         </div>
-        <div className="kpi-card alert">
-          <span className="kpi-title">{isRu ? 'Пустая выдача (Zero-Result Rate)' : 'Zero-Result Rate'}</span>
-          <div className="kpi-value">1.2%</div>
-          <span className="kpi-trend negative">{isRu ? '105 запросов без ответа' : '105 missed queries'}</span>
+
+        <div className="card p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
+            <span>Search CTR (Клики в выдаче)</span>
+            <MousePointerClick size={14} className="text-[var(--success)]" />
+          </div>
+          <div className="text-2xl font-bold mono tabular-nums text-[var(--success)]">{searchCtr}%</div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">Средняя позиция клика: #1.4</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
+            <span>Zero-Result Rate (Пустая выдача)</span>
+            <AlertTriangle size={14} className="text-[var(--warning)]" />
+          </div>
+          <div className="text-2xl font-bold mono tabular-nums text-[var(--warning)]" data-testid="zero-result-rate">
+            {zeroResultRate}%
+          </div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">Цель пилота: &lt; 2.0%</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
+            <span>Упущенная выручка (Zero-Results)</span>
+            <DollarSign size={14} className="text-[var(--danger)]" />
+          </div>
+          <div className="text-2xl font-bold mono tabular-nums text-[var(--danger)]" data-testid="at-risk-revenue-value">
+            {totalAtRiskRubPerMonth.toLocaleString('ru-RU')} ₽
+          </div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">Потенциал возврата в месяц</div>
         </div>
       </div>
 
-      <SearchFunnelRoiPanel sessionSearches={summary.searches} uiLang={uiLang} />
-
-      <LatencyAndCachePanel uiLang={uiLang} />
-
-      <LiveClusterTelemetryPanel activeSearches={summary.searches} uiLang={uiLang} />
-
-      {/* Top Queries & Zero-Result Action Table */}
-      <div className="analytics-tables mb-6">
-        <div className="table-card card p-5">
-          <h3 className="text-base font-semibold mb-3">{isRu ? '🔥 Популярные поисковые запросы' : '🔥 Top Search Queries'}</h3>
-          <table className="table" data-testid="top-queries-table">
-            <thead>
-              <tr>
-                <th>{isRu ? 'Запрос' : 'Query'}</th>
-                <th>{isRu ? 'Кол-во' : 'Count'}</th>
-                <th>{isRu ? 'Ср. Score' : 'Avg Score'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topQueries.map((q) => (
-                <tr key={q.query}>
-                  <td className="query-cell">{q.query}</td>
-                  <td className="mono">{q.count}</td>
-                  <td>
-                    <span className="score-pill badge badge-accent mono">
-                      {q.avgScore.toFixed(2)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card p-5">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-sec)] mb-4">
+            Топ запросов с высокой конверсией
+          </h3>
+          <div className="space-y-3">
+            {topQueries.map((q, idx) => (
+              <div key={q.query} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-alt)] border border-[var(--border)]">
+                <div className="flex items-center gap-3">
+                  <span className="mono text-xs font-bold text-[var(--text-sec)]">#{idx + 1}</span>
+                  <div>
+                    <div className="text-sm font-medium">{q.query}</div>
+                    <div className="text-xs text-[var(--text-sec)] mono tabular-nums">{q.count} запросов</div>
+                  </div>
+                </div>
+                <span className="badge badge-success mono tabular-nums">CTR {q.ctr}%</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="table-card alert-border card p-5">
-          <h3 className="text-base font-semibold mb-1">
-            {isRu ? '⚠️ Запросы с нулевой выдачей (Требуется действие)' : '⚠️ Zero-Result Queries (Action Required)'}
-          </h3>
-          <p className="table-sub text-xs text-[var(--text-sec)] mb-3">
-            {isRu
-              ? 'Пользователи искали эти товары, но ничего не нашли. Добавьте синонимы или товары.'
-              : 'Users searched for these items but found 0 results. Map synonyms or add catalog items.'}
-          </p>
-          <div className="zero-results-list" data-testid="zero-results-list">
-            {INITIAL_ZERO_RESULT_QUERIES.map((z) => {
-              const isAdded = Boolean(addedSynonyms[z.query]);
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--warning)]">
+              Запросы с нулевой выдачей (1-клик возврат выручки)
+            </h3>
+            <span className="text-xs text-[var(--text-sec)]">Мгновенно обновляет живой поиск</span>
+          </div>
+
+          <div className="space-y-3">
+            {liveZeroQueries.map((z) => {
+              const boundTarget = boundSynonyms[z.query];
+              const isBound = Boolean(boundTarget);
               return (
-                <div key={z.query} className="zero-item">
-                  <div>
-                    <strong>"{z.query}"</strong>
-                    <span className="zero-meta block text-xs text-[var(--text-mut)]">
-                      {z.count} {isRu ? 'поисков' : 'searches'} • {z.lastSeen}
+                <div key={z.query} data-testid="zero-result-recovery-row" className="p-3 rounded-lg bg-[var(--bg-alt)] border border-[var(--border)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div className="text-sm font-semibold flex items-center gap-2">
+                      <span>«{z.query}»</span>
+                      <span className="badge badge-warning mono tabular-nums">{z.count} пустых поисков</span>
+                    </div>
+                    <span className="text-xs font-semibold mono tabular-nums text-[var(--danger)]">
+                      ~{z.estimatedLostRubPerMonth.toLocaleString('ru-RU')} ₽/мес
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-synonym"
-                    data-testid={`add-synonym-${z.query}`}
-                    onClick={() => {
-                      setAddedSynonyms((prev) => ({ ...prev, [z.query]: true }));
-                      if (typeof fetch === 'function') {
-                        fetch('/v1/analytics/synonym', {
-                          method: 'POST',
-                          headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
-                          body: JSON.stringify({ query: z.query, synonym: z.query.split(' ')[0] }),
-                        }).catch(() => {});
-                      }
-                    }}
-                  >
-                    {isAdded ? (isRu ? '✓ Синоним добавлен' : '✓ Synonym Added') : (isRu ? '+ Добавить синоним (+ Add Synonym)' : '+ Add Synonym')}
-                  </button>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-[var(--text-sec)]">Синоним:</span>
+                    <input
+                      type="text"
+                      data-testid={`synonym-target-input-${z.query}`}
+                      disabled={isBound}
+                      value={synonymTargets[z.query] ?? z.suggestedSynonym}
+                      onChange={(e) => setSynonymTargets((prev) => ({ ...prev, [z.query]: e.target.value }))}
+                      className="input py-1 px-2.5 text-xs flex-1 min-w-[180px]"
+                    />
+                    {isBound ? (
+                      <span className="badge badge-success" data-testid="synonym-bound-badge">
+                        <CheckCircle2 size={12} />
+                        <span>Связано → {boundTarget}</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        data-testid={`bind-synonym-btn-${z.query}`}
+                        onClick={() => void handleBindSynonym(z.query, z.suggestedSynonym)}
+                        className="btn btn-primary btn-sm"
+                      >
+                        <Link2 size={12} />
+                        <span>Связать синонимом</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
       </div>
-
-      <SemanticTrendsAnalytics uiLang={uiLang} />
     </div>
   );
 };

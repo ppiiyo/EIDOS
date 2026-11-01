@@ -630,7 +630,7 @@ export function getLocalizedPresetMeta(
 }
 
 export function detectPresetFromCatalog(catalog?: CatalogItem[]): PlatformDomainPreset | null {
-  if (!catalog || catalog.length === 0) return null;
+  if (!catalog || catalog.length === 0 || catalog.length > 25) return null;
   const ids = new Set(catalog.map((i) => String(i.id)));
   if (ids.has('zh_1') && ids.has('es_1') && ids.has('de_1')) {
     return PLATFORM_DOMAIN_PRESETS.find((p) => p.id === 'global_multilingual') || null;

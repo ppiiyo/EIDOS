@@ -559,7 +559,234 @@ export async function catalogRoutes(
       throw err;
     }
   });
+
+  // POST /v1/catalog/import-yml — Server-side proxy + parser for Yandex.Market YML & 1C-Bitrix CommerceML feeds
+  fastify.post('/v1/catalog/import-yml', async (request, reply) => {
+    const start = Date.now();
+    const body = (request.body || {}) as { url?: string; xml?: string; autoIndex?: boolean };
+    let xmlText = (body.xml || '').trim();
+
+    if (!xmlText && body.url) {
+      const targetUrl = String(body.url).trim();
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        return reply.status(400).send({ error: 'Invalid YML/XML feed URL. Must start with http:// or https://' });
+      }
+      try {
+        const res = await fetch(targetUrl, {
+          headers: { 'User-Agent': 'EIDOS-Catalog-Importer/1.0', Accept: 'application/xml, text/xml, */*' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) {
+          return reply.status(502).send({ error: `Remote YML server responded with HTTP ${res.status}` });
+        }
+        xmlText = await res.text();
+      } catch (err) {
+        return reply.status(502).send({
+          error: `Failed to fetch remote YML feed: ${err instanceof Error ? err.message : 'Network timeout'}`,
+        });
+      }
+    }
+
+    if (!xmlText) {
+      return reply.status(400).send({ error: 'Provide either "url" or "xml" payload' });
+    }
+
+    const categoryMap = new Map<string, string>();
+    const catRegex = /<category\s+[^>]*id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/category>/gi;
+    let catMatch: RegExpExecArray | null;
+    while ((catMatch = catRegex.exec(xmlText)) !== null) {
+      categoryMap.set(catMatch[1].trim(), catMatch[2].replace(/<[^>]+>/g, '').trim());
+    }
+
+    const extractTag = (block: string, tags: string[]): string => {
+      for (const tag of tags) {
+        const rx = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i');
+        const m = rx.exec(block);
+        if (m && m[1]) {
+          const clean = m[1]
+            .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (clean) return clean;
+        }
+      }
+      return '';
+    };
+
+    const items: Array<{
+      id: string;
+      title: string;
+      description: string;
+      category: string;
+      price: number;
+      brand?: string;
+      sku?: string;
+      tags: string[];
+    }> = [];
+
+    const offerRegex = /<offer(\s[^>]*)?>([\s\S]*?)<\/offer>/gi;
+    let offerMatch: RegExpExecArray | null;
+    let idx = 0;
+    while ((offerMatch = offerRegex.exec(xmlText)) !== null && items.length < 5000) {
+      idx++;
+      const attrs = offerMatch[1] || '';
+      const bodyXml = offerMatch[2] || '';
+      const idAttr = /id=["']([^"']+)["']/i.exec(attrs);
+      const id = (idAttr ? idAttr[1] : extractTag(bodyXml, ['id', 'vendorCode'])) || `yml-${idx}`;
+      const name = extractTag(bodyXml, ['name', 'model', 'title']);
+      const vendor = extractTag(bodyXml, ['vendor', 'brand']);
+      const vendorCode = extractTag(bodyXml, ['vendorCode', 'sku']);
+      if (!name && !vendor) continue;
+      const title =
+        name && vendor && !name.toLowerCase().includes(vendor.toLowerCase()) ? `${vendor} ${name}` : name || vendor;
+      const catId = extractTag(bodyXml, ['categoryId']);
+      const category = (catId && categoryMap.get(catId)) || extractTag(bodyXml, ['category']) || 'Каталог YML';
+      const priceRaw = parseFloat(extractTag(bodyXml, ['price']).replace(/[^\d.]/g, ''));
+      const price = Number.isFinite(priceRaw) && priceRaw >= 0 ? priceRaw : 0;
+      const description = extractTag(bodyXml, ['description', 'sales_notes']) || title;
+      const tags = [category, vendor, vendorCode].filter(Boolean);
+      items.push({ id, title, description, category, price, brand: vendor || undefined, sku: vendorCode || undefined, tags });
+    }
+
+    if (items.length === 0) {
+      const bitrixRegex = /<Товар(\s[^>]*)?>([\s\S]*?)<\/Товар>/gi;
+      let bm: RegExpExecArray | null;
+      while ((bm = bitrixRegex.exec(xmlText)) !== null && items.length < 5000) {
+        idx++;
+        const bx = bm[2] || '';
+        const id = extractTag(bx, ['Ид', 'Артикул']) || `bx-${idx}`;
+        const title = extractTag(bx, ['Наименование', 'ПолноеНаименование']);
+        if (!title) continue;
+        const description = extractTag(bx, ['Описание']) || title;
+        const sku = extractTag(bx, ['Артикул']);
+        items.push({
+          id,
+          title,
+          description,
+          category: 'Bitrix CommerceML',
+          price: 0,
+          sku: sku || undefined,
+          tags: ['CommerceML', sku].filter(Boolean),
+        });
+      }
+    }
+
+    if (body.autoIndex && items.length > 0) {
+      const { store } = resolveStore(request);
+      const texts = items.slice(0, 500).map((it) => `${it.title}. ${it.category}. ${it.description}`);
+      const vectors = await opts.embedder.embedBatch(texts);
+      items.slice(0, 500).forEach((it, i) => {
+        store.upsert({
+          id: it.id,
+          title: it.title,
+          description: it.description,
+          category: it.category,
+          price: it.price,
+          inStock: true,
+          tags: it.tags,
+          embedding: Array.from(vectors[i]),
+        });
+      });
+    }
+
+    return reply.status(200).send({
+      success: true,
+      importedCount: items.length,
+      items,
+      durationMs: Date.now() - start,
+    });
+  });
+
+  // POST /v1/benchmark/compare-url — Side-by-side Storefront URL vs EIDOS Hybrid 384-d Benchmark
+  fastify.post('/v1/benchmark/compare-url', async (request, reply) => {
+    const body = (request.body || {}) as {
+      searchUrlTemplate?: string;
+      queries?: string[];
+    };
+    const queries =
+      Array.isArray(body.queries) && body.queries.length > 0
+        ? body.queries.slice(0, 10)
+        : [
+            'крсовки для марафона',
+            'акб на камри',
+            'недорогие наушники для бега',
+            'ghjuhfvvbhjdfybt rust',
+            'робот пылесос с лидаром',
+          ];
+
+    const { store } = resolveStore(request);
+    const allItems = store.getAll();
+
+    const comparisons = [];
+    for (const q of queries) {
+      const t0 = Date.now();
+      let externalTitles: string[] = [];
+      let externalStatus: 'fetched' | 'simulated_sql_like' = 'simulated_sql_like';
+
+      if (body.searchUrlTemplate && /^https?:\/\//i.test(body.searchUrlTemplate)) {
+        const url = body.searchUrlTemplate.includes('{query}')
+          ? body.searchUrlTemplate.replace('{query}', encodeURIComponent(q))
+          : `${body.searchUrlTemplate}${body.searchUrlTemplate.includes('?') ? '&' : '?'}q=${encodeURIComponent(q)}`;
+        try {
+          const res = await fetch(url, {
+            headers: { 'User-Agent': 'EIDOS-Benchmark/1.0' },
+            signal: AbortSignal.timeout(3500),
+          });
+          if (res.ok) {
+            const html = await res.text();
+            const hMatches = html.match(/<(?:h2|h3|a)[^>]*class=["'][^"']*(?:title|name|product|catalog-item)[^"']*["'][^>]*>([\s\S]*?)<\/(?:h2|h3|a)>/gi) || [];
+            externalTitles = hMatches
+              .map((m) => m.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
+              .filter((t) => t.length > 3)
+              .slice(0, 3);
+            externalStatus = 'fetched';
+          }
+        } catch {
+          externalStatus = 'simulated_sql_like';
+        }
+      }
+
+      if (externalStatus === 'simulated_sql_like') {
+        const lowerWords = q.toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
+        externalTitles = allItems
+          .filter((item) => {
+            const hay = `${item.title} ${item.description || ''}`.toLowerCase();
+            return lowerWords.length > 0 && lowerWords.every((w) => hay.includes(w));
+          })
+          .slice(0, 3)
+          .map((i) => i.title);
+      }
+
+      const qVec = await opts.embedder.embed(q);
+      const eidosHits = store.hybridSearch(q, qVec, 3);
+      comparisons.push({
+        query: q,
+        legacyStatus: externalStatus,
+        legacyCount: externalTitles.length,
+        legacyTopTitles: externalTitles,
+        eidosCount: eidosHits.length,
+        eidosTopItems: eidosHits.map((h) => ({
+          id: h.item.id,
+          title: h.item.title,
+          category: h.item.category,
+          price: h.item.price,
+          score: Number(h.score.toFixed(3)),
+        })),
+        latencyMs: Math.max(1, Date.now() - t0),
+      });
+    }
+
+    return reply.status(200).send({
+      success: true,
+      searchUrlTemplate: body.searchUrlTemplate || null,
+      comparisons,
+    });
+  });
 }
 
 (catalogRoutes as any)[Symbol.for('skip-override')] = true;
+
 

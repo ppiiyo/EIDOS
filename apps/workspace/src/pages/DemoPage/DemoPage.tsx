@@ -173,6 +173,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({
         <WelcomeScreen
           onUpload={() => setIsUploadModalOpen(true)}
           onTryDemo={handleTryDemo}
+          uiLang={uiLang}
         />
       )}
 
@@ -182,6 +183,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({
             state="demo"
             ownItemsCount={0}
             demoItemsCount={48}
+            uiLang={uiLang}
             onOpenUpload={() => setIsUploadModalOpen(true)}
             onReset={handleReset}
           />
@@ -200,6 +202,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({
           <DemoBanner
             state="own"
             ownItemsCount={activeOwnCatalog.length || ownItemsCount}
+            uiLang={uiLang}
             onOpenUpload={() => setIsUploadModalOpen(true)}
             onReset={handleReset}
           />

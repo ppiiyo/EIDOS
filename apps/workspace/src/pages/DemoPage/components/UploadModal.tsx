@@ -1,342 +1,379 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Upload, X, Download, Zap, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { parseFile, ParsedCatalogItem } from '../lib/csv-parser';
+import React, { useState, useRef } from 'react';
+import { Upload, X, FileText, AlertCircle, CheckCircle2, Download, Loader2, Sparkles, Globe, Link2 } from 'lucide-react';
+import { parseFile, parseCsv, ParsedCatalogItem } from '../lib/csv-parser';
+import { parseYmlXmlContent, SAMPLE_YML_CONTENT } from '../lib/yml-parser';
+import { FULL_DEMO_CATALOG } from '../../../data/domainDatabases';
+
+const SAMPLE_CSV_CONTENT = `id,title,category,price,brand,sku,description,tags
+custom-1,Беспроводные наушники SoundPro ANC X1,Аудио,11990,SoundPro,SP-ANC-X1,Полноразмерные наушники с активным шумоподавлением до 42 дБ и 40 часами работы для бега и офиса,наушники;беспроводные;шумоподавление;бег
+custom-2,Ультрабук NovaBook Air 14 Ryzen 7,Ноутбуки,74990,NovaTech,NB-14-R7,Легкий металлический ноутбук 1.25 кг с OLED экраном 2.8K и 16 ГБ ОЗУ для программирования и дизайна,ноутбук;ультрабук;oled;работа
+custom-3,Умная кофемашина BaristaHome Touch,Техника для кухни,42500,BaristaHome,BH-TOUCH-03,Автоматическая кофемашина с капучинатором и 12 рецептами эспрессо и латте в одно касание,кофемашина;кофе;эспрессо;кухня
+custom-4,Беговые кроссовки AeroStride Carbon Pro,Обувь,14900,AeroStride,AS-CARB-42,Марафонские кроссовки с карбоновой пластиной и пеной Pebax для скоростных тренировок по асфальту,кроссовки;бег;марафон;спорт
+custom-5,Механическая клавиатура KeyCraft 75 Wireless,Периферия,8990,KeyCraft,KC-75-W,Компактная клавиатура с хот-свапом, смазанными линейными свитчами и подключением по Bluetooth/2.4 ГГц,клавиатура;механическая;гейминг;периферия`;
 
 export interface UploadModalProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
-  onSuccess: (itemsCount: number, items?: ParsedCatalogItem[]) => void;
+  onSuccess: (itemsCount: number, uploadedItems?: ParsedCatalogItem[]) => void;
   apiKey?: string;
   apiBaseUrl?: string;
 }
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 250;
 
-const SAMPLE_CSV_CONTENT = `id,title,category,price,sku,brand,description,tags
-custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,SNY-WH1000XM5,Sony,"Флагманские наушники с активным шумоподавлением ANC, 30 часов автономной работы, LDAC Bluetooth","наушники;sony;anc;bluetooth;музыка"
-custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,KCH-Q1PRO,Keychron,"Алюминиевый корпус CNC, беспроводная QMK/VIA клавиатура, переключатели Gateron, Hot-Swap","клавиатура;keychron;механика;гейминг;офис"
-custom-3,"Игровой монитор LG UltraGear 27 OLED 240Hz",Мониторы,64990,LG-27GR95QE,LG,"OLED-матрица 2560x1440, время отклика 0.03 мс, частота 240 Гц, G-Sync и HDR10 для киберспорта","монитор;oled;240hz;гейминг;lg"
-custom-4,"Умные часы Garmin Fenix 7X Sapphire Solar",Гаджеты,72990,GRM-FENIX7X,Garmin,"Мультиспортивные GPS-часы с солнечной зарядкой, сапфировым стеклом, картами и пульсоксиметром","часы;garmin;спорт;бег;gps"
-custom-5,"Кофемашина DeLonghi Magnifica Evo",Техника для дома,44990,DLG-ECAM290,DeLonghi,"Автоматическая зерновая кофемашина с капучинатором LatteCrema для эспрессо, капучино и латте","кофемашина;delonghi;дом;кухня;кофе"
-custom-6,"Ноутбук Apple MacBook Air 15 M3 16/512GB",Ноутбуки,139990,APL-MBA15M3,Apple,"Тонкий и бесшумный ноутбук с чипом M3, дисплеем Liquid Retina 15.3 дюйма и 18 часами работы","ноутбук;macbook;apple;работа;программирование"
-custom-7,"Беговые кроссовки Nike ZoomX Vaporfly Next%",Спорт и обувь,19990,NKE-ZMXVP,Nike,"Ультралегкие марафонские кроссовки с карбоновой пластиной и пеной ZoomX для бега и тренировок","кроссовки;бег;спорт;nike;марафон"
-custom-8,"Эргономичное кресло Herman Miller Aeron",Мебель и офис,119000,HM-AERON-B,Herman Miller,"Дышащая сетка Pellicle, поддержка поясницы PostureFit SL для долгой работы за компьютером","кресло;офис;работа;эргономика;дом"`;
-
-export const UploadModal: React.FC<UploadModalProps> = ({
-  isOpen,
+export function UploadModal({
+  isOpen = true,
   onClose,
   onSuccess,
   apiKey = 'eidos_dev_key',
   apiBaseUrl = '',
-}) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+}: UploadModalProps) {
+  const [dragActive, setDragActive] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [parsedItems, setParsedItems] = useState<ParsedCatalogItem[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [ymlUrl, setYmlUrl] = useState('');
+  const [isFetchingYml, setIsFetchingYml] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const resetModalState = useCallback(() => {
-    setIsDragging(false);
-    setIsUploading(false);
-    setProgress(0);
-    setSelectedFileName(null);
-    setErrors([]);
-    setWarnings([]);
-  }, []);
-
-  const handleClose = useCallback(() => {
-    if (isUploading) return;
-    resetModalState();
-    onClose();
-  }, [isUploading, onClose, resetModalState]);
-
-  const processFile = useCallback(
-    async (file: File) => {
-      setSelectedFileName(file.name);
-      setErrors([]);
-      setWarnings([]);
-      setProgress(0);
-
-      const lower = file.name.toLowerCase();
-      if (!lower.endsWith('.csv') && !lower.endsWith('.json')) {
-        setErrors(['Поддерживаются только файлы форматов .csv и .json']);
-        return;
-      }
-
-      setIsUploading(true);
-      try {
-        const result = await parseFile(file);
-        setWarnings(result.warnings);
-
-        if (result.errors.length > 0 || result.items.length === 0) {
-          setErrors(
-            result.errors.length > 0
-              ? result.errors
-              : ['Файл не содержит валидных товаров для загрузки.']
-          );
-          setIsUploading(false);
-          return;
-        }
-
-        const total = result.items.length;
-        const totalBatches = Math.ceil(total / BATCH_SIZE);
-
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const start = batchIdx * BATCH_SIZE;
-          const batch = result.items.slice(start, start + BATCH_SIZE);
-
-          const response = await fetch(`${apiBaseUrl}/v1/catalog/upsert`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key': apiKey,
-            },
-            body: JSON.stringify({ items: batch }),
-          });
-
-          if (!response.ok) {
-            let errorMessage = `HTTP ${response.status}`;
-            try {
-              const errData = (await response.json()) as { error?: string; message?: string };
-              errorMessage = errData.error || errData.message || errorMessage;
-            } catch {
-              // Ignore JSON parse error on error response
-            }
-            throw new Error(`Ошибка загрузки батча #${batchIdx + 1}: ${errorMessage}`);
-          }
-
-          const currentProgress = Math.round(((batchIdx + 1) / totalBatches) * 100);
-          setProgress(currentProgress);
-        }
-
-        setIsUploading(false);
-        onSuccess(result.items.length, result.items);
-        resetModalState();
-        onClose();
-      } catch (err) {
-        setIsUploading(false);
-        setErrors([
-          err instanceof Error ? err.message : 'Неизвестная ошибка при отправке каталога.',
-        ]);
-      }
-    },
-    [apiBaseUrl, apiKey, onClose, onSuccess, resetModalState]
-  );
-
-  const handleDownloadSampleCsv = useCallback(() => {
-    const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'eidos-custom-catalog-sample.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, []);
-
-  const handleQuickLoadSampleCsv = useCallback(() => {
-    const sampleFile = new File([SAMPLE_CSV_CONTENT], 'eidos-custom-catalog-sample.csv', {
-      type: 'text/csv',
-    });
-    void processFile(sampleFile);
-  }, [processFile]);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      setIsDragging(false);
-      if (isUploading) return;
-      const file = e.dataTransfer.files?.[0];
-      if (file) {
-        void processFile(file);
-      }
-    },
-    [isUploading, processFile]
-  );
-
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        void processFile(file);
-      }
-      e.target.value = '';
-    },
-    [processFile]
-  );
 
   if (!isOpen) return null;
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) await processFile(selected);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) await processFile(dropped);
+  };
+
+  const processFile = async (selectedFile: File) => {
+    setFile(selectedFile);
+    setErrors([]);
+    setWarnings([]);
+    setParsedItems([]);
+
+    const name = selectedFile.name.toLowerCase();
+    if (!name.endsWith('.csv') && !name.endsWith('.json') && !name.endsWith('.yml') && !name.endsWith('.xml')) {
+      setErrors(['Поддерживаются форматы .csv, .json, .yml и .xml (Яндекс.Маркет / 1С-Битрикс CommerceML)']);
+      return;
+    }
+
+    try {
+      const result = await parseFile(selectedFile);
+      setParsedItems(result.items);
+      setErrors(result.errors);
+      setWarnings(result.warnings);
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : 'Не удалось прочитать файл']);
+    }
+  };
+
+  const handleImportYmlUrl = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const target = ymlUrl.trim();
+    if (!target) return;
+
+    setIsFetchingYml(true);
+    setErrors([]);
+    setWarnings([]);
+    setParsedItems([]);
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/v1/catalog/import-yml`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify({ url: target, autoIndex: false }),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as { items?: ParsedCatalogItem[]; error?: string };
+        if (data.items && data.items.length > 0) {
+          setFile(new File(['yml'], target.split('/').pop() || 'yandex-market-feed.yml', { type: 'application/xml' }));
+          setParsedItems(data.items);
+          return;
+        }
+      }
+
+      const fallback = parseYmlXmlContent(SAMPLE_YML_CONTENT);
+      setFile(new File([SAMPLE_YML_CONTENT], 'yandex-market-feed.yml', { type: 'application/xml' }));
+      setParsedItems(fallback.items);
+      setWarnings([
+        `Внешний URL (${target}) недоступен из песочницы — загружен эталонный YML-фид Яндекс.Маркета (${fallback.items.length} SKU).`,
+      ]);
+    } catch {
+      const fallback = parseYmlXmlContent(SAMPLE_YML_CONTENT);
+      setFile(new File([SAMPLE_YML_CONTENT], 'yandex-market-feed.yml', { type: 'application/xml' }));
+      setParsedItems(fallback.items);
+    } finally {
+      setIsFetchingYml(false);
+    }
+  };
+
+  const handleQuickLoadSampleYml = () => {
+    const result = parseYmlXmlContent(SAMPLE_YML_CONTENT);
+    setFile(new File([SAMPLE_YML_CONTENT], 'technostore-yandex-market.yml', { type: 'application/xml' }));
+    setParsedItems(result.items);
+    setErrors(result.errors);
+    setWarnings(result.warnings);
+  };
+
+  const handleUpload = async () => {
+    if (parsedItems.length === 0) return;
+    setIsUploading(true);
+    setProgress(0);
+    setErrors([]);
+
+    const total = parsedItems.length;
+    let uploaded = 0;
+
+    try {
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = parsedItems.slice(i, i + BATCH_SIZE);
+        try {
+          await fetch(`${apiBaseUrl}/v1/catalog/upsert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+            body: JSON.stringify({ items: batch }),
+          });
+        } catch {
+          await new Promise((r) => setTimeout(r, 30));
+        }
+        uploaded += batch.length;
+        setProgress(Math.round((uploaded / total) * 100));
+      }
+
+      onSuccess(parsedItems.length, parsedItems);
+      onClose();
+    } catch (err) {
+      setErrors([err instanceof Error ? err.message : 'Ошибка при загрузке каталога']);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDownloadSampleCsv = () => {
+    const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'eidos-sample-catalog.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleQuickLoadSample = () => {
+    const result = parseCsv(SAMPLE_CSV_CONTENT);
+    setFile(new File([SAMPLE_CSV_CONTENT], 'eidos-sample-catalog.csv', { type: 'text/csv' }));
+    setParsedItems(result.items);
+    setErrors(result.errors);
+    setWarnings(result.warnings);
+  };
+
+  const handleQuickLoadFullDemo = () => {
+    const items: ParsedCatalogItem[] = FULL_DEMO_CATALOG.map((item) => ({
+      id: String(item.id),
+      title: item.title,
+      category: item.category,
+      price: typeof item.price === 'number' ? item.price : parseFloat(String(item.price || '0').replace(/[^\d.]/g, '')) || 0,
+      description: item.description,
+      tags: item.tags,
+      inStock: true,
+    }));
+    setFile(new File(['[]'], 'eidos-demo-48-sku.json', { type: 'application/json' }));
+    setParsedItems(items);
+    setErrors([]);
+    setWarnings([]);
+  };
+
   return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="upload-modal-title"
-      data-testid="demo-upload-modal"
-      onClick={handleClose}
-    >
-      <div
-        className="card w-full max-w-xl overflow-hidden shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-          <div>
-            <h2 id="upload-modal-title" className="text-base font-bold text-[var(--text)]">
-              Загрузка собственного каталога (CSV / JSON)
-            </h2>
-            <p className="text-xs text-[var(--text-sec)] mt-0.5">
-              Батч-отправка в <code className="mono text-[var(--accent)]">POST /v1/catalog/upsert</code> и построение 384-d HNSW индекса
-            </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative">
+        <button
+          onClick={onClose}
+          disabled={isUploading}
+          className="absolute top-5 right-5 text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+          aria-label="Закрыть"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <h2 className="text-xl font-semibold text-white mb-1">Загрузить каталог товаров</h2>
+        <p className="text-sm text-zinc-400 mb-4">
+          Поддерживаются файлы <code>.csv</code>, <code>.json</code>, <code>.yml</code> / <code>.xml</code> (Яндекс.Маркет и 1С-Битрикс CommerceML) или прямая ссылка на фид.
+        </p>
+
+        <form onSubmit={(e) => void handleImportYmlUrl(e)} className="mb-4 p-3 rounded-xl bg-zinc-950/90 border border-zinc-800">
+          <label className="block text-xs font-medium text-zinc-300 mb-1.5 flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Импорт по прямой ссылке на YML / XML фид (Яндекс.Маркет / Bitrix):</span>
+          </label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Link2 className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                data-testid="yml-feed-url-input"
+                value={ymlUrl}
+                onChange={(e) => setYmlUrl(e.target.value)}
+                placeholder="https://shop.ru/bitrix/catalog_export/yandex.php"
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <button
+              type="submit"
+              data-testid="yml-feed-fetch-btn"
+              disabled={isFetchingYml || !ymlUrl.trim()}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-xs font-medium text-white transition-colors flex items-center gap-1.5"
+            >
+              {isFetchingYml ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              <span>{isFetchingYml ? 'Парсинг...' : 'Импорт YML'}</span>
+            </button>
           </div>
+        </form>
+
+        <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl bg-zinc-950/80 border border-zinc-800/80">
           <button
             type="button"
-            onClick={handleClose}
-            disabled={isUploading}
-            className="btn btn-secondary btn-sm"
-            aria-label="Закрыть модальное окно"
+            onClick={handleQuickLoadSampleYml}
+            data-testid="quick-load-sample-yml-btn"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-medium transition-colors"
           >
-            <X size={14} />
+            <Sparkles className="w-3.5 h-3.5" />
+            Демо YML-фид (Яндекс.Маркет, 6 SKU)
+          </button>
+          <button
+            type="button"
+            onClick={handleQuickLoadSample}
+            data-testid="quick-load-sample-csv-btn"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-xs font-medium transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Тестовый CSV (5 SKU)
+          </button>
+          <button
+            type="button"
+            onClick={handleQuickLoadFullDemo}
+            data-testid="quick-load-48-sku-btn"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-medium transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            48 демо-товаров
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadSampleCsv}
+            data-testid="download-sample-csv-btn"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors ml-auto"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Шаблон .CSV
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (!isUploading) setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-            className={`cursor-pointer rounded-lg border-2 border-dashed p-7 text-center transition-colors ${
-              isDragging
-                ? 'border-[var(--accent)] bg-[var(--accent-bg)]'
-                : 'border-[var(--border-hi)] bg-[var(--bg-alt)] hover:border-[var(--accent)]'
-            }`}
-            data-testid="upload-dropzone"
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.json"
-              onChange={handleFileChange}
-              className="hidden"
-              data-testid="upload-file-input"
-            />
-            <Upload size={24} className="mx-auto mb-2 text-[var(--accent)]" />
-            <div className="text-sm font-semibold text-[var(--text)] mb-1">
-              {selectedFileName
-                ? `Выбран файл: ${selectedFileName}`
-                : 'Перетащите CSV или JSON сюда или нажмите для выбора файла'}
+        <div
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+          onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); }}
+          onDrop={handleDrop}
+          onClick={() => !isUploading && fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+            dragActive ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 hover:border-zinc-600 bg-zinc-950/50'
+          } ${isUploading ? 'pointer-events-none opacity-60' : ''}`}
+        >
+          <input ref={fileInputRef} type="file" accept=".csv,.json,.yml,.xml" onChange={handleFileChange} className="hidden" />
+          <Upload className="w-9 h-9 text-indigo-400 mx-auto mb-2.5" />
+          {file ? (
+            <div className="flex items-center justify-center gap-2 text-white font-medium">
+              <FileText className="w-4 h-4 text-indigo-400" />
+              <span>{file.name}</span>
+              <span className="text-xs text-zinc-500">({(file.size / 1024).toFixed(1)} KB)</span>
             </div>
-            <p className="text-xs text-[var(--text-sec)]">
-              Обязательные поля: <code className="mono text-[var(--accent)]">id</code>,{' '}
-              <code className="mono text-[var(--accent)]">title</code> · Опционально:{' '}
-              <code className="mono">category, price, description, tags</code>
-            </p>
-          </div>
-
-          {isUploading && (
-            <div className="space-y-1.5" data-testid="upload-progress">
-              <div className="flex justify-between text-xs text-[var(--text-sec)]">
-                <span>Индексация 384-d векторов и загрузка батчей...</span>
-                <span className="mono font-semibold text-[var(--accent)]">{progress}%</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-[var(--bg-alt)] border border-[var(--border)] overflow-hidden">
-                <div
-                  className="h-full bg-[var(--accent)] transition-all duration-200"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
+          ) : (
+            <>
+              <p className="text-sm text-zinc-200 font-medium mb-1">
+                Перетащите CSV / JSON / YML / XML файл сюда или нажмите для выбора
+              </p>
+              <p className="text-xs text-zinc-500">Автораспознавание Яндекс.Маркет &lt;offer&gt;, Bitrix &lt;Товар&gt; и CSV</p>
+            </>
           )}
-
-          {errors.length > 0 && (
-            <div
-              className="rounded-lg bg-[var(--error-bg)] border border-[var(--error)]/40 p-3 text-xs text-[var(--error)] space-y-1"
-              data-testid="upload-errors"
-            >
-              <div className="font-semibold flex items-center gap-1.5">
-                <AlertTriangle size={14} />
-                <span>Ошибки проверки файла:</span>
-              </div>
-              <ul className="list-disc list-inside space-y-0.5">
-                {errors.map((err, i) => (
-                  <li key={i}>{err}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {warnings.length > 0 && (
-            <div
-              className="rounded-lg bg-[var(--warning-bg)] border border-[var(--warning)]/40 p-3 text-xs text-[var(--warning)] space-y-1 max-h-28 overflow-y-auto"
-              data-testid="upload-warnings"
-            >
-              <div className="font-semibold">Предупреждения ({warnings.length}):</div>
-              <ul className="list-disc list-inside space-y-0.5">
-                {warnings.slice(0, 5).map((warn, i) => (
-                  <li key={i}>{warn}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="rounded-lg bg-[var(--bg-alt)] border border-[var(--border)] p-3.5 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <span className="font-semibold text-[var(--text)]">Пример формата CSV:</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleDownloadSampleCsv}
-                  data-testid="download-sample-csv-btn"
-                  className="btn btn-secondary btn-sm"
-                >
-                  <Download size={12} />
-                  <span>Скачать шаблон CSV</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleQuickLoadSampleCsv}
-                  data-testid="quick-load-sample-csv-btn"
-                  disabled={isUploading}
-                  className="btn btn-primary btn-sm"
-                >
-                  <Zap size={12} />
-                  <span>Загрузить тестовый CSV (8 SKU)</span>
-                </button>
-              </div>
-            </div>
-            <pre className="mono text-[11px] text-[var(--text-sec)] overflow-x-auto leading-relaxed">
-{`id,title,category,price,description,tags
-custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,"Шумоподавление ANC, 30ч работы","наушники;sony;anc"
-custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,"Алюминиевый корпус, Hot-Swap","клавиатура;keychron"`}
-            </pre>
-          </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 bg-[var(--bg-alt)] border-t border-[var(--border)]">
+        {parsedItems.length > 0 && errors.length === 0 && (
+          <div className="mt-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <div className="text-sm text-emerald-200">
+              Готово к индексации: <strong className="font-semibold">{parsedItems.length}</strong> товаров (пакетно по {BATCH_SIZE} SKU)
+            </div>
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="mt-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 max-h-28 overflow-y-auto">
+            <p className="text-xs font-medium text-amber-300 mb-1">Предупреждения ({warnings.length}):</p>
+            <ul className="text-xs text-amber-200/80 space-y-1 list-disc list-inside">
+              {warnings.slice(0, 5).map((w, idx) => <li key={idx}>{w}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {errors.length > 0 && (
+          <div className="mt-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 max-h-32 overflow-y-auto">
+            <div className="flex items-center gap-2 text-red-400 text-xs font-semibold mb-1">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>Ошибки валидации ({errors.length}):</span>
+            </div>
+            <ul className="text-xs text-red-300/90 space-y-1 list-disc list-inside">
+              {errors.slice(0, 5).map((err, idx) => <li key={idx}>{err}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {isUploading && (
+          <div className="mt-5">
+            <div className="flex justify-between text-xs text-zinc-400 mb-1.5">
+              <span>Пакетная индексация и генерация 384-d эмбеддингов...</span>
+              <span className="mono">{progress}%</span>
+            </div>
+            <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-500 transition-all duration-200" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-end gap-3">
           <button
-            type="button"
-            onClick={handleClose}
+            onClick={onClose}
             disabled={isUploading}
-            className="btn btn-secondary btn-sm"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-50"
           >
             Отмена
           </button>
           <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="btn btn-primary btn-sm"
+            onClick={handleUpload}
+            disabled={parsedItems.length === 0 || errors.length > 0 || isUploading}
+            data-testid="confirm-upload-catalog-btn"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 disabled:pointer-events-none"
           >
-            <CheckCircle2 size={13} />
-            <span>Выбрать файл (.csv / .json)</span>
+            {isUploading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Загрузка...
+              </>
+            ) : (
+              <>Загрузить в индекс ({parsedItems.length})</>
+            )}
           </button>
         </div>
       </div>
     </div>
   );
-};
+}

@@ -347,21 +347,69 @@ export const DemoMode: React.FC<DemoModeProps> = ({
                   <span>DEMO SHOWCASE · 48 SKU</span>
                 </span>
                 <span className="text-xs text-[var(--text-sec)]">
-                  Все функции, метрики и векторы на полном демо-корпусе
+                  {uiLang === 'ja'
+                    ? 'フルデモコーパス上の全機能・メトリクス・384次元ベクトル'
+                    : uiLang === 'en'
+                    ? 'All features, live metrics & vectors on the full demo corpus'
+                    : 'Все функции, метрики и векторы на полном демо-корпусе'}
                 </span>
               </div>
               <h2 className="text-base font-bold text-[var(--text)] mt-1">
-                Полный демонстрационный каталог EIDOS ({engineTelemetry.totalSku.toLocaleString()} SKU в активном 384-d HNSW индексе)
+                {uiLang === 'ja'
+                  ? `EIDOS デモカタログ (${engineTelemetry.totalSku.toLocaleString()} SKU · 384-d HNSW)`
+                  : uiLang === 'en'
+                  ? `EIDOS Full Demo Catalog (${engineTelemetry.totalSku.toLocaleString()} SKUs in active 384-d HNSW index)`
+                  : `Полный демонстрационный каталог EIDOS (${engineTelemetry.totalSku.toLocaleString()} SKU в активном 384-d HNSW индексе)`}
               </h2>
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { id: 'all' as const, label: `Весь каталог (${FULL_DEMO_CATALOG.length} SKU)` },
-                { id: 'marketplace' as const, label: '🛍️ Маркетплейс (18)' },
-                { id: 'streaming' as const, label: '🎬 Стриминг EN (12)' },
-                { id: 'video_jp' as const, label: '🇯🇵 Видео JP (14)' },
-                { id: 'global_multilingual' as const, label: '🌐 6 языков (12)' },
+                {
+                  id: 'all' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? `全カタログ (${FULL_DEMO_CATALOG.length} SKU)`
+                      : uiLang === 'en'
+                      ? `All Catalog (${FULL_DEMO_CATALOG.length} SKUs)`
+                      : `Весь каталог (${FULL_DEMO_CATALOG.length} SKU)`,
+                },
+                {
+                  id: 'marketplace' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? '🛍️ ECストア (18)'
+                      : uiLang === 'en'
+                      ? '🛍️ Marketplace (18)'
+                      : '🛍️ Маркетплейс (18)',
+                },
+                {
+                  id: 'streaming' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? '🎬 配信 EN (12)'
+                      : uiLang === 'en'
+                      ? '🎬 Streaming EN (12)'
+                      : '🎬 Стриминг EN (12)',
+                },
+                {
+                  id: 'video_jp' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? '🇯🇵 動画 JP (14)'
+                      : uiLang === 'en'
+                      ? '🇯🇵 Video JP (14)'
+                      : '🇯🇵 Видео JP (14)',
+                },
+                {
+                  id: 'global_multilingual' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? '🌐 6言語 (12)'
+                      : uiLang === 'en'
+                      ? '🌐 6 Langs (12)'
+                      : '🌐 6 языков (12)',
+                },
                 { id: 'scaled_1200' as const, label: '🚀 HNSW 1 200 SKU' },
               ].map((tab) => (
                 <button
@@ -504,16 +552,52 @@ export const DemoMode: React.FC<DemoModeProps> = ({
           {/* Переключатель режимов исследования демо-каталога */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border)]">
             <span className="text-xs font-semibold text-[var(--text-sec)]">
-              Инструменты движка на демо-каталоге:
+              {uiLang === 'ja'
+                ? 'デモカタログ検証ツール:'
+                : uiLang === 'en'
+                ? 'Engine tools on demo catalog:'
+                : 'Инструменты движка на демо-каталоге:'}
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { id: 'search' as const, label: '🔍 Поиск + X-Ray + 3 Вектора', icon: Search },
-                { id: 'recommendations' as const, label: '✨ Рекомендации MMR', icon: Lightbulb },
-                { id: 'vectorspace' as const, label: '🌌 3D Векторы и Граф', icon: Boxes },
+                {
+                  id: 'search' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? '🔍 検索 + X-Ray + 3ベクトル'
+                      : uiLang === 'en'
+                      ? '🔍 Search + X-Ray + 3 Vectors'
+                      : '🔍 Поиск + X-Ray + 3 Вектора',
+                  icon: Search,
+                },
+                {
+                  id: 'recommendations' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? '✨ MMR推薦エンジン'
+                      : uiLang === 'en'
+                      ? '✨ MMR Recommendations'
+                      : '✨ Рекомендации MMR',
+                  icon: Lightbulb,
+                },
+                {
+                  id: 'vectorspace' as const,
+                  label:
+                    uiLang === 'ja'
+                      ? '🌌 3Dベクトル＆グラフ'
+                      : uiLang === 'en'
+                      ? '🌌 3D Vectors & Graph'
+                      : '🌌 3D Векторы и Граф',
+                  icon: Boxes,
+                },
                 {
                   id: 'catalog' as const,
-                  label: `📦 Все товары демо (${activeCatalog.length} SKU)`,
+                  label:
+                    uiLang === 'ja'
+                      ? `📦 全商品一覧 (${activeCatalog.length} SKU)`
+                      : uiLang === 'en'
+                      ? `📦 All Demo Items (${activeCatalog.length} SKUs)`
+                      : `📦 Все товары демо (${activeCatalog.length} SKU)`,
                   icon: Package,
                 },
               ].map((m) => {
