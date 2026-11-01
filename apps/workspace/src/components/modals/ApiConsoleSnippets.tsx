@@ -51,7 +51,7 @@ const recs = await eidos.recommend({
   -H "x-api-key: eidos_dev_key" \\
   -d '${JSON.stringify({ query, mode: 'hybrid', alpha, limit })}'`;
 
-  const pySnippet = `from eidos_sdk import EidosClient
+  const pySnippet = `from eidos_sdk import EidosClient, AsyncEidosClient
 
 client = EidosClient(base_url="http://localhost:3001", api_key="eidos_dev_key")
 hits = client.search(query=${JSON.stringify(query)}, alpha=${alpha}, limit=${limit})
@@ -64,7 +64,7 @@ print(f"Found {len(hits['results'])} items in {hits['tookMs']}ms")`;
   ];
 
   return (
-    <div className="space-y-4">
+    <div data-testid="sdk-code-generator" className="space-y-4">
       {blocks.map((b) => (
         <div key={b.key} className="rounded-lg border border-[var(--border)] bg-[var(--bg-alt)] overflow-hidden">
           <div className="flex items-center justify-between px-3.5 py-2 border-b border-[var(--border)]">

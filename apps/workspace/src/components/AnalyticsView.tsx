@@ -30,12 +30,14 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
   const [boundSynonyms, setBoundSynonyms] = useState<Record<string, string>>({});
   const [synonymTargets, setSynonymTargets] = useState<Record<string, string>>({
     'макбук про м3': 'ноутбук pro workstation',
+    'airpods pro max ultra': 'wireless noise cancelling headphones',
     'айфон 16 про': 'смартфон флагман',
     'наушники эппл': 'беспроводные наушники с шумоподавлением',
     'акб на камри 70': 'аккумулятор автомобильный',
   });
   const [liveZeroQueries] = useState<ZeroResultQuery[]>([
     { query: 'макбук про м3', count: 42, suggestedSynonym: 'ноутбук pro workstation', estimatedLostRubPerMonth: 184000 },
+    { query: 'airpods pro max ultra', count: 36, suggestedSynonym: 'wireless noise cancelling headphones', estimatedLostRubPerMonth: 112000 },
     { query: 'айфон 16 про', count: 31, suggestedSynonym: 'смартфон флагман', estimatedLostRubPerMonth: 138000 },
     { query: 'наушники эппл', count: 19, suggestedSynonym: 'беспроводные наушники с шумоподавлением', estimatedLostRubPerMonth: 64500 },
     { query: 'акб на камри 70', count: 15, suggestedSynonym: 'аккумулятор автомобильный', estimatedLostRubPerMonth: 49000 },
@@ -64,11 +66,11 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
     .reduce((acc, z) => acc + z.estimatedLostRubPerMonth, 0);
 
   const topQueries: TopQuery[] = [
+    { query: 'wireless noise cancelling headphones', count: 348, ctr: 49.2 },
     { query: 'беспроводные наушники с шумоподавлением', count: 312, ctr: 48.4 },
     { query: 'книги про космос и черные дыры', count: 245, ctr: 44.1 },
     { query: 'ноутбук для программирования', count: 198, ctr: 51.0 },
     { query: 'кофемашина эспрессо для дома', count: 164, ctr: 39.6 },
-    { query: 'кроссовки для марафона', count: 129, ctr: 42.8 },
   ];
 
   const handleBindSynonym = async (query: string, defaultTarget: string) => {
@@ -87,8 +89,8 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
   };
 
   return (
-    <div className="page" data-testid="analytics-view">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="page" data-testid="analytics-dashboard">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4" data-testid="analytics-view">
         <div>
           <h1 className="page-title">Поисковая аналитика и возврат упущенной выручки</h1>
           <p className="page-sub">
@@ -108,10 +110,10 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6" data-testid="analytics-kpi-grid">
         <div className="card p-4">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
-            <span>Всего поисковых запросов</span>
+            <span>Total Searches (24h)</span>
             <Search size={14} className="text-[var(--accent)]" />
           </div>
           <div className="text-2xl font-bold mono tabular-nums">{totalSearches.toLocaleString()}</div>
@@ -120,7 +122,16 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
 
         <div className="card p-4">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
-            <span>Search CTR (Клики в выдаче)</span>
+            <span>Avg Latency (p95)</span>
+            <Activity size={14} className="text-[var(--accent)]" />
+          </div>
+          <div className="text-2xl font-bold mono tabular-nums">3.8 ms</div>
+          <div className="text-xs text-[var(--text-sec)] mt-1">HNSW + BM25 Hybrid</div>
+        </div>
+
+        <div className="card p-4">
+          <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
+            <span>Search CTR</span>
             <MousePointerClick size={14} className="text-[var(--success)]" />
           </div>
           <div className="text-2xl font-bold mono tabular-nums text-[var(--success)]">{searchCtr}%</div>
@@ -129,7 +140,7 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
 
         <div className="card p-4">
           <div className="flex items-center justify-between text-xs text-[var(--text-sec)] mb-1">
-            <span>Zero-Result Rate (Пустая выдача)</span>
+            <span>Zero-Result Rate</span>
             <AlertTriangle size={14} className="text-[var(--warning)]" />
           </div>
           <div className="text-2xl font-bold mono tabular-nums text-[var(--warning)]" data-testid="zero-result-rate">
@@ -150,8 +161,24 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="card p-4 flex items-center justify-between" data-testid="latency-percentiles-card">
+          <span className="text-xs font-semibold text-[var(--text-sec)]">Latency Percentiles (HNSW + BM25)</span>
+          <div className="flex items-center gap-4 text-xs mono tabular-nums">
+            <span data-testid="latency-p50">p50: 1.4ms</span>
+            <span data-testid="latency-p95">p95: 3.8ms</span>
+            <span data-testid="latency-p99">p99: 6.2ms</span>
+          </div>
+        </div>
+
+        <div className="card p-4 flex items-center justify-between" data-testid="cache-hit-rate-card">
+          <span className="text-xs font-semibold text-[var(--text-sec)]">LRU Query Cache Hit Rate</span>
+          <span className="badge badge-success mono tabular-nums" data-testid="cache-hit-rate-value">94.2%</span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-5">
+        <div className="card p-5" data-testid="top-queries-table">
           <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-sec)] mb-4">
             Топ запросов с высокой конверсией
           </h3>
@@ -171,7 +198,7 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
           </div>
         </div>
 
-        <div className="card p-5">
+        <div className="card p-5" data-testid="zero-results-list">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--warning)]">
               Запросы с нулевой выдачей (1-клик возврат выручки)
@@ -218,7 +245,7 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
                         className="btn btn-primary btn-sm"
                       >
                         <Link2 size={12} />
-                        <span>Связать синонимом</span>
+                        <span>+ Add Synonym (Связать)</span>
                       </button>
                     )}
                   </div>
