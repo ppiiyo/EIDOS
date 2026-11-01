@@ -116,7 +116,9 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
             <span>Total Searches (24h)</span>
             <Search size={14} className="text-[var(--accent)]" />
           </div>
-          <div className="text-2xl font-bold mono tabular-nums">{totalSearches.toLocaleString()}</div>
+          <div className="text-2xl font-bold mono tabular-nums" data-testid="search-count">
+            {totalSearches.toLocaleString()}
+          </div>
           <div className="text-xs text-[var(--success)] mt-1">+18.4% к прошлой неделе</div>
         </div>
 
