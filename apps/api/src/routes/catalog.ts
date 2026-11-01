@@ -147,6 +147,7 @@ export async function catalogRoutes(
 
         const validItems: Array<z.infer<typeof upsertItemSchema>> = [];
         const errors: string[] = [];
+        const rowErrors: Array<{ row: number; field: string; message: string }> = [];
         let failed = 0;
 
         for (let idx = 0; idx < rawItems.length; idx++) {
@@ -155,6 +156,13 @@ export async function catalogRoutes(
             validItems.push(parsed.data);
           } else {
             failed++;
+            for (const issue of parsed.error.errors) {
+              rowErrors.push({
+                row: idx + 1,
+                field: issue.path.join('.') || 'item',
+                message: issue.message,
+              });
+            }
             const msg = parsed.error.errors
               .map((e) => `field "${e.path.join('.') || 'item'}": ${e.message}`)
               .join(', ');
@@ -170,6 +178,7 @@ export async function catalogRoutes(
             upserted: 0,
             failed,
             errors,
+            rowErrors,
             details: errors,
           });
         }
@@ -254,6 +263,7 @@ export async function catalogRoutes(
           upserted,
           failed,
           errors,
+          rowErrors,
         });
       }
 
@@ -454,6 +464,45 @@ export async function catalogRoutes(
         return reply.status(200).send({
           success: true,
           deletedId: id,
+        });
+      } catch (err) {
+        if (err instanceof StoreError) {
+          return reply.status(err.statusCode).send(err.toJSON());
+        }
+        throw err;
+      }
+    }
+  );
+
+  /**
+   * Clear all items from the resolved catalog store and invalidate caches
+   */
+  fastify.delete(
+    '/v1/catalog/clear',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      try {
+        const role = RBACManager.resolveRole(request);
+        if (!RBACManager.hasPermission(role, 'write')) {
+          return reply.status(403).send({
+            statusCode: 403,
+            error: 'Forbidden',
+            message: `Role '${role}' is not permitted to clear catalog`,
+          });
+        }
+        const { store, tenantId } = resolveStore(request);
+        store.clear();
+        await invalidateCatalogCaches();
+        Metrics.vectorStoreSize.set(0);
+        AuditLogger.getInstance().record({
+          tenantId,
+          actorRole: role,
+          action: 'catalog.clear',
+        });
+        return reply.status(200).send({
+          success: true,
+          cleared: true,
+          totalItems: 0,
         });
       } catch (err) {
         if (err instanceof StoreError) {

@@ -10,6 +10,9 @@ import {
   Metrics,
   normalizeQueryWithLayoutRecovery,
   evaluateCandidateGuardrail,
+  extractHeadCategoryIntent,
+  evaluateCandidateCategoryGate,
+  SimpleCategoryGateMode,
 } from '@eidos/core';
 import { StoredItem } from '../types';
 import { CatalogItem } from '../demo/demo-catalog';
@@ -570,7 +573,8 @@ export class VectorStore {
 
   /**
    * Executes unified Hybrid Search combining Dense (HNSW) and Sparse (BM25)
-   * using Reciprocal Rank Fusion (RRF) with exact cosine verification on top sparse hits.
+   * using Reciprocal Rank Fusion (RRF) with exact cosine verification, head-category gate,
+   * and strict zero-results guardrail.
    */
   public hybridSearch(
     queryText: string,
@@ -578,32 +582,53 @@ export class VectorStore {
     limit = 10,
     denseWeight = 1.0,
     sparseWeight = 1.0,
-    filterCategory?: string
-  ): { item: StoredItem; score: number; source?: string }[] {
+    filterCategory?: string,
+    options?: {
+      simpleCategoryGate?: SimpleCategoryGateMode;
+      minScore?: number;
+    }
+  ): {
+    item: StoredItem;
+    score: number;
+    rrfScore: number;
+    exactDense: number;
+    sparseScore: number;
+    source?: string;
+  }[] {
     if (this.items.size === 0) {
       return [];
     }
+    const gateMode: SimpleCategoryGateMode = options?.simpleCategoryGate ?? 'hard';
+    const minScoreThreshold = options?.minScore ?? 0;
+
     const queryInfo = normalizeQueryWithLayoutRecovery(queryText);
+    const headIntent = extractHeadCategoryIntent(queryText);
     const effectiveQuery = queryInfo.normalizedQuery || queryText;
     const qVec = queryVector instanceof Float32Array ? queryVector : new Float32Array(queryVector);
     const fused = this.hybrid.search(effectiveQuery, qVec, {
-      limit: Math.max(limit * 4, 30),
+      limit: Math.max(limit * 4, 40),
       denseWeight,
       sparseWeight,
     });
 
-    // Also include any direct title/category stem matches from the store that might have been missed by approximate walk
+    // Also include direct title/category/head-intent stem matches from the store that might have been missed by approximate walk
     const seenCandidateIds = new Set<string>(fused.map((r) => r.id));
-    if (queryInfo.coreStems.length > 0 && this.items.size <= 5000) {
+    const lookupStems = Array.from(
+      new Set([...queryInfo.coreStems, ...headIntent.familyStems])
+    ).filter((s) => s.length >= 3);
+
+    if (lookupStems.length > 0 && this.items.size <= 5000) {
       for (const stored of this.items.values()) {
         if (seenCandidateIds.has(stored.id)) continue;
+        if (filterCategory && stored.category !== filterCategory) continue;
         const textLower = `${stored.title} ${stored.category} ${(stored.tags || []).join(' ')}`.toLowerCase();
-        if (queryInfo.coreStems.some((stem) => stem.length >= 3 && textLower.includes(stem))) {
+        if (lookupStems.some((stem) => textLower.includes(stem))) {
+          const baseRrf = sparseWeight > 0 ? sparseWeight * (1 / (60 + 2)) : denseWeight * (1 / (60 + 10));
           fused.push({
             id: stored.id,
-            score: sparseWeight * (1 / (60 + 2)),
-            sparseScore: 1.0,
-            source: 'hybrid',
+            score: baseRrf,
+            sparseScore: sparseWeight > 0 ? 1.0 : 0,
+            source: sparseWeight > 0 && denseWeight > 0 ? 'hybrid' : sparseWeight > 0 ? 'sparse' : 'dense',
           });
           seenCandidateIds.add(stored.id);
         }
@@ -622,13 +647,21 @@ export class VectorStore {
       }
     }
 
+    const totalWeight = Math.max(1e-6, denseWeight + sparseWeight);
+    const normDenseShare = denseWeight / totalWeight;
+    const normSparseShare = sparseWeight / totalWeight;
+
     const scoredCandidates: {
       item: StoredItem;
       rawScore: number;
+      rrfScore: number;
       sparseScore: number;
       exactDense: number;
       titleMatches: number;
       passesGate: boolean;
+      matchesHeadCategory: boolean;
+      conflictsWithHeadCategory: boolean;
+      passesCategoryHardGate: boolean;
       source?: string;
     }[] = [];
 
@@ -640,7 +673,7 @@ export class VectorStore {
       const vec = stored.normalizedVector || stored.embedding;
       const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
       const sparseScore = res.sparseScore ?? 0;
-      let rawScore = res.score;
+      let rrfScore = res.score;
       let source = res.source;
 
       const guardrail = evaluateCandidateGuardrail(
@@ -648,59 +681,126 @@ export class VectorStore {
         stored,
         exactDense,
         sparseScore,
-        catalogHasLexicalMatches
+        catalogHasLexicalMatches && normSparseShare >= 0.15
       );
 
       // If item matched via BM25 or stem overlap and HNSW approximate walk missed it,
       // add its verified dense RRF contribution when exact cosine similarity is strong.
       if (res.denseScore === undefined && denseWeight > 0 && exactDense >= 0.35) {
-        rawScore += denseWeight * (1 / (60 + 1));
+        rrfScore += denseWeight * (1 / (60 + 10));
         if (sparseWeight > 0 && (sparseScore > 0 || guardrail.totalLexicalMatchCount > 0)) {
           source = 'hybrid';
         }
       }
 
-      // Apply title/category consistency boost so exact domain/product matches rank #1
-      if (guardrail.consistencyBoost > 0) {
-        rawScore += guardrail.consistencyBoost * 0.045;
-      } else if (catalogHasLexicalMatches && !guardrail.passesLexicalGate) {
-        rawScore *= 0.2;
+      // Compute weighted score respecting alpha / (denseWeight, sparseWeight)
+      let rawScore = rrfScore;
+      if (normSparseShare > 0) {
+        rawScore +=
+          normSparseShare *
+          (guardrail.consistencyBoost * 0.08 + Math.min(0.06, sparseScore * 0.008));
+      }
+      if (normDenseShare > 0) {
+        rawScore += normDenseShare * (exactDense * 0.16);
+      }
+
+      // Evaluate head category gate (strict head-noun priority over modifiers like "для бега")
+      const catGate = evaluateCandidateCategoryGate(headIntent, stored, gateMode);
+      if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
+        rawScore = rawScore * catGate.categoryScoreMultiplier + catGate.categoryBonus;
+
+        // Secondary modifier & budget boost ONLY within non-conflicting / head-matching items
+        if (!catGate.conflictsWithHeadCategory) {
+          const itemTextLower = `${stored.title} ${stored.category} ${(stored.tags || []).join(' ')} ${stored.description || ''}`.toLowerCase();
+          let modMatches = 0;
+          for (const mod of headIntent.modifierTokens) {
+            const stem = mod.length >= 4 ? mod.slice(0, Math.min(mod.length, 5)) : mod;
+            if (stem.length >= 3 && itemTextLower.includes(stem)) {
+              modMatches++;
+            }
+          }
+          if (modMatches > 0) {
+            rawScore += modMatches * 0.025;
+          }
+          if (queryInfo.isBudgetIntent && typeof stored.price === 'number' && stored.price > 0 && stored.price <= 12000) {
+            rawScore += 0.015;
+          }
+        }
+      }
+
+      let passesGate =
+        guardrail.passesLexicalGate || (catGate.matchesHeadCategory && denseWeight > 0);
+      if (denseWeight === 0 && sparseScore <= 0 && guardrail.totalLexicalMatchCount === 0) {
+        passesGate = false;
+      }
+      if (minScoreThreshold > 0 && rawScore < minScoreThreshold && exactDense < minScoreThreshold) {
+        passesGate = false;
       }
 
       scoredCandidates.push({
         item: stored,
         rawScore,
+        rrfScore,
         sparseScore,
         exactDense,
         titleMatches: guardrail.titleMatchCount,
-        passesGate: guardrail.passesLexicalGate,
+        passesGate,
+        matchesHeadCategory: catGate.matchesHeadCategory,
+        conflictsWithHeadCategory: catGate.conflictsWithHeadCategory,
+        passesCategoryHardGate: catGate.passesHardGate,
         source,
       });
     }
 
-    const gatedCandidates = catalogHasLexicalMatches
-      ? scoredCandidates.filter((c) => c.passesGate)
-      : scoredCandidates;
-    const finalPool = gatedCandidates.length > 0 ? gatedCandidates : scoredCandidates;
+    // Strict zero-results guardrail: never bypass passesGate when no candidates qualify
+    let finalPool = scoredCandidates.filter((c) => c.passesGate);
+    if (finalPool.length === 0) {
+      return [];
+    }
 
-    finalPool.sort((a, b) => {
-      if (a.titleMatches !== b.titleMatches && (a.titleMatches === 0 || b.titleMatches === 0)) {
-        if (Math.abs(b.rawScore - a.rawScore) < 0.035) {
-          return b.titleMatches - a.titleMatches;
+    // Head-category gate enforcement
+    if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
+      const headMatchedPool = finalPool.filter((c) => c.matchesHeadCategory);
+      if (headMatchedPool.length > 0) {
+        if (gateMode === 'hard') {
+          finalPool = headMatchedPool;
+        } else {
+          // 'soft' mode keeps all non-conflicting items or demotes conflicting ones via rawScore
+          const nonConflicting = finalPool.filter((c) => c.passesCategoryHardGate);
+          if (nonConflicting.length > 0) {
+            finalPool = nonConflicting;
+          }
+        }
+      } else if (gateMode === 'hard') {
+        const nonConflicting = finalPool.filter((c) => !c.conflictsWithHeadCategory);
+        if (nonConflicting.length > 0) {
+          finalPool = nonConflicting;
         }
       }
+    }
+
+    finalPool.sort((a, b) => {
       if (Math.abs(b.rawScore - a.rawScore) > 1e-6) {
         return b.rawScore - a.rawScore;
       }
-      if (Math.abs(b.sparseScore - a.sparseScore) > 1e-6) {
-        return b.sparseScore - a.sparseScore;
+      if (normSparseShare >= normDenseShare) {
+        if (Math.abs(b.sparseScore - a.sparseScore) > 1e-6) {
+          return b.sparseScore - a.sparseScore;
+        }
+        return b.exactDense - a.exactDense;
       }
-      return b.exactDense - a.exactDense;
+      if (Math.abs(b.exactDense - a.exactDense) > 1e-6) {
+        return b.exactDense - a.exactDense;
+      }
+      return b.sparseScore - a.sparseScore;
     });
 
     return finalPool.slice(0, limit).map((c) => ({
       item: c.item,
       score: Math.round(c.rawScore * 10000) / 10000,
+      rrfScore: Math.round(c.rrfScore * 10000) / 10000,
+      exactDense: Math.round(c.exactDense * 10000) / 10000,
+      sparseScore: Math.round(c.sparseScore * 10000) / 10000,
       source: c.source,
     }));
   }

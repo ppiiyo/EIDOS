@@ -7,6 +7,7 @@ export interface DemoBannerProps {
   state: DemoState;
   ownItemsCount: number;
   demoItemsCount?: number;
+  status?: 'idle' | 'loading' | 'ready' | 'error';
   uiLang?: UiLanguage;
   onOpenUpload: () => void;
   onReset: () => void;
@@ -16,6 +17,7 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
   state,
   ownItemsCount,
   demoItemsCount = 48,
+  status = 'ready',
   uiLang = 'ru',
   onOpenUpload,
   onReset,
@@ -64,12 +66,14 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
                 ? `${ownItemsCount} items indexed · My Catalog Mode`
                 : `${ownItemsCount} товаров проиндексировано · Режим «Мой каталог»`}
             </span>
-            <span
-              data-testid="demo-index-ready-badge"
-              className="ml-2 px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] mono text-[11px] font-semibold text-[var(--success)]"
-            >
-              {uiLang === 'ja' ? '✓ インデックス準備完了' : uiLang === 'en' ? '✓ Index Ready' : '✓ Индекс готов'}
-            </span>
+            {status === 'ready' && (
+              <span
+                data-testid="demo-index-ready-badge"
+                className="ml-2 px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] mono text-[11px] font-semibold text-[var(--success)]"
+              >
+                {uiLang === 'ja' ? '✓ インデックス準備完了' : uiLang === 'en' ? '✓ Index Ready' : '✓ Индекс готов'}
+              </span>
+            )}
             <span className="hidden lg:inline text-[var(--text-sec)] ml-2">
               {isDemo
                 ? uiLang === 'ja'

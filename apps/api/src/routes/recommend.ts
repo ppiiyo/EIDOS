@@ -142,13 +142,23 @@ export async function simpleRecommend(
   const vectorCheck = SecurityGuardrails.validateVectorBounds(rawVec, 384);
   const sourceVec = vectorCheck.isValid ? vectorCheck.corrected || rawVec : rawVec;
 
-  const candidates = vectorStore.search(
+  let candidates = vectorStore.search(
     sourceVec,
     Math.min(Math.max(data.limit * 2, 16), 30),
     data.minSimilarity,
     sourceItem.id,
     category
   );
+
+  if (candidates.length === 0 && data.minSimilarity <= 0.35) {
+    candidates = vectorStore.search(
+      sourceVec,
+      Math.min(Math.max(data.limit * 2, 16), 30),
+      0.01,
+      sourceItem.id,
+      category
+    );
+  }
 
   const filteredCandidates = candidates.filter((c) =>
     matchesFilters(c.item, category, minPrice, maxPrice, excludeSet)

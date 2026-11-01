@@ -223,7 +223,8 @@ export function useSearchCognitiveState(
   query: string,
   alpha: number,
   setAlpha: (a: number) => void,
-  baseHybridHits: HybridSearchHit[]
+  baseHybridHits: HybridSearchHit[],
+  complexityLevel: 'simple' | 'advanced' | 'expert' = 'simple'
 ) {
   const [radarCoords, setRadarCoords] = useState<IntentRadarCoordinates>({
     axisDiscovery: 0,
@@ -399,13 +400,22 @@ export function useSearchCognitiveState(
   );
 
   const effectiveAlpha = useMemo(() => {
+    if (complexityLevel === 'simple') {
+      return Math.round(Math.min(1, Math.max(0, alpha)) * 100) / 100;
+    }
     const raw =
       alpha +
       kineticProfile.alphaAdjustment * 0.4 +
       chronoProfile.recommendedAlphaShift * 0.35 +
       radarCoords.axisDiscovery * 0.12;
     return Math.round(Math.min(1, Math.max(0, raw)) * 100) / 100;
-  }, [alpha, kineticProfile.alphaAdjustment, chronoProfile.recommendedAlphaShift, radarCoords.axisDiscovery]);
+  }, [
+    complexityLevel,
+    alpha,
+    kineticProfile.alphaAdjustment,
+    chronoProfile.recommendedAlphaShift,
+    radarCoords.axisDiscovery,
+  ]);
 
   const extractedIntent = useMemo(() => extractClientIntentPreview(query), [query]);
 
@@ -466,6 +476,7 @@ export function useSearchCognitiveState(
 
     const tCog0 = performance.now();
     const { itemVecs, echoCentroid, dominantCategory, medianPrice, parsedPrices } = candidatePrep;
+    const isSimple = complexityLevel === 'simple';
 
     const steeredQueryVec = SerendipityOrthogonalEngine.synthesizeSteeredQueryVector(
       queryVec,
@@ -473,59 +484,69 @@ export function useSearchCognitiveState(
       echoCentroid
     );
 
-    const discoveryWeight = Math.max(
-      0,
-      radarCoords.axisDiscovery * 0.55 +
-        kineticProfile.serendipityBoost * 0.3 +
-        (chronoProfile.mode === 'dopamine_discovery' ? 0.22 : 0)
-    );
+    const discoveryWeight = isSimple
+      ? 0
+      : Math.max(
+          0,
+          radarCoords.axisDiscovery * 0.55 +
+            kineticProfile.serendipityBoost * 0.3 +
+            (chronoProfile.mode === 'dopamine_discovery' ? 0.22 : 0)
+        );
 
     const enriched = baseHybridHits.map((hit, idx) => {
       const candVec = itemVecs[idx];
-      const serendipityEval = SerendipityOrthogonalEngine.evaluateCandidate({
-        id: String(hit.item.id),
-        category: hit.item.category,
-        dominantCategory,
-        candidateVec: candVec,
-        queryVec: steeredQueryVec,
-        echoCentroidVec: echoCentroid,
-      });
+      const serendipityEval = isSimple
+        ? { isSerendipityDiscovery: false, serendipityScore: 0, discoveryReason: undefined }
+        : SerendipityOrthogonalEngine.evaluateCandidate({
+            id: String(hit.item.id),
+            category: hit.item.category,
+            dominantCategory,
+            candidateVec: candVec,
+            queryVec: steeredQueryVec,
+            echoCentroidVec: echoCentroid,
+          });
 
       const itemPrice = parsedPrices[idx];
 
-      // Dynamic base score using effectiveAlpha so 2D Radar, Chrono, and Kinetic shifts re-rank live
-      const dynamicHybridBase =
-        effectiveAlpha * hit.denseScore + (1 - effectiveAlpha) * hit.bm25Score;
-
-      const kineticMod = KineticAttentionEngine.modulateCandidateScore(
-        dynamicHybridBase,
-        itemPrice,
-        medianPrice,
-        kineticProfile
+      // Preserve hit.fusedScore (which includes head-category gate and lexical consistency boost),
+      // adding alpha delta only when cognitive engines shift effectiveAlpha away from alpha.
+      const alphaDelta = effectiveAlpha - alpha;
+      const dynamicHybridBase = Math.max(
+        0.01,
+        hit.fusedScore + alphaDelta * (hit.denseScore - hit.bm25Score)
       );
+
+      const kineticMod = isSimple
+        ? { adjustedScore: dynamicHybridBase, kineticBonus: 0 }
+        : KineticAttentionEngine.modulateCandidateScore(
+            dynamicHybridBase,
+            itemPrice,
+            medianPrice,
+            kineticProfile
+          );
 
       // Intent-Aware boost when query intent matches item category, use-case, or price budget
       let intentBoost = 0;
       if (extractedIntent && !disableIntentBoost) {
         const hay = `${hit.item.title} ${hit.item.category} ${hit.item.description} ${(hit.item.tags || []).join(' ')}`.toLowerCase();
         if (extractedIntent.category && hay.includes(extractedIntent.category.slice(0, 5))) {
-          intentBoost += 0.06;
+          intentBoost += 0.04;
         }
         if (extractedIntent.useCase && hay.includes(extractedIntent.useCase.slice(0, 4))) {
-          intentBoost += 0.05;
+          intentBoost += 0.03;
         }
         if (extractedIntent.priceRange && itemPrice !== undefined) {
           const { min, max } = extractedIntent.priceRange;
           const okMin = min === undefined || itemPrice >= min;
           const okMax = max === undefined || itemPrice <= max;
           if (okMin && okMax) {
-            intentBoost += 0.05;
+            intentBoost += 0.03;
           }
         }
       }
 
       let tierBonus = 0;
-      if (itemPrice && medianPrice > 0 && Math.abs(radarCoords.axisTier) > 0.08) {
+      if (!isSimple && itemPrice && medianPrice > 0 && Math.abs(radarCoords.axisTier) > 0.08) {
         const isPremium = itemPrice >= medianPrice;
         tierBonus =
           radarCoords.axisTier > 0
@@ -538,26 +559,28 @@ export function useSearchCognitiveState(
       }
 
       const sniperPenalty =
-        radarCoords.axisDiscovery < -0.15 && hit.item.category !== dominantCategory
+        !isSimple && radarCoords.axisDiscovery < -0.15 && hit.item.category !== dominantCategory
           ? radarCoords.axisDiscovery * 0.12
           : 0;
 
-      const serendipityContribution = serendipityEval.isSerendipityDiscovery
-        ? serendipityEval.serendipityScore * discoveryWeight * 0.32
-        : 0;
+      const serendipityContribution =
+        !isSimple && serendipityEval.isSerendipityDiscovery
+          ? serendipityEval.serendipityScore * discoveryWeight * 0.32
+          : 0;
 
       const mmrPenaltyVal =
-        !disableMmrPenalty && idx > 0 && !serendipityEval.isSerendipityDiscovery
+        !isSimple && !disableMmrPenalty && idx > 0 && !serendipityEval.isSerendipityDiscovery
           ? -Number((idx * 0.015).toFixed(4))
           : 0;
 
-      const totalBoost =
-        kineticMod.kineticBonus + intentBoost + Math.max(0, tierBonus) + serendipityContribution;
+      const totalBoost = isSimple
+        ? intentBoost
+        : kineticMod.kineticBonus + intentBoost + Math.max(0, tierBonus) + serendipityContribution;
 
       const newFusedScore = Math.min(
         0.999,
         Math.max(
-          0.05,
+          0.02,
           kineticMod.adjustedScore +
             intentBoost +
             tierBonus +
@@ -571,11 +594,12 @@ export function useSearchCognitiveState(
         ...hit,
         fusedScore: Math.round(newFusedScore * 10000) / 10000,
         isSerendipityDiscovery:
+          !isSimple &&
           serendipityEval.isSerendipityDiscovery &&
           (radarCoords.axisDiscovery >= 0 || discoveryWeight > 0.08),
-        serendipityScore: serendipityEval.serendipityScore,
-        discoveryReason: serendipityEval.discoveryReason,
-        kineticBonus: Math.round(totalBoost * 10000) / 10000,
+        serendipityScore: isSimple ? 0 : serendipityEval.serendipityScore,
+        discoveryReason: isSimple ? undefined : serendipityEval.discoveryReason,
+        kineticBonus: isSimple ? 0 : Math.round(totalBoost * 10000) / 10000,
       };
     });
 
@@ -594,7 +618,9 @@ export function useSearchCognitiveState(
     radarCoords,
     kineticProfile,
     chronoProfile,
+    alpha,
     effectiveAlpha,
+    complexityLevel,
     extractedIntent,
     disableIntentBoost,
     disableMmrPenalty,
@@ -660,16 +686,17 @@ export function useSearchCognitiveState(
           rrfScore: h.rrfScore ?? Number((h.fusedScore * 0.016).toFixed(4)),
           businessBoost: Math.max(0, Number((h.kineticBonus ?? 0).toFixed(4))),
           mmrPenalty:
-            !disableMmrPenalty && i > 0 && !h.isSerendipityDiscovery
+            complexityLevel !== 'simple' && !disableMmrPenalty && i > 0 && !h.isSerendipityDiscovery
               ? -Number((i * 0.025).toFixed(3))
               : 0,
-          kineticBonus: Number(Math.max(0, h.kineticBonus ?? 0).toFixed(4)),
-          serendipityScore: Number(
-            (h.isSerendipityDiscovery ? (h.serendipityScore ?? 0) : 0).toFixed(4)
-          ),
+          kineticBonus: complexityLevel === 'simple' ? 0 : Number(Math.max(0, h.kineticBonus ?? 0).toFixed(4)),
+          serendipityScore:
+            complexityLevel === 'simple'
+              ? 0
+              : Number((h.isSerendipityDiscovery ? (h.serendipityScore ?? 0) : 0).toFixed(4)),
         },
       })),
-    [hybridHits, effectiveAlpha, disableMmrPenalty]
+    [hybridHits, effectiveAlpha, disableMmrPenalty, complexityLevel]
   );
 
   return {

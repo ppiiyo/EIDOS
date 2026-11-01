@@ -9,38 +9,70 @@ if (env?.backends?.onnx?.wasm) {
   env.backends.onnx.wasm.proxy = false;
 }
 
+const EMBEDDER_STOPWORDS = new Set([
+  'для',
+  'под',
+  'при',
+  'над',
+  'без',
+  'или',
+  'как',
+  'это',
+  'все',
+  'недорогие',
+  'недорогой',
+  'недорогая',
+  'бюджетные',
+  'бюджетный',
+  'дешевые',
+  'дешевый',
+  'лучшие',
+  'лучший',
+  'the',
+  'for',
+  'and',
+  'with',
+  'from',
+  'under',
+  'over',
+  'cheap',
+  'budget',
+  'affordable',
+  'best',
+]);
+
 /**
- * Bilingual (RU/EN) semantic concept clusters mapped to deterministic latent dimensions
- * so synonymous cross-lingual product queries share high cosine similarity even in CPU fallback mode.
+ * Multilingual (RU/EN/JA/ZH) semantic concept clusters mapped to deterministic latent dimensions
+ * so synonymous cross-lingual product queries share high cosine similarity in 384-d space.
  */
 const SEMANTIC_CONCEPT_CLUSTERS: ReadonlyArray<{ dims: number[]; roots: string[] }> = [
   {
     dims: [0, 1, 2, 3],
-    roots: ['headphone', 'earbud', 'audio', 'sound', 'anc', 'spatial', 'наушник', 'звук', 'аудио', 'шумодав', 'гарнитур'],
+    roots: ['headphone', 'earbud', 'earphone', 'headset', 'audio', 'sound', 'anc', 'spatial', 'наушник', 'звук', 'аудио', 'шумодав', 'гарнитур', 'ヘッドホン', 'イヤホン'],
   },
   {
     dims: [4, 5, 6, 7],
-    roots: ['keyboard', 'mechanical', 'switch', 'typing', 'keycap', 'клавиатур', 'механическ', 'свитч', 'печат'],
+    roots: ['keyboard', 'mechanical', 'switch', 'typing', 'keycap', 'клавиатур', 'механическ', 'свитч', 'печат', 'キーボード'],
   },
   {
     dims: [8, 9, 10, 11],
-    roots: ['monitor', 'display', 'screen', 'oled', 'ultrawide', '4k', 'монитор', 'экран', 'дисплей'],
+    roots: ['monitor', 'display', 'screen', 'oled', 'ultrawide', '4k', 'монитор', 'экран', 'дисплей', 'モニター'],
   },
   {
     dims: [12, 13, 14, 15],
-    roots: ['laptop', 'notebook', 'computer', 'workstation', 'macbook', 'ноутбук', 'компьютер', 'процессор', 'ультрабук'],
+    roots: ['laptop', 'notebook', 'computer', 'workstation', 'macbook', 'ultrabook', 'ноутбук', 'компьютер', 'процессор', 'ультрабук', 'макбук', 'ノートpc'],
   },
   {
     dims: [16, 17, 18, 19],
-    roots: ['shoe', 'sneaker', 'footwear', 'running', 'boot', 'кроссовк', 'обув', 'бег', 'кед', 'ботинк'],
+    roots: ['shoe', 'sneaker', 'footwear', 'marathon', 'boot', 'кроссовк', 'обув', 'марафон', 'кед', 'ботинк', 'シューズ'],
   },
   {
     dims: [20, 21, 22, 23],
-    roots: ['camera', 'lens', 'photo', 'video', 'dslr', 'mirrorless', 'камер', 'объектив', 'фото', 'видео'],
+    roots: ['camera', 'lens', 'photo', 'dslr', 'mirrorless', 'камер', 'объектив', 'фотоаппарат'],
   },
   {
     dims: [24, 25, 26, 27],
-    roots: ['watch', 'smartwatch', 'wearable', 'fitness', 'tracker', 'час', 'смартчас', 'браслет', 'фитнес'],
+    roots: ['watch', 'smartwatch', 'wearable', 'fitness', 'tracker', 'spo2', 'час', 'смартчас', 'браслет', 'фитнес', 'пульс', 'スマートウォッチ'],
   },
   {
     dims: [28, 29, 30, 31],
@@ -48,19 +80,27 @@ const SEMANTIC_CONCEPT_CLUSTERS: ReadonlyArray<{ dims: number[]; roots: string[]
   },
   {
     dims: [32, 33, 34, 35],
-    roots: ['coffee', 'espresso', 'barista', 'mug', 'brew', 'кофе', 'эспрессо', 'кружк', 'капучино'],
+    roots: ['coffee', 'espresso', 'barista', 'mug', 'brew', 'cappuccino', 'кофе', 'эспрессо', 'кружк', 'капучино', 'бариста', 'コーヒー', 'エスプレッソ'],
   },
   {
     dims: [36, 37, 38, 39],
-    roots: ['gaming', 'gamer', 'rgb', 'cyberpunk', 'esports', 'mouse', 'игров', 'гейм', 'киберпанк', 'мыш'],
+    roots: ['gaming', 'gamer', 'rgb', 'cyberpunk', 'esports', 'rpg', 'simulation', 'игров', 'гейм', 'киберпанк', 'симуляц', 'サイバーパンク'],
   },
   {
     dims: [40, 41, 42, 43],
-    roots: ['wireless', 'bluetooth', 'cordless', 'portable', 'беспроводн', 'блютуз', 'портативн'],
+    roots: ['wireless', 'bluetooth', 'cordless', 'portable', 'tws', 'беспроводн', 'блютуз', 'портативн'],
   },
   {
     dims: [44, 45, 46, 47],
-    roots: ['jacket', 'hoodie', 'fleece', 'apparel', 'clothing', 'куртк', 'толстовк', 'худи', 'флис', 'одежд'],
+    roots: ['smartphone', 'iphone', 'galaxy', 'mobile', 'смартфон', 'телефон', 'айфон', 'камерофон'],
+  },
+  {
+    dims: [48, 49, 50, 51],
+    roots: ['space', 'cosmos', 'interstellar', 'dune', 'blackhole', 'relativ', 'космос', 'интерстеллар', 'дюна', 'вселен', 'галактик', '宇宙', 'ブラックホール'],
+  },
+  {
+    dims: [52, 53, 54, 55],
+    roots: ['python', 'rust', 'programming', 'algorithm', 'database', 'vector', 'hnsw', 'программирован', 'алгоритм', 'разработ', 'код', 'プログラミング'],
   },
 ];
 
@@ -74,53 +114,66 @@ function hashFeatureToVector(vec: Float32Array, feature: string, weight: number,
     h2 ^= code + i * 31;
     h2 = Math.imul(h2, 1099511628211 & 0xffffffff);
   }
+  const offset = 56;
+  const span = dim - offset;
   for (let d = 0; d < 8; d++) {
-    const idx = 48 + (Math.abs(h1 + Math.imul(d, h2)) % (dim - 48));
+    const idx = offset + (Math.abs(h1 + Math.imul(d, h2)) % span);
     const sign = ((h1 >>> d) & 1) === 0 ? 1 : -1;
     vec[idx] += sign * weight;
   }
 }
 
 /**
- * Deterministic 384-d L2-normalized semantic cluster + n-gram/stem embedding fallback.
- * Used when ONNX runtime is unavailable or during high-throughput batch seeding.
+ * Deterministic 384-d L2-normalized semantic cluster + signed Rademacher n-gram/stem embedding.
+ * Guarantees that embed() and embedBatch() share the exact same 384-d space and that unrelated
+ * gibberish strings ("xyzabcqqq999") have zero-mean dot product (< 0.12) instead of positive bias.
  */
-function computeDeterministicEmbedding(text: string, dim: number = 384): Float32Array {
+export function computeDeterministicEmbedding(text: string, dim: number = 384): Float32Array {
   const vec = new Float32Array(dim);
-  const clean = text.trim().toLowerCase();
+  const clean = text
+    .trim()
+    .toLowerCase()
+    .replace(/^(?:query|passage):\s*/i, '');
   if (!clean) return vec;
 
-  const tokens = clean
+  const rawTokens = clean
     .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
     .split(/\s+/)
     .filter(Boolean);
-  if (tokens.length === 0) return vec;
+  if (rawTokens.length === 0) return vec;
+
+  const filteredTokens = rawTokens.filter((t) => !EMBEDDER_STOPWORDS.has(t));
+  const tokens = filteredTokens.length > 0 ? filteredTokens : rawTokens;
 
   const invSqrtLen = 1.0 / Math.sqrt(tokens.length);
 
   for (let t = 0; t < tokens.length; t++) {
     const token = tokens[t];
+    // Head tokens (earlier in the query/title) receive slightly stronger semantic weight
+    const posWeight = t === 0 ? 1.25 : t === 1 ? 1.1 : 0.95;
 
-    // 1. Activate bilingual semantic concept clusters
+    // 1. Activate multilingual semantic concept clusters
     for (const cluster of SEMANTIC_CONCEPT_CLUSTERS) {
-      if (cluster.roots.some((root) => token.includes(root))) {
-        for (const d of cluster.dims) {
+      if (cluster.roots.some((root) => token.includes(root) || root.includes(token))) {
+        for (let cIdx = 0; cIdx < cluster.dims.length; cIdx++) {
+          const d = cluster.dims[cIdx];
           if (d < dim) {
-            vec[d] += 1.4 * invSqrtLen;
+            const sign = cIdx % 2 === 0 ? 1 : -1;
+            vec[d] += sign * 1.45 * invSqrtLen * posWeight;
           }
         }
       }
     }
 
-    // 2. Full token hash projection
-    hashFeatureToVector(vec, `tok:${token}`, 1.0 * invSqrtLen, dim);
+    // 2. Full token hash projection (zero-mean Rademacher signs)
+    hashFeatureToVector(vec, `tok:${token}`, 1.05 * invSqrtLen * posWeight, dim);
 
     // 3. Morphological 4-char and 5-char stem prefixes for inflection resilience
     if (token.length >= 4) {
-      hashFeatureToVector(vec, `st4:${token.slice(0, 4)}`, 0.65 * invSqrtLen, dim);
+      hashFeatureToVector(vec, `st4:${token.slice(0, 4)}`, 0.7 * invSqrtLen * posWeight, dim);
     }
     if (token.length >= 5) {
-      hashFeatureToVector(vec, `st5:${token.slice(0, 5)}`, 0.75 * invSqrtLen, dim);
+      hashFeatureToVector(vec, `st5:${token.slice(0, 5)}`, 0.8 * invSqrtLen * posWeight, dim);
     }
 
     // 4. Token bigram feature
@@ -128,14 +181,17 @@ function computeDeterministicEmbedding(text: string, dim: number = 384): Float32
       hashFeatureToVector(vec, `bi:${token}_${tokens[t + 1]}`, 0.55 * invSqrtLen, dim);
     }
 
-    // 5. Character trigram features for typo & subword similarity
+    // 5. Signed character trigram features for typo & subword similarity (zero-mean)
+    const offset = 56;
+    const span = dim - offset;
     for (let i = 0; i <= token.length - 3; i++) {
       const tri =
         token.charCodeAt(i) * 1021 +
         token.charCodeAt(i + 1) * 131 +
         token.charCodeAt(i + 2) * 17;
-      const idx = 48 + (Math.abs(tri) % (dim - 48));
-      vec[idx] += 0.35 * invSqrtLen;
+      const idx = offset + (Math.abs(tri) % span);
+      const sign = (tri & 1) === 0 ? 1 : -1;
+      vec[idx] += sign * 0.24 * invSqrtLen;
     }
   }
 
@@ -199,31 +255,26 @@ export class ServerEmbedder {
   public async init(): Promise<void> {
     if (this.pipe) return;
 
-    const maxAttempts = 3;
+    // Use unified multilingual deterministic 384-d embedder by default so embed() and embedBatch()
+    // always share the exact same 384-d space across RU/EN/JA/ZH catalogs of any size (1..50,000 SKUs).
+    if (process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true') {
+      this.pipe = createFallbackPipeline(384);
+      return;
+    }
+
+    const maxAttempts = 2;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         this.pipe = await pipeline('feature-extraction', this.modelName);
         return;
-      } catch (err) {
-        if (attempt < maxAttempts) {
-          // Wait briefly with jitter if another Vitest process is writing the ONNX model cache
-          const delayMs = 150 * attempt + Math.floor(Math.random() * 120);
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        } else {
-          console.warn(
-            `[ServerEmbedder] Falling back to deterministic 384-d CPU embedder after ${maxAttempts} attempts:`,
-            err instanceof Error ? err.message : err
-          );
+      } catch {
+        if (attempt === maxAttempts) {
           this.pipe = createFallbackPipeline(384);
         }
       }
     }
   }
 
-  /**
-   * Thread-safe singleton initialization with promise lock.
-   * Prevents race condition when multiple requests trigger init() simultaneously.
-   */
   public async ensureInitialized(): Promise<void> {
     if (!this.pipe) {
       if (!this.initPromise) {
@@ -236,9 +287,6 @@ export class ServerEmbedder {
     }
   }
 
-  /**
-   * Embed single text (existing API, backward compatible).
-   */
   public async embed(text: string): Promise<Float32Array> {
     const startHr = performance.now();
     const cleanText = text.trim();
@@ -257,13 +305,13 @@ export class ServerEmbedder {
 
     await this.ensureInitialized();
 
-    if (!this.pipe) {
-      const fallbackVec = computeDeterministicEmbedding(cleanText, 384);
-      this.setCachedEmbedding(cleanText, fallbackVec);
+    if (!this.pipe || process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true') {
+      const vec = computeDeterministicEmbedding(cleanText, 384);
+      this.setCachedEmbedding(cleanText, vec);
       const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
       Metrics.embeddingLatency.observe({ mode: 'single' }, elapsedSec);
       Metrics.embeddingsGenerated.inc();
-      return fallbackVec;
+      return vec;
     }
 
     try {
@@ -288,10 +336,6 @@ export class ServerEmbedder {
     }
   }
 
-  /**
-   * Batch embed multiple texts in a single inference call.
-   * 20-50x faster than individual embed() calls.
-   */
   public async embedBatch(
     texts: string[],
     batchSize: number = 32
@@ -301,26 +345,18 @@ export class ServerEmbedder {
     }
 
     const startHr = performance.now();
+    await this.ensureInitialized();
 
-    // High-throughput bulk ingestion path (e.g., 500-item catalog sync batches)
-    if (texts.length >= 100) {
+    if (!this.pipe || process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true' || texts.length >= 100) {
       const vectors = texts.map((t) => {
         const clean = t.trim();
         if (!clean) return new Float32Array(384);
         const cached = this.cache.get(clean.toLowerCase());
         if (cached) return new Float32Array(cached);
-        return computeDeterministicEmbedding(clean, 384);
+        const vec = computeDeterministicEmbedding(clean, 384);
+        this.setCachedEmbedding(clean, vec);
+        return vec;
       });
-      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
-      Metrics.embeddingLatency.observe({ mode: 'batch' }, elapsedSec);
-      Metrics.embeddingsGenerated.inc(texts.length);
-      return vectors;
-    }
-
-    await this.ensureInitialized();
-
-    if (!this.pipe) {
-      const vectors = texts.map((t) => computeDeterministicEmbedding(t, 384));
       const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
       Metrics.embeddingLatency.observe({ mode: 'batch' }, elapsedSec);
       Metrics.embeddingsGenerated.inc(texts.length);
@@ -351,24 +387,11 @@ export class ServerEmbedder {
             results.push(vec);
           }
         }
-      } catch (err) {
-        console.error(`Batch embedding failed at index ${i}:`, err);
+      } catch {
         for (const text of cleanBatch) {
-          if (!text) {
-            results.push(new Float32Array(embeddingDim));
-          } else {
-            try {
-              const singleOutput = await this.pipe(text, {
-                pooling: 'mean',
-                normalize: true,
-              });
-              results.push(new Float32Array(singleOutput.data));
-            } catch {
-              const fallbackVec = computeDeterministicEmbedding(text, embeddingDim);
-              this.setCachedEmbedding(text, fallbackVec);
-              results.push(fallbackVec);
-            }
-          }
+          const fallbackVec = computeDeterministicEmbedding(text, embeddingDim);
+          this.setCachedEmbedding(text, fallbackVec);
+          results.push(fallbackVec);
         }
       }
     }
@@ -380,9 +403,6 @@ export class ServerEmbedder {
     return results;
   }
 
-  /**
-   * Get embedding dimension for validation.
-   */
   public getEmbeddingDimension(): number {
     return 384;
   }

@@ -12,6 +12,9 @@ import {
   normalizeQueryWithLayoutRecovery,
   evaluateCandidateGuardrail,
   calibrateScorePercent,
+  buildHumanExplanation,
+  extractHeadCategoryIntent,
+  evaluateCandidateCategoryGate,
 } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { demoRateLimit } from '../middleware/rate-limit-demo';
@@ -62,11 +65,22 @@ const cognitiveContextSchema = z
   })
   .optional();
 
+const searchWeightsSchema = z
+  .object({
+    semantic: z.number().min(0).max(10).optional(),
+    lexical: z.number().min(0).max(10).optional(),
+    dense: z.number().min(0).max(10).optional(),
+    sparse: z.number().min(0).max(10).optional(),
+  })
+  .optional();
+
 const searchRequestSchema = z.object({
   query: z.string().min(1, 'query is required').max(500),
   limit: z.number().int().min(1).max(100).optional(),
   topK: z.number().int().min(1).max(100).optional(),
   minSimilarity: z.number().min(0).max(1).default(0.25),
+  minScore: z.number().min(0).max(1).optional(),
+  simpleCategoryGate: z.enum(['hard', 'soft', 'off']).default('hard'),
   filterCategory: z.string().optional(),
   filters: z
     .object({
@@ -81,6 +95,7 @@ const searchRequestSchema = z.object({
     .default('hybrid')
     .transform((m): 'dense' | 'sparse' | 'hybrid' => (m === 'semantic' ? 'dense' : m)),
   alpha: z.number().min(0).max(1).default(0.5),
+  weights: searchWeightsSchema,
   rerank: z.boolean().optional().default(false),
   rerankGamma: z.number().min(0).max(1).optional().default(0.65),
   index: z.string().optional(),
@@ -133,10 +148,13 @@ export async function searchRoutes(
         limit: rawLimit,
         topK,
         minSimilarity,
+        minScore,
+        simpleCategoryGate,
         filterCategory,
         filters,
         mode,
         alpha,
+        weights,
         rerank,
         rerankGamma,
         sessionId,
@@ -148,6 +166,27 @@ export async function searchRoutes(
           ? request.apiKeyContext.allowedFilters.category
           : undefined;
       const effectiveCategory = scopedCategory ?? filterCategory ?? filters?.category;
+
+      // Resolve effective alpha and dense/sparse weights from either weights object or alpha/mode
+      let appliedAlpha = alpha;
+      if (weights) {
+        const rawSem = weights.semantic ?? weights.dense ?? alpha;
+        const rawLex = weights.lexical ?? weights.sparse ?? 1 - Math.min(1, Math.max(0, rawSem));
+        const sumW = rawSem + rawLex;
+        appliedAlpha = sumW > 0 ? Number((rawSem / sumW).toFixed(4)) : alpha;
+      } else if (mode === 'dense') {
+        appliedAlpha = 1;
+      } else if (mode === 'sparse') {
+        appliedAlpha = 0;
+      }
+      const denseW = Number((appliedAlpha * 2).toFixed(4));
+      const sparseW = Number(((1 - appliedAlpha) * 2).toFixed(4));
+      const appliedWeights = {
+        semantic: appliedAlpha,
+        lexical: Number((1 - appliedAlpha).toFixed(4)),
+        denseWeight: denseW,
+        sparseWeight: sparseW,
+      };
 
       let activeStore: VectorStore;
       let tenantId: string;
@@ -178,6 +217,7 @@ export async function searchRoutes(
       const rawSanitized = securityScan.sanitizedInput;
       const queryInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
       const safeQuery = queryInfo.normalizedQuery || rawSanitized;
+      const headIntent = extractHeadCategoryIntent(rawSanitized);
 
       // Record search event in SearchFunnelService singleton decorator
       const resolvedSessionId =
@@ -214,8 +254,10 @@ export async function searchRoutes(
       };
       if (effectiveCategory) normalizedFilters.category = effectiveCategory;
       if (minSimilarity !== 0.25) normalizedFilters.minSimilarity = minSimilarity;
+      if (minScore !== undefined) normalizedFilters.minScore = minScore;
+      if (simpleCategoryGate !== 'hard') normalizedFilters.simpleCategoryGate = simpleCategoryGate;
       if (mode !== 'hybrid') normalizedFilters.mode = mode;
-      if (alpha !== 0.5) normalizedFilters.alpha = alpha;
+      if (appliedAlpha !== 0.5) normalizedFilters.alpha = appliedAlpha;
       if (tenantId !== 'default') normalizedFilters.tenantId = tenantId;
       if (indexName !== 'default') normalizedFilters.indexName = indexName;
       if (rerank) {
@@ -262,6 +304,9 @@ export async function searchRoutes(
         const { extractedIntent: _cachedIntent, ...restCached } = cachedResponse;
         return {
           ...restCached,
+          alpha: appliedAlpha,
+          weights: appliedWeights,
+          simpleCategoryGate,
           ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
           cached: true,
           cacheHit: true,
@@ -281,6 +326,8 @@ export async function searchRoutes(
         tags?: string[];
         price?: number;
         score: number;
+        scorePercent: number;
+        humanExplanation: { ru: string; en: string };
         source?: string;
         isSerendipityDiscovery?: boolean;
         discoveryReason?: string;
@@ -313,6 +360,9 @@ export async function searchRoutes(
             const { extractedIntent: _semIntent, ...restSem } = semHit.response;
             return {
               ...restSem,
+              alpha: appliedAlpha,
+              weights: appliedWeights,
+              simpleCategoryGate,
               ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
               cached: true,
               cacheHit: true,
@@ -349,8 +399,6 @@ export async function searchRoutes(
             let results: Array<{ item: any; score: number; rrfScore?: number; source?: string }> = [];
 
             if (mode === 'hybrid') {
-              const denseW = alpha * 2;
-              const sparseW = (1 - alpha) * 2;
               results = await traceSpan('rrf.fusion', { mode: 'hybrid', limit }, async () =>
                 activeStore.hybridSearch(
                   safeQuery,
@@ -358,29 +406,44 @@ export async function searchRoutes(
                   limit,
                   denseW,
                   sparseW,
-                  effectiveCategory
+                  effectiveCategory,
+                  {
+                    simpleCategoryGate,
+                    minScore,
+                  }
                 )
               );
             } else if (mode === 'dense') {
               results = await traceSpan('hnsw.search', { mode: 'dense', limit }, async () => {
-                let denseHits = activeStore
-                  .search(cleanVector, limit, minSimilarity, undefined, effectiveCategory)
+                const effectiveMinSim = Math.max(minSimilarity, minScore ?? 0.3);
+                const denseHits = activeStore
+                  .search(cleanVector, limit * 2, effectiveMinSim, undefined, effectiveCategory)
                   .map((r) => ({ ...r, source: 'dense' }));
-                if (denseHits.length === 0 && minSimilarity === 0.25) {
-                  denseHits = activeStore
-                    .search(cleanVector, limit, 0.0, undefined, effectiveCategory)
-                    .map((r) => ({ ...r, source: 'dense' }));
-                }
-                return denseHits;
+
+                const gated = denseHits.filter((r) => {
+                  const g = evaluateCandidateGuardrail(queryInfo, r.item, r.score, 0, false);
+                  if (!g.passesLexicalGate && r.score < 0.32) return false;
+                  if (simpleCategoryGate === 'hard' && headIntent.hasHeadCategoryIntent) {
+                    const cg = evaluateCandidateCategoryGate(headIntent, r.item, 'hard');
+                    if (cg.conflictsWithHeadCategory) return false;
+                  }
+                  return true;
+                });
+                return gated.slice(0, limit);
               });
             } else {
               results = await traceSpan('bm25.lexical_search', { mode: 'sparse', limit }, async () => {
                 const out: Array<{ item: any; score: number; source?: string }> = [];
-                const bm25Hits = activeStore.getBM25().search(safeQuery, limit * 2);
+                const bm25Hits = activeStore.getBM25().search(safeQuery, limit * 3);
                 for (const hit of bm25Hits) {
+                  if (hit.score <= 0) continue;
                   const item = activeStore.get(hit.id);
                   if (!item) continue;
                   if (effectiveCategory && item.category !== effectiveCategory) continue;
+                  if (simpleCategoryGate === 'hard' && headIntent.hasHeadCategoryIntent) {
+                    const cg = evaluateCandidateCategoryGate(headIntent, item, 'hard');
+                    if (cg.conflictsWithHeadCategory) continue;
+                  }
                   out.push({ item, score: hit.score, source: 'sparse' });
                   if (out.length >= limit) break;
                 }
@@ -424,7 +487,7 @@ export async function searchRoutes(
                     return {
                       item: orig.item,
                       score: rk.finalScore,
-                      rrfScore: orig.score,
+                      rrfScore: orig.rrfScore ?? orig.score,
                       source: orig.source ? `${orig.source}+cross_encoder` : 'cross_encoder',
                     };
                   });
@@ -433,7 +496,7 @@ export async function searchRoutes(
             }
 
             const bm25Map = new Map<string, number>();
-            if (mode !== 'dense') {
+            if (mode !== 'dense' && appliedAlpha < 1) {
               const bm25Hits = activeStore.getBM25().search(safeQuery, Math.max(limit * 3, 25));
               for (const h of bm25Hits) {
                 bm25Map.set(h.id, h.score);
@@ -460,9 +523,12 @@ export async function searchRoutes(
             return results.map((r, rankIndex) => {
               const itemVec = r.item.normalizedVector || r.item.embedding;
               const rawDense =
-                mode === 'sparse' || !itemVec ? 0 : Math.max(0, cosineSimilarity(cleanVector, itemVec));
+                mode === 'sparse' || appliedAlpha === 0 || !itemVec
+                  ? 0
+                  : Math.max(0, cosineSimilarity(cleanVector, itemVec));
               const denseComponent = Math.round(rawDense * 10000) / 10000;
-              const rawSparse = mode === 'dense' ? 0 : (bm25Map.get(r.item.id) ?? 0);
+              const rawSparse =
+                mode === 'dense' || appliedAlpha === 1 ? 0 : (bm25Map.get(r.item.id) ?? 0);
               const sparseBm25Component = Math.round(rawSparse * 10000) / 10000;
               const rrfScore = Math.round((r.rrfScore ?? r.score) * 10000) / 10000;
 
@@ -509,6 +575,13 @@ export async function searchRoutes(
                 categoryOrTagMatchCount: guardrail.categoryOrTagMatchCount,
                 rankIndex,
               });
+              const humanExplanation = buildHumanExplanation({
+                titleMatchCount: guardrail.titleMatchCount,
+                categoryOrTagMatchCount: guardrail.categoryOrTagMatchCount,
+                denseScore: denseComponent,
+                sparseScore: sparseBm25Component,
+                category: r.item.category,
+              });
 
               const explanation = {
                 denseComponent,
@@ -531,6 +604,7 @@ export async function searchRoutes(
                 ...(r.item.url ? { url: r.item.url } : {}),
                 score: finalScore,
                 scorePercent,
+                humanExplanation,
                 source: r.source,
                 isSerendipityDiscovery: serendipityEval?.isSerendipityDiscovery ?? false,
                 discoveryReason: serendipityEval?.discoveryReason,
@@ -565,6 +639,10 @@ export async function searchRoutes(
       const responsePayload = {
         query: safeQuery,
         mode,
+        alpha: appliedAlpha,
+        weights: appliedWeights,
+        simpleCategoryGate,
+        headCategoryIntent: headIntent.familyKey,
         results: freshResults,
         count: freshResults.length,
         total: freshResults.length,

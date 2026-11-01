@@ -64,7 +64,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const clientCacheRef = useRef<Map<string, { hits: HybridSearchHit[]; kw: Array<{ item: CatalogItem; matchedWords: string[] }> }>>(new Map());
 
-  const cog = useSearchCognitiveState(query, alpha, setAlpha, baseHybridHits);
+  const cog = useSearchCognitiveState(query, alpha, setAlpha, baseHybridHits, complexityLevel);
 
   const runSearch = async (targetQuery?: string, targetAlpha?: number) => {
     if (catalog.length === 0) {
@@ -136,7 +136,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   }, [dominantLang, catalog[0]?.id, catalog.length, sampleQueries[0]?.label]);
 
   useEffect(() => {
-    const timer = setTimeout(() => { void runSearch(query, alpha); }, 90);
+    const timer = setTimeout(() => { void runSearch(query, alpha); }, 250);
     return () => clearTimeout(timer);
   }, [query, alpha]);
 

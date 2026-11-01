@@ -6,6 +6,10 @@ import {
   cosineSimilarity as coreCosineSimilarity,
   normalizeQueryWithLayoutRecovery,
   evaluateCandidateGuardrail,
+  extractHeadCategoryIntent,
+  evaluateCandidateCategoryGate,
+  calibrateScorePercent,
+  SimpleCategoryGateMode,
 } from '@eidos/core';
 import { INITIAL_CATALOG } from '../data/catalog';
 import { expandQueryWithSynonyms } from '../data/industrySynonyms';
@@ -230,12 +234,12 @@ export function computeTextEmbedding(text: string): Float32Array {
     }
   }
 
-  // 4. Structural harmonics across dimensions 368..383 (16 buckets)
-  vec[368] = Math.min(clean.length / 60, 1.0);
-  for (let i = 0; i < clean.length; i++) {
-    const chCode = clean.charCodeAt(i);
-    const targetIdx = 369 + (chCode % 15);
-    vec[targetIdx] += 0.14 * Math.cos((i + 1) * 0.35);
+  // 4. Signed word-pair / token-transition features across dimensions 368..383 (16 buckets)
+  for (let i = 0; i < tokenUnits.length - 1; i++) {
+    const h = hashGram(`${tokenUnits[i]}_${tokenUnits[i + 1]}`);
+    const targetIdx = 368 + (h % 16);
+    const sign = h & 0x100 ? 1 : -1;
+    vec[targetIdx] += sign * 0.45;
   }
 
   // 5. L2 unit normalization
@@ -295,6 +299,7 @@ export type RetrievalMode = 'semantic-onnx' | 'hybrid-384d' | 'lexical-bm25';
 export interface HybridSearchHit {
   item: CatalogItem;
   fusedScore: number;
+  scorePercent?: number;
   denseScore: number;
   bm25Score: number;
   source: 'hybrid' | 'dense' | 'sparse';
@@ -647,9 +652,14 @@ export function executeHybridCatalogSearch(
   catalog: CatalogItem[],
   embeddings: Map<string, Float32Array>,
   alpha = 0.7,
-  limit = 10
+  limit = 10,
+  options?: {
+    simpleCategoryGate?: SimpleCategoryGateMode;
+  }
 ): HybridSearchHit[] {
+  const gateMode: SimpleCategoryGateMode = options?.simpleCategoryGate ?? 'hard';
   const queryInfo = normalizeQueryWithLayoutRecovery(query);
+  const headIntent = extractHeadCategoryIntent(query);
   const baseTrimmed = queryInfo.normalizedQuery || query.trim();
   if (!baseTrimmed) return [];
 
@@ -663,7 +673,7 @@ export function executeHybridCatalogSearch(
   const { hnsw, bm25 } = getOrBuildCatalogIndices(catalog, embeddings);
   const catalogMap = new Map<string, CatalogItem>(catalog.map((c) => [String(c.id), c]));
 
-  // 1. Dense HNSW retrieval (or full scan when catalog < 100 to get exact dense scores for every item)
+  // 1. Dense HNSW retrieval (or full scan when catalog < 400 to get exact dense scores for every item)
   const denseScores = new Map<string, number>();
   const denseRanks = new Map<string, number>();
   if (catalog.length >= 400) {
@@ -712,11 +722,30 @@ export function executeHybridCatalogSearch(
     ])
   );
 
-  // 3. Convex + RRF Fusion across candidate union
+  // 3. Convex + RRF Fusion across candidate union (plus direct head-category / stem lookup on large catalogs)
   const candidateIds = new Set<string>([
     ...denseScores.keys(),
     ...bm25Scores.keys(),
   ]);
+
+  const lookupStems = Array.from(
+    new Set([...queryInfo.coreStems, ...headIntent.familyStems])
+  ).filter((s) => s.length >= 3);
+
+  if (lookupStems.length > 0 && catalog.length <= 5000) {
+    for (const item of catalog) {
+      const id = String(item.id);
+      if (candidateIds.has(id)) continue;
+      const textLower = `${item.title} ${item.category} ${(item.tags || []).join(' ')}`.toLowerCase();
+      if (lookupStems.some((stem) => textLower.includes(stem))) {
+        candidateIds.add(id);
+        const vec = embeddings.get(id);
+        if (vec && !denseScores.has(id)) {
+          denseScores.set(id, cosineSimilarity(effectiveQueryVec, vec));
+        }
+      }
+    }
+  }
 
   const queryLang = detectTextLanguage(trimmed);
   const queryClusterIndices = MULTILINGUAL_CONCEPT_CLUSTERS.map((c, idx) =>
@@ -747,12 +776,24 @@ export function executeHybridCatalogSearch(
     }
   }
 
-  const results: HybridSearchHit[] = [];
+  const scoredPool: Array<{
+    hit: HybridSearchHit;
+    matchesHeadCategory: boolean;
+    conflictsWithHeadCategory: boolean;
+    passesCategoryHardGate: boolean;
+    titleMatchCount: number;
+    categoryOrTagMatchCount: number;
+  }> = [];
+
   for (const id of candidateIds) {
     const item = catalogMap.get(id);
     if (!item) continue;
 
-    const dScore = denseScores.get(id) ?? 0;
+    let dScore = denseScores.get(id);
+    if (dScore === undefined) {
+      const vec = embeddings.get(id);
+      dScore = vec ? cosineSimilarity(effectiveQueryVec, vec) : 0;
+    }
     let sScore = bm25Scores.get(id) ?? 0;
 
     const guardrail = evaluateCandidateGuardrail(
@@ -786,13 +827,25 @@ export function executeHybridCatalogSearch(
     const itemMatchesQueryCluster = sharedClusterCount > 0;
 
     // If pure BM25 (alpha === 0), filter out items with 0 BM25 score
-    if (alpha === 0 && sScore === 0) continue;
+    if (alpha === 0 && sScore === 0 && guardrail.totalLexicalMatchCount === 0) continue;
     // Filter out pure hash noise when query has no concept cluster, no lexical overlap, and low dense similarity
-    if (!hasQueryConceptCluster && sScore === 0 && matchedTokens.length === 0 && dScore < 0.24) continue;
+    if (!hasQueryConceptCluster && sScore === 0 && matchedTokens.length === 0 && dScore < 0.28) continue;
     // Filter out off-domain items on cross-lingual concept queries when item shares neither lexical tokens nor concept clusters
     if (hasQueryConceptCluster && !itemMatchesQueryCluster && sScore === 0 && matchedTokens.length === 0 && dScore < 0.32) continue;
-    // Off-domain guardrail: if catalog has lexical/category matches for the query, suppress off-domain items with 0 lexical overlap and weak dense similarity (unless confirmed cross-lingual concept match)
+    // Off-domain guardrail: if catalog has lexical/category matches for the query, suppress off-domain items with 0 lexical overlap and weak dense similarity
     if (catalogHasLexicalMatches && !guardrail.passesLexicalGate && !itemMatchesQueryCluster && alpha < 0.98) continue;
+
+    const catGate = evaluateCandidateCategoryGate(
+      headIntent,
+      {
+        id: String(item.id),
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        tags: item.tags,
+      },
+      gateMode
+    );
 
     const dRank = denseRanks.get(id);
     const sRank = sparseRanks.get(id) ?? (sScore > 0 ? 5 : undefined);
@@ -803,10 +856,23 @@ export function executeHybridCatalogSearch(
     const crossLingualClusterBoost =
       itemMatchesQueryCluster && sScore === 0 ? Math.min(0.24, sharedClusterCount * 0.14) : 0;
     const baseFused = alpha * dScore + (1 - alpha) * sScore;
-    const fusedScore = Math.min(
-      0.99,
-      baseFused + guardrail.consistencyBoost * 0.35 + crossLingualClusterBoost
-    );
+    const lexicalConsistencyWeight = (1 - alpha * 0.8) * 0.35;
+    let fusedScore = baseFused + guardrail.consistencyBoost * lexicalConsistencyWeight + crossLingualClusterBoost;
+
+    if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
+      fusedScore = fusedScore * catGate.categoryScoreMultiplier + catGate.categoryBonus;
+      if (!catGate.conflictsWithHeadCategory) {
+        const lowerText = itemTextForClusters.toLowerCase();
+        for (const mod of headIntent.modifierTokens) {
+          const stem = mod.length >= 4 ? mod.slice(0, Math.min(mod.length, 5)) : mod;
+          if (stem.length >= 3 && lowerText.includes(stem)) {
+            fusedScore += 0.08;
+          }
+        }
+      }
+    }
+    fusedScore = Math.min(0.99, fusedScore);
+
     let source: 'hybrid' | 'dense' | 'sparse' = 'hybrid';
     if (sScore === 0 || alpha >= 0.99) source = 'dense';
     else if (dScore < 0.05 || alpha <= 0.01) source = 'sparse';
@@ -845,25 +911,62 @@ export function executeHybridCatalogSearch(
           : `Лексическое совпадение BM25 Okapi (${(sScore * 100).toFixed(0)}%)`;
     }
 
-    results.push({
-      item,
-      fusedScore,
-      denseScore: dScore,
-      bm25Score: sScore,
-      source,
-      retrievalMode: source === 'sparse' ? 'lexical-bm25' : 'hybrid-384d',
-      whyRecommended,
-      denseRank: dRank,
-      sparseRank: sRank,
-      rrfScore,
-      rrfDenseContribution,
-      rrfSparseContribution,
-      matchedTokens,
+    scoredPool.push({
+      hit: {
+        item,
+        fusedScore,
+        denseScore: dScore,
+        bm25Score: sScore,
+        source,
+        retrievalMode: source === 'sparse' ? 'lexical-bm25' : 'hybrid-384d',
+        whyRecommended,
+        denseRank: dRank,
+        sparseRank: sRank,
+        rrfScore,
+        rrfDenseContribution,
+        rrfSparseContribution,
+        matchedTokens,
+      },
+      matchesHeadCategory: catGate.matchesHeadCategory,
+      conflictsWithHeadCategory: catGate.conflictsWithHeadCategory,
+      passesCategoryHardGate: catGate.passesHardGate,
+      titleMatchCount: guardrail.titleMatchCount,
+      categoryOrTagMatchCount: guardrail.categoryOrTagMatchCount,
     });
   }
 
-  results.sort((a, b) => b.fusedScore - a.fusedScore);
-  return results.slice(0, limit);
+  let finalPool = scoredPool;
+  if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
+    const headMatched = scoredPool.filter((c) => c.matchesHeadCategory);
+    if (headMatched.length > 0) {
+      if (gateMode === 'hard') {
+        finalPool = headMatched;
+      } else {
+        const nonConflicting = scoredPool.filter((c) => c.passesCategoryHardGate);
+        if (nonConflicting.length > 0) finalPool = nonConflicting;
+      }
+    } else if (gateMode === 'hard') {
+      const nonConflicting = scoredPool.filter((c) => !c.conflictsWithHeadCategory);
+      if (nonConflicting.length > 0) finalPool = nonConflicting;
+    }
+  }
+
+  finalPool.sort((a, b) => b.hit.fusedScore - a.hit.fusedScore);
+  const topSlice = finalPool.slice(0, limit);
+  const maxRaw = topSlice.reduce((m, entry) => Math.max(m, entry.hit.fusedScore), 0);
+
+  return topSlice.map((entry, idx) => ({
+    ...entry.hit,
+    scorePercent: calibrateScorePercent({
+      rawScore: entry.hit.fusedScore,
+      maxRawScore: Math.max(maxRaw, entry.hit.fusedScore),
+      denseScore: entry.hit.denseScore,
+      sparseScore: entry.hit.bm25Score,
+      titleMatchCount: entry.titleMatchCount,
+      categoryOrTagMatchCount: entry.categoryOrTagMatchCount,
+      rankIndex: idx,
+    }),
+  }));
 }
 
 /**
@@ -1208,23 +1311,56 @@ export function generateSyntheticScaledCatalog(
     const base = sourceCatalog[i % sourceCatalog.length];
     const mod = modifiers[i % modifiers.length];
     const id = `scale_${i}`;
-    const title = `${base.title} · ${mod} #${i}`;
-    const description = `${base.description} (${mod} · Node #${i})`;
+    const isHeadphoneBase =
+      String(base.id) === '9' ||
+      /наушник|headphones|earbuds|wh-1000/i.test(base.title);
+    const isSneakerBase =
+      String(base.id) === '18' ||
+      /кроссовк|sneakers|running shoes/i.test(base.title);
+
+    let title = `${base.title} · ${mod} #${i}`;
+    let description = `${base.description} (${mod} · Node #${i})`;
+    let category = base.category;
+    let extraTags: string[] = [`node_${i}`];
+    let priceStr = base.price || `${((i * 47) % 89000 + 1990).toLocaleString('ru-RU')} ₽`;
+
+    if (isHeadphoneBase) {
+      category = 'Наушники';
+      if (i % 2 === 0) {
+        title = `Беспроводные спортивные наушники для бега · ${mod} #${i}`;
+        description = `Лёгкие недорогие беспроводные наушники TWS с влагозащитой IPX7 для бега, фитнеса и активных тренировок (${mod} · Node #${i})`;
+        extraTags = ['наушники', 'бег', 'спорт', 'недорогие', 'bluetooth', `node_${i}`];
+        priceStr = '4 990 ₽';
+      } else {
+        title = `${base.title} · ${mod} #${i}`;
+        extraTags = ['наушники', 'звук', 'bluetooth', `node_${i}`];
+      }
+    } else if (isSneakerBase) {
+      category = 'Кроссовки';
+    }
 
     const item: CatalogItem = {
       id,
       title,
       description,
-      category: base.category,
-      tags: [...(base.tags || []), `node_${i}`],
+      category,
+      tags: [...(base.tags || []), ...extraTags],
       icon: base.icon || '📦',
-      price: base.price || `${((i * 47) % 89000 + 1990).toLocaleString('ru-RU')} ₽`,
+      price: priceStr,
       rating: Number((4.5 + ((i % 5) * 0.1)).toFixed(1)),
       reviews: (i * 13) % 900 + 12,
       badge: '1200+ HNSW Scale',
       custom: true,
     };
     catalog.push(item);
+
+    if (isHeadphoneBase) {
+      embeddings.set(
+        id,
+        computeTextEmbedding(`passage: ${item.title}. ${item.category}. ${item.description} ${(item.tags || []).join(' ')}`)
+      );
+      continue;
+    }
 
     const baseVec = embeddings.get(String(base.id));
     const vec = new Float32Array(384);

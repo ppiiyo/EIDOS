@@ -14,6 +14,7 @@ class HttpClient
 {
     private string $baseUrl;
     private string $apiKey;
+    private string $searchKey;
     private float $defaultTimeoutSec;
     private int $maxRetries;
     private bool $enforceHttps;
@@ -39,7 +40,8 @@ class HttpClient
         float $defaultTimeoutSec = 2.5,
         int $maxRetries = 1,
         bool $enforceHttps = true,
-        ?callable $transportHandler = null
+        ?callable $transportHandler = null,
+        ?string $searchKey = null
     ) {
         $trimmed = rtrim(trim($baseUrl), '/');
         $this->enforceHttps = $enforceHttps;
@@ -47,9 +49,40 @@ class HttpClient
 
         $this->baseUrl = $trimmed;
         $this->apiKey = trim($apiKey);
+        $this->searchKey = $searchKey !== null && trim($searchKey) !== '' ? trim($searchKey) : $this->apiKey;
         $this->defaultTimeoutSec = $defaultTimeoutSec;
         $this->maxRetries = max(0, $maxRetries);
         $this->transportHandler = $transportHandler;
+    }
+
+    /**
+     * Sets a dedicated read-only SEARCH_KEY for storefront /v1/search requests,
+     * keeping ADMIN_KEY ($apiKey) strictly for /v1/catalog/upsert mutations.
+     */
+    public function setSearchKey(string $searchKey): void
+    {
+        $trimmed = trim($searchKey);
+        if ($trimmed !== '') {
+            $this->searchKey = $trimmed;
+        }
+    }
+
+    /**
+     * Resolves the appropriate API key for a given endpoint path:
+     * - /v1/search, /v1/recommend, /v1/feedback -> SEARCH_KEY
+     * - /v1/catalog/upsert, /v1/catalog/* -> ADMIN_KEY
+     */
+    public function getEffectiveKeyForPath(string $path): string
+    {
+        $cleanPath = '/' . ltrim($path, '/');
+        if (
+            str_starts_with($cleanPath, '/v1/search')
+            || str_starts_with($cleanPath, '/v1/recommend')
+            || str_starts_with($cleanPath, '/v1/feedback')
+        ) {
+            return $this->searchKey !== '' ? $this->searchKey : $this->apiKey;
+        }
+        return $this->apiKey;
     }
 
     /**
@@ -175,9 +208,10 @@ class HttpClient
                 'User-Agent: EidosBitrixConnector/1.0',
             ];
 
-            if ($this->apiKey !== '') {
-                $headers[] = 'Authorization: Bearer ' . $this->apiKey;
-                $headers[] = 'X-API-Key: ' . $this->apiKey;
+            $effectiveKey = $this->getEffectiveKeyForPath($path);
+            if ($effectiveKey !== '') {
+                $headers[] = 'Authorization: Bearer ' . $effectiveKey;
+                $headers[] = 'X-API-Key: ' . $effectiveKey;
             }
 
             $timeoutMs = max(100, (int) round($timeout * 1000));

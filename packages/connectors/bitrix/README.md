@@ -54,6 +54,21 @@ packages/connectors/bitrix/ (или /local/modules/eidos.connector/)
 
 ---
 
+## Системные требования и Production-контракт
+
+- **PHP**: `>= 8.1`
+- **Обязательные расширения PHP**: `ext-curl`, `ext-json`, `ext-mbstring` (при отсутствии `ext-mbstring` в `Mapper.php` автоматически включается безопасный UTF-8 fallback на базе `preg_match_all('/./us', ...)`).
+- **Контракт идентификаторов (`ELEMENT_ID` vs `XML_ID`)**:
+  - `id` в EIDOS строго равен **`ELEMENT_ID`** (`ID` элемента инфоблока Битрикс в виде строки) — именно по нему формируются ссылки `/catalog/...` и фильтр `$GLOBALS['searchFilter'] = ['=ID' => $ids]`.
+  - Внешний код 1С (`XML_ID` / `EXTERNAL_ID` / `PROPERTY_CML2_ARTICLE_VALUE`) передаётся исключительно в поле **`sku`** (и мета-тег `__eidos_sku:`).
+- **Разделение ключей безопасности (`SEARCH_KEY` и `ADMIN_KEY`)**:
+  - `ADMIN_KEY` (`eidos_admin_key` / `eidos_api_key`) — используется только на бэкенде при вызове `POST /v1/catalog/upsert` (`syncCatalog`, `syncDelta`).
+  - `SEARCH_KEY` (`eidos_search_key`) — read-only ключ витрины для `POST /v1/search`, `POST /v1/recommend` и `POST /v1/feedback`.
+- **Обработка удалённых товаров (Stale IDs)**:
+  - Если товар был удалён или деактивирован в 1С-Битрикс до следующего запуска дельта-синка, `SearchReplacer::replaceSearch()` пропускает устаревший `ID` без ошибки `500`.
+
+---
+
 ## Быстрая установка в 1С-Битрикс
 
 ### Вариант 1. Как нативный модуль `/local/modules/eidos.connector/`
@@ -76,7 +91,8 @@ composer install
 1. Откройте **Настройки → Настройки продукта → Настройки модулей → EIDOS: Гибридный поиск и рекомендации**.
 2. Укажите:
    - **URL сервера EIDOS**: например, `https://eidos.myshop.ru`
-   - **API-ключ EIDOS**: секретный ключ вашего инстанса EIDOS
+   - **ADMIN_KEY (API-ключ записи)**: ключ с правами `write` для синхронизации каталога (`/v1/catalog/upsert`)
+   - **SEARCH_KEY (ключ чтения витрины)**: read-only ключ для поисковых запросов (`/v1/search`)
    - **ID инфоблока товаров**: ID торгового каталога
 3. Нажмите **«Проверить связь»** — отобразится статус:
    - `✅ EIDOS доступен (товаров в индексе: 1000)`

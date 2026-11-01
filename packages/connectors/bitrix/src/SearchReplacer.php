@@ -23,6 +23,13 @@ class SearchReplacer
     private array $localCatalogIndex = [];
 
     /**
+     * Tracks Bitrix ELEMENT_IDs that were deleted or deactivated in Bitrix before EIDOS index cleanup.
+     *
+     * @var array<string, bool>
+     */
+    private array $deletedBitrixIds = [];
+
+    /**
      * Optional custom native Bitrix fallback callback for testing or custom IBlock queries:
      * callable(string $query, array $options): array<int, array<string, mixed>>
      *
@@ -43,12 +50,14 @@ class SearchReplacer
     /**
      * Caches mapped item metadata locally so search results can be hydrated in O(1) without extra SQL queries.
      *
-     * @param array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string} $mapped
+     * @param array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string, sku?: string} $mapped
      */
     public function registerLocalItemMetadata(array $mapped): void
     {
+        unset($this->deletedBitrixIds[$mapped['id']]);
         $this->localCatalogIndex[$mapped['id']] = [
             'ID' => $mapped['id'],
+            'SKU' => $mapped['sku'] ?? null,
             'NAME' => $mapped['title'],
             'DESCRIPTION' => $mapped['description'],
             'CATEGORY' => $mapped['category'],
@@ -58,6 +67,18 @@ class SearchReplacer
             'IN_STOCK' => $mapped['inStock'],
             'TAGS' => $mapped['tags'],
         ];
+    }
+
+    /**
+     * Marks a Bitrix ELEMENT_ID as deleted/deactivated locally so stale hits from EIDOS are skipped without 500 errors.
+     */
+    public function markItemDeletedInBitrix(string $id): void
+    {
+        $cleanId = trim($id);
+        if ($cleanId !== '') {
+            $this->deletedBitrixIds[$cleanId] = true;
+            unset($this->localCatalogIndex[$cleanId]);
+        }
     }
 
     /**
@@ -130,6 +151,13 @@ class SearchReplacer
         }
 
         $filterInStock = isset($rawFilters['inStock']) ? (bool) $rawFilters['inStock'] : null;
+        $activeIdsOption = isset($options['activeBitrixIds']) && is_array($options['activeBitrixIds'])
+            ? array_fill_keys(array_map('strval', $options['activeBitrixIds']), true)
+            : null;
+        $deletedIdsOption = isset($options['deletedBitrixIds']) && is_array($options['deletedBitrixIds'])
+            ? array_fill_keys(array_map('strval', $options['deletedBitrixIds']), true)
+            : [];
+
         $bitrixItems = [];
 
         foreach ($response['data']['results'] as $hit) {
@@ -144,6 +172,15 @@ class SearchReplacer
             }
 
             $id = (string) $itemData['id'];
+
+            // Skip stale EIDOS IDs that were deleted or deactivated in Bitrix (no 500 error)
+            if (isset($this->deletedBitrixIds[$id]) || isset($deletedIdsOption[$id])) {
+                continue;
+            }
+            if ($activeIdsOption !== null && !isset($activeIdsOption[$id])) {
+                continue;
+            }
+
             $tags = is_array($itemData['tags'] ?? null) ? $itemData['tags'] : [];
             $metaFromTags = $this->extractMetaFromTags($tags);
             $localMeta = $this->localCatalogIndex[$id] ?? [];
@@ -162,9 +199,12 @@ class SearchReplacer
             $title = (string) ($itemData['title'] ?? $localMeta['NAME'] ?? '');
             $description = (string) ($itemData['description'] ?? $localMeta['DESCRIPTION'] ?? '');
             $price = isset($itemData['price']) ? (float) $itemData['price'] : (float) ($localMeta['PRICE'] ?? 0.0);
-            $explanation = isset($hit['explanation']) && is_string($hit['explanation'])
-                ? $hit['explanation']
-                : null;
+            $explanation = null;
+            if (isset($hit['humanExplanation']['ru']) && is_string($hit['humanExplanation']['ru'])) {
+                $explanation = $hit['humanExplanation']['ru'];
+            } elseif (isset($hit['explanation']) && is_string($hit['explanation'])) {
+                $explanation = $hit['explanation'];
+            }
 
             $bitrixItems[] = [
                 'ID' => $id,
@@ -178,6 +218,7 @@ class SearchReplacer
                 'BODY_FORMATED' => $description,
                 'PRICE' => $price,
                 'PREVIEW_PICTURE' => $itemData['imageUrl'] ?? $metaFromTags['imageUrl'] ?? ($localMeta['PREVIEW_PICTURE'] ?? null),
+                'SCORE_PERCENT' => isset($hit['scorePercent']) ? (int) $hit['scorePercent'] : null,
                 'EXPLANATION' => $explanation,
             ];
 

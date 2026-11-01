@@ -91,31 +91,35 @@ export class HybridSearch {
       }
     >();
 
-    denseHits.forEach((hit, rank) => {
-      const rrfContribution = denseWeight / (rrfK + rank + 1);
-      const existing = fusionMap.get(hit.id) ?? {
-        totalScore: 0,
-        hasDense: false,
-        hasSparse: false,
-      };
-      existing.totalScore += rrfContribution;
-      existing.hasDense = true;
-      existing.denseScore = hit.score;
-      fusionMap.set(hit.id, existing);
-    });
+    if (denseWeight > 0) {
+      denseHits.forEach((hit, rank) => {
+        const rrfContribution = denseWeight / (rrfK + rank + 1);
+        const existing = fusionMap.get(hit.id) ?? {
+          totalScore: 0,
+          hasDense: false,
+          hasSparse: false,
+        };
+        existing.totalScore += rrfContribution;
+        existing.hasDense = true;
+        existing.denseScore = hit.score;
+        fusionMap.set(hit.id, existing);
+      });
+    }
 
-    sparseHits.forEach((hit, rank) => {
-      const rrfContribution = sparseWeight / (rrfK + rank + 1);
-      const existing = fusionMap.get(hit.id) ?? {
-        totalScore: 0,
-        hasDense: false,
-        hasSparse: false,
-      };
-      existing.totalScore += rrfContribution;
-      existing.hasSparse = true;
-      existing.sparseScore = hit.score;
-      fusionMap.set(hit.id, existing);
-    });
+    if (sparseWeight > 0) {
+      sparseHits.forEach((hit, rank) => {
+        const rrfContribution = sparseWeight / (rrfK + rank + 1);
+        const existing = fusionMap.get(hit.id) ?? {
+          totalScore: 0,
+          hasDense: false,
+          hasSparse: false,
+        };
+        existing.totalScore += rrfContribution;
+        existing.hasSparse = true;
+        existing.sparseScore = hit.score;
+        fusionMap.set(hit.id, existing);
+      });
+    }
 
     // 4. Sort and format results
     const results: HybridSearchResult[] = Array.from(fusionMap.entries())

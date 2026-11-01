@@ -44,10 +44,19 @@ class Mapper
             throw new InvalidArgumentException('Bitrix systemItem must be an array or object');
         }
 
-        $rawId = trim((string) ($item['ID'] ?? $item['id'] ?? ''));
+        $rawId = trim((string) ($item['ID'] ?? $item['ELEMENT_ID'] ?? $item['id'] ?? ''));
         if ($rawId === '') {
-            throw new InvalidArgumentException('Bitrix item ID cannot be empty');
+            throw new InvalidArgumentException('Bitrix item ID (ELEMENT_ID) cannot be empty');
         }
+
+        $rawSku = trim((string) (
+            $item['XML_ID']
+            ?? $item['EXTERNAL_ID']
+            ?? $item['PROPERTY_CML2_ARTICLE_VALUE']
+            ?? $item['sku']
+            ?? ''
+        ));
+        $sku = $rawSku !== '' ? $this->safeSubstr($this->cleanPlainText($rawSku, 100), 0, 100) : null;
 
         $rawTitle = (string) ($item['NAME'] ?? $item['title'] ?? '');
         $title = $this->cleanPlainText($rawTitle, 500);
@@ -75,7 +84,7 @@ class Mapper
         foreach ($item as $k => $v) {
             if (is_string($k) && str_starts_with($k, 'PROPERTY_') && str_ends_with($k, '_VALUE') && is_scalar($v)) {
                 $propVal = $this->cleanPlainText((string) $v, 80);
-                if ($propVal !== '' && !in_array($propVal, $tags, true) && count($tags) < 17) {
+                if ($propVal !== '' && !in_array($propVal, $tags, true) && count($tags) < 16) {
                     $tags[] = $propVal;
                 }
             }
@@ -86,8 +95,8 @@ class Mapper
 
         $rawImage = $this->resolveBitrixPicture($item['PREVIEW_PICTURE'] ?? $item['DETAIL_PICTURE'] ?? $item['imageUrl'] ?? null);
 
-        return [
-            'id' => mb_substr($rawId, 0, 100, 'UTF-8'),
+        $mapped = [
+            'id' => $this->safeSubstr($rawId, 0, 100),
             'title' => $title,
             'description' => $description,
             'category' => $category,
@@ -97,19 +106,24 @@ class Mapper
             'url' => $url,
             'imageUrl' => $rawImage,
         ];
+        if ($sku !== null && $sku !== '') {
+            $mapped['sku'] = $sku;
+        }
+
+        return $mapped;
     }
 
     /**
      * Формирует JSON-payload для POST /v1/catalog/upsert.
-     * Сохраняет системные поля Битрикса (url, imageUrl, inStock) в мета-тегах,
-     * чтобы не требовать изменений в ядре EIDOS (packages/core и routes/catalog.ts).
+     * Сохраняет системные поля Битрикса (url, imageUrl, inStock, sku) в полях и мета-тегах,
+     * гарантируя id = ELEMENT_ID (string) и XML_ID -> sku.
      *
-     * @param array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string} $mapped
+     * @param array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string, sku?: string} $mapped
      * @return array<string, mixed>
      */
     public function toUpsertPayload(array $mapped): array
     {
-        $userTags = array_slice($mapped['tags'], 0, 17);
+        $userTags = array_slice($mapped['tags'], 0, 16);
         $metaTags = [
             '__eidos_instock:' . ($mapped['inStock'] ? '1' : '0'),
             '__eidos_url:' . $mapped['url'],
@@ -117,16 +131,25 @@ class Mapper
         if (!empty($mapped['imageUrl'])) {
             $metaTags[] = '__eidos_img:' . $mapped['imageUrl'];
         }
+        if (!empty($mapped['sku'])) {
+            $metaTags[] = '__eidos_sku:' . $mapped['sku'];
+        }
 
         $payload = [
-            'id' => $mapped['id'],
+            'id' => (string) $mapped['id'],
             'title' => $mapped['title'],
-            'description' => mb_substr($mapped['description'], 0, self::WIRE_DESCRIPTION_LIMIT, 'UTF-8'),
+            'description' => $this->safeSubstr($mapped['description'], 0, self::WIRE_DESCRIPTION_LIMIT),
             'category' => $mapped['category'],
+            'url' => $mapped['url'],
+            'inStock' => (bool) $mapped['inStock'],
             'tags' => array_values(array_unique(array_merge($userTags, $metaTags))),
         ];
 
-        // EIDOS upsertItemSchema requires price to be positive when provided
+        if (!empty($mapped['sku'])) {
+            $payload['sku'] = (string) $mapped['sku'];
+        }
+
+        // EIDOS upsertItemSchema requires price to be non-negative when provided
         if ($mapped['price'] > 0) {
             $payload['price'] = $mapped['price'];
         }
@@ -136,6 +159,7 @@ class Mapper
 
     /**
      * Очищает строку от HTML-тегов, декодирует сущности и обрезает до $maxLength символов UTF-8.
+     * Безопасно работает даже если расширение ext-mbstring отсутствует на хостинге.
      */
     public function cleanPlainText(string $input, int $maxLength = self::MAX_DESCRIPTION_LENGTH): string
     {
@@ -150,11 +174,33 @@ class Mapper
         $decoded = html_entity_decode($stripped, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $normalized = trim(preg_replace('/\s+/u', ' ', $decoded) ?? $decoded);
 
-        if (mb_strlen($normalized, 'UTF-8') > $maxLength) {
-            return mb_substr($normalized, 0, $maxLength, 'UTF-8');
+        if ($this->safeStrlen($normalized) > $maxLength) {
+            return $this->safeSubstr($normalized, 0, $maxLength);
         }
 
         return $normalized;
+    }
+
+    private function safeStrlen(string $str): int
+    {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($str, 'UTF-8');
+        }
+        if (preg_match_all('/./us', $str, $matches) !== false) {
+            return count($matches[0]);
+        }
+        return strlen($str);
+    }
+
+    private function safeSubstr(string $str, int $start, int $length): string
+    {
+        if (function_exists('mb_substr')) {
+            return mb_substr($str, $start, $length, 'UTF-8');
+        }
+        if (preg_match_all('/./us', $str, $matches) !== false) {
+            return implode('', array_slice($matches[0], $start, $length));
+        }
+        return substr($str, $start, $length);
     }
 
     /**

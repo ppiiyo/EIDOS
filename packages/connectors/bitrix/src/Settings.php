@@ -17,6 +17,8 @@ class Settings
     public const MODULE_ID = 'eidos.connector';
     public const OPT_API_URL = 'eidos_api_url';
     public const OPT_API_KEY = 'eidos_api_key';
+    public const OPT_ADMIN_KEY = 'eidos_admin_key';
+    public const OPT_SEARCH_KEY = 'eidos_search_key';
     public const OPT_IBLOCK_ID = 'eidos_iblock_id';
     public const OPT_LAST_DELTA_SYNC = 'eidos_last_delta_sync';
 
@@ -72,7 +74,8 @@ class Settings
 
         if (isset($postData['save_settings'])) {
             $url = trim((string) ($postData['eidos_api_url'] ?? ''));
-            $apiKey = trim((string) ($postData['eidos_api_key'] ?? ''));
+            $apiKey = trim((string) ($postData['eidos_admin_key'] ?? $postData['eidos_api_key'] ?? ''));
+            $searchKey = trim((string) ($postData['eidos_search_key'] ?? ''));
             $iblockId = (string) ((int) ($postData['eidos_iblock_id'] ?? 0));
 
             if ($url !== '' && !str_starts_with(strtolower($url), 'https://')) {
@@ -85,6 +88,10 @@ class Settings
             self::setOption(self::OPT_API_URL, $url);
             if ($apiKey !== '') {
                 self::setOption(self::OPT_API_KEY, $apiKey);
+                self::setOption(self::OPT_ADMIN_KEY, $apiKey);
+            }
+            if ($searchKey !== '') {
+                self::setOption(self::OPT_SEARCH_KEY, $searchKey);
             }
             self::setOption(self::OPT_IBLOCK_ID, $iblockId);
 

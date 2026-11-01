@@ -42,12 +42,15 @@ export type DemoPresetScope =
 
 export type DemoEngineSubView = 'search' | 'recommendations' | 'vectorspace' | 'catalog';
 
+export type DemoIndexStatus = 'idle' | 'loading' | 'ready' | 'error';
+
 export interface DemoModeProps {
   onSelectItem?: (item: CatalogItem) => void;
   onInspectIn3D?: (item: CatalogItem) => void;
   uiLang?: UiLanguage;
   embeddingState?: EmbeddingEngineState;
   apiBaseUrl?: string;
+  onStatusChange?: (status: DemoIndexStatus) => void;
 }
 
 export const DemoMode: React.FC<DemoModeProps> = ({
@@ -56,8 +59,24 @@ export const DemoMode: React.FC<DemoModeProps> = ({
   uiLang = 'ru',
   embeddingState,
   apiBaseUrl = '',
+  onStatusChange,
 }) => {
-  const [isLoadingDemo, setIsLoadingDemo] = useState(true);
+  const baseEmbeddings = useMemo(() => {
+    const map = new Map<string, Float32Array>();
+    for (const item of FULL_DEMO_CATALOG) {
+      map.set(
+        String(item.id),
+        computeTextEmbedding(
+          `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
+        )
+      );
+    }
+    return map;
+  }, []);
+
+  const [demoStatus, setDemoStatus] = useState<DemoIndexStatus>(() =>
+    FULL_DEMO_CATALOG.length > 0 && baseEmbeddings.size > 0 ? 'ready' : 'loading'
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeScope, setActiveScope] = useState<DemoPresetScope>('all');
   const [subView, setSubView] = useState<DemoEngineSubView>('search');
@@ -73,14 +92,20 @@ export const DemoMode: React.FC<DemoModeProps> = ({
   const [lastQueryLatencyMs, setLastQueryLatencyMs] = useState(1.4);
 
   useEffect(() => {
+    onStatusChange?.(demoStatus);
+  }, [demoStatus, onStatusChange]);
+
+  useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
 
     async function initDemoOnServer() {
-      setIsLoadingDemo(true);
       setLoadError(null);
       try {
         const res = await fetch(`${apiBaseUrl}/v1/demo/load`, {
           method: 'POST',
+          signal: controller.signal,
         });
         if (!res.ok && active) {
           setLoadError(`Серверный демо-индекс: HTTP ${res.status} (активен локальный HNSW + BM25)`);
@@ -88,8 +113,9 @@ export const DemoMode: React.FC<DemoModeProps> = ({
       } catch {
         // Автономная работа на полном клиентском HNSW + BM25 индексе
       } finally {
+        clearTimeout(timeoutId);
         if (active) {
-          setIsLoadingDemo(false);
+          setDemoStatus('ready');
         }
       }
     }
@@ -98,24 +124,13 @@ export const DemoMode: React.FC<DemoModeProps> = ({
 
     return () => {
       active = false;
+      clearTimeout(timeoutId);
+      controller.abort();
       void fetch(`${apiBaseUrl}/v1/demo/reset`, {
         method: 'POST',
       }).catch(() => {});
     };
   }, [apiBaseUrl]);
-
-  const baseEmbeddings = useMemo(() => {
-    const map = new Map<string, Float32Array>();
-    for (const item of FULL_DEMO_CATALOG) {
-      map.set(
-        String(item.id),
-        computeTextEmbedding(
-          `passage: ${item.title}. ${item.category}. ${item.description}. ${(item.tags || []).join(' ')}`
-        )
-      );
-    }
-    return map;
-  }, []);
 
   const { activeCatalog, activeEmbeddings } = useMemo(() => {
     if (activeScope === 'all') {
@@ -312,7 +327,7 @@ export const DemoMode: React.FC<DemoModeProps> = ({
     [apiBaseUrl]
   );
 
-  if (isLoadingDemo) {
+  if (demoStatus === 'loading') {
     return (
       <div className="page">
         <div
