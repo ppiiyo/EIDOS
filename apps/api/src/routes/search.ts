@@ -194,21 +194,6 @@ export async function searchRoutes(
         });
       }
 
-      // Fast-path: if the active catalog is empty (0 SKU), return 200 OK with count: 0 immediately
-      if (activeStore.count() === 0) {
-        const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
-        reply.header('x-cache', 'MISS');
-        return {
-          query: safeQuery,
-          mode,
-          results: [],
-          count: 0,
-          total: 0,
-          latencyMs,
-          cacheHit: false,
-        };
-      }
-
       // Feature Flag: Intent-Aware Search (Phase 1)
       const isIntentAwareEnabled = process.env.EIDOS_FEATURE_INTENT_AWARE_SEARCH === 'true';
       const extractedIntent = isIntentAwareEnabled
@@ -582,6 +567,7 @@ export async function searchRoutes(
         mode,
         results: freshResults,
         count: freshResults.length,
+        total: freshResults.length,
         latencyMs,
         cacheHit: false,
         ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),

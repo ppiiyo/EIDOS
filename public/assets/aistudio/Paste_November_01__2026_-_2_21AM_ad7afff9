@@ -1,0 +1,375 @@
+2026-10-31T23:19:31.8175222Z ##[group]Run pnpm test
+2026-10-31T23:19:31.8175412Z [36;1mpnpm test[0m
+2026-10-31T23:19:31.8192672Z shell: /usr/bin/bash -e {0}
+2026-10-31T23:19:31.8192820Z env:
+2026-10-31T23:19:31.8192978Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-10-31T23:19:31.8193161Z ##[endgroup]
+2026-10-31T23:19:32.0794311Z 
+2026-10-31T23:19:32.0795409Z > eidos@3.4.0 test /home/runner/work/EIDOS/EIDOS
+2026-10-31T23:19:32.0795717Z > vitest run
+2026-10-31T23:19:32.0795834Z 
+2026-10-31T23:19:32.3182913Z [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+2026-10-31T23:19:32.3382336Z 
+2026-10-31T23:19:32.3383899Z [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/EIDOS/EIDOS[39m
+2026-10-31T23:19:32.3384466Z 
+2026-10-31T23:19:33.5870404Z {"level":30,"time":1793488773584,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:33.5960254Z {"level":30,"time":1793488773594,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":9.03486799998791,"msg":"request completed"}
+2026-10-31T23:19:33.5961831Z {"level":30,"time":1793488773594,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:33.5995537Z {"level":30,"time":1793488773596,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":403},"responseTime":2.1709109999937937,"msg":"request completed"}
+2026-10-31T23:19:33.5997012Z {"level":30,"time":1793488773597,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:33.5998557Z {"level":30,"time":1793488773598,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":403},"responseTime":0.6815599999972619,"msg":"request completed"}
+2026-10-31T23:19:33.6000006Z {"level":30,"time":1793488773598,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"POST","url":"/v1/keys/generate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:33.6053295Z {"level":30,"time":1793488773599,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":403},"responseTime":1.1179600000032224,"msg":"request completed"}
+2026-10-31T23:19:33.6171392Z {"level":30,"time":1793488773616,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.4639904Z {"level":30,"time":1793488774459,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":842.0620159999817,"msg":"request completed"}
+2026-10-31T23:19:34.4872719Z {"level":30,"time":1793488774459,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/v1/catalog/export?format=json","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.4888617Z {"level":30,"time":1793488774460,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.8955740000237711,"msg":"request completed"}
+2026-10-31T23:19:34.8041255Z {"level":30,"time":1793488774802,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/admin/keys","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8059488Z {"level":30,"time":1793488774805,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":201},"responseTime":2.114937000005739,"msg":"request completed"}
+2026-10-31T23:19:34.8079582Z {"level":30,"time":1793488774806,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/keys/rotate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8094816Z {"level":30,"time":1793488774807,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":1.3048729999864008,"msg":"request completed"}
+2026-10-31T23:19:34.8095592Z {"level":30,"time":1793488774808,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8114757Z {"level":30,"time":1793488774810,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":1.6047060000128113,"msg":"request completed"}
+2026-10-31T23:19:34.8115981Z {"level":30,"time":1793488774811,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8190406Z {"level":30,"time":1793488774812,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":0.9420939999981783,"msg":"request completed"}
+2026-10-31T23:19:34.8298994Z {"level":30,"time":1793488774829,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"GET","url":"/v1/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8422198Z {"level":30,"time":1793488774831,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":1.6925789999950211,"msg":"request completed"}
+2026-10-31T23:19:34.8423981Z {"level":30,"time":1793488774832,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/v1/ready","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8425097Z {"level":30,"time":1793488774832,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.5333059999975376,"msg":"request completed"}
+2026-10-31T23:19:34.8518754Z {"level":30,"time":1793488774851,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8590595Z {"level":30,"time":1793488774853,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":1.5594879999989644,"msg":"request completed"}
+2026-10-31T23:19:34.8592392Z {"level":30,"time":1793488774853,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/metrics","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8593897Z {"level":30,"time":1793488774854,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.9876730000250973,"msg":"request completed"}
+2026-10-31T23:19:34.8710807Z {"level":30,"time":1793488774870,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8750666Z {"level":40,"time":1793488774871,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","event":"auth_failed","reason":"invalid_key","requestId":"req_fac77598eb10","keyId":"invali...00 (id:83fe5847)","ip":"127.0.0.1","path":"/v1/catalog/upsert"}
+2026-10-31T23:19:34.8752268Z {"level":30,"time":1793488774871,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":401},"responseTime":0.9435360000061337,"msg":"request completed"}
+2026-10-31T23:19:34.8753510Z {"level":30,"time":1793488774871,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8852723Z {"level":30,"time":1793488774872,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.7578659999999218,"msg":"request completed"}
+2026-10-31T23:19:34.8856516Z {"level":30,"time":1793488774872,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/logs?limit=20","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.8858103Z {"level":30,"time":1793488774873,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":0.5754299999971408,"msg":"request completed"}
+2026-10-31T23:19:34.9045554Z {"level":30,"time":1793488774903,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9145912Z {"level":30,"time":1793488774912,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":8.330132000002777,"msg":"request completed"}
+2026-10-31T23:19:34.9148110Z {"level":30,"time":1793488774912,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9220166Z {"level":30,"time":1793488774919,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":201},"responseTime":7.211721999978181,"msg":"request completed"}
+2026-10-31T23:19:34.9241758Z {"level":30,"time":1793488774920,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9243521Z {"level":30,"time":1793488774920,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":0.43691000001854263,"msg":"request completed"}
+2026-10-31T23:19:34.9244874Z {"level":30,"time":1793488774921,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"GET","url":"/v1/catalog/export?format=csv","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9246297Z {"level":30,"time":1793488774921,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":0.3570099999778904,"msg":"request completed"}
+2026-10-31T23:19:34.9247726Z {"level":30,"time":1793488774921,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-5","req":{"method":"DELETE","url":"/v1/catalog/items/snap-item-1","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9249232Z {"level":30,"time":1793488774922,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-5","res":{"statusCode":200},"responseTime":0.9370559999952093,"msg":"request completed"}
+2026-10-31T23:19:34.9250516Z {"level":30,"time":1793488774922,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-6","req":{"method":"POST","url":"/v1/snapshots/restore","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9290318Z {"level":30,"time":1793488774928,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-6","res":{"statusCode":200},"responseTime":5.317197999975178,"msg":"request completed"}
+2026-10-31T23:19:34.9426196Z {"level":30,"time":1793488774942,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9520561Z {"level":30,"time":1793488774943,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":1.4302019999886397,"msg":"request completed"}
+2026-10-31T23:19:34.9523046Z {"level":30,"time":1793488774944,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/optimize","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9524527Z {"level":30,"time":1793488774950,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":6.45821299997624,"msg":"request completed"}
+2026-10-31T23:19:34.9526453Z {"level":30,"time":1793488774951,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"POST","url":"/v1/admin/reindex","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9545069Z {"level":30,"time":1793488774952,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":0.8746719999762718,"msg":"request completed"}
+2026-10-31T23:19:34.9549750Z {"level":30,"time":1793488774952,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"GET","url":"/v1/analytics/queries","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-10-31T23:19:34.9551392Z {"level":30,"time":1793488774953,"pid":2376,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":0.7075590000022203,"msg":"request completed"}
+2026-10-31T23:19:34.9553198Z  [31m❯[39m apps/api/tests/v35-production-gate.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1515[2mms[22m[39m
+2026-10-31T23:19:34.9556905Z    [33m[2m✓[22m[39m EIDOS v3.5 Production Gate & Operational Readiness[2m > [22m1. Security & API Key Hierarchy (P0)[2m > [22mallows Admin Key on catalog upsert, snapshots, and admin stats, while sanitizing prompt injection / XSS payloads [33m861[2mms[22m[39m
+2026-10-31T23:19:34.9558792Z    [33m[2m✓[22m[39m EIDOS v3.5 Production Gate & Operational Readiness[2m > [22m1. Security & API Key Hierarchy (P0)[2m > [22msupports Master Key creation of scoped keys and zero-downtime key rotation [33m351[2mms[22m[39m
+2026-10-31T23:19:34.9561131Z [31m   [31m×[31m EIDOS v3.5 Production Gate & Operational Readiness[2m > [22m2. Structured Logging, Health, Readiness & Prometheus Metrics (P0)[2m > [22mrecords structured operational logs for search, indexing, and auth failures via /v1/admin/logs[90m 23[2mms[22m[31m[39m
+2026-10-31T23:19:34.9562366Z [31m     → expected 1 to be greater than or equal to 2[39m
+2026-10-31T23:19:35.6588496Z  [32m✓[39m apps/api/tests/phase1-api-hardening.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2219[2mms[22m[39m
+2026-10-31T23:19:35.6590598Z    [33m[2m✓[22m[39m PHASE 1: Critical API Fixes & Security Hardening[2m > [22mTASK 1.2: Security Stack (CORS, Helmet CSP, Rate Limiting)[2m > [22menforces rate limiting with 429 Too Many Requests when threshold is exceeded [33m464[2mms[22m[39m
+2026-10-31T23:19:36.8060766Z  [31m❯[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[33m 309[2mms[22m[39m
+2026-10-31T23:19:36.8070273Z [31m   [31m×[31m PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification v3.2[2m > [22mTASK 4.1: Multi-Instance Horizontal Scaling & Cross-Node Cache Invalidation Bus[90m 19[2mms[22m[31m[39m
+2026-10-31T23:19:36.8071351Z [31m     → expected 'MISS' to be 'HIT' // Object.is equality[39m
+2026-10-31T23:19:36.8072606Z [31m   [31m×[31m PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification v3.2[2m > [22mTASK 4.2: Cluster Topology, Automatic Leader Election & Shard Failover with Zero 5xx Errors[90m 4[2mms[22m[31m[39m
+2026-10-31T23:19:36.8073494Z [31m     → expected 0 to be greater than 0[39m
+2026-10-31T23:19:36.8291319Z [31m   [31m×[31m PHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification v3.2[2m > [22mTASK 4.4: Final E2E v3.2 Pipeline Verification (Upsert -> Hybrid Search -> Unified Recommend -> Online Feedback -> Prometheus)[90m 160[2mms[22m[31m[39m
+2026-10-31T23:19:36.8292127Z [31m     → expected 0 to be greater than 0[39m
+2026-10-31T23:19:36.8292600Z  [32m✓[39m tests/unit/one-command-pilot-and-widget.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[90m 244[2mms[22m[39m
+2026-10-31T23:19:39.3481607Z  [32m✓[39m tests/unit/post-v34-hardening.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 880[2mms[22m[39m
+2026-10-31T23:19:39.3482986Z    [33m[2m✓[22m[39m Post-v3.4 Hardening Acceptance Suite (P0 & P1)[2m > [22mP0.2 & P0.3: executes 10/10 reliable demo searches on "недорогие наушники для бега" (API + UI) with side-by-side comparison, X-Ray breakdown, and human-readable explanation [33m718[2mms[22m[39m
+2026-10-31T23:19:39.3906100Z  [32m✓[39m tests/integration/phase2-ui-completion.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 670[2mms[22m[39m
+2026-10-31T23:19:40.5749697Z  [32m✓[39m packages/core/src/tests/strict-validation.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-10-31T23:19:41.0133750Z  [32m✓[39m tests/connectors/bitrix-and-all-in-one-docker.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 149[2mms[22m[39m
+2026-10-31T23:19:41.3557128Z  [32m✓[39m tests/benchmarks/search-sla.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 561[2mms[22m[39m
+2026-10-31T23:19:41.6036944Z  [32m✓[39m packages/core/src/tests/cognitive-vectors.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-31T23:19:42.6900111Z  [32m✓[39m apps/api/tests/redis-cache.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 811[2mms[22m[39m
+2026-10-31T23:19:43.1682043Z  [32m✓[39m tests/integration/prometheus-metrics.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1059[2mms[22m[39m
+2026-10-31T23:19:43.1683418Z    [33m[2m✓[22m[39m PHASE 3: Prometheus Metrics & Observability Integration Suite[2m > [22m1. Records non-zero HTTP request counters, request duration histograms, and search latencies on /metrics [33m624[2mms[22m[39m
+2026-10-31T23:19:44.0854431Z  [32m✓[39m tests/unit/multilingual-crosslingual.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 45[2mms[22m[39m
+2026-10-31T23:19:44.4030262Z  [32m✓[39m packages/core/src/tests/hnsw-quantization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 90[2mms[22m[39m
+2026-10-31T23:19:45.3120916Z  [32m✓[39m tests/unit/services/intent-dictionary.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 987[2mms[22m[39m
+2026-10-31T23:19:45.5275918Z  [32m✓[39m apps/api/tests/ten-bugs-fixes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 391[2mms[22m[39m
+2026-10-31T23:19:46.5801633Z  [32m✓[39m packages/core/src/tests/v3-enterprise.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+2026-10-31T23:19:48.0859869Z  [32m✓[39m tests/integration/critical-routes.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 1230[2mms[22m[39m
+2026-10-31T23:19:48.2893695Z  [32m✓[39m apps/api/tests/phase2-product-improvements.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1203[2mms[22m[39m
+2026-10-31T23:19:48.2895180Z    [33m[2m✓[22m[39m PHASE 2: Product Improvements (5,000+ Seed Dataset, OpenAPI 3.0.3, Sentry Error Tracker, Observability & SLA)[2m > [22mTASK 3 / Checkpoint 3 & 5: Catalog starts empty (0 items), loads demo items on demand, memory <512MB, /v1/search <30ms, /v1/recommend <50ms [33m808[2mms[22m[39m
+2026-10-31T23:19:49.7653099Z  [32m✓[39m tests/integration/modernization-phases-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 135[2mms[22m[39m
+2026-10-31T23:19:49.8856367Z  [32m✓[39m tests/integration/split-brain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 257[2mms[22m[39m
+2026-10-31T23:19:51.9325550Z  [32m✓[39m tests/unit/phase3-deterministic-seeding-metrics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 631[2mms[22m[39m
+2026-10-31T23:19:51.9326929Z    [33m[2m✓[22m[39m PHASE 3: Deterministic Seeding (mulberry32) & Real Search Latency Metrics[2m > [22mGET /v1/metrics and GET /v1/catalog/stats reflect real search and recommend latencies [33m611[2mms[22m[39m
+2026-10-31T23:19:52.0085123Z  [32m✓[39m tests/unit/services/search-funnel.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 742[2mms[22m[39m
+2026-10-31T23:19:52.0086643Z    [33m[2m✓[22m[39m Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regression[2m > [22m5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel [33m633[2mms[22m[39m
+2026-10-31T23:19:53.1473881Z  [32m✓[39m tests/unit/phase2-rate-limit-lru.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+2026-10-31T23:19:53.3540822Z  [32m✓[39m packages/core/src/tests/adaptive/explainability-steering.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-10-31T23:19:53.9146491Z  [31m❯[39m apps/api/tests/phase3-competitive-edge.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 135[2mms[22m[39m
+2026-10-31T23:19:53.9147587Z [31m   [31m×[31m PHASE 3: Competitive Edge 10/10 (LRU Query Cache, CircuitBreaker, SEO JSON-LD, Migration Guide, Python SDK)[2m > [22mTASK 3.1: O(1) LRUQueryCache & API /v1/search + /v1/recommend return x-cache MISS then HIT and invalidate on upsert[90m 16[2mms[22m[31m[39m
+2026-10-31T23:19:53.9148496Z [31m     → expected 'MISS' to be 'HIT' // Object.is equality[39m
+2026-10-31T23:19:54.8350690Z  [32m✓[39m apps/api/tests/cache-hardening.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1360[2mms[22m[39m
+2026-10-31T23:19:54.8351374Z    [33m[2m✓[22m[39m Cache Hardening Tests[2m > [22mInMemoryCache[2m > [22mshould expire keys correctly [33m1101[2mms[22m[39m
+2026-10-31T23:19:55.0930311Z  [32m✓[39m packages/core/src/tests/adaptive/multi-interest-tower.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-31T23:19:55.2825001Z  [32m✓[39m packages/core/src/tests/csv-parser.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-31T23:19:55.4798837Z  [32m✓[39m tests/unit/architecture-constraints.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+2026-10-31T23:19:55.6660168Z  [32m✓[39m tests/multi-tenancy/tenant-isolation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 225[2mms[22m[39m
+2026-10-31T23:19:55.6796971Z  [32m✓[39m packages/core/src/tests/audit-regressions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-31T23:19:55.8656377Z  [32m✓[39m packages/core/tests/multilingual-bm25.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-10-31T23:19:56.0740768Z  [32m✓[39m packages/sdk/tests/sdk-client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-10-31T23:19:56.1466717Z  [32m✓[39m tests/unit/store-registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+2026-10-31T23:19:56.3620035Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-explorer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-10-31T23:19:56.6221814Z  [32m✓[39m tests/unit/indexeddb-storage.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+2026-10-31T23:19:56.6738721Z  [32m✓[39m tests/integration/shopify-webhook.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 185[2mms[22m[39m
+2026-10-31T23:19:56.9060214Z  [32m✓[39m packages/core/src/tests/priority2-v2.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-10-31T23:19:57.1140337Z  [32m✓[39m packages/core/src/tests/persistence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-31T23:19:57.3090709Z  [32m✓[39m tests/connectors/postgres-cdc.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 288[2mms[22m[39m
+2026-10-31T23:19:57.6033016Z  [32m✓[39m tests/unit/honest-embeddings-and-determinism.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+2026-10-31T23:19:57.6941295Z  [32m✓[39m tests/integration/postgres-cdc.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 169[2mms[22m[39m
+2026-10-31T23:19:57.9551817Z  [32m✓[39m tests/unit/components/query-inspector.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+2026-10-31T23:19:58.1987873Z  [32m✓[39m tests/sharding/lsh-router.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+2026-10-31T23:19:58.4360268Z  [32m✓[39m tests/integration/cluster.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 476[2mms[22m[39m
+2026-10-31T23:19:58.4364632Z    [33m[2m✓[22m[39m PHASE 1 - Task 1.1: Multi-Node Cluster Integration Test (3 Shards + Coordinator)[2m > [22mspins up a 3-node HNSW cluster, indexes 300 items, executes 1,000 search queries, and verifies all 3 shards respond with balanced load [33m474[2mms[22m[39m
+2026-10-31T23:19:58.5176133Z  [32m✓[39m apps/api/tests/cache-invalidation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-10-31T23:19:58.6220409Z  [32m✓[39m packages/core/src/tests/adaptive/cross-encoder.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:19:58.7171949Z  [32m✓[39m packages/core/src/tests/comprehensive-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-31T23:19:59.2340398Z  [32m✓[39m tests/integration/mongodb-changestream.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 158[2mms[22m[39m
+2026-10-31T23:19:59.3147534Z  [32m✓[39m tests/unit/phase2-modern-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 42[2mms[22m[39m
+2026-10-31T23:19:59.5262426Z  [32m✓[39m tests/unit/pipeline-sync-and-agent.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+2026-10-31T23:19:59.8445756Z  [32m✓[39m tests/cache/semantic-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:00.0686489Z  [32m✓[39m apps/api/tests/hnsw-store-security.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 184[2mms[22m[39m
+2026-10-31T23:20:00.3816069Z  [32m✓[39m tests/integration/phase3-docs-and-deploy.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 94[2mms[22m[39m
+2026-10-31T23:20:01.2573674Z  [32m✓[39m packages/core/src/tests/adaptive/feature-scaler.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-10-31T23:20:01.4670224Z  [32m✓[39m packages/core/src/tests/security-guardrails.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-31T23:20:01.7980821Z  [32m✓[39m tests/integration/failover.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 111[2mms[22m[39m
+2026-10-31T23:20:02.5460299Z  [32m✓[39m apps/api/tests/v31-release-features.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 936[2mms[22m[39m
+2026-10-31T23:20:02.5479949Z    [33m[2m✓[22m[39m EIDOS v3.1 Release Features & Production Hardening[2m > [22m2. /v1/catalog/stats is public and returns indexed categories after loading demo catalog [33m716[2mms[22m[39m
+2026-10-31T23:20:02.5685063Z  [32m✓[39m tests/unit/phase1-type-safety-csp.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 164[2mms[22m[39m
+2026-10-31T23:20:03.7627142Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-cholesky.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+2026-10-31T23:20:03.7967530Z  [32m✓[39m tests/reranker/cross-encoder.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 17[2mms[22m[39m
+2026-10-31T23:20:03.9330068Z  [32m✓[39m packages/core/src/tests/adaptive/user-tower.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:04.1191870Z  [32m✓[39m packages/core/src/tests/adaptive/ranker.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-31T23:20:04.2820127Z  [32m✓[39m packages/core/src/tests/adaptive/candidate-fusion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-31T23:20:05.1760092Z  [32m✓[39m tests/unit/api-key-manager.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 413[2mms[22m[39m
+2026-10-31T23:20:05.1761801Z    [33m[2m✓[22m[39m ApiKeyManager & /v1/keys/revoke Rotation[2m > [22mPOST /v1/keys/revoke revokes key and middleware rejects subsequent requests with 401 [33m411[2mms[22m[39m
+2026-10-31T23:20:05.1910187Z  [32m✓[39m apps/api/tests/recommend-adaptive.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 880[2mms[22m[39m
+2026-10-31T23:20:06.3593990Z  [32m✓[39m packages/core/src/tests/adaptive/metadata-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:06.3668839Z  [32m✓[39m packages/core/src/tests/adaptive/feedback-loop.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:06.5305412Z  [32m✓[39m packages/core/src/tests/adaptive/kg-enricher.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:06.7130322Z  [32m✓[39m packages/core/src/tests/clip-embedder.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-31T23:20:07.6471924Z  [32m✓[39m apps/api/tests/recommend-user.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 787[2mms[22m[39m
+2026-10-31T23:20:07.6661942Z  [32m✓[39m apps/api/tests/feedback.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 435[2mms[22m[39m
+2026-10-31T23:20:09.0870256Z  [32m✓[39m tests/unit/vector-store.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-10-31T23:20:09.3275456Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould register /v1/search route
+2026-10-31T23:20:09.3276573Z [22m[39mRegistered routes:
+2026-10-31T23:20:09.3277247Z  ├── /v1/telemetry (GET, HEAD)
+2026-10-31T23:20:09.3277587Z ├── /v1/tenants (GET, HEAD)
+2026-10-31T23:20:09.3277857Z ├── /v1/metrics (GET, HEAD)
+2026-10-31T23:20:09.3278449Z │   └── /prometheus (GET, HEAD)
+2026-10-31T23:20:09.3278761Z ├── /v1/merchandising/rules (POST)
+2026-10-31T23:20:09.3279116Z ├── /v1/diagnostics/errors (GET, HEAD)
+2026-10-31T23:20:09.3279419Z ├── /v1/demo/search (POST)
+2026-10-31T23:20:09.3279726Z ├── /v1/demo/optimize/pareto (POST)
+2026-10-31T23:20:09.3280033Z ├── /v1/demo/recommend (POST)
+2026-10-31T23:20:09.3280340Z ├── /v1/demo/reset (POST)
+2026-10-31T23:20:09.3281199Z ├── /v1/demo/load (POST)
+2026-10-31T23:20:09.3281388Z ├── /v1/openapi.json (GET, HEAD)
+2026-10-31T23:20:09.3281590Z ├── /v1/optimize/pareto (POST)
+2026-10-31T23:20:09.3281782Z ├── /v1/health (GET, HEAD)
+2026-10-31T23:20:09.3281961Z │   ├── /ready (GET, HEAD)
+2026-10-31T23:20:09.3282134Z │   └── /live (GET, HEAD)
+2026-10-31T23:20:09.3282304Z ├── /v1/ready (GET, HEAD)
+2026-10-31T23:20:09.3282467Z ├── /v1/recommend (POST)
+2026-10-31T23:20:09.3282624Z │   ├── /user (POST)
+2026-10-31T23:20:09.3282778Z │   └── /adaptive (POST)
+2026-10-31T23:20:09.3282957Z ├── /v1/routes (GET, HEAD)
+2026-10-31T23:20:09.3283143Z ├── /v1/cluster/status (GET, HEAD)
+2026-10-31T23:20:09.3283392Z ├── /v1/cluster/shards/:shardId/health (POST)
+2026-10-31T23:20:09.3283613Z ├── /v1/cluster/drain (POST)
+2026-10-31T23:20:09.3283784Z ├── /v1/catalog (POST)
+2026-10-31T23:20:09.3283953Z │   ├── /stats (GET, HEAD)
+2026-10-31T23:20:09.3284124Z │   ├── /upsert (POST)
+2026-10-31T23:20:09.3284288Z │   ├── /items (POST)
+2026-10-31T23:20:09.3284462Z │   │   └── /:id (DELETE)
+2026-10-31T23:20:09.3284627Z │   └── /export (GET, HEAD)
+2026-10-31T23:20:09.3284793Z ├── /v1/search (POST)
+2026-10-31T23:20:09.3284967Z ├── /v1/settings (GET, HEAD, PUT)
+2026-10-31T23:20:09.3285148Z │   └── /webhooks (POST)
+2026-10-31T23:20:09.3285309Z │       └── /:id (DELETE)
+2026-10-31T23:20:09.3285515Z ├── /v1/snapshots (POST, GET, HEAD)
+2026-10-31T23:20:09.3285693Z │   └── /restore (POST)
+2026-10-31T23:20:09.3285855Z ├── /v1/feedback (POST)
+2026-10-31T23:20:09.3286027Z ├── /v1/audit/logs (GET, HEAD)
+2026-10-31T23:20:09.3286211Z ├── /v1/analytics (GET, HEAD)
+2026-10-31T23:20:09.3286378Z │   ├── /seo (GET, HEAD)
+2026-10-31T23:20:09.3286530Z │   ├── /synonym (POST)
+2026-10-31T23:20:09.3286687Z │   ├── /queries (GET, HEAD)
+2026-10-31T23:20:09.3286852Z │   ├── /metrics (GET, HEAD)
+2026-10-31T23:20:09.3287009Z │   ├── /boost (POST)
+2026-10-31T23:20:09.3287164Z │   └── /funnel (GET, HEAD)
+2026-10-31T23:20:09.3287328Z │       └── /event (POST)
+2026-10-31T23:20:09.3287501Z ├── /v1/admin/stats (GET, HEAD)
+2026-10-31T23:20:09.3287699Z ├── /v1/admin/keys (GET, HEAD, POST)
+2026-10-31T23:20:09.3287869Z │   ├── /rotate (POST)
+2026-10-31T23:20:09.3288027Z │   └── /:keyHash (DELETE)
+2026-10-31T23:20:09.3288375Z ├── /v1/admin/reindex (POST)
+2026-10-31T23:20:09.3288586Z ├── /v1/admin/optimize (POST)
+2026-10-31T23:20:09.3288763Z ├── /v1/admin/logs (GET, HEAD)
+2026-10-31T23:20:09.3288927Z ├── /v1/keys (GET, HEAD)
+2026-10-31T23:20:09.3289078Z │   ├── /revoke (POST)
+2026-10-31T23:20:09.3289225Z │   ├── /rotate (POST)
+2026-10-31T23:20:09.3289552Z │   └── /generate (POST)
+2026-10-31T23:20:09.3289728Z ├── /v1/indexes (GET, HEAD, POST)
+2026-10-31T23:20:09.3289900Z │   └── /:name (DELETE)
+2026-10-31T23:20:09.3290169Z │       └── /documents (POST)
+2026-10-31T23:20:09.3290362Z ├── /docs (GET, HEAD)
+2026-10-31T23:20:09.3290547Z │   ├── /static/index.html (GET, HEAD)
+2026-10-31T23:20:09.3290785Z │   ├── /static/swagger-initializer.js (GET, HEAD)
+2026-10-31T23:20:09.3291174Z │   ├── * (HEAD, GET)
+2026-10-31T23:20:09.3291461Z │   ├── /json (GET, HEAD)
+2026-10-31T23:20:09.3291706Z │   └── /yaml (GET, HEAD)
+2026-10-31T23:20:09.3291957Z ├── /metrics (GET, HEAD)
+2026-10-31T23:20:09.3292209Z ├── /health (GET, HEAD)
+2026-10-31T23:20:09.3292451Z ├── /api/health (GET, HEAD)
+2026-10-31T23:20:09.3292688Z ├── /ready (GET, HEAD)
+2026-10-31T23:20:09.3292916Z ├── /live (GET, HEAD)
+2026-10-31T23:20:09.3293157Z ├── /widget.js (GET, HEAD)
+2026-10-31T23:20:09.3293391Z └── * (OPTIONS)
+2026-10-31T23:20:09.3293503Z 
+2026-10-31T23:20:09.3293512Z 
+2026-10-31T23:20:09.3294277Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould respond to POST /v1/demo/search with valid payload
+2026-10-31T23:20:09.3294962Z [22m[39mResponse status: [33m200[39m
+2026-10-31T23:20:09.3295544Z Response body: {"query":"wireless headphones","mode":"hybrid","results":[],"count":0,"total":0,"latencyMs":2.45,"cacheHit":false}
+2026-10-31T23:20:09.3295915Z 
+2026-10-31T23:20:09.3296611Z  [32m✓[39m tests/integration/route-registration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 131[2mms[22m[39m
+2026-10-31T23:20:09.7774163Z  [32m✓[39m apps/api/tests/production-hardening.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 237[2mms[22m[39m
+2026-10-31T23:20:10.4978459Z  [32m✓[39m packages/core/src/tests/adaptive/context-signals.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:10.5117397Z  [32m✓[39m packages/core/src/tests/adaptive/smmr.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:10.6760043Z  [32m✓[39m packages/core/src/tests/graph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:11.0279132Z  [32m✓[39m apps/api/tests/singleflight.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 154[2mms[22m[39m
+2026-10-31T23:20:11.2599075Z  [32m✓[39m apps/api/tests/similarity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-31T23:20:11.4870654Z  [32m✓[39m tests/unit/xai-explainer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:11.6674681Z  [32m✓[39m tests/unit/splade-lite.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-31T23:20:11.8590009Z  [32m✓[39m packages/core/src/tests/cosine.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-10-31T23:20:12.0070281Z  [32m✓[39m apps/api/tests/recommend.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 989[2mms[22m[39m
+2026-10-31T23:20:12.0327581Z  [32m✓[39m tests/unit/sequential-recommender.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-31T23:20:12.2030108Z  [32m✓[39m tests/unit/query-understanding.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:12.2038554Z  [32m✓[39m tests/unit/prometheus.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-31T23:20:12.3714219Z  [32m✓[39m tests/unit/tracing.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:12.3720345Z  [32m✓[39m packages/core/src/tests/entropy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:12.5488387Z  [32m✓[39m tests/unit/webhook-dispatcher.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-10-31T23:20:12.5975288Z  [32m✓[39m tests/unit/benchmark.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-10-31T23:20:13.0456414Z 
+2026-10-31T23:20:13.0467744Z [31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 5 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-31T23:20:13.0468603Z 
+2026-10-31T23:20:13.0473762Z [31m[1m[7m FAIL [27m[22m[39m apps/api/tests/phase3-competitive-edge.test.ts[2m > [22mPHASE 3: Competitive Edge 10/10 (LRU Query Cache, CircuitBreaker, SEO JSON-LD, Migration Guide, Python SDK)[2m > [22mTASK 3.1: O(1) LRUQueryCache & API /v1/search + /v1/recommend return x-cache MISS then HIT and invalidate on upsert
+2026-10-31T23:20:13.0483089Z [31m[1mAssertionError[22m: expected 'MISS' to be 'HIT' // Object.is equality[39m
+2026-10-31T23:20:13.0483454Z 
+2026-10-31T23:20:13.0483605Z Expected: [32m"HIT"[39m
+2026-10-31T23:20:13.0483881Z Received: [31m"MISS"[39m
+2026-10-31T23:20:13.0484024Z 
+2026-10-31T23:20:13.0484413Z [36m [2m❯[22m apps/api/tests/phase3-competitive-edge.test.ts:[2m52:42[22m[39m
+2026-10-31T23:20:13.0588320Z     [90m 50| [39m    })[33m;[39m
+2026-10-31T23:20:13.0589063Z     [90m 51| [39m    [34mexpect[39m(searchHit[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+2026-10-31T23:20:13.0589758Z     [90m 52| [39m    [34mexpect[39m(searchHit[33m.[39mheaders[[32m'x-cache'[39m])[33m.[39m[34mtoBe[39m([32m'HIT'[39m)[33m;[39m
+2026-10-31T23:20:13.0590139Z     [90m   | [39m                                         [31m^[39m
+2026-10-31T23:20:13.0590560Z     [90m 53| [39m    [34mexpect[39m(searchHit[33m.[39m[34mjson[39m()[33m.[39mcached)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+2026-10-31T23:20:13.0591493Z     [90m 54| [39m
+2026-10-31T23:20:13.0591617Z 
+2026-10-31T23:20:13.0591872Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯[22m[39m
+2026-10-31T23:20:13.0592022Z 
+2026-10-31T23:20:13.0593036Z [31m[1m[7m FAIL [27m[22m[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts[2m > [22mPHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification v3.2[2m > [22mTASK 4.1: Multi-Instance Horizontal Scaling & Cross-Node Cache Invalidation Bus
+2026-10-31T23:20:13.0593760Z [31m[1mAssertionError[22m: expected 'MISS' to be 'HIT' // Object.is equality[39m
+2026-10-31T23:20:13.0593952Z 
+2026-10-31T23:20:13.0594041Z Expected: [32m"HIT"[39m
+2026-10-31T23:20:13.0594211Z Received: [31m"MISS"[39m
+2026-10-31T23:20:13.0594304Z 
+2026-10-31T23:20:13.0594557Z [36m [2m❯[22m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts:[2m54:38[22m[39m
+2026-10-31T23:20:13.0629444Z     [90m 52| [39m    })[33m;[39m
+2026-10-31T23:20:13.0629900Z     [90m 53| [39m    [34mexpect[39m(resB2[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+2026-10-31T23:20:13.0630456Z     [90m 54| [39m    [34mexpect[39m(resB2[33m.[39mheaders[[32m'x-cache'[39m])[33m.[39m[34mtoBe[39m([32m'HIT'[39m)[33m;[39m
+2026-10-31T23:20:13.0630850Z     [90m   | [39m                                     [31m^[39m
+2026-10-31T23:20:13.0631058Z     [90m 55| [39m
+2026-10-31T23:20:13.0631376Z     [90m 56| [39m    [90m// 2. Upsert a new item on nodeA -> broadcasts cross-node invalida[39m…
+2026-10-31T23:20:13.0631583Z 
+2026-10-31T23:20:13.0631937Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯[22m[39m
+2026-10-31T23:20:13.0632176Z 
+2026-10-31T23:20:13.0633121Z [31m[1m[7m FAIL [27m[22m[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts[2m > [22mPHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification v3.2[2m > [22mTASK 4.2: Cluster Topology, Automatic Leader Election & Shard Failover with Zero 5xx Errors
+2026-10-31T23:20:13.0633866Z [31m[1mAssertionError[22m: expected 0 to be greater than 0[39m
+2026-10-31T23:20:13.0634294Z [36m [2m❯[22m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts:[2m121:54[22m[39m
+2026-10-31T23:20:13.0638997Z     [90m119| [39m    })[33m;[39m
+2026-10-31T23:20:13.0639695Z     [90m120| [39m    [34mexpect[39m(searchDuringOutage[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+2026-10-31T23:20:13.0640716Z     [90m121| [39m    [34mexpect[39m(searchDuringOutage[33m.[39m[34mjson[39m()[33m.[39mresults[33m.[39mlength)[33m.[39m[34mtoBeGreaterThan[39m([34m0[39m…
+2026-10-31T23:20:13.0641876Z     [90m   | [39m                                                     [31m^[39m
+2026-10-31T23:20:13.0642226Z     [90m122| [39m
+2026-10-31T23:20:13.0642536Z     [90m123| [39m    [90m// Recover shard-0[39m
+2026-10-31T23:20:13.0642740Z 
+2026-10-31T23:20:13.0642972Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯[22m[39m
+2026-10-31T23:20:13.0643173Z 
+2026-10-31T23:20:13.0644570Z [31m[1m[7m FAIL [27m[22m[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts[2m > [22mPHASE 4: Horizontal Scaling, Cluster Failover & Final E2E Verification v3.2[2m > [22mTASK 4.4: Final E2E v3.2 Pipeline Verification (Upsert -> Hybrid Search -> Unified Recommend -> Online Feedback -> Prometheus)
+2026-10-31T23:20:13.0645830Z [31m[1mAssertionError[22m: expected 0 to be greater than 0[39m
+2026-10-31T23:20:13.0646486Z [36m [2m❯[22m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts:[2m279:51[22m[39m
+2026-10-31T23:20:13.0647250Z     [90m277| [39m    [34mexpect[39m(recUser[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+2026-10-31T23:20:13.0648122Z     [90m278| [39m    [34mexpect[39m(recUser[33m.[39m[34mjson[39m()[33m.[39mstrategy)[33m.[39m[34mtoBe[39m([32m'user'[39m)[33m;[39m
+2026-10-31T23:20:13.0649361Z     [90m279| [39m    [34mexpect[39m(recUser[33m.[39m[34mjson[39m()[33m.[39mrecommendations[33m.[39mlength)[33m.[39m[34mtoBeGreaterThan[39m([34m0[39m)[33m;[39m
+2026-10-31T23:20:13.0650430Z     [90m   | [39m                                                  [31m^[39m
+2026-10-31T23:20:13.0650783Z     [90m280| [39m
+2026-10-31T23:20:13.0651212Z     [90m281| [39m    [90m// Step 4: Online Feedback Loop (click + purchase)[39m
+2026-10-31T23:20:13.0651511Z 
+2026-10-31T23:20:13.0651745Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯[22m[39m
+2026-10-31T23:20:13.0651953Z 
+2026-10-31T23:20:13.0654708Z [31m[1m[7m FAIL [27m[22m[39m apps/api/tests/v35-production-gate.test.ts[2m > [22mEIDOS v3.5 Production Gate & Operational Readiness[2m > [22m2. Structured Logging, Health, Readiness & Prometheus Metrics (P0)[2m > [22mrecords structured operational logs for search, indexing, and auth failures via /v1/admin/logs
+2026-10-31T23:20:13.0656340Z [31m[1mAssertionError[22m: expected 1 to be greater than or equal to 2[39m
+2026-10-31T23:20:13.0657193Z [36m [2m❯[22m apps/api/tests/v35-production-gate.test.ts:[2m271:33[22m[39m
+2026-10-31T23:20:13.0673487Z     [90m269| [39m      [34mexpect[39m(logsRes[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+2026-10-31T23:20:13.0674414Z     [90m270| [39m      [35mconst[39m logsPayload [33m=[39m logsRes[33m.[39m[34mjson[39m()[33m;[39m
+2026-10-31T23:20:13.0675497Z     [90m271| [39m      [34mexpect[39m(logsPayload[33m.[39mcount)[33m.[39m[34mtoBeGreaterThanOrEqual[39m([34m2[39m)[33m;[39m
+2026-10-31T23:20:13.0676233Z     [90m   | [39m                                [31m^[39m
+2026-10-31T23:20:13.0677158Z     [90m272| [39m      [35mconst[39m events [33m=[39m logsPayload[33m.[39mlogs[33m.[39m[34mmap[39m((e[33m:[39m { event[33m:[39m string }) [33m=>[39m e[33m.[39m…
+2026-10-31T23:20:13.0678118Z     [90m273| [39m      [34mexpect[39m(events)[33m.[39m[34mtoContain[39m([32m'auth_failed'[39m)[33m;[39m
+2026-10-31T23:20:13.0678963Z 
+2026-10-31T23:20:13.0679349Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯[22m[39m
+2026-10-31T23:20:13.0679692Z 
+2026-10-31T23:20:13.0684862Z [2m Test Files [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m89 passed[39m[22m[90m (92)[39m
+2026-10-31T23:20:13.0685685Z [2m      Tests [22m [1m[31m5 failed[39m[22m[2m | [22m[1m[32m391 passed[39m[22m[90m (396)[39m
+2026-10-31T23:20:13.0686414Z [2m   Start at [22m 23:19:32
+2026-10-31T23:20:13.0687301Z [2m   Duration [22m 40.71s[2m (transform 1.56s, setup 0ms, collect 17.06s, tests 23.14s, environment 16ms, prepare 4.96s)[22m
+2026-10-31T23:20:13.0687858Z 
+2026-10-31T23:20:13.0701130Z 
+2026-10-31T23:20:13.0724387Z ##[error]AssertionError: expected 'MISS' to be 'HIT' // Object.is equality
+
+Expected: "HIT"
+Received: "MISS"
+
+ ❯ apps/api/tests/phase3-competitive-edge.test.ts:52:42
+
+
+2026-10-31T23:20:13.0742955Z 
+2026-10-31T23:20:13.0745085Z ##[error]AssertionError: expected 'MISS' to be 'HIT' // Object.is equality
+
+Expected: "HIT"
+Received: "MISS"
+
+ ❯ apps/api/tests/phase4-horizontal-scaling-e2e.test.ts:54:38
+
+
+2026-10-31T23:20:13.0746196Z 
+2026-10-31T23:20:13.0747344Z ##[error]AssertionError: expected 0 to be greater than 0
+ ❯ apps/api/tests/phase4-horizontal-scaling-e2e.test.ts:121:54
+
+
+2026-10-31T23:20:13.0748561Z 
+2026-10-31T23:20:13.0749568Z ##[error]AssertionError: expected 0 to be greater than 0
+ ❯ apps/api/tests/phase4-horizontal-scaling-e2e.test.ts:279:51
+
+
+2026-10-31T23:20:13.0750368Z 
+2026-10-31T23:20:13.0751359Z ##[error]AssertionError: expected 1 to be greater than or equal to 2
+ ❯ apps/api/tests/v35-production-gate.test.ts:271:33
+
+
+2026-10-31T23:20:13.1080902Z  ELIFECYCLE  Test failed. See above for more details.
+2026-10-31T23:20:13.1434147Z ##[error]Process completed with exit code 1.
