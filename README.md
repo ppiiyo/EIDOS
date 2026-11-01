@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ EIDOS v3.4.0 (Pilot-Ready)
+# ⚡ EIDOS v3.4.0 GA (Pilot-Ready — v3.4.0-pilot)
 
 ### Self-Hosted Hybrid Vector Search (384-d HNSW + BM25+ + RRF), Explainable X-Ray & Storefront Connectors for 1C-Bitrix and WooCommerce
 ### Гибридный векторный поиск (384-d HNSW + BM25+ + RRF), объяснимый рентген ранжирования (X-Ray) и серверные коннекторы для 1С-Битрикс и WooCommerce
