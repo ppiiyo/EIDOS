@@ -1,6 +1,42 @@
-# EIDOS v3.4.0 — Production Runbook & Checklist
+# EIDOS v3.4.0-pilot — Production & 15-Minute Pilot Runbook
 
-Этот документ описывает минимальный операционный контур для запуска **EIDOS v3.4.0** в 7–14-дневном коммерческом пилоте или self-hosted production-окружении.
+> **Статус релиза**: **`v3.4.0-pilot` (Pilot-Ready)**. Предназначен для коммерческих пилотов на self-hosted инфраструктуре (Docker / Node.js 20+) для каталогов от 500 до 50 000 SKU с коннекторами **1С-Битрикс**, **WooCommerce** или прямым импортом **CSV / JSON / YML**. Не позиционируется как managed cloud SLA из коробки.
+
+---
+
+## ⚡ Pilot in 15 Minutes (Быстрый запуск пилота для магазина или агентства)
+
+### Шаг 1. Поднять self-hosted EIDOS (2 минуты)
+```bash
+# Вариант А: Однокомандный скрипт пилота (генерирует ключи MASTER_KEY, ADMIN_KEY, SEARCH_KEY и ждёт GET /v1/ready == 200)
+bash scripts/install-pilot.sh
+
+# Вариант Б: Docker Compose напрямую
+cp .env.example .env
+docker compose up --build -d
+curl -fsS http://localhost:3000/v1/ready
+```
+
+### Шаг 2. Загрузить каталог и подключить витрину (8 минут)
+Выберите один из трёх сценариев под стек клиента:
+1. **WooCommerce (`packages/connectors/woocommerce`)**:
+   - Упакуйте `packages/connectors/woocommerce` в `eidos-woocommerce.zip`, загрузите в **Плагины → Добавить новый → Загрузить плагин** и активируйте.
+   - В **Настройки → EIDOS Search** укажите URL EIDOS, `EIDOS_ADMIN_KEY` и `EIDOS_SEARCH_KEY`.
+   - Нажмите **«Проверить связь»**, затем **«Синхронизировать»** (см. [`docs/integrations/woocommerce.md`](./integrations/woocommerce.md)).
+2. **1С-Битрикс (`packages/connectors/bitrix`)**:
+   - Настройте `EIDOS_ADMIN_KEY` (для выгрузки `ELEMENT_ID` + `XML_ID -> sku`) и `EIDOS_SEARCH_KEY` (для поиска `/v1/search` с fallback на `CIBlockElement::GetList`).
+   - Запустите первичную синхронизацию (см. [`docs/integrations/bitrix.md`](./integrations/bitrix.md)).
+3. **Универсальный CSV / JSON / YML путь (без CMS-плагина)**:
+   - Загрузите прайс-лист через `POST /v1/catalog/upsert` с заголовком `X-API-Key: $EIDOS_ADMIN_KEY` (см. [`docs/CSV_CONTRACT.md`](./CSV_CONTRACT.md)) или через мастер в Studio UI.
+
+### Шаг 3. Проверить 3 контрольных запроса приёмки (5 минут)
+Выполните запросы к `POST /v1/search` с ключом чтения **`EIDOS_SEARCH_KEY`**:
+1. **Многосоставной запрос с категорией и модификатором** (`"недорогие наушники для бега"`, `simpleCategoryGate: "hard"`):
+   - Ожидание: все товары в `top-3` принадлежат категории `Наушники` (никаких беговых кроссовок), `scorePercent` в диапазоне `60..99%`, заполнено `humanExplanation`.
+2. **Мусорный / нерелевантный запрос** (`"xyzabcqqq999"`):
+   - Ожидание: `count: 0`, `results: []` (отсутствие ложных совпадений со `score ~0.016`).
+3. **Проверка управления весами (`alpha: 0` vs `alpha: 1`)**:
+   - Ожидание: ответ содержит применённые `alpha` и `weights`, переключение между чистой лексикой (`alpha: 0`) и семантикой (`alpha: 1`) меняет ранжирование и компоненты `explanation` (`denseComponent` vs `sparseBm25Component`).
 
 ---
 
@@ -12,7 +48,7 @@
 
 ```bash
 NODE_ENV=production
-PORT=3001
+PORT=3000
 EIDOS_STRICT_PROD_BOOT=true
 
 # 1. Иерархия ключей доступа (минимум 16 символов для каждого ключа)
@@ -36,18 +72,18 @@ EIDOS_RATE_LIMIT_MAX=600
 EIDOS_RATE_LIMIT_WINDOW=1 minute
 ```
 
-### Роли ключей
+### Роли ключей (`SEARCH_KEY` vs `ADMIN_KEY`)
 | Ключ | Назначение | Разрешённые эндпоинты |
 | :--- | :--- | :--- |
 | `EIDOS_MASTER_KEY` | Управление и ротация ключей (`/v1/keys/*`). Никогда не передавайте на фронтенд. | Полный доступ + `/v1/keys` |
-| `EIDOS_ADMIN_KEY` | Загрузка каталога, управление синонимами/правилами, снапшоты, аналитика. | `/v1/catalog/*`, `/v1/merchandising/*`, `/v1/snapshots/*`, `/v1/analytics/*` |
-| `EIDOS_SEARCH_KEY` | Публичный ключ для витрины магазина / мобильного приложения. | Только чтение: `/v1/search`, `/v1/recommend`, `/v1/suggest` |
+| `EIDOS_ADMIN_KEY` | Загрузка и очистка каталога, управление синонимами/правилами, снапшоты, аналитика. | `/v1/catalog/*`, `/v1/merchandising/*`, `/v1/snapshots/*`, `/v1/analytics/*` |
+| `EIDOS_SEARCH_KEY` | Ключ чтения для витрины магазина (WooCommerce / 1С-Битрикс / мобильное приложение). | Только чтение и телеметрия: `/v1/search`, `/v1/recommend`, `/v1/feedback` |
 
 ---
 
 ## 2. Reverse Proxy и HTTPS
 
-Не публикуйте порт `3001` напрямую в интернет. Используйте Nginx или Caddy перед контейнером `api`:
+Не публикуйте внутренний контейнер напрямую без TLS. Используйте Nginx или Caddy перед контейнером `api`:
 
 - Готовые конфигурации находятся в репозитории:
   - `deploy/Caddyfile` (автоматический Let's Encrypt TLS)
@@ -58,64 +94,49 @@ EIDOS_RATE_LIMIT_WINDOW=1 minute
 
 ## 3. Health, Readiness и Мониторинг
 
-Для Docker Healthcheck, Kubernetes probes и внешнего аптайм-мониторинга используйте:
+Для Docker Healthcheck, Kubernetes probes и диагностики из плагинов Битрикс / WooCommerce используйте:
 
 | Эндпоинт | Назначение | Критерий `200 OK` |
 | :--- | :--- | :--- |
 | `GET /v1/health/live` | Liveness probe | Процесс Node.js жив и отвечает на HTTP |
-| `GET /v1/health` | Общий статус и версия (`3.4.0`) | Возвращает статус, аптайм, размер каталога и использование памяти |
+| `GET /v1/health` | Общий статус и версия (`3.4.0`) | Возвращает статус, аптайм, `itemsIndexed` и использование памяти |
 | `GET /v1/ready` | Readiness probe | Движок инициализирован, HNSW + BM25 индекс готов обслуживать запросы |
 | `GET /metrics` | Метрики Prometheus | Гистограммы латентности `p50/p95/p99`, счётчики ошибок, размер индекса и кэша |
-
-Пример проверки готовности:
-```bash
-curl -fsS http://localhost:3001/v1/ready
-```
 
 ---
 
 ## 4. Персистентность, Снапшоты и Бэкапы
 
-Поисковый движок EIDOS хранит граф HNSW (Float32Array 384-d) и инвертированный индекс BM25 **в оперативной памяти (in-memory)** для обеспечения суб-15 мс латентности.
+Поисковый движок EIDOS хранит граф HNSW (`Float32Array 384-d`) и инвертированный индекс BM25 **в оперативной памяти (in-memory)**.
 
 Чтобы данные не терялись при рестарте контейнера:
 1. Смонтируйте Docker volume в директорию `EIDOS_SNAPSHOT_PATH` (в `docker-compose.prod.yml` это volume `eidos_data:/app/data`).
-2. При каждом `POST /v1/catalog/upsert` и по таймеру `EIDOS_SNAPSHOT_INTERVAL_MS` движок сохраняет снапшот на диск с контрольной суммой **SHA-256**.
+2. При каждом `POST /v1/catalog/upsert` и по таймеру `EIDOS_SNAPSHOT_INTERVAL_MS` движок атомарно сохраняет снапшот на диск.
 3. При старте контейнера с `EIDOS_AUTO_RESTORE_SNAPSHOT=true` последний валидный снапшот автоматически загружается в память.
 4. Принудительное создание снапшота перед обновлением релиза:
    ```bash
-   curl -X POST http://localhost:3001/v1/snapshots \
+   curl -X POST http://localhost:3000/v1/snapshots \
      -H "Authorization: Bearer $EIDOS_ADMIN_KEY"
    ```
-5. **Рекомендация для production**: помимо снапшотов храните исходный каталог в вашей основной БД (PostgreSQL / 1С-Битрикс / МойСклад) или в S3-бакете, чтобы в любой момент можно было пересобрать индекс с нуля через `POST /v1/catalog/upsert`.
 
 ---
 
-## 5. Оценка ресурсов (RAM / CPU) и Замеры производительности
-
-> **Примечание**: Ниже приведены расчётные оценки потребления памяти для 384-мерных векторов `Float32` + графа HNSW (`M=16`, `efConstruction=200`) + инвертированного индекса BM25 в одном процессе Node.js:
+## 5. Оценка ресурсов (RAM / CPU) и Замеры производительности Single-Node
 
 | Объём каталога | Рекомендуемый RAM | Рекомендуемый vCPU | Время холодного старта (из снапшота) |
 | :--- | :--- | :--- | :--- |
-| **До 1 000 SKU** (демо / малый магазин) | 512 MB – 1 GB | 0.5 – 1 vCPU | < 1 сек |
+| **До 1 000 SKU** (малый магазин / пилот) | 512 MB – 1 GB | 0.5 – 1 vCPU | < 1 сек |
 | **10 000 SKU** (средний e-com пилот) | 2 GB – 4 GB | 2 vCPU | ~2–4 сек |
 | **50 000 SKU** (крупный каталог) | 8 GB | 4 vCPU | ~10–15 сек |
 
-### Реальные замеры In-Memory ядра (Node.js v20, 1 worker, HNSW 384-d + BM25 + RRF)
-
-Замеры выполнены на встроенном бенчмарке ядра (`packages/core` / `/v1/search`) без сетевого RTT:
-
-| Размер индекса | `p50` Search Latency | `p95` Search Latency | `p99` Search Latency | Индексация батча |
-| :--- | :--- | :--- | :--- | :--- |
-| **48 SKU** (эталонный демо-каталог) | `0.8 ms` | `2.1 ms` | `3.4 ms` | `~18 ms` (48 SKU) |
-| **10 000 SKU** (синтетический e-com каталог) | `4.2 ms` | `11.8 ms` | `18.5 ms` | `~1.9 s` (10k SKU) |
-
 ---
 
-## 6. Чек-лист перед запуском пилота
+## 6. Чек-лист перед запуском пилота (`v3.4.0-pilot`)
 
 - [ ] В `.env` заданы уникальные `EIDOS_MASTER_KEY`, `EIDOS_ADMIN_KEY`, `EIDOS_SEARCH_KEY` и `EIDOS_STRICT_PROD_BOOT=true`.
 - [ ] Проверен `GET /v1/ready` — возвращает `200 OK` и `"ready": true`.
-- [ ] Каталог загружен через `POST /v1/catalog/upsert` или CSV-импорт (см. [`docs/CSV_CONTRACT.md`](./CSV_CONTRACT.md)).
-- [ ] Проверен тестовый запрос с витрины с использованием `EIDOS_SEARCH_KEY` (ключ чтения не должен позволять вызывать `/v1/catalog/upsert`).
-- [ ] Настроен persistent volume для `EIDOS_SNAPSHOT_PATH` и проверено восстановление индекса после `docker compose restart api`.
+- [ ] Каталог загружен через `POST /v1/catalog/upsert` (CSV, 1С-Битрикс или WooCommerce) с проверкой `rowErrors: []`.
+- [ ] Проверено разделение прав: запрос с `EIDOS_SEARCH_KEY` к `POST /v1/search` возвращает `200 OK`, а к `POST /v1/catalog/upsert` — `403 Forbidden`.
+- [ ] Проверены 15 золотых запросов пилота (включая многосоставные запросы с `simpleCategoryGate: "hard"` и мусорные запросы → `count: 0`).
+- [ ] Проверен аварийный fallback коннектора (при остановке EIDOS витрина WooCommerce / 1С-Битрикс автоматически переключается на штатный поиск CMS без ошибки 500).
+- [ ] Настроен persistent volume для `EIDOS_SNAPSHOT_PATH`.

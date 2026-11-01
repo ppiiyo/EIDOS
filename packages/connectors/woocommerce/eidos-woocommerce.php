@@ -5,7 +5,7 @@
  * Description:       Integrates WooCommerce with EIDOS hybrid vector + BM25 search, catalog synchronization (including product variations), and click feedback telemetry.
  * Version:           1.0.0
  * Requires at least: 6.0
- * Requires PHP:      7.4
+ * Requires PHP:      8.1
  * Author:            EIDOS Contributors
  * License:           MIT
  * Text Domain:       eidos-woocommerce
@@ -35,7 +35,7 @@ use Eidos\Connectors\WooCommerce\SearchReplacer;
 use Eidos\Connectors\WooCommerce\Settings;
 
 /**
- * Создаёт и возвращает singleton-экземпляр коннектора EIDOS для WooCommerce.
+ * Creates and returns the singleton EIDOS WooCommerce Connector instance.
  */
 function eidos_wc_get_connector(): Connector
 {
@@ -50,29 +50,35 @@ function eidos_wc_get_connector(): Connector
     $httpClient = new HttpClient(
         $config['api_url'] !== '' ? $config['api_url'] : 'http://localhost:3000',
         $config['api_key'],
-        2.5,
+        (float) ($config['search_timeout'] ?? 2.0),
         1,
         false,
         null,
         $config['wc_consumer_key'],
         $config['wc_consumer_secret'],
-        $siteUrl
+        $siteUrl,
+        $config['search_key'] ?? null
     );
 
     $mapper = new Mapper();
-    $searchReplacer = new SearchReplacer($httpClient);
+    $searchReplacer = new SearchReplacer(
+        $httpClient,
+        null,
+        (string) ($config['simple_category_gate'] ?? 'hard'),
+        (float) ($config['search_timeout'] ?? 2.0)
+    );
     $instance = new Connector($httpClient, $mapper, $searchReplacer);
 
     return $instance;
 }
 
 /**
- * Инициализация плагина в окружении WordPress:
- * - Регистрирует хук `pre_get_posts` (если включена опция перехвата поиска).
- * - Регистрирует REST-роут `POST /wp-json/eidos/v1/feedback`.
- * - Подключает `assets/js/feedback.js` (`navigator.sendBeacon`) на витрине магазина.
- * - Регистрирует страницу настроек в админке WordPress.
- * - Настраивает ежечасный WP-Cron (`eidos_wc_cron_sync_delta`) для `syncDelta()`.
+ * Bootstraps the EIDOS WooCommerce plugin:
+ * - Registers `pre_get_posts` and `woocommerce_product_query` hooks when search replacement is enabled.
+ * - Registers REST route `POST /wp-json/eidos/v1/feedback` (uses SEARCH_KEY path only, never exposes ADMIN_KEY).
+ * - Enqueues `assets/js/feedback.js` (`navigator.sendBeacon`) on the storefront.
+ * - Registers the WordPress Admin Settings page (`Settings -> EIDOS Search`).
+ * - Configures recurring delta sync via Action Scheduler (`as_schedule_recurring_action`) or `WP-Cron`.
  */
 function eidos_wc_bootstrap(): void
 {
@@ -109,6 +115,7 @@ function eidos_wc_bootstrap(): void
                     ? (string) get_current_user_id()
                     : '';
 
+                // Never expose ADMIN_KEY or SEARCH_KEY to browser JS; feedback goes to WordPress REST proxy
                 wp_localize_script('eidos-wc-feedback', 'EidosWCConfig', [
                     'endpoint' => $restUrl,
                     'query' => $currentQuery,
@@ -124,6 +131,13 @@ function eidos_wc_bootstrap(): void
 
 if (function_exists('register_activation_hook')) {
     register_activation_hook(__FILE__, static function (): void {
+        // Prefer WooCommerce Action Scheduler over raw WP-Cron on high-traffic stores
+        if (function_exists('as_next_scheduled_action') && function_exists('as_schedule_recurring_action')) {
+            if (!as_next_scheduled_action('eidos_wc_cron_sync_delta')) {
+                as_schedule_recurring_action(time() + 300, 3600, 'eidos_wc_cron_sync_delta', [], 'eidos-woocommerce');
+            }
+            return;
+        }
         if (function_exists('wp_next_scheduled') && function_exists('wp_schedule_event')) {
             if (!wp_next_scheduled('eidos_wc_cron_sync_delta')) {
                 wp_schedule_event(time() + 300, 'hourly', 'eidos_wc_cron_sync_delta');
@@ -134,6 +148,9 @@ if (function_exists('register_activation_hook')) {
 
 if (function_exists('register_deactivation_hook')) {
     register_deactivation_hook(__FILE__, static function (): void {
+        if (function_exists('as_unschedule_all_actions')) {
+            as_unschedule_all_actions('eidos_wc_cron_sync_delta', [], 'eidos-woocommerce');
+        }
         if (function_exists('wp_clear_scheduled_hook')) {
             wp_clear_scheduled_hook('eidos_wc_cron_sync_delta');
         }

@@ -14,14 +14,15 @@ use RuntimeException;
 /**
  * Class HttpClient
  *
- * Technical: Low-overhead cURL wrapper with configurable timeouts, GET retry logic,
- * Basic Auth support for WooCommerce REST API, Bearer/X-API-Key auth for EIDOS API,
- * and structured error logging to WooCommerce logger (wc_get_logger).
+ * Technical: Low-overhead cURL wrapper with configurable timeouts, retry on 429/502/503,
+ * separate SEARCH_KEY vs ADMIN_KEY routing, secret redaction in logs, Basic Auth support
+ * for WooCommerce REST API, and structured error logging to WooCommerce logger (wc_get_logger).
  */
 class HttpClient
 {
     private string $baseUrl;
     private string $apiKey;
+    private string $searchKey;
     private float $defaultTimeoutSec;
     private int $maxRetries;
     private bool $enforceHttps;
@@ -46,14 +47,15 @@ class HttpClient
 
     /**
      * @param string        $baseUrl           EIDOS server base URL (e.g. https://eidos.example.com or http://localhost:3000)
-     * @param string        $apiKey            EIDOS API key (sent in X-API-Key and Authorization: Bearer)
+     * @param string        $apiKey            EIDOS ADMIN_KEY (used for /v1/catalog/upsert and as fallback if searchKey is empty)
      * @param float         $defaultTimeoutSec Default request timeout in seconds
-     * @param int           $maxRetries        Number of retries for idempotent GET requests
+     * @param int           $maxRetries        Number of retries for transient 429/502/503 responses
      * @param bool          $enforceHttps      Require https:// scheme (except localhost/127.0.0.1 in dev)
      * @param callable|null $transportHandler  Optional mock transport callback
      * @param string        $wcConsumerKey     WooCommerce REST API consumer_key
      * @param string        $wcConsumerSecret  WooCommerce REST API consumer_secret
      * @param string        $wcSiteUrl         WordPress site URL for REST API calls
+     * @param string|null   $searchKey         Optional read-only SEARCH_KEY for /v1/search, /v1/recommend, /v1/feedback
      */
     public function __construct(
         string $baseUrl,
@@ -64,7 +66,8 @@ class HttpClient
         ?callable $transportHandler = null,
         string $wcConsumerKey = '',
         string $wcConsumerSecret = '',
-        string $wcSiteUrl = ''
+        string $wcSiteUrl = '',
+        ?string $searchKey = null
     ) {
         $trimmed = rtrim(trim($baseUrl), '/');
         $this->enforceHttps = $enforceHttps;
@@ -72,6 +75,7 @@ class HttpClient
 
         $this->baseUrl = $trimmed;
         $this->apiKey = trim($apiKey);
+        $this->searchKey = $searchKey !== null && trim($searchKey) !== '' ? trim($searchKey) : $this->apiKey;
         $this->defaultTimeoutSec = $defaultTimeoutSec;
         $this->maxRetries = max(0, $maxRetries);
         $this->transportHandler = $transportHandler;
@@ -81,8 +85,37 @@ class HttpClient
     }
 
     /**
-     * Бизнес-логика: проверка корректности базового URL EIDOS.
-     * В production-окружении для внешних хостов требуется схема https://.
+     * Sets a dedicated read-only SEARCH_KEY for storefront /v1/search requests,
+     * keeping ADMIN_KEY ($apiKey) strictly for /v1/catalog/upsert mutations.
+     */
+    public function setSearchKey(string $searchKey): void
+    {
+        $trimmed = trim($searchKey);
+        if ($trimmed !== '') {
+            $this->searchKey = $trimmed;
+        }
+    }
+
+    /**
+     * Resolves the appropriate API key for a given endpoint path:
+     * - /v1/search, /v1/recommend, /v1/feedback -> SEARCH_KEY
+     * - /v1/catalog/upsert, /v1/catalog/*, /v1/snapshots/* -> ADMIN_KEY
+     */
+    public function getEffectiveKeyForPath(string $path): string
+    {
+        $cleanPath = '/' . ltrim($path, '/');
+        if (
+            str_starts_with($cleanPath, '/v1/search')
+            || str_starts_with($cleanPath, '/v1/recommend')
+            || str_starts_with($cleanPath, '/v1/feedback')
+        ) {
+            return $this->searchKey !== '' ? $this->searchKey : $this->apiKey;
+        }
+        return $this->apiKey;
+    }
+
+    /**
+     * Validates EIDOS base URL and enforces HTTPS in production for non-local hosts.
      */
     private function validateBaseUrl(string $url): void
     {
@@ -103,12 +136,31 @@ class HttpClient
     }
 
     /**
-     * Бизнес-логика: запись ошибки в журнал WooCommerce (wc_get_logger) или системный error_log
-     * в строгом формате контракта: [EIDOS] <method> <error>.
+     * Redacts ADMIN_KEY, SEARCH_KEY, and WC Consumer Secret from any error message before logging.
+     */
+    private function redactSecrets(string $message): string
+    {
+        $secrets = array_filter([
+            $this->apiKey,
+            $this->searchKey,
+            $this->wcConsumerSecret,
+        ], static fn(string $s): bool => strlen($s) >= 4);
+
+        $redacted = $message;
+        foreach ($secrets as $secret) {
+            $redacted = str_replace($secret, '[REDACTED_KEY]', $redacted);
+        }
+        return $redacted;
+    }
+
+    /**
+     * Logs an error to WooCommerce logger (wc_get_logger) or system error_log
+     * in format: [EIDOS] <method> <error> (with secret redaction).
      */
     public function logError(string $method, string $error): void
     {
-        $cleanError = trim(preg_replace('/\s+/', ' ', $error) ?? $error);
+        $safeError = $this->redactSecrets($error);
+        $cleanError = trim(preg_replace('/\s+/', ' ', $safeError) ?? $safeError);
         $entry = sprintf('[EIDOS] %s %s', $method, $cleanError);
         $this->errorLogs[] = $entry;
 
@@ -177,7 +229,7 @@ class HttpClient
         string $callerMethod = 'request'
     ): array {
         $timeout = $timeoutSec ?? $this->defaultTimeoutSec;
-        $attempts = $httpMethod === 'GET' ? ($this->maxRetries + 1) : 1;
+        $attempts = $this->maxRetries + 1;
         $url = $this->baseUrl . '/' . ltrim($path, '/');
 
         $headers = [
@@ -186,17 +238,17 @@ class HttpClient
             'User-Agent: EidosWooCommerceConnector/1.0',
         ];
 
-        if ($this->apiKey !== '') {
-            $headers[] = 'Authorization: Bearer ' . $this->apiKey;
-            $headers[] = 'X-API-Key: ' . $this->apiKey;
+        $effectiveKey = $this->getEffectiveKeyForPath($path);
+        if ($effectiveKey !== '') {
+            $headers[] = 'Authorization: Bearer ' . $effectiveKey;
+            $headers[] = 'X-API-Key: ' . $effectiveKey;
         }
 
         return $this->executeRawRequest($httpMethod, $url, $payload, $timeout, $headers, $attempts, $callerMethod);
     }
 
     /**
-     * Бизнес-логика: запрос к WooCommerce REST API (/wp-json/wc/v3/*) с Basic Auth
-     * (consumer_key и consumer_secret) для получения родительских товаров и их вариаций.
+     * Requests WooCommerce REST API (/wp-json/wc/v3/*) using Basic Auth.
      *
      * @param string               $endpointPath e.g. '/wp-json/wc/v3/products'
      * @param array<string, mixed> $queryParams  e.g. ['per_page' => 100, 'page' => 1, 'modified_after' => '...']
@@ -238,7 +290,16 @@ class HttpClient
     }
 
     /**
-     * Technical: Performs the underlying cURL or custom transport HTTP request.
+     * Determines whether an HTTP status code is transient and eligible for retry (429, 502, 503).
+     * Never retries 400, 401, 403, 404.
+     */
+    public static function isRetryableStatus(int $status): bool
+    {
+        return in_array($status, [429, 502, 503], true);
+    }
+
+    /**
+     * Performs the underlying cURL or custom transport HTTP request.
      *
      * @param array<string, mixed>|null $payload
      * @param array<int, string>        $headers
@@ -277,7 +338,8 @@ class HttpClient
                 }
 
                 $lastError = is_string($err) && $err !== '' ? $err : sprintf('HTTP %d', $lastStatus);
-                if ($lastError === 'timeout' || $attempt >= $attempts) {
+                // Do not retry on timeout or non-retryable client errors (400, 401, 403, 404)
+                if ($lastError === 'timeout' || !self::isRetryableStatus($lastStatus) || $attempt >= $attempts) {
                     break;
                 }
                 continue;
@@ -361,9 +423,12 @@ class HttpClient
                 ? sprintf('HTTP %d: %s', $lastStatus, $apiMsg)
                 : sprintf('HTTP %d', $lastStatus);
 
-            if ($lastStatus >= 400 && $lastStatus < 500) {
+            if (!self::isRetryableStatus($lastStatus) || $attempt >= $attempts) {
                 break;
             }
+
+            // Backoff on 429 / 502 / 503
+            usleep(120000 * $attempt);
         }
 
         $this->logError($callerMethod, $lastError);
@@ -372,7 +437,7 @@ class HttpClient
             'ok' => false,
             'status' => $lastStatus,
             'data' => [],
-            'error' => $lastError,
+            'error' => $this->redactSecrets($lastError),
             'latencyMs' => round($latencyMs, 2),
         ];
     }

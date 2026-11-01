@@ -418,7 +418,11 @@ export function extractHeadCategoryIntent(rawQuery: string): HeadCategoryIntent 
   // 1. Check headTokens first (tokens BEFORE "для"/"под"/"for") so head noun wins over use-case
   for (const hTok of qInfo.headTokens) {
     for (const fam of PRODUCT_CATEGORY_FAMILIES) {
-      if (fam.queryStems.some((stem) => hTok.includes(stem) || stem.includes(hTok))) {
+      if (
+        fam.queryStems.some(
+          (stem) => hTok.includes(stem) || (hTok.length >= 6 && stem.startsWith(hTok))
+        )
+      ) {
         return {
           hasHeadCategoryIntent: true,
           familyId: fam.id,
@@ -602,12 +606,12 @@ export function evaluateCandidateGuardrail(
   // Head noun matches in title/category receive a strong boost; modifier-only matches receive a much smaller boost
   let consistencyBoost = 0;
   if (headNounMatchCount > 0) {
-    consistencyBoost += 0.36 * Math.min(2, headNounMatchCount);
+    consistencyBoost += 0.36 * Math.min(4, headNounMatchCount);
     if (modifierMatchCount > 0) {
-      consistencyBoost += 0.14 * Math.min(2, modifierMatchCount);
+      consistencyBoost += 0.14 * Math.min(3, modifierMatchCount);
     }
   } else if (titleMatchCount > 0 && queryInfo.modifierTokens.length === 0) {
-    consistencyBoost += 0.28 * Math.min(2, titleMatchCount);
+    consistencyBoost += 0.28 * Math.min(4, titleMatchCount);
   } else if (modifierMatchCount > 0) {
     // Only matched the secondary modifier (e.g. "для бега" on a sneaker when searching "наушники для бега")
     consistencyBoost += 0.04 * Math.min(2, modifierMatchCount);

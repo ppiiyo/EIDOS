@@ -74,7 +74,7 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Регистрирует REST-роут `/wp-json/eidos/v1/feedback` и хук поиска `pre_get_posts`.
+     * Registers REST route `/wp-json/eidos/v1/feedback`, search hooks, and Action Scheduler / WP-Cron delta sync.
      */
     public function registerWordPressHooks(): void
     {
@@ -87,8 +87,7 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Регистрация собственного REST-роута WordPress: POST /wp-json/eidos/v1/feedback
-     * для приёма событий кликов от navigator.sendBeacon на фронтенде.
+     * Registers WordPress REST route `POST /wp-json/eidos/v1/feedback` for `navigator.sendBeacon` click events.
      */
     public function registerFeedbackRestRoute(): void
     {
@@ -134,15 +133,13 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * 1. Бизнес-логика: полная синхронизация каталога WooCommerce в EIDOS.
-     * - Забирает родительские товары постранично через GET /wp-json/wc/v3/products?per_page=100&page=N.
-     * - Для каждого variable-товара дополнительно забирает его вариации через
-     *   GET /wp-json/wc/v3/products/{id}/variations.
-     * - Преобразует карточки через mapFields() и отправляет батчами по 100 шт. в POST /v1/catalog/upsert
-     *   с обёрткой {"items": [...]}.
+     * 1. Full catalog synchronization from WooCommerce into EIDOS (`POST /v1/catalog/upsert`).
+     * - Skips non-published (`draft`, `private`, `trash`) products and variations.
+     * - Indexes parent products and their variations (`id = (string) product_id` or `variation_id`).
+     * - Collects structured `rowErrors` (`row`, `field`, `message`) for admin diagnostics.
      *
      * @param array<string, mixed> $options
-     * @return array{synced: int, failed: int, errors: array<int, string>}
+     * @return array{synced: int, failed: int, skipped: int, errors: array<int, string>, rowErrors: array<int, array{row: int, field: string, message: string}>}
      */
     public function syncCatalog(array $options = []): array
     {
@@ -154,7 +151,9 @@ class Connector implements ConnectorInterface
 
         $synced = 0;
         $failed = 0;
+        $skipped = 0;
         $errors = [];
+        $rowErrors = [];
         $pendingBatch = [];
         $page = 1;
         $processed = 0;
@@ -166,12 +165,22 @@ class Connector implements ConnectorInterface
             }
 
             foreach ($parentProducts as $parentProduct) {
+                if (!$this->mapper->isPublishedProduct($parentProduct)) {
+                    $skipped++;
+                    continue;
+                }
+
                 $expandedItems = $this->expandProductWithVariations($parentProduct, $errors);
 
                 foreach ($expandedItems as $entry) {
+                    $rawItem = $entry['item'];
+                    if (!$this->mapper->isPublishedProduct($rawItem)) {
+                        $skipped++;
+                        continue;
+                    }
+
                     $processed++;
                     try {
-                        $rawItem = $entry['item'];
                         $mapped = $this->mapFields($rawItem, $entry['parentContext']);
                         $itemTimestamp = $this->extractModifiedTimestamp($rawItem, 0);
                         $this->syncedDeltaFingerprints[$mapped['id']] = sha1(
@@ -183,10 +192,15 @@ class Connector implements ConnectorInterface
                         $msg = $e->getMessage();
                         $this->httpClient->logError('syncCatalog', $msg);
                         $errors[] = $msg;
+                        $rowErrors[] = [
+                            'row' => $processed,
+                            'field' => 'item',
+                            'message' => $msg,
+                        ];
                     }
 
                     if (count($pendingBatch) >= $batchSize) {
-                        $this->flushUpsertBatch($pendingBatch, 'syncCatalog', $synced, $failed, $errors);
+                        $this->flushUpsertBatch($pendingBatch, 'syncCatalog', $synced, $failed, $errors, $rowErrors);
                         $pendingBatch = [];
                         if ($onProgress !== null) {
                             $onProgress($processed, $processed, $synced, $failed);
@@ -202,28 +216,37 @@ class Connector implements ConnectorInterface
         }
 
         if (!empty($pendingBatch)) {
-            $this->flushUpsertBatch($pendingBatch, 'syncCatalog', $synced, $failed, $errors);
+            $this->flushUpsertBatch($pendingBatch, 'syncCatalog', $synced, $failed, $errors, $rowErrors);
             if ($onProgress !== null) {
                 $onProgress($processed, $processed, $synced, $failed);
             }
         }
 
+        $report = [
+            'synced' => $synced,
+            'failed' => $failed,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'rowErrors' => $rowErrors,
+            'timestamp' => gmdate('c'),
+        ];
+
         if (function_exists('update_option')) {
-            update_option('eidos_wc_last_sync', gmdate('c'), false);
+            update_option('eidos_wc_last_sync', $report['timestamp'], false);
+            update_option('eidos_wc_last_sync_report', $report, false);
         }
 
         return [
             'synced' => $synced,
             'failed' => $failed,
+            'skipped' => $skipped,
             'errors' => $errors,
+            'rowErrors' => $rowErrors,
         ];
     }
 
     /**
-     * 2. Бизнес-логика: инкрементальная синхронизация изменённых товаров (syncDelta).
-     * - Запрашивает GET /wp-json/wc/v3/products?modified_after={ISO8601}&per_page=100.
-     * - Для изменённых variable-товаров забирает их вариации.
-     * - Отправляет батчами по 100 в POST /v1/catalog/upsert.
+     * 2. Incremental delta synchronization (`syncDelta`) for products modified since `$since`.
      *
      * @param DateTimeInterface $since
      * @param int               $batchSize
@@ -246,11 +269,19 @@ class Connector implements ConnectorInterface
             }
 
             foreach ($modifiedProducts as $parentProduct) {
+                if (!$this->mapper->isPublishedProduct($parentProduct)) {
+                    continue;
+                }
+
                 $expandedItems = $this->expandProductWithVariations($parentProduct, $errors);
 
                 foreach ($expandedItems as $entry) {
                     try {
                         $rawItem = $entry['item'];
+                        if (!$this->mapper->isPublishedProduct($rawItem)) {
+                            continue;
+                        }
+
                         $mapped = $this->mapFields($rawItem, $entry['parentContext']);
                         $itemTimestamp = $this->extractModifiedTimestamp($rawItem, $since->getTimestamp());
 
@@ -312,8 +343,7 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * 3. Бизнес-логика: замена стандартного поиска WooCommerce через EIDOS (POST /v1/search)
-     * с автоматическим fallback на стандартный поиск WordPress при ошибке/таймауте.
+     * 3. Replaces WooCommerce search via EIDOS (`POST /v1/search`) with automatic fallback.
      *
      * @param string               $query
      * @param array<string, mixed> $options
@@ -325,8 +355,7 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * 4. Бизнес-логика: неблокирующая отправка обратной связи (кликов, покупок) в POST /v1/feedback.
-     * Таймаут строго 1.0 секунда. Никогда не выбрасывает исключений пользователю.
+     * 4. Non-blocking click and conversion feedback (`POST /v1/feedback`, 1.0s timeout).
      *
      * @param array<string, mixed> $event ['itemId' => string, 'eventType' => string, 'query' => ?string, 'userId' => ?string]
      * @return bool
@@ -348,7 +377,6 @@ class Connector implements ConnectorInterface
             return false;
         }
 
-        // Нормализация типа события под схему /v1/feedback EIDOS ('click' | 'conversion' | 'purchase' | 'impression')
         $eventMap = [
             'click' => 'click',
             'view' => 'impression',
@@ -385,7 +413,7 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * 5. Бизнес-логика: проверка состояния EIDOS через GET /v1/health (таймаут 3 секунды).
+     * 5. Checks EIDOS health (`GET /v1/health`, 3.0s timeout).
      *
      * @return array{ok: bool, version: string, itemsIndexed: int, latencyMs: float, error: ?string}
      */
@@ -434,20 +462,20 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * 6. Бизнес-логика: преобразование товара WooCommerce (WC_Product или массива REST API)
-     * в каноническую схему EIDOS Connector v1.0.
+     * 6. Maps a WooCommerce product (WC_Product or REST array) into canonical EIDOS schema.
      *
      * @param mixed                     $systemItem
      * @param array<string, mixed>|null $parentContext
-     * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
+     * @param array<string, mixed>      $options
+     * @return array{id: string, sku?: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
      */
-    public function mapFields($systemItem, ?array $parentContext = null): array
+    public function mapFields($systemItem, ?array $parentContext = null, array $options = []): array
     {
-        return $this->mapper->mapFields($systemItem, $parentContext);
+        return $this->mapper->mapFields($systemItem, $parentContext, $options);
     }
 
     /**
-     * Запуск фоновой синхронизации дельты по расписанию WP-Cron.
+     * Runs scheduled background delta sync via Action Scheduler or WP-Cron.
      */
     public function runScheduledDeltaSync(): void
     {
@@ -467,9 +495,6 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Получает страницу родительских товаров через REST API `/wp-json/wc/v3/products`
-     * (или через локальный вызов `wc_get_products`, если настроен in-process режим).
-     *
      * @param array<int, string> $errors
      * @return array<int, mixed>
      */
@@ -491,12 +516,9 @@ class Connector implements ConnectorInterface
         ];
 
         if ($modifiedAfter !== null) {
-            // WooCommerce REST API ожидает ISO8601 дату в параметре modified_after
             $queryParams['modified_after'] = $modifiedAfter->format('Y-m-d\TH:i:s');
         }
 
-        // Если мы работаем внутри процесса WordPress и доступна функция rest_do_request,
-        // либо используем HTTP-клиент к /wp-json/wc/v3/products
         $caller = $modifiedAfter !== null ? 'syncDelta' : 'syncCatalog';
         $resp = $this->httpClient->requestWooCommerceRest(
             '/wp-json/wc/v3/products',
@@ -509,7 +531,6 @@ class Connector implements ConnectorInterface
             return array_values($resp['data']);
         }
 
-        // Fallback на локальный API WooCommerce (wc_get_products), если REST API не настроен ключами
         if (function_exists('wc_get_products')) {
             $wcArgs = [
                 'limit' => $perPage,
@@ -532,8 +553,8 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Раскрывает родительский товар: если это `variable`-товар, дополнительно запрашивает
-     * все его вариации через `/wp-json/wc/v3/products/{id}/variations`.
+     * Expands a variable parent product into `[parent, ...variations]` so both the parent
+     * product card and attribute-specific variations are searchable in EIDOS.
      *
      * @param mixed              $parentProduct
      * @param array<int, string> &$errors
@@ -567,7 +588,6 @@ class Connector implements ConnectorInterface
         try {
             $parentContext = $this->mapFields($parentProduct);
         } catch (Throwable $e) {
-            // Если родительский variable-товар не имеет собственной цены, формируем базовый контекст
             if (is_array($parentProduct)) {
                 $parentContext = [
                     'title' => (string) ($parentProduct['name'] ?? $parentProduct['title'] ?? ''),
@@ -583,6 +603,9 @@ class Connector implements ConnectorInterface
 
         $variations = $this->fetchProductVariations($parentId, $errors);
         foreach ($variations as $variation) {
+            if (!$this->mapper->isPublishedProduct($variation)) {
+                continue;
+            }
             $entries[] = [
                 'item' => $variation,
                 'parentContext' => $parentContext,
@@ -593,8 +616,6 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Запрашивает все вариации variable-товара через `GET /wp-json/wc/v3/products/{id}/variations`.
-     *
      * @param int|string         $parentId
      * @param array<int, string> &$errors
      * @return array<int, mixed>
@@ -633,7 +654,6 @@ class Connector implements ConnectorInterface
                 continue;
             }
 
-            // Fallback на WC_Product::get_children() при работе внутри WordPress без REST-ключей
             if (function_exists('wc_get_product')) {
                 $wcParent = wc_get_product($parentId);
                 if (is_object($wcParent) && method_exists($wcParent, 'get_children')) {
@@ -658,17 +678,19 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Отправляет накопленный батч (по 100 товаров) в `POST /v1/catalog/upsert` с обёрткой `{"items": [...]}`.
+     * Sends accumulated batch to `POST /v1/catalog/upsert` and records row-level `rowErrors` if returned.
      *
-     * @param array<int, array<string, mixed>> $batchPayload
-     * @param array<int, string>               &$errors
+     * @param array<int, array<string, mixed>>                           $batchPayload
+     * @param array<int, string>                                         &$errors
+     * @param array<int, array{row: int, field: string, message: string}> &$rowErrors
      */
     private function flushUpsertBatch(
         array $batchPayload,
         string $callerMethod,
         int &$synced,
         int &$failed,
-        array &$errors
+        array &$errors,
+        array &$rowErrors
     ): void {
         if (empty($batchPayload)) {
             return;
@@ -681,8 +703,20 @@ class Connector implements ConnectorInterface
             $callerMethod
         );
 
+        $data = is_array($resp['data'] ?? null) ? $resp['data'] : [];
+        if (!empty($data['rowErrors']) && is_array($data['rowErrors'])) {
+            foreach ($data['rowErrors'] as $re) {
+                if (is_array($re)) {
+                    $rowErrors[] = [
+                        'row' => (int) ($re['row'] ?? 0),
+                        'field' => (string) ($re['field'] ?? 'unknown'),
+                        'message' => (string) ($re['message'] ?? 'validation_error'),
+                    ];
+                }
+            }
+        }
+
         if ($resp['ok']) {
-            $data = $resp['data'];
             $batchUpserted = isset($data['upserted'])
                 ? (int) $data['upserted']
                 : count($batchPayload);
@@ -704,8 +738,6 @@ class Connector implements ConnectorInterface
     }
 
     /**
-     * Отправляет батч изменённых товаров для syncDelta и фиксирует идемпотентные хэши.
-     *
      * @param array<int, array<string, mixed>>                           $batchPayload
      * @param array<int, array{id: string, fingerprint: string, timestamp: int}> $batchMeta
      */

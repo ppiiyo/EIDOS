@@ -1,6 +1,7 @@
 <?php
 /**
- * WooCommerce Search Replacer hooking into WordPress pre_get_posts with graceful fallback.
+ * WooCommerce Search Replacer hooking into WordPress pre_get_posts with graceful fallback,
+ * request-storm protection, stale ID skipping, and simpleCategoryGate pass-through.
  *
  * @package Eidos\Connectors\WooCommerce
  */
@@ -14,14 +15,25 @@ use Throwable;
 /**
  * Class SearchReplacer
  *
- * Technical: Intercepts main search queries via WordPress `pre_get_posts` hook,
+ * Technical: Intercepts main search queries via WordPress `pre_get_posts` and `woocommerce_product_query`,
  * queries EIDOS `POST /v1/search`, and injects matched product IDs into `$query->set('post__in', $ids)`.
- * If EIDOS is unreachable, times out, or returns an error, leaves `$query` untouched (Graceful Fallback).
+ * If EIDOS is unreachable, times out, or returns an error, leaves `$query` untouched (Graceful Fallback)
+ * and trips a per-request circuit breaker so EIDOS is not called repeatedly during the same request storm.
  */
 class SearchReplacer
 {
     private HttpClient $httpClient;
     private bool $lastSearchUsedFallback = false;
+    private bool $failedInCurrentRequest = false;
+    private string $defaultCategoryGate = 'hard';
+    private float $defaultTimeoutSec = 2.0;
+
+    /**
+     * Tracks product/variation IDs that were deleted or trashed in WooCommerce before EIDOS index cleanup.
+     *
+     * @var array<string, bool>
+     */
+    private array $deletedProductIds = [];
 
     /**
      * Optional custom native fallback search callback for testing or custom theme hooks.
@@ -30,15 +42,58 @@ class SearchReplacer
      */
     private $fallbackHandler = null;
 
-    public function __construct(HttpClient $httpClient, ?callable $fallbackHandler = null)
-    {
+    public function __construct(
+        HttpClient $httpClient,
+        ?callable $fallbackHandler = null,
+        string $defaultCategoryGate = 'hard',
+        float $defaultTimeoutSec = 2.0
+    ) {
         $this->httpClient = $httpClient;
         $this->fallbackHandler = $fallbackHandler;
+        $this->setDefaultCategoryGate($defaultCategoryGate);
+        $this->defaultTimeoutSec = max(0.2, min(15.0, $defaultTimeoutSec));
+    }
+
+    public function setDefaultCategoryGate(string $gate): void
+    {
+        if (in_array($gate, ['hard', 'soft', 'off'], true)) {
+            $this->defaultCategoryGate = $gate;
+        }
+    }
+
+    public function getDefaultCategoryGate(): string
+    {
+        return $this->defaultCategoryGate;
     }
 
     /**
-     * Регистрирует хук WordPress `pre_get_posts`, `woocommerce_product_query` и SQL-фильтры
-     * для полной совместимости с кастомными темами (Astra, Flatsome) и плагинами фильтрации (WOOF, Filter Everything).
+     * Marks a WooCommerce product/variation ID as deleted/trashed locally so stale hits from EIDOS are skipped.
+     */
+    public function markItemDeletedInWooCommerce(string $id): void
+    {
+        $cleanId = trim($id);
+        if ($cleanId !== '') {
+            $this->deletedProductIds[$cleanId] = true;
+        }
+    }
+
+    /**
+     * Resets the per-request circuit breaker (used between isolated test cases or worker requests).
+     */
+    public function resetRequestState(): void
+    {
+        $this->failedInCurrentRequest = false;
+        $this->lastSearchUsedFallback = false;
+    }
+
+    public function isRequestStormTripped(): bool
+    {
+        return $this->failedInCurrentRequest;
+    }
+
+    /**
+     * Registers WordPress `pre_get_posts`, `woocommerce_product_query`, and SQL filters
+     * for compatibility with Astra, Flatsome, Storefront, Elementor, WOOF, and Filter Everything.
      */
     public function registerHooks(): void
     {
@@ -53,12 +108,12 @@ class SearchReplacer
     }
 
     /**
-     * 3. Бизнес-логика: замена стандартного поиска на гибридный поиск EIDOS (POST /v1/search).
-     * Возвращает массив ID найденных товаров. При недоступности EIDOS включает fallback.
+     * Replaces standard WooCommerce search with EIDOS hybrid search (POST /v1/search).
+     * Returns matched product/variation IDs. On EIDOS failure/timeout, triggers fallback.
      *
-     * @param string               $query   Поисковый запрос покупателя
-     * @param array<string, mixed> $options Параметры поиска (limit, filters, alpha, mode)
-     * @return array<int, string|int> Массив ID товаров из EIDOS (или из fallback при наличии обработчика)
+     * @param string               $query   Customer search query
+     * @param array<string, mixed> $options Search parameters (limit, filters, alpha, mode, simpleCategoryGate, activeProductIds)
+     * @return array<int, string|int> Array of product IDs from EIDOS (or from fallback handler if provided)
      */
     public function replaceSearch(string $query, array $options = []): array
     {
@@ -69,17 +124,26 @@ class SearchReplacer
             return [];
         }
 
+        // Request-storm circuit breaker: if EIDOS already failed during this PHP request, do not call again
+        if ($this->failedInCurrentRequest) {
+            return $this->triggerFallback($cleanQuery, $options);
+        }
+
         $limit = max(1, min(100, (int) ($options['limit'] ?? 20)));
-        $alpha = isset($options['alpha']) ? max(0.0, min(1.0, (float) $options['alpha'])) : 0.5;
+        $alpha = isset($options['alpha']) ? max(0.0, min(1.0, (float) $options['alpha'])) : 0.65;
         $mode = isset($options['mode']) && in_array($options['mode'], ['hybrid', 'dense', 'sparse'], true)
             ? (string) $options['mode']
             : 'hybrid';
+        $gate = isset($options['simpleCategoryGate']) && in_array($options['simpleCategoryGate'], ['hard', 'soft', 'off'], true)
+            ? (string) $options['simpleCategoryGate']
+            : $this->defaultCategoryGate;
 
         $payload = [
             'query' => $cleanQuery,
             'limit' => $limit,
             'mode' => $mode,
             'alpha' => $alpha,
+            'simpleCategoryGate' => $gate,
         ];
 
         if (!empty($options['filters']) && is_array($options['filters'])) {
@@ -103,17 +167,24 @@ class SearchReplacer
         }
 
         try {
-            $timeoutSec = isset($options['timeout']) ? (float) $options['timeout'] : 2.0;
+            $timeoutSec = isset($options['timeout']) ? (float) $options['timeout'] : $this->defaultTimeoutSec;
             $response = $this->httpClient->post('/v1/search', $payload, $timeoutSec, 'replaceSearch');
 
             if (!$response['ok']) {
+                $this->failedInCurrentRequest = true;
                 return $this->triggerFallback($cleanQuery, $options);
             }
 
             $results = $response['data']['results'] ?? null;
             if (!is_array($results)) {
                 $this->httpClient->logError('replaceSearch', 'Malformed response: missing results array');
+                $this->failedInCurrentRequest = true;
                 return $this->triggerFallback($cleanQuery, $options);
+            }
+
+            $activeWhitelist = null;
+            if (isset($options['activeProductIds']) && is_array($options['activeProductIds'])) {
+                $activeWhitelist = array_fill_keys(array_map('strval', $options['activeProductIds']), true);
             }
 
             $ids = [];
@@ -125,29 +196,41 @@ class SearchReplacer
                 if ($rawId === null || $rawId === '') {
                     continue;
                 }
-                $ids[] = is_numeric($rawId) ? (int) $rawId : (string) $rawId;
+                $strId = trim((string) $rawId);
+                if (isset($this->deletedProductIds[$strId])) {
+                    continue;
+                }
+                if ($activeWhitelist !== null && !isset($activeWhitelist[$strId])) {
+                    continue;
+                }
+                $ids[] = is_numeric($rawId) ? (int) $rawId : $strId;
             }
 
             return array_values(array_unique($ids, SORT_REGULAR));
         } catch (Throwable $e) {
             $this->httpClient->logError('replaceSearch', $e->getMessage());
+            $this->failedInCurrentRequest = true;
             return $this->triggerFallback($cleanQuery, $options);
         }
     }
 
     /**
-     * Бизнес-логика: обработчик хука `pre_get_posts` в WordPress.
-     * Если выполняется основной поисковый запрос на витрине:
-     * - Запрашивает релевантные ID у EIDOS.
-     * - При успехе подменяет `post__in`, `post_type = product`, `orderby = post__in` и сбрасывает `s`,
-     *   чтобы SQL-запрос WordPress выбрал ровно товары EIDOS в порядке их семантического ранга.
-     * - Если EIDOS недоступен (fallback), НЕ трогает объект $wpQuery — срабатывает штатный поиск WordPress.
+     * Handles WordPress `pre_get_posts` and `woocommerce_product_query` hooks.
+     * - Intercepts only main frontend search queries (never admin, REST, or secondary widget loops).
+     * - Preserves `posts_per_page`.
+     * - Sets `post__in` and `orderby = post__in` when EIDOS returns product IDs.
+     * - Sets `post__in = [0]` when EIDOS returns `count = 0` so WooCommerce renders an empty state (never "all products").
+     * - Leaves `$wpQuery` completely untouched on fallback so native WordPress/WooCommerce search executes.
      *
-     * @param object $wpQuery Экземпляр WP_Query
+     * @param object $wpQuery WP_Query instance
      */
     public function handlePreGetPosts(object $wpQuery): void
     {
         if (function_exists('is_admin') && is_admin() && (!defined('DOING_AJAX') || !DOING_AJAX)) {
+            return;
+        }
+
+        if (defined('REST_REQUEST') && REST_REQUEST) {
             return;
         }
 
@@ -159,19 +242,25 @@ class SearchReplacer
             return;
         }
 
+        // Prevent duplicate execution if both pre_get_posts and woocommerce_product_query fire on the same WP_Query
+        if (method_exists($wpQuery, 'get') && $wpQuery->get('eidos_search_handled')) {
+            return;
+        }
+
         $searchTerm = method_exists($wpQuery, 'get') ? (string) $wpQuery->get('s') : '';
         if (trim($searchTerm) === '') {
             return;
         }
 
-        $limit = method_exists($wpQuery, 'get') ? (int) $wpQuery->get('posts_per_page') : 20;
-        if ($limit <= 0) {
-            $limit = 20;
-        }
+        $originalPostsPerPage = method_exists($wpQuery, 'get') ? (int) $wpQuery->get('posts_per_page') : 0;
+        $limit = $originalPostsPerPage > 0 ? $originalPostsPerPage : 20;
 
-        $ids = $this->replaceSearch($searchTerm, ['limit' => max($limit, 24)]);
+        $ids = $this->replaceSearch($searchTerm, [
+            'limit' => max($limit, 24),
+            'simpleCategoryGate' => $this->defaultCategoryGate,
+        ]);
 
-        // Fallback: если EIDOS недоступен или вернул ошибку, НЕ модифицируем $wpQuery
+        // Fallback: if EIDOS is unreachable or timed out, leave $wpQuery completely untouched
         if ($this->lastSearchUsedFallback) {
             return;
         }
@@ -180,14 +269,18 @@ class SearchReplacer
             return;
         }
 
+        $wpQuery->set('eidos_search_handled', true);
+        if ($originalPostsPerPage > 0) {
+            $wpQuery->set('posts_per_page', $originalPostsPerPage);
+        }
+
         if (empty($ids)) {
-            // EIDOS ответил успешно, но совпадений нет
+            // EIDOS responded 200 OK with count = 0 -> return 0 products (not all catalog items)
             $wpQuery->set('post__in', [0]);
             $wpQuery->set('post_type', 'product');
             return;
         }
 
-        // Оставляем только числовые ID постов WordPress (отбрасывая строковые демо-ID вида item-191)
         $numericIds = [];
         foreach ($ids as $rawId) {
             if (is_int($rawId) && $rawId > 0) {
@@ -197,11 +290,11 @@ class SearchReplacer
             }
         }
         if (empty($numericIds)) {
+            $wpQuery->set('post__in', [0]);
+            $wpQuery->set('post_type', 'product');
             return;
         }
 
-        // Совместимость с плагинами фильтрации (WooCommerce Product Filter, WOOF, Filter Everything):
-        // если фильтр уже ограничил выборку через post__in, пересекаем с сохранением порядка ранжирования EIDOS
         $existingPostIn = method_exists($wpQuery, 'get') ? $wpQuery->get('post__in') : [];
         if (is_array($existingPostIn) && !empty($existingPostIn)) {
             $existingFiltered = array_values(array_filter(array_map('intval', $existingPostIn), static fn(int $id): bool => $id > 0));
@@ -218,7 +311,6 @@ class SearchReplacer
             }
         }
 
-        // Сохраняем исходный поисковый запрос в query_vars для телеметрии кликов (sendBeacon) и заголовков темы (Astra/Flatsome)
         $wpQuery->set('eidos_original_query', $searchTerm);
         $wpQuery->set('eidos_search_active', true);
         $wpQuery->set('eidos_ordered_ids', $numericIds);
@@ -226,16 +318,14 @@ class SearchReplacer
         $wpQuery->set('post_type', ['product', 'product_variation']);
         $wpQuery->set('orderby', 'post__in');
 
-        // Если фильтр posts_search недоступен в минимальном тестовом окружении, сбрасываем 's',
-        // иначе оставляем 's' для get_search_query() в шаблонах Astra/Flatsome и убираем SQL LIKE через posts_search
         if (!function_exists('add_filter')) {
             $wpQuery->set('s', '');
         }
     }
 
     /**
-     * Отключает стандартное условие SQL `AND (((wp_posts.post_title LIKE ...)))` при активном поиске EIDOS,
-     * сохраняя переменную запроса `s` нетронутой для шаблонов Astra / Flatsome (`get_search_query()`, `is_search()`).
+     * Suppresses WordPress default SQL LIKE condition when EIDOS search is active,
+     * keeping query var `s` intact for theme templates (`get_search_query()`, `is_search()`).
      */
     public function filterPostsSearchSql(string $searchSql, object $wpQuery): string
     {
@@ -246,8 +336,7 @@ class SearchReplacer
     }
 
     /**
-     * Гарантирует сохранение порядка ранжирования EIDOS (`FIELD(ID, ...)`) даже если плагин фильтрации
-     * (WooCommerce Product Filter / WOOF) перезаписал `orderby` на `menu_order title` или `relevance`.
+     * Enforces EIDOS ranking order (`FIELD(ID, ...)`) even if a filter plugin overwrote `orderby`.
      */
     public function enforceEidosOrderbySql(string $orderbySql, object $wpQuery): string
     {
@@ -284,7 +373,6 @@ class SearchReplacer
             return ($this->fallbackHandler)($query, $options);
         }
 
-        // Если в окружении доступна функция wc_get_products и запрос вызван напрямую вне WP_Query
         if (!empty($options['useWcFallback']) && function_exists('wc_get_products')) {
             $products = wc_get_products([
                 's' => $query,

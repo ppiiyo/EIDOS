@@ -1,42 +1,34 @@
 <div align="center">
 
-# ⚡ EIDOS v3.4.0 GA
+# ⚡ EIDOS v3.4.0 (Pilot-Ready)
 
-### Cognitive Hybrid Vector Search, 3-Vector Behavioral Reranking, Explainable X-Ray, Distributed HNSW Cluster & Multi-Objective Recommendation Engine
-### Когнитивная платформа гибридного векторного поиска, 3-векторного поведенческого ранжирования, объяснимого рентгена (X-Ray), распределённого HNSW-кластера и мультицелевых рекомендаций
+### Self-Hosted Hybrid Vector Search (384-d HNSW + BM25+ + RRF), Explainable X-Ray & Storefront Connectors for 1C-Bitrix and WooCommerce
+### Гибридный векторный поиск (384-d HNSW + BM25+ + RRF), объяснимый рентген ранжирования (X-Ray) и серверные коннекторы для 1С-Битрикс и WooCommerce
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-eidos--semantic--ideation--platform.ai.studio-00E5A3?style=for-the-badge&logo=googlecloud&logoColor=black)](https://eidos-semantic-ideation-platform.ai.studio/)
 [![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1_Swagger-38BDF8?style=for-the-badge&logo=openapiinitiative&logoColor=black)](https://eidos-semantic-ideation-platform.ai.studio/docs)
-[![Tests](https://img.shields.io/badge/Tests-89_Suites_%7C_374_Passing-10B981?style=for-the-badge)](./tests)
+[![Status](https://img.shields.io/badge/Status-v3.4.0--pilot_Ready-10B981?style=for-the-badge)](./docs/PRODUCTION.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](./LICENSE)
 
-**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🚀 No-Code Pilot Guide ](./docs/PILOT_NO_CODE.md)** · **[ 🛒 1C-Bitrix Storefront Widget ](./docs/integrations/bitrix-widget.md)** · **[ 🛡️ Production Runbook ](./docs/PRODUCTION.md)** · **[ 📄 CSV Contract ](./docs/CSV_CONTRACT.md)** · **[ 🔄 Migration Blueprints ](./docs/MIGRATION.md)**
+**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🛡️ Pilot & Production Runbook ](./docs/PRODUCTION.md)** · **[ 🛒 1C-Bitrix Connector ](./docs/integrations/bitrix.md)** · **[ 🛍️ WooCommerce Connector ](./docs/integrations/woocommerce.md)** · **[ 📄 CSV Contract ](./docs/CSV_CONTRACT.md)** · **[ 🚀 No-Code Pilot Guide ](./docs/PILOT_NO_CODE.md)**
 
 </div>
 
 ---
 
-## 🚀 3-Step Store Pilot Path (Without an In-House Developer)
+## 🚀 15-Minute Store Pilot Path (Self-Hosted + 1C-Bitrix / WooCommerce / CSV)
 
-1. **Step 1 — Spin up self-hosted EIDOS in 1 command** (generates `MASTER_KEY`, `ADMIN_KEY`, and `SEARCH_KEY`, launches `eidos-api` + `redis`, and waits for `GET /v1/ready == 200`):
+1. **Step 1 — Spin up self-hosted EIDOS in 1 command** (generates `EIDOS_MASTER_KEY`, `EIDOS_ADMIN_KEY`, and `EIDOS_SEARCH_KEY`, launches `eidos-api` + `redis`, and verifies `GET /v1/ready == 200`):
    ```bash
    curl -fsSL https://raw.githubusercontent.com/ppiiyo/EIDOS/main/scripts/install-pilot.sh | bash
    ```
-2. **Step 2 — Upload your CSV catalog & run 5 automated quality checks in the browser**:
-   Open **`http://<your-server>:3000/onboarding`** (or click **"Pilot Wizard (No-Code)"** in the Studio sidebar), drag & drop your CSV catalog ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)), and run the built-in 5-query verification suite.
-3. **Step 3 — Drop 1 `<script>` tag onto your storefront (including 1C-Bitrix, WooCommerce, Tilda, or custom sites)**:
-   ```html
-   <script
-     src="http://<your-server>:3000/widget.js"
-     defer
-     data-api="http://<your-server>:3000"
-     data-key="eidos_sk_YOUR_READ_ONLY_SEARCH_KEY"
-     data-input="#title-search-input, input[name='q'], .search-input"
-     data-limit="8"
-     data-product-url-template="/catalog/#ID#/"
-   ></script>
-   ```
-   See [**`docs/PILOT_NO_CODE.md`**](./docs/PILOT_NO_CODE.md) and [**`docs/integrations/bitrix-widget.md`**](./docs/integrations/bitrix-widget.md) for the complete non-developer setup and 1C-Bitrix server-side proxy (`packages/connectors/bitrix/tools/eidos_search.php`).
+2. **Step 2 — Connect your catalog (WooCommerce, 1C-Bitrix, or CSV/YML)**:
+   - **WooCommerce**: Zip `packages/connectors/woocommerce`, upload & activate in WordPress Admin, enter `ADMIN_KEY` + `SEARCH_KEY` under **Settings → EIDOS Search**, click **Check Connection** and **Synchronize** ([`docs/integrations/woocommerce.md`](./docs/integrations/woocommerce.md)).
+   - **1C-Bitrix**: Connect `packages/connectors/bitrix` (`id = ELEMENT_ID`, `sku = XML_ID`) with `ADMIN_KEY` for sync and `SEARCH_KEY` for storefront `/v1/search` with automatic fallback ([`docs/integrations/bitrix.md`](./docs/integrations/bitrix.md)).
+   - **CSV / JSON / YML**: Upload via `POST /v1/catalog/upsert` ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)) or via `/onboarding` in the Studio UI.
+3. **Step 3 — Server-Side Storefront Replacement (or Optional `<script src="/widget.js">`)**:
+   - For **WooCommerce** (`pre_get_posts`) and **1C-Bitrix** (`SearchReplacer`), search results are injected server-side into your native store theme with automatic zero-downtime fallback to native CMS search if EIDOS is unreachable.
+   - For custom/headless storefronts without a backend plugin, an optional drop-in widget (`/widget.js`) is available (see [**`docs/PILOT_NO_CODE.md`**](./docs/PILOT_NO_CODE.md) and [**`docs/PRODUCTION.md`**](./docs/PRODUCTION.md)).
 
 ---
 

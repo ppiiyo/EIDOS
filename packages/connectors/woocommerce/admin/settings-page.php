@@ -2,7 +2,7 @@
 /**
  * Admin Settings UI Template for EIDOS WooCommerce Connector.
  *
- * @var array{api_url: string, api_key: string, wc_consumer_key: string, wc_consumer_secret: string, replace_search: bool, last_sync: string} $config
+ * @var array<string, mixed> $config
  * @var array{type: string, message: string, details?: array<string, mixed>}|null $notice
  */
 
@@ -23,9 +23,25 @@ $escHtml = static function (string $val): string {
         ? (string) esc_html($val)
         : htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
 };
+
+$hasAdminKey = !empty($config['api_key']);
+$hasSearchKey = !empty($config['search_key']);
+$lastReport = isset($config['last_sync_report']) && is_array($config['last_sync_report'])
+    ? $config['last_sync_report']
+    : [];
+$currentGate = (string) ($config['simple_category_gate'] ?? 'hard');
 ?>
 <div class="wrap">
     <h1><?php echo $escHtml('EIDOS — Семантический поиск и рекомендации для WooCommerce'); ?></h1>
+
+    <?php if ($hasAdminKey && !$hasSearchKey) : ?>
+        <div class="notice notice-warning">
+            <p>
+                <strong><?php echo $escHtml('Рекомендация безопасности:'); ?></strong>
+                <?php echo $escHtml('Задан только ADMIN_KEY без отдельного ключа чтения SEARCH_KEY. Для production-витрины рекомендуется указать отдельный SEARCH_KEY (права только на /v1/search, /v1/recommend, /v1/feedback).'); ?>
+            </p>
+        </div>
+    <?php endif; ?>
 
     <?php if (!empty($notice) && is_array($notice)) : ?>
         <?php
@@ -74,7 +90,7 @@ $escHtml = static function (string $val): string {
 
                 <tr>
                     <th scope="row">
-                        <label for="eidos_wc_api_key"><?php echo $escHtml('API-ключ EIDOS (X-API-Key)'); ?></label>
+                        <label for="eidos_wc_api_key"><?php echo $escHtml('EIDOS ADMIN_KEY (Выгрузка / Sync)'); ?></label>
                     </th>
                     <td>
                         <input
@@ -86,7 +102,26 @@ $escHtml = static function (string $val): string {
                             autocomplete="off"
                         />
                         <p class="description">
-                            <?php echo $escHtml('Секретный ключ для авторизации запросов к /v1/catalog/upsert, /v1/search и /v1/feedback.'); ?>
+                            <?php echo $escHtml('Административный ключ для пакетной синхронизации каталога (POST /v1/catalog/upsert). Хранится только на сервере (autoload=no).'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="eidos_wc_search_key"><?php echo $escHtml('EIDOS SEARCH_KEY (Витрина / Поиск)'); ?></label>
+                    </th>
+                    <td>
+                        <input
+                            name="eidos_wc_search_key"
+                            type="password"
+                            id="eidos_wc_search_key"
+                            value="<?php echo $escAttr((string) ($config['search_key'] ?? '')); ?>"
+                            class="regular-text"
+                            autocomplete="off"
+                        />
+                        <p class="description">
+                            <?php echo $escHtml('Ключ только для чтения (/v1/search, /v1/recommend, /v1/feedback). Если не заполнен, используется ADMIN_KEY.'); ?>
                         </p>
                     </td>
                 </tr>
@@ -105,7 +140,7 @@ $escHtml = static function (string $val): string {
                             placeholder="ck_..."
                         />
                         <p class="description">
-                            <?php echo $escHtml('Ключ REST API WooCommerce (/wp-json/wc/v3/products) для выгрузки товаров и вариаций.'); ?>
+                            <?php echo $escHtml('Ключ REST API WooCommerce (/wp-json/wc/v3/products) для выгрузки товаров и вариаций (опционально при локальном запуске).'); ?>
                         </p>
                     </td>
                 </tr>
@@ -138,8 +173,64 @@ $escHtml = static function (string $val): string {
                                 value="1"
                                 <?php echo !empty($config['replace_search']) ? 'checked="checked"' : ''; ?>
                             />
-                            <?php echo $escHtml('Заменять стандартный поиск на гибридный поиск EIDOS (с автоматическим fallback)'); ?>
+                            <?php echo $escHtml('Заменять стандартный поиск на гибридный поиск EIDOS (с автоматическим fallback при недоступности)'); ?>
                         </label>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="eidos_wc_simple_category_gate"><?php echo $escHtml('Фильтр целевой категории (simpleCategoryGate)'); ?></label>
+                    </th>
+                    <td>
+                        <select name="eidos_wc_simple_category_gate" id="eidos_wc_simple_category_gate">
+                            <option value="hard" <?php echo $currentGate === 'hard' ? 'selected="selected"' : ''; ?>>
+                                <?php echo $escHtml('hard (По умолчанию — строгий приоритет категории товара)'); ?>
+                            </option>
+                            <option value="soft" <?php echo $currentGate === 'soft' ? 'selected="selected"' : ''; ?>>
+                                <?php echo $escHtml('soft (Мягкое понижение нерелевантных категорий)'); ?>
+                            </option>
+                            <option value="off" <?php echo $currentGate === 'off' ? 'selected="selected"' : ''; ?>>
+                                <?php echo $escHtml('off (Отключено — чистый RRF ранг)'); ?>
+                            </option>
+                        </select>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="eidos_wc_search_timeout"><?php echo $escHtml('Таймаут поиска (сек)'); ?></label>
+                    </th>
+                    <td>
+                        <input
+                            name="eidos_wc_search_timeout"
+                            type="number"
+                            step="0.1"
+                            min="0.5"
+                            max="10.0"
+                            id="eidos_wc_search_timeout"
+                            value="<?php echo $escAttr((string) ($config['search_timeout'] ?? 2.0)); ?>"
+                            class="small-text"
+                        />
+                        <span class="description"><?php echo $escHtml('Рекомендуется 2.0–2.5 сек для мгновенного fallback.'); ?></span>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="eidos_wc_batch_size"><?php echo $escHtml('Размер батча выгрузки (Batch Size)'); ?></label>
+                    </th>
+                    <td>
+                        <input
+                            name="eidos_wc_batch_size"
+                            type="number"
+                            min="10"
+                            max="500"
+                            id="eidos_wc_batch_size"
+                            value="<?php echo $escAttr((string) ($config['batch_size'] ?? 100)); ?>"
+                            class="small-text"
+                        />
+                        <span class="description"><?php echo $escHtml('По умолчанию 100 товаров за один запрос /v1/catalog/upsert.'); ?></span>
                     </td>
                 </tr>
 
@@ -153,6 +244,18 @@ $escHtml = static function (string $val): string {
                                 : $escHtml('Ещё не выполнялась');
                             ?>
                         </code>
+                        <?php if (!empty($lastReport)) : ?>
+                            <p class="description">
+                                <?php
+                                echo $escHtml(sprintf(
+                                    'Выгружено: %d | Пропущено (черновики): %d | Ошибок: %d',
+                                    (int) ($lastReport['synced'] ?? 0),
+                                    (int) ($lastReport['skipped'] ?? 0),
+                                    (int) ($lastReport['failed'] ?? 0)
+                                ));
+                                ?>
+                            </p>
+                        <?php endif; ?>
                     </td>
                 </tr>
             </tbody>

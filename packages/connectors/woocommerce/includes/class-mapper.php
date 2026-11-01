@@ -1,7 +1,7 @@
 <?php
 /**
  * Field Mapper transforming WC_Product objects and WooCommerce REST API payloads
- * into canonical EIDOS Connector v1.0 schema.
+ * into canonical EIDOS Connector v1.0 schema (with Bitrix parity).
  *
  * @package Eidos\Connectors\WooCommerce
  */
@@ -17,54 +17,83 @@ use InvalidArgumentException;
  *
  * Technical: Implements mapFields() for both native WC_Product / WC_Product_Variation
  * instances and associative arrays returned by /wp-json/wc/v3/products and /variations.
+ * Provides safe UTF-8 string operations with fallback when ext-mbstring is not installed.
  */
 class Mapper
 {
+    public const MAX_TITLE_LENGTH = 500;
     public const MAX_DESCRIPTION_LENGTH = 5000;
+    public const MAX_CATEGORY_LENGTH = 100;
 
     /**
-     * 6. Бизнес-логика: преобразование товара WooCommerce (объекта WC_Product или массива из REST API)
-     * в канонический формат EIDOS Connector v1.0.
+     * Checks whether a WooCommerce product or variation has 'publish' status.
+     * Draft, private, pending, and trash items must not be indexed into storefront search.
      *
-     * Для объектов WC_Product использует штатные функции WordPress/WooCommerce:
-     * - $product->get_id(), $product->get_name(), wp_strip_all_tags($product->get_description())
-     * - wp_get_post_terms($product->get_id(), 'product_cat', ['fields' => 'names'])
-     * - (float)$product->get_price(), $product->is_in_stock()
-     * - wp_get_post_terms($product->get_id(), 'product_tag', ['fields' => 'names'])
-     * - get_permalink($product->get_id()), wp_get_attachment_url($product->get_image_id())
+     * @param mixed $product WC_Product instance or REST API array
+     */
+    public function isPublishedProduct($product): bool
+    {
+        if (is_object($product) && method_exists($product, 'get_status')) {
+            $status = strtolower(trim((string) $product->get_status()));
+            return $status === '' || $status === 'publish';
+        }
+
+        if (is_array($product) && isset($product['status'])) {
+            $status = strtolower(trim((string) $product['status']));
+            return $status === '' || $status === 'publish';
+        }
+
+        return true;
+    }
+
+    /**
+     * Transforms a WooCommerce product (WC_Product object or REST API array)
+     * into the canonical EIDOS Connector v1.0 item schema.
+     *
+     * Contract:
+     * - id = (string) product_id or variation_id (consistent with WordPress post__in hydration)
+     * - sku = product SKU (if present)
+     * - category = primary product_cat name (additional categories are appended to tags)
+     * - empty title falls back to "Product #{id}" unless strictEmptyTitle is enabled
+     * - negative price is clamped to 0.0 (or throws if rejectNegativePrice is enabled)
      *
      * @param mixed                     $product       WC_Product instance or REST API product/variation array
      * @param array<string, mixed>|null $parentContext Optional parent product data when mapping a variation
-     * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
+     * @param array<string, mixed>      $options       Optional flags: strictEmptyTitle, rejectNegativePrice, enforcePublishStatus
+     * @return array{id: string, sku?: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
      */
-    public function mapFields($product, ?array $parentContext = null): array
+    public function mapFields($product, ?array $parentContext = null, array $options = []): array
     {
+        if (!empty($options['enforcePublishStatus']) && !$this->isPublishedProduct($product)) {
+            throw new InvalidArgumentException('Non-published WooCommerce product cannot be synced.');
+        }
+
         if (is_object($product) && method_exists($product, 'get_id')) {
-            return $this->mapFromWcProductObject($product, $parentContext);
+            return $this->mapFromWcProductObject($product, $parentContext, $options);
         }
 
         if (is_array($product)) {
-            return $this->mapFromRestArray($product, $parentContext);
+            return $this->mapFromRestArray($product, $parentContext, $options);
         }
 
         throw new InvalidArgumentException('Product must be a WC_Product instance or WooCommerce REST API array.');
     }
 
     /**
-     * Преобразование из нативного объекта WC_Product / WC_Product_Variation.
+     * Maps a native WC_Product / WC_Product_Variation instance.
      *
      * @param object                    $product
      * @param array<string, mixed>|null $parentContext
-     * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
+     * @param array<string, mixed>      $options
+     * @return array{id: string, sku?: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
      */
-    private function mapFromWcProductObject(object $product, ?array $parentContext = null): array
+    private function mapFromWcProductObject(object $product, ?array $parentContext = null, array $options = []): array
     {
         $productId = (int) $product->get_id();
         if ($productId <= 0) {
             throw new InvalidArgumentException('WC_Product ID must be a positive integer.');
         }
 
-        // Если это вариация (WC_Product_Variation), наследуем категории/теги от родительского товара
         $parentId = method_exists($product, 'get_parent_id') ? (int) $product->get_parent_id() : 0;
         $termTargetId = $parentId > 0 ? $parentId : $productId;
 
@@ -72,10 +101,16 @@ class Mapper
         if ($rawTitle === '' && $parentContext !== null && !empty($parentContext['title'])) {
             $rawTitle = (string) $parentContext['title'];
         }
-        $title = $this->cleanText($rawTitle);
+        $title = $this->cleanPlainText($rawTitle, self::MAX_TITLE_LENGTH);
         if ($title === '') {
-            throw new InvalidArgumentException(sprintf('Product %d title must not be empty.', $productId));
+            if (!empty($options['strictEmptyTitle'])) {
+                throw new InvalidArgumentException(sprintf('Product %d title must not be empty.', $productId));
+            }
+            $title = sprintf('Product #%d', $productId);
         }
+
+        $rawSku = method_exists($product, 'get_sku') ? trim((string) $product->get_sku()) : '';
+        $sku = $rawSku !== '' ? $this->cleanPlainText($rawSku, 100) : '';
 
         $rawDescription = method_exists($product, 'get_description') ? (string) $product->get_description() : '';
         if ($rawDescription === '' && method_exists($product, 'get_short_description')) {
@@ -90,32 +125,39 @@ class Mapper
             : strip_tags($rawDescription);
         $description = $this->cleanDescription($strippedDesc);
 
-        // Категории через wp_get_post_terms($id, 'product_cat', ['fields' => 'names'])
         $categoryNames = [];
         if (function_exists('wp_get_post_terms')) {
             $terms = wp_get_post_terms($termTargetId, 'product_cat', ['fields' => 'names']);
             if (is_array($terms)) {
                 foreach ($terms as $termName) {
                     if (is_string($termName) && trim($termName) !== '') {
-                        $categoryNames[] = $this->cleanText($termName);
+                        $categoryNames[] = $this->cleanPlainText($termName, self::MAX_CATEGORY_LENGTH);
                     }
                 }
             }
         }
+        $categoryNames = array_values(array_unique(array_filter($categoryNames, static fn(string $c): bool => $c !== '')));
         $category = !empty($categoryNames)
-            ? implode(', ', $categoryNames)
-            : ($parentContext['category'] ?? 'Uncategorized');
+            ? $categoryNames[0]
+            : (string) ($parentContext['category'] ?? 'Uncategorized');
 
-        // Цена и наличие
         $rawPrice = method_exists($product, 'get_price') ? $product->get_price() : 0;
-        $price = max(0.0, round((float) $rawPrice, 2));
+        $numericPrice = is_numeric($rawPrice) ? (float) $rawPrice : 0.0;
+        if ($numericPrice < 0.0 && !empty($options['rejectNegativePrice'])) {
+            throw new InvalidArgumentException(sprintf('Product %d has negative price: %s', $productId, (string) $rawPrice));
+        }
+        $price = max(0.0, round($numericPrice, 2));
 
         $inStock = method_exists($product, 'is_in_stock')
             ? (bool) $product->is_in_stock()
             : true;
 
-        // Теги через wp_get_post_terms($id, 'product_tag', ['fields' => 'names'])
         $tags = [];
+        if (count($categoryNames) > 1) {
+            foreach (array_slice($categoryNames, 1) as $extraCat) {
+                $tags[] = $extraCat;
+            }
+        }
         if (function_exists('wp_get_post_terms')) {
             $rawTags = wp_get_post_terms($termTargetId, 'product_tag', ['fields' => 'names']);
             if (is_array($rawTags)) {
@@ -130,7 +172,6 @@ class Mapper
             $tags = $parentContext['tags'];
         }
 
-        // Для вариаций добавляем значения атрибутов (размер, цвет и т.д.) в теги для улучшения семантического поиска
         if (method_exists($product, 'get_variation_attributes')) {
             $varAttrs = $product->get_variation_attributes();
             if (is_array($varAttrs)) {
@@ -141,9 +182,11 @@ class Mapper
                 }
             }
         }
+        if ($sku !== '') {
+            $tags[] = '__eidos_sku:' . $sku;
+        }
         $tags = array_values(array_unique(array_filter($tags, static fn(string $t): bool => $t !== '')));
 
-        // Постоянная ссылка и изображение
         $url = '';
         if (function_exists('get_permalink')) {
             $permalink = get_permalink($productId);
@@ -167,7 +210,7 @@ class Mapper
             $imageUrl = (string) $parentContext['imageUrl'];
         }
 
-        return [
+        $mapped = [
             'id' => (string) $productId,
             'title' => $title,
             'description' => $description,
@@ -178,24 +221,29 @@ class Mapper
             'url' => $url,
             'imageUrl' => $imageUrl,
         ];
+        if ($sku !== '') {
+            $mapped['sku'] = $sku;
+        }
+
+        return $mapped;
     }
 
     /**
-     * Преобразование из массива ответа WooCommerce REST API (/wp-json/wc/v3/products и /variations).
+     * Maps a WooCommerce REST API (/wp-json/wc/v3/products or /variations) array.
      *
      * @param array<string, mixed>      $item
      * @param array<string, mixed>|null $parentContext
-     * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
+     * @param array<string, mixed>      $options
+     * @return array{id: string, sku?: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl: ?string}
      */
-    private function mapFromRestArray(array $item, ?array $parentContext = null): array
+    private function mapFromRestArray(array $item, ?array $parentContext = null, array $options = []): array
     {
-        $rawId = $item['id'] ?? '';
+        $rawId = $item['id'] ?? $item['product_id'] ?? $item['variation_id'] ?? '';
         $id = trim((string) $rawId);
         if ($id === '' || $id === '0') {
             throw new InvalidArgumentException('WooCommerce REST item id must not be empty.');
         }
 
-        // Формирование названия (для вариаций комбинируем имя родителя и атрибуты вариации, если name не задан)
         $rawName = (string) ($item['name'] ?? $item['title'] ?? '');
         $attrSummary = $this->extractRestAttributesSummary($item['attributes'] ?? []);
         if ($rawName === '' && $parentContext !== null && !empty($parentContext['title'])) {
@@ -207,10 +255,16 @@ class Mapper
             $rawName = $rawName . ' (' . $attrSummary . ')';
         }
 
-        $title = $this->cleanText($rawName);
+        $title = $this->cleanPlainText($rawName, self::MAX_TITLE_LENGTH);
         if ($title === '') {
-            throw new InvalidArgumentException(sprintf('Product %s title must not be empty.', $id));
+            if (!empty($options['strictEmptyTitle'])) {
+                throw new InvalidArgumentException(sprintf('Product %s title must not be empty.', $id));
+            }
+            $title = sprintf('Product #%s', $id);
         }
+
+        $rawSku = isset($item['sku']) ? trim((string) $item['sku']) : '';
+        $sku = $rawSku !== '' ? $this->cleanPlainText($rawSku, 100) : '';
 
         $rawDesc = (string) ($item['description'] ?? '');
         if ($rawDesc === '' && !empty($item['short_description'])) {
@@ -225,29 +279,32 @@ class Mapper
             : strip_tags($rawDesc);
         $description = $this->cleanDescription($strippedDesc);
 
-        // Категории из массива categories: [['id' => 1, 'name' => 'Shoes'], ...]
         $catNames = [];
         if (!empty($item['categories']) && is_array($item['categories'])) {
             foreach ($item['categories'] as $cat) {
                 if (is_array($cat) && !empty($cat['name'])) {
-                    $catNames[] = $this->cleanText((string) $cat['name']);
+                    $catNames[] = $this->cleanPlainText((string) $cat['name'], self::MAX_CATEGORY_LENGTH);
                 } elseif (is_string($cat) && trim($cat) !== '') {
-                    $catNames[] = $this->cleanText($cat);
+                    $catNames[] = $this->cleanPlainText($cat, self::MAX_CATEGORY_LENGTH);
                 }
             }
         }
+        $catNames = array_values(array_unique(array_filter($catNames, static fn(string $c): bool => $c !== '')));
+        // Primary category is the first product_cat; extra categories are preserved in tags
         $category = !empty($catNames)
-            ? implode(', ', array_unique($catNames))
+            ? $catNames[0]
             : (string) ($item['category'] ?? ($parentContext['category'] ?? 'Uncategorized'));
 
-        // Цена (price -> regular_price -> sale_price)
         $rawPrice = $item['price'] ?? ($item['regular_price'] ?? ($item['sale_price'] ?? 0));
         if ($rawPrice === '' && $parentContext !== null && isset($parentContext['price'])) {
             $rawPrice = $parentContext['price'];
         }
-        $price = is_numeric($rawPrice) ? max(0.0, round((float) $rawPrice, 2)) : 0.0;
+        $numericPrice = is_numeric($rawPrice) ? (float) $rawPrice : 0.0;
+        if ($numericPrice < 0.0 && !empty($options['rejectNegativePrice'])) {
+            throw new InvalidArgumentException(sprintf('Product %s has negative price: %s', $id, (string) $rawPrice));
+        }
+        $price = max(0.0, round($numericPrice, 2));
 
-        // Статус наличия: stock_status === 'instock' или булево in_stock / inStock
         if (isset($item['stock_status'])) {
             $inStock = strtolower((string) $item['stock_status']) === 'instock';
         } elseif (isset($item['in_stock'])) {
@@ -258,8 +315,12 @@ class Mapper
             $inStock = true;
         }
 
-        // Теги из массива tags: [['id' => 1, 'name' => 'New'], ...] + атрибуты вариации
         $tags = [];
+        if (count($catNames) > 1) {
+            foreach (array_slice($catNames, 1) as $extraCat) {
+                $tags[] = $extraCat;
+            }
+        }
         if (!empty($item['tags']) && is_array($item['tags'])) {
             foreach ($item['tags'] as $tag) {
                 if (is_array($tag) && !empty($tag['name'])) {
@@ -279,12 +340,13 @@ class Mapper
                 }
             }
         }
+        if ($sku !== '') {
+            $tags[] = '__eidos_sku:' . $sku;
+        }
         $tags = array_values(array_unique(array_filter($tags, static fn(string $t): bool => $t !== '')));
 
-        // URL карточки товара
         $url = (string) ($item['permalink'] ?? $item['url'] ?? ($parentContext['url'] ?? ''));
 
-        // Изображение (image.src для вариации или images[0].src для родительского товара)
         $imageUrl = null;
         if (!empty($item['image']) && is_array($item['image']) && !empty($item['image']['src'])) {
             $imageUrl = (string) $item['image']['src'];
@@ -296,7 +358,7 @@ class Mapper
             $imageUrl = (string) $parentContext['imageUrl'];
         }
 
-        return [
+        $mapped = [
             'id' => $id,
             'title' => $title,
             'description' => $description,
@@ -307,32 +369,81 @@ class Mapper
             'url' => $url,
             'imageUrl' => $imageUrl,
         ];
+        if ($sku !== '') {
+            $mapped['sku'] = $sku;
+        }
+
+        return $mapped;
     }
 
     /**
-     * Формирует тело элемента для батч-запроса POST /v1/catalog/upsert.
+     * Builds the item payload for batch `POST /v1/catalog/upsert`.
      *
-     * @param array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string} $mapped
+     * @param array{id: string, sku?: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string} $mapped
      * @return array<string, mixed>
      */
     public function toUpsertPayload(array $mapped): array
     {
         $payload = [
-            'id' => $mapped['id'],
+            'id' => (string) $mapped['id'],
             'title' => $mapped['title'],
             'description' => $mapped['description'],
             'category' => $mapped['category'] !== '' ? $mapped['category'] : 'General',
             'price' => $mapped['price'],
             'inStock' => $mapped['inStock'],
-            'tags' => $mapped['tags'],
+            'tags' => array_slice(array_values($mapped['tags']), 0, 20),
             'url' => $mapped['url'],
         ];
+
+        if (!empty($mapped['sku'])) {
+            $payload['sku'] = (string) $mapped['sku'];
+        }
 
         if (!empty($mapped['imageUrl'])) {
             $payload['imageUrl'] = $mapped['imageUrl'];
         }
 
         return $payload;
+    }
+
+    /**
+     * Cleans HTML and truncates text to max length using UTF-8 safe helpers.
+     */
+    public function cleanPlainText(string $raw, int $maxLength = 500): string
+    {
+        $clean = $this->cleanText($raw);
+        if ($clean === '') {
+            return '';
+        }
+        return self::safeSubstr($clean, 0, $maxLength);
+    }
+
+    /**
+     * UTF-8 safe string length helper with fallback when ext-mbstring is not installed.
+     */
+    public static function safeStrlen(string $str): int
+    {
+        if (function_exists('mb_strlen')) {
+            return (int) mb_strlen($str, 'UTF-8');
+        }
+        if (preg_match_all('/./us', $str, $matches) !== false) {
+            return count($matches[0]);
+        }
+        return strlen($str);
+    }
+
+    /**
+     * UTF-8 safe substring helper with fallback when ext-mbstring is not installed.
+     */
+    public static function safeSubstr(string $str, int $start, int $length): string
+    {
+        if (function_exists('mb_substr')) {
+            return (string) mb_substr($str, $start, $length, 'UTF-8');
+        }
+        if (preg_match_all('/./us', $str, $matches) !== false) {
+            return implode('', array_slice($matches[0], $start, $length));
+        }
+        return substr($str, $start, $length);
     }
 
     /**
@@ -355,8 +466,8 @@ class Mapper
     private function cleanDescription(string $raw): string
     {
         $clean = $this->cleanText($raw);
-        if (mb_strlen($clean, 'UTF-8') > self::MAX_DESCRIPTION_LENGTH) {
-            return mb_substr($clean, 0, self::MAX_DESCRIPTION_LENGTH, 'UTF-8');
+        if (self::safeStrlen($clean) > self::MAX_DESCRIPTION_LENGTH) {
+            return self::safeSubstr($clean, 0, self::MAX_DESCRIPTION_LENGTH);
         }
         return $clean;
     }
