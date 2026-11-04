@@ -30,6 +30,36 @@ export function App() {
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isDbConnectorOpen, setIsDbConnectorOpen] = useState(false);
 
+  const navigateView = (nextView: ViewId) => {
+    setView(nextView);
+    if (typeof window !== 'undefined' && window.history?.pushState) {
+      const targetPath =
+        nextView === 'admin'
+          ? '/admin'
+          : nextView === 'public-demo'
+          ? '/public-demo'
+          : nextView === 'onboarding'
+          ? '/onboarding'
+          : '/';
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({}, '', targetPath);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPopState = () => {
+      const path = window.location?.pathname || '';
+      if (path.startsWith('/public-demo')) setView('public-demo');
+      else if (path.startsWith('/admin')) setView('admin');
+      else if (path.startsWith('/onboarding')) setView('onboarding');
+      else setView('search');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   const {
     uiLang,
     setUiLang,
@@ -69,15 +99,15 @@ export function App() {
       showToast,
     });
 
-  if (view === 'public-demo') {
+  if (view === 'admin' || view === 'public-demo') {
     return (
-      <div className="min-h-screen bg-[#0a0c10] text-slate-100 p-4 md:p-6">
-        <EidosAdminConsole
-          mode="public-demo"
-          uiLang={uiLang === 'en' ? 'en' : 'ru'}
-          onSwitchMode={(m) => setView(m === 'admin' ? 'admin' : 'public-demo')}
-        />
-      </div>
+      <EidosAdminConsole
+        key={view}
+        mode={view === 'public-demo' ? 'public-demo' : 'admin'}
+        uiLang={uiLang === 'en' ? 'en' : 'ru'}
+        onSwitchMode={(m) => navigateView(m === 'admin' ? 'admin' : 'public-demo')}
+        onReturnToStudio={() => navigateView('search')}
+      />
     );
   }
 
@@ -85,7 +115,7 @@ export function App() {
     <div className="app-shell">
       <Sidebar
         active={view}
-        onSelect={setView}
+        onSelect={navigateView}
         onOpenApiModal={() => setIsApiModalOpen(true)}
         uiLang={uiLang}
       />
@@ -103,11 +133,12 @@ export function App() {
           onRestoreCatalog={handleRestoreCuratedCatalog}
           onOpenCsvModal={() => setIsCsvModalOpen(true)}
           onOpenApiModal={() => setIsApiModalOpen(true)}
+          onOpenAdminConsole={() => navigateView('admin')}
         />
 
         <StudioViewRouter
           view={view}
-          onNavigate={setView}
+          onNavigate={navigateView}
           catalog={catalog}
           embeddings={embeddings}
           selectedItem={selectedItem}

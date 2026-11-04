@@ -6,6 +6,7 @@ import { buildServer } from '../../apps/api/src/server';
 import { getAdminConsoleStore } from '../../apps/api/src/services/admin-console-store';
 import { getApiKeyManager } from '../../apps/api/src/services/api-key-manager';
 import { EidosAdminConsole } from '../../apps/workspace/src/pages/AdminConsolePage/EidosAdminConsole';
+import { App } from '../../apps/workspace/src/App';
 
 describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
   let app: FastifyInstance;
@@ -260,6 +261,18 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     });
     expect(forbiddenAdminDict.statusCode).toBe(403);
 
+    const unauthQueries = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/queries',
+    });
+    expect(unauthQueries.statusCode).toBe(401);
+
+    const unauthAnalytics = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/analytics/summary',
+    });
+    expect(unauthAnalytics.statusCode).toBe(401);
+
     // Public Demo isolated endpoint works cleanly in read-only mode
     const demoLoadRes = await app.inject({
       method: 'POST',
@@ -277,7 +290,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(demoSearchRes.json().results.length).toBeGreaterThan(0);
   });
 
-  it('7. Renders EidosAdminConsole in both "admin" and "public-demo" surface modes with exact RU copy', () => {
+  it('7. Renders EidosAdminConsole in both "admin" and "public-demo" surface modes with exact RU copy and recent empty queries block', () => {
     const adminHtml = renderToStaticMarkup(<EidosAdminConsole mode="admin" uiLang="ru" />);
     expect(adminHtml).toContain('data-testid="eidos-admin-console"');
     expect(adminHtml).toContain('Журнал запросов');
@@ -286,6 +299,8 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(adminHtml).toContain('Настройки ранжирования');
     expect(adminHtml).toContain('Проверка системы');
     expect(adminHtml).toContain('Доля пустых выдач');
+    expect(adminHtml).toContain('data-testid="dashboard-recent-empty-queries"');
+    expect(adminHtml).toContain('data-testid="dashboard-seed-pilot-btn"');
 
     const publicDemoHtml = renderToStaticMarkup(
       <EidosAdminConsole mode="public-demo" uiLang="ru" />
@@ -298,5 +313,31 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-dictionaries"');
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-api-keys"');
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-system"');
+  });
+
+  it('8. App routing (/admin and /public-demo) mounts standalone EidosAdminConsole WITHOUT Studio Sidebar', () => {
+    const prevWindow = (globalThis as any).window;
+    try {
+      (globalThis as any).window = {
+        location: { pathname: '/admin', search: '' },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      };
+      const adminRouteHtml = renderToStaticMarkup(<App />);
+      expect(adminRouteHtml).toContain('data-testid="eidos-admin-console"');
+      expect(adminRouteHtml).not.toContain('data-testid="studio-sidebar"');
+
+      (globalThis as any).window = {
+        location: { pathname: '/public-demo', search: '' },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      };
+      const demoRouteHtml = renderToStaticMarkup(<App />);
+      expect(demoRouteHtml).toContain('data-testid="eidos-admin-console"');
+      expect(demoRouteHtml).toContain('data-testid="public-demo-banner"');
+      expect(demoRouteHtml).not.toContain('data-testid="studio-sidebar"');
+    } finally {
+      (globalThis as any).window = prevWindow;
+    }
   });
 });

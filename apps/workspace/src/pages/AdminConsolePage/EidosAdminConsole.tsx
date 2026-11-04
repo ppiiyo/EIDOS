@@ -41,6 +41,8 @@ const TAB_ORDER: AdminTabId[] = [
   'docs',
 ];
 
+const PUBLIC_DEMO_TABS: AdminTabId[] = ['live-search', 'dashboard', 'docs'];
+
 export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   mode,
   initialMode = 'admin',
@@ -51,14 +53,27 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
 }) => {
   const [surfaceMode, setSurfaceMode] = useState<'admin' | 'public-demo'>(mode || initialMode);
   const [lang, setLang] = useState<'ru' | 'en'>(uiLang || initialLang);
-  const [activeTab, setActiveTab] = useState<AdminTabId>('dashboard');
-  const [apiKey, setApiKey] = useState<string>('eidos_dev_key');
+  const [activeTab, setActiveTab] = useState<AdminTabId>(
+    (mode || initialMode) === 'public-demo' ? 'live-search' : 'dashboard'
+  );
+  const [apiKey, setApiKey] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('eidos_admin_key') || 'eidos_dev_key';
+    } catch {
+      return 'eidos_dev_key';
+    }
+  });
+  const [authWarning, setAuthWarning] = useState<string | null>(null);
   const [liveQuerySeed, setLiveQuerySeed] = useState<string>('недорогие наушники для бега');
   const [synonymPrefill, setSynonymPrefill] = useState<string>('');
   const [period, setPeriod] = useState<'24h' | '7d' | '30d'>('7d');
 
   const [readyPayload, setReadyPayload] = useState<any>({ ready: true, components: {} });
-  const [catalogSummary, setCatalogSummary] = useState<any>({ itemsIndexed: 0, hnswIndexed: 0, categories: {} });
+  const [catalogSummary, setCatalogSummary] = useState<any>({
+    itemsIndexed: 0,
+    hnswIndexed: 0,
+    categories: {},
+  });
   const [lastSnapshotAt, setLastSnapshotAt] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AdminAnalyticsSummary | null>(null);
   const [queryLogs, setQueryLogs] = useState<QueryLogItem[]>([]);
@@ -81,12 +96,28 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   const c = ADMIN_COPY[lang];
   const isPublicDemo = surfaceMode === 'public-demo';
 
+  const switchSurface = (target: 'admin' | 'public-demo') => {
+    setSurfaceMode(target);
+    if (target === 'public-demo' && !PUBLIC_DEMO_TABS.includes(activeTab)) {
+      setActiveTab('live-search');
+    }
+    onSwitchMode?.(target);
+  };
+
   const fetchAdminData = useCallback(async () => {
     try {
-      const rRes = await fetch('/v1/ready');
+      const [rRes, publicStatsRes] = await Promise.all([
+        fetch('/v1/ready'),
+        fetch('/v1/catalog/stats'),
+      ]);
       if (rRes.ok) {
         setReadyPayload(await rRes.json());
       }
+      let fallbackStats: any = null;
+      if (publicStatsRes.ok) {
+        fallbackStats = await publicStatsRes.json();
+      }
+
       if (isPublicDemo) {
         await fetch('/v1/demo/load', {
           method: 'POST',
@@ -94,14 +125,12 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
           body: JSON.stringify({ scale: '48' }),
         });
         const stRes = await fetch('/v1/catalog/stats');
-        if (stRes.ok) {
-          const st = await stRes.json();
-          setCatalogSummary({
-            itemsIndexed: st.itemsIndexed ?? 48,
-            hnswIndexed: st.hnswIndexed ?? 48,
-            categories: st.categories || {},
-          });
-        }
+        const st = stRes.ok ? await stRes.json() : fallbackStats;
+        setCatalogSummary({
+          itemsIndexed: st?.itemsIndexed ?? 48,
+          hnswIndexed: st?.hnswIndexed ?? 48,
+          categories: st?.categories || {},
+        });
         return;
       }
 
@@ -109,14 +138,39 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
       const [catRes, sumRes, logRes, dictRes, rankRes, keysRes, statsRes] = await Promise.all([
         fetch('/v1/admin/catalog/summary', { headers }),
         fetch(`/v1/admin/analytics/summary?period=${period}`, { headers }),
-        fetch('/v1/admin/queries?limit=50', { headers }),
+        fetch(`/v1/admin/queries?limit=100&period=${period}`, { headers }),
         fetch('/v1/admin/dictionaries', { headers }),
         fetch('/v1/admin/ranking-defaults', { headers }),
         fetch('/v1/admin/keys', { headers }),
         fetch('/v1/admin/stats', { headers }),
       ]);
 
-      if (catRes.ok) setCatalogSummary(await catRes.json());
+      if (catRes.status === 401 || catRes.status === 403) {
+        setAuthWarning(
+          lang === 'ru'
+            ? 'Указанный ADMIN_KEY не прошёл проверку для /v1/admin/*. Укажите действительный административный ключ в верхнем поле.'
+            : 'ADMIN_KEY rejected (401/403) for /v1/admin/*. Enter a valid Admin Key in the top bar.'
+        );
+        if (fallbackStats) {
+          setCatalogSummary({
+            itemsIndexed: fallbackStats.itemsIndexed ?? 0,
+            hnswIndexed: fallbackStats.hnswIndexed ?? 0,
+            categories: fallbackStats.categories || {},
+          });
+        }
+        return;
+      }
+
+      setAuthWarning(null);
+      if (catRes.ok) {
+        setCatalogSummary(await catRes.json());
+      } else if (fallbackStats) {
+        setCatalogSummary({
+          itemsIndexed: fallbackStats.itemsIndexed ?? 0,
+          hnswIndexed: fallbackStats.hnswIndexed ?? 0,
+          categories: fallbackStats.categories || {},
+        });
+      }
       if (sumRes.ok) setAnalytics(await sumRes.json());
       if (logRes.ok) {
         const lData = await logRes.json();
@@ -135,18 +189,38 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
     } catch {
       // Non-blocking background refresh
     }
-  }, [apiKey, isPublicDemo, period]);
+  }, [apiKey, isPublicDemo, period, lang]);
 
   useEffect(() => {
     void fetchAdminData();
   }, [fetchAdminData]);
 
-  const handleRefreshLogs = async (filters: { q: string; emptyOnly: boolean }) => {
+  const handleSeedPilotCatalog = async () => {
+    try {
+      await fetch('/v1/demo/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scale: '48' }),
+      });
+      await fetchAdminData();
+    } catch {
+      // Ignore network errors
+    }
+  };
+
+  const handleRefreshLogs = async (filters: {
+    q: string;
+    emptyOnly: boolean;
+    gatedOnly?: boolean;
+    period?: '24h' | '7d' | '30d';
+  }) => {
     try {
       const qs = new URLSearchParams({
         q: filters.q,
         emptyOnly: String(filters.emptyOnly),
-        limit: '50',
+        gatedOnly: String(Boolean(filters.gatedOnly)),
+        period: filters.period || period,
+        limit: '100',
       });
       const res = await fetch(`/v1/admin/queries?${qs.toString()}`, {
         headers: { 'x-api-key': apiKey },
@@ -183,35 +257,62 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col" data-testid="eidos-admin-console">
+    <div
+      className="min-h-screen bg-slate-50 text-slate-900 flex flex-col"
+      data-testid="eidos-admin-console"
+    >
       {isPublicDemo && (
         <div
           className="bg-slate-900 text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2"
           data-testid="public-demo-banner"
         >
           <span>{c.demoBanner}</span>
-          <button
-            type="button"
-            onClick={() => setSurfaceMode('admin')}
-            className="underline font-medium text-emerald-300 hover:text-white"
-          >
-            {c.demoCta}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab('docs')}
+              className="underline font-medium text-emerald-300 hover:text-white"
+            >
+              {c.demoCta}
+            </button>
+            <button
+              type="button"
+              onClick={() => switchSurface('admin')}
+              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-200"
+            >
+              {lang === 'ru' ? 'Перейти в EIDOS Admin →' : 'Open EIDOS Admin →'}
+            </button>
+          </div>
         </div>
       )}
 
       <header className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <div>
-            <div className="text-base font-semibold text-slate-900 tracking-tight">
-              {isPublicDemo ? 'EIDOS Public Demo' : c.brandTitle}
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-slate-900 tracking-tight">
+                {isPublicDemo ? 'EIDOS Public Demo' : c.brandTitle}
+              </span>
+              <span className="px-1.5 py-0.5 text-[11px] font-mono bg-slate-100 border border-slate-200 rounded text-slate-700">
+                v3.4.0
+              </span>
             </div>
             <div className="text-xs text-slate-500">{c.brandSubtitle}</div>
           </div>
+
           <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 font-mono tabular-nums">
-            <span>SKU: {catalogSummary?.itemsIndexed ?? 0}</span>
-            <span>·</span>
-            <span>Ready: {readyPayload?.ready ? 'OK' : 'WARN'}</span>
+            <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800">
+              SKU: {catalogSummary?.itemsIndexed ?? 0}
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded font-semibold ${
+                readyPayload?.ready
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200'
+              }`}
+            >
+              Ready: {readyPayload?.ready ? 'OK' : 'WARN'}
+            </span>
           </div>
         </div>
 
@@ -220,7 +321,14 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             <input
               type="password"
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                try {
+                  sessionStorage.setItem('eidos_admin_key', e.target.value);
+                } catch {
+                  // Ignore sessionStorage errors
+                }
+              }}
               aria-label="Admin API Key"
               placeholder="ADMIN_KEY"
               className="w-36 px-2.5 py-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded text-slate-800"
@@ -231,7 +339,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             <button
               type="button"
               data-testid="switch-surface-admin"
-              onClick={() => setSurfaceMode('admin')}
+              onClick={() => switchSurface('admin')}
               className={`px-2.5 py-1 text-xs font-medium rounded ${
                 !isPublicDemo ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
               }`}
@@ -241,10 +349,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             <button
               type="button"
               data-testid="switch-surface-demo"
-              onClick={() => {
-                setSurfaceMode('public-demo');
-                setActiveTab('live-search');
-              }}
+              onClick={() => switchSurface('public-demo')}
               className={`px-2.5 py-1 text-xs font-medium rounded ${
                 isPublicDemo ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
               }`}
@@ -264,6 +369,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
           {onReturnToStudio && (
             <button
               type="button"
+              data-testid="admin-return-to-studio"
               onClick={onReturnToStudio}
               className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 underline"
             >
@@ -273,29 +379,33 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         </div>
       </header>
 
+      {authWarning && !isPublicDemo && (
+        <div className="bg-amber-50 border-b border-amber-200 px-5 py-2 text-xs text-amber-900">
+          {authWarning}
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col md:flex-row">
-        {!isPublicDemo && (
-          <aside className="w-full md:w-60 bg-white border-r border-slate-200 p-3 space-y-1 shrink-0">
-            {TAB_ORDER.map((tabId) => (
-              <button
-                key={tabId}
-                type="button"
-                data-testid={`admin-tab-${tabId}`}
-                onClick={() => setActiveTab(tabId)}
-                className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                  activeTab === tabId
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                {c.tabs[tabId]}
-              </button>
-            ))}
-          </aside>
-        )}
+        <aside className="w-full md:w-60 bg-white border-r border-slate-200 p-3 space-y-1 shrink-0">
+          {(isPublicDemo ? PUBLIC_DEMO_TABS : TAB_ORDER).map((tabId) => (
+            <button
+              key={tabId}
+              type="button"
+              data-testid={`admin-tab-${tabId}`}
+              onClick={() => setActiveTab(tabId)}
+              className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                activeTab === tabId
+                  ? 'bg-slate-900 text-white'
+                  : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              {c.tabs[tabId]}
+            </button>
+          ))}
+        </aside>
 
         <main className="flex-1 p-5 max-w-6xl">
-          {(isPublicDemo || activeTab === 'live-search') && (
+          {activeTab === 'live-search' && (
             <AdminLiveSearchTab
               lang={lang}
               apiKey={isPublicDemo ? '' : apiKey}
@@ -304,6 +414,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               defaultAlpha={rankingDefaults.defaultAlpha}
               defaultGate={rankingDefaults.simpleCategoryGate}
               onAddSynonymForQuery={(q) => {
+                if (isPublicDemo) return;
                 setSynonymPrefill(q);
                 setActiveTab('dictionaries');
               }}
@@ -313,7 +424,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             />
           )}
 
-          {!isPublicDemo && activeTab === 'dashboard' && (
+          {activeTab === 'dashboard' && (
             <AdminDashboardTab
               lang={lang}
               itemsIndexed={catalogSummary?.itemsIndexed ?? 0}
@@ -321,7 +432,19 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               readyStatus={Boolean(readyPayload?.ready)}
               lastSnapshotAt={lastSnapshotAt}
               analytics={analytics}
+              queryLogs={queryLogs}
+              isPublicDemo={isPublicDemo}
               onNavigateTab={setActiveTab}
+              onReplayQuery={(q) => {
+                setLiveQuerySeed(q);
+                setActiveTab('live-search');
+              }}
+              onAddSynonymForQuery={(q) => {
+                if (isPublicDemo) return;
+                setSynonymPrefill(q);
+                setActiveTab('dictionaries');
+              }}
+              onSeedPilotCatalog={handleSeedPilotCatalog}
             />
           )}
 
@@ -333,6 +456,10 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               onReplay={(q) => {
                 setLiveQuerySeed(q);
                 setActiveTab('live-search');
+              }}
+              onAddSynonym={(q) => {
+                setSynonymPrefill(q);
+                setActiveTab('dictionaries');
               }}
             />
           )}
@@ -377,6 +504,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               lang={lang}
               catalogSummary={catalogSummary}
               apiKeys={apiKeys}
+              onSeedPilotCatalog={handleSeedPilotCatalog}
               onCreateKey={async (role, description) => {
                 const res = await fetch('/v1/admin/keys', {
                   method: 'POST',
@@ -399,12 +527,15 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             />
           )}
 
-          {!isPublicDemo && (activeTab === 'system' || activeTab === 'docs') && (
+          {(activeTab === 'system' || activeTab === 'docs') && (
             <AdminSystemAndDocsTabs
-              mode={activeTab}
+              mode={isPublicDemo ? 'docs' : activeTab}
               lang={lang}
               readyPayload={readyPayload}
+              itemsIndexed={catalogSummary?.itemsIndexed ?? 0}
+              lastSnapshotAt={lastSnapshotAt}
               onCreateSnapshot={async () => {
+                if (isPublicDemo) return;
                 await fetch('/v1/snapshots', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },

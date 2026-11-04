@@ -70,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   });
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
-  const simpleIds: ViewId[] = ['admin', 'search', 'onboarding', 'demo', 'catalog', 'analytics', 'settings', 'faq'];
+  const simpleIds: ViewId[] = ['search', 'onboarding', 'demo', 'catalog', 'analytics', 'settings', 'faq'];
   const [navMode, setNavMode] = useState<'simple' | 'expert'>(() =>
     simpleIds.includes(active) ? 'simple' : 'expert'
   );
@@ -90,7 +90,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'Ядро движка',
           g2: 'Лаборатория и тесты',
           g3: 'Аналитика и эксплуатация',
-          admin: 'EIDOS Admin (Консоль)',
           onboarding: 'Мастер пилота (No-Code)',
           demo: 'Демо-каталог (48 SKU)',
           indexes: 'Менеджер индексов HNSW',
@@ -100,14 +99,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           settings: 'Настройки и API-ключи',
           faq: 'FAQ и Гид по функциям',
           modeSimple: 'Простой режим',
-          modeExpert: 'Эксперт (17 вкладок)',
+          modeExpert: 'Эксперт (16 вкладок)',
         }
       : uiLang === 'ja'
       ? {
           g1: 'コアエンジン',
           g2: 'プレイグラウンド & ラボ',
           g3: '分析 & オペレーション',
-          admin: 'EIDOS Admin コンソール',
           onboarding: 'パイロット導入ウィザード',
           demo: 'デモカタログ (48 SKU)',
           indexes: 'インデックス管理',
@@ -123,7 +121,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g1: 'Core Engine',
           g2: 'Playground & Labs',
           g3: 'Analytics & Ops',
-          admin: 'EIDOS Admin Console',
           onboarding: 'Pilot Wizard (No-Code)',
           demo: 'Demo Catalog (48 SKU)',
           indexes: 'Index Manager',
@@ -140,7 +137,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: labels.g1,
       items: [
-        { id: 'admin', label: labels.admin, emoji: '🛡️', icon: LayoutDashboard },
         { id: 'search', label: t.nav.search, emoji: '🔍', icon: Search },
         { id: 'onboarding', label: labels.onboarding, emoji: '🚀', icon: Sparkles },
         { id: 'demo', label: labels.demo, emoji: '🎮', icon: Sparkles },

@@ -93,7 +93,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           originalQuery: String(data.originalQuery || trimmed),
           rewritten: Boolean(data.rewritten),
           headCategoryIntent: data.headCategoryIntent ?? null,
-          appliedRules: Array.isArray(data.appliedDictionaryRules) ? data.appliedDictionaryRules : [],
+          appliedRules: Array.isArray(data.appliedDictionaryRules)
+            ? data.appliedDictionaryRules
+            : [],
         });
         onSearchExecuted?.();
       } catch (err: any) {
@@ -134,7 +136,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
           <div className="lg:col-span-5">
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              {lang === 'ru' ? 'Поисковый запрос (debounce 300ms)' : 'Search Query (300ms debounce)'}
+              {lang === 'ru'
+                ? 'Поисковый запрос (debounce 300ms)'
+                : 'Search Query (300ms debounce)'}
             </label>
             <input
               type="text"
@@ -167,7 +171,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
 
           <div className="lg:col-span-3">
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              {lang === 'ru' ? `Баланс α (Семантика: ${Math.round(alpha * 100)}%)` : `Alpha (${Math.round(alpha * 100)}% Semantic)`}
+              {lang === 'ru'
+                ? `Баланс α (Семантика: ${Math.round(alpha * 100)}%)`
+                : `Alpha (${Math.round(alpha * 100)}% Semantic)`}
             </label>
             <input
               type="range"
@@ -181,9 +187,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           </div>
 
           <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Category Gate
-            </label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Category Gate</label>
             <select
               data-testid="admin-live-gate-select"
               value={gate}
@@ -200,37 +204,51 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <div className="flex flex-wrap items-center gap-1.5">
             <span>{lang === 'ru' ? 'Примеры:' : 'Presets:'}</span>
-            {['недорогие наушники для бега', 'yfeiybrb', 'беспроводная клавиатура', 'zzzz_garbage_999'].map(
-              (sample) => (
-                <button
-                  key={sample}
-                  type="button"
-                  onClick={() => setQuery(sample)}
-                  className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors"
-                >
-                  {sample}
-                </button>
-              )
-            )}
+            {[
+              'недорогие наушники для бега',
+              'yfeiybrb',
+              'беспроводная клавиатура',
+              'zzzz_garbage_999',
+            ].map((sample) => (
+              <button
+                key={sample}
+                type="button"
+                onClick={() => setQuery(sample)}
+                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors"
+              >
+                {sample}
+              </button>
+            ))}
           </div>
+
           {meta && (
-            <div className="font-mono tabular-nums text-slate-600" data-testid="admin-live-meta">
-              <span>{results.length} hits</span>
-              <span className="mx-1.5">·</span>
+            <div
+              className="flex flex-wrap items-center gap-1.5 font-mono tabular-nums text-slate-600"
+              data-testid="admin-live-meta"
+            >
+              <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800 font-semibold">
+                {results.length} hits
+              </span>
               <span>{meta.latencyMs.toFixed(1)} ms</span>
               {meta.headCategoryIntent && (
-                <>
-                  <span className="mx-1.5">·</span>
-                  <span>intent: {meta.headCategoryIntent}</span>
-                </>
+                <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">
+                  intent: {meta.headCategoryIntent}
+                </span>
               )}
-              {meta.rewritten && (
-                <>
-                  <span className="mx-1.5">·</span>
-                  <span className="text-emerald-700 font-semibold" data-testid="admin-normalized-query">
-                    normalized: «{meta.normalizedQuery}»
-                  </span>
-                </>
+              <span
+                className={`px-2 py-0.5 rounded border ${
+                  meta.rewritten
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}
+                data-testid="admin-normalized-query"
+              >
+                normalized: «{meta.normalizedQuery}»
+              </span>
+              {meta.appliedRules.length > 0 && (
+                <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 rounded text-amber-800">
+                  rules: {meta.appliedRules.join(', ')}
+                </span>
               )}
             </div>
           )}
@@ -273,7 +291,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
                   <th className="py-2.5 px-3 font-medium">#</th>
                   <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Товар' : 'Product'}</th>
-                  <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Категория' : 'Category'}</th>
+                  <th className="py-2.5 px-3 font-medium">
+                    {lang === 'ru' ? 'Категория' : 'Category'}
+                  </th>
                   <th className="py-2.5 px-3 font-medium text-right">Match %</th>
                   <th className="py-2.5 px-3 font-medium text-right">Score</th>
                 </tr>
@@ -296,7 +316,8 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                       <td className="py-2.5 px-3">
                         <div className="font-medium text-slate-900">{hit.title}</div>
                         <div className="text-xs text-slate-500 font-mono">
-                          ID: {hit.id} {typeof hit.price === 'number' ? `· ${hit.price.toLocaleString()} ₽` : ''}
+                          ID: {hit.id}{' '}
+                          {typeof hit.price === 'number' ? `· ${hit.price.toLocaleString()} ₽` : ''}
                         </div>
                       </td>
                       <td className="py-2.5 px-3 text-xs text-slate-600">{hit.category}</td>
@@ -314,9 +335,14 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           )}
         </div>
 
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-4" data-testid="admin-xray-panel">
+        <div
+          className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-4"
+          data-testid="admin-xray-panel"
+        >
           <div className="text-xs font-semibold text-slate-500 mb-2">
-            {lang === 'ru' ? 'Рентген ранжирования (X-Ray Inspector)' : 'Explainable Ranking X-Ray'}
+            {lang === 'ru'
+              ? 'Рентген ранжирования (X-Ray Inspector)'
+              : 'Explainable Ranking X-Ray'}
           </div>
           {!selectedHit ? (
             <div className="text-xs text-slate-400 py-8 text-center">
@@ -339,7 +365,8 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                 </div>
                 <div data-testid="admin-xray-human-explanation">
                   {lang === 'ru'
-                    ? selectedHit.humanExplanation?.ru || 'Гибридное совпадение по смыслу и ключевым словам'
+                    ? selectedHit.humanExplanation?.ru ||
+                      'Гибридное совпадение по смыслу и ключевым словам'
                     : selectedHit.humanExplanation?.en || 'Hybrid semantic + lexical match'}
                 </div>
               </div>
@@ -381,100 +408,273 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
 export const AdminQueryLogTab: React.FC<{
   lang: 'ru' | 'en';
   logs: QueryLogItem[];
-  onRefresh: (filters: { q: string; emptyOnly: boolean }) => void;
+  onRefresh: (filters: {
+    q: string;
+    emptyOnly: boolean;
+    gatedOnly?: boolean;
+    period?: '24h' | '7d' | '30d';
+  }) => void;
   onReplay: (query: string) => void;
-}> = ({ lang, logs, onRefresh, onReplay }) => {
+  onAddSynonym?: (query: string) => void;
+}> = ({ lang, logs, onRefresh, onReplay, onAddSynonym }) => {
   const [q, setQ] = useState('');
   const [emptyOnly, setEmptyOnly] = useState(false);
+  const [gatedOnly, setGatedOnly] = useState(false);
+  const [period, setPeriod] = useState<'24h' | '7d' | '30d'>('7d');
+  const [page, setPage] = useState<number>(1);
+  const pageSize = 15;
+
+  const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedLogs = logs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const triggerFilter = (next: {
+    q: string;
+    emptyOnly: boolean;
+    gatedOnly: boolean;
+    period: '24h' | '7d' | '30d';
+  }) => {
+    setPage(1);
+    onRefresh(next);
+  };
 
   return (
     <div className="space-y-4" data-testid="admin-query-log">
       <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-md">
+            {(['24h', '7d', '30d'] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  setPeriod(p);
+                  triggerFilter({ q, emptyOnly, gatedOnly, period: p });
+                }}
+                className={`px-2.5 py-1 text-xs font-medium rounded ${
+                  period === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+
           <input
             type="text"
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
-              onRefresh({ q: e.target.value, emptyOnly });
+              triggerFilter({ q: e.target.value, emptyOnly, gatedOnly, period });
             }}
-            placeholder={lang === 'ru' ? 'Поиск по журналу запросов...' : 'Filter query log...'}
-            className="px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-md text-slate-900"
+            placeholder={lang === 'ru' ? 'Поиск по тексту запроса...' : 'Filter by query text...'}
+            className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-md text-slate-900"
           />
-          <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+
+          <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
             <input
               type="checkbox"
+              data-testid="query-log-empty-only"
               checked={emptyOnly}
               onChange={(e) => {
                 setEmptyOnly(e.target.checked);
-                onRefresh({ q, emptyOnly: e.target.checked });
+                triggerFilter({ q, emptyOnly: e.target.checked, gatedOnly, period });
               }}
             />
-            <span>{lang === 'ru' ? 'Только пустые выдачи (count = 0)' : 'Empty results only (count = 0)'}</span>
+            <span>{lang === 'ru' ? 'Только пустые (0)' : 'Empty results only (0)'}</span>
+          </label>
+
+          <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={gatedOnly}
+              onChange={(e) => {
+                setGatedOnly(e.target.checked);
+                triggerFilter({ q, emptyOnly, gatedOnly: e.target.checked, period });
+              }}
+            />
+            <span>{lang === 'ru' ? 'Отсечено Category Gate' : 'Gated only'}</span>
           </label>
         </div>
-        <button
-          type="button"
-          onClick={() => onRefresh({ q, emptyOnly })}
-          className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 rounded"
-        >
-          {lang === 'ru' ? 'Обновить журнал' : 'Refresh Log'}
-        </button>
+
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <span className="font-mono">{logs.length} records</span>
+          <button
+            type="button"
+            onClick={() => onRefresh({ q, emptyOnly, gatedOnly, period })}
+            className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 rounded"
+          >
+            {lang === 'ru' ? 'Обновить журнал' : 'Refresh Log'}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-              <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Время' : 'Time'}</th>
-              <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Запрос' : 'Query'}</th>
-              <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Ответов' : 'Hits'}</th>
-              <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Топ-1 и категория' : 'Top-1 & Category'}</th>
-              <th className="py-2.5 px-3 font-medium text-right">Latency</th>
-              <th className="py-2.5 px-3 font-medium text-right">{lang === 'ru' ? 'Действие' : 'Action'}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
-            {logs.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-slate-400 font-sans">
-                  {lang === 'ru' ? 'Записей в журнале не найдено' : 'No query log entries found'}
-                </td>
-              </tr>
-            ) : (
-              logs.map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50">
-                  <td className="py-2.5 px-3 text-slate-500">{row.timestamp.slice(11, 19)}</td>
-                  <td className="py-2.5 px-3 font-sans">
-                    <div className="font-medium text-slate-900">{row.query}</div>
-                    {row.flags.rewritten && (
-                      <div className="text-[11px] text-emerald-700">→ {row.normalizedQuery}</div>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <span className={row.flags.empty ? 'text-rose-600 font-semibold' : 'text-slate-800'}>
-                      {row.resultCount}
-                    </span>
-                    {row.flags.gated && <span className="ml-1 text-amber-700">· gate</span>}
-                  </td>
-                  <td className="py-2.5 px-3 font-sans text-slate-600">
-                    {row.top1 ? `${row.top1.title} (${row.top1.category} · ${row.top1.scorePercent}%)` : '—'}
-                  </td>
-                  <td className="py-2.5 px-3 text-right text-slate-500">{row.latencyMs.toFixed(1)} ms</td>
-                  <td className="py-2.5 px-3 text-right font-sans">
-                    <button
-                      type="button"
+        {logs.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-400">
+            {lang === 'ru'
+              ? 'Записей в журнале запросов пока нет. Выполните поиск во вкладке «Проверка поиска».'
+              : 'No query logs recorded yet.'}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
+                    <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Время' : 'Time'}</th>
+                    <th className="py-2.5 px-3 font-medium">
+                      {lang === 'ru' ? 'Запрос' : 'Query'}
+                    </th>
+                    <th className="py-2.5 px-3 font-medium">
+                      {lang === 'ru' ? 'Нормализованный' : 'Normalized'}
+                    </th>
+                    <th className="py-2.5 px-3 font-medium text-right">
+                      {lang === 'ru' ? 'Найдено' : 'Hits'}
+                    </th>
+                    <th className="py-2.5 px-3 font-medium text-right">
+                      {lang === 'ru' ? 'Задержка' : 'Latency'}
+                    </th>
+                    <th className="py-2.5 px-3 font-medium">
+                      {lang === 'ru' ? 'Топ-1 товар / Категория' : 'Top-1 Hit / Category'}
+                    </th>
+                    <th className="py-2.5 px-3 font-medium">Gate / Intent</th>
+                    <th className="py-2.5 px-3 font-medium text-right">
+                      {lang === 'ru' ? 'Действие' : 'Action'}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
+                  {pagedLogs.map((row) => (
+                    <tr
+                      key={row.id}
                       onClick={() => onReplay(row.query)}
-                      className="text-slate-700 hover:text-slate-950 underline"
+                      className="hover:bg-slate-50 cursor-pointer"
                     >
-                      {lang === 'ru' ? 'Проверить' : 'Replay'}
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                      <td className="py-2 px-3 text-slate-500 whitespace-nowrap">
+                        {row.timestamp.slice(11, 19)}
+                      </td>
+                      <td className="py-2 px-3 font-sans font-medium text-slate-900">
+                        <div>{row.query}</div>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {row.flags.empty && (
+                            <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[10px]">
+                              empty
+                            </span>
+                          )}
+                          {row.flags.rewritten && (
+                            <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px]">
+                              synonym
+                            </span>
+                          )}
+                          {row.flags.gated && (
+                            <span className="px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[10px]">
+                              gated
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 font-sans text-slate-600">
+                        {row.flags.rewritten ? (
+                          <span className="text-emerald-700 font-medium">
+                            {row.normalizedQuery}
+                          </span>
+                        ) : (
+                          row.normalizedQuery
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <span
+                          className={
+                            row.flags.empty
+                              ? 'text-rose-600 font-semibold'
+                              : 'text-slate-800 font-semibold'
+                          }
+                        >
+                          {row.resultCount}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-right text-slate-500">
+                        {row.latencyMs.toFixed(1)} ms
+                      </td>
+                      <td className="py-2 px-3 font-sans text-slate-600">
+                        {row.top1 ? (
+                          <div>
+                            <div className="text-slate-900 font-medium truncate max-w-[200px]">
+                              {row.top1.title}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {row.top1.category} · {row.top1.scorePercent}%
+                            </div>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-slate-600">
+                        <div>gate: {row.simpleCategoryGate}</div>
+                        {row.headCategoryIntent && (
+                          <div className="text-[11px] text-slate-500">
+                            intent: {row.headCategoryIntent}
+                          </div>
+                        )}
+                      </td>
+                      <td
+                        className="py-2 px-3 text-right font-sans whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onReplay(row.query)}
+                            className="text-slate-700 hover:text-slate-950 underline"
+                          >
+                            {lang === 'ru' ? 'В Live' : 'Replay'}
+                          </button>
+                          {row.flags.empty && onAddSynonym && (
+                            <button
+                              type="button"
+                              onClick={() => onAddSynonym(row.query)}
+                              className="text-emerald-700 hover:text-emerald-900 underline font-medium"
+                            >
+                              {lang === 'ru' ? '+ Синоним' : '+ Synonym'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+              <span>
+                {lang === 'ru'
+                  ? `Страница ${currentPage} из ${totalPages} (всего ${logs.length})`
+                  : `Page ${currentPage} of ${totalPages} (${logs.length} total)`}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded disabled:opacity-40"
+                >
+                  ← {lang === 'ru' ? 'Назад' : 'Prev'}
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded disabled:opacity-40"
+                >
+                  {lang === 'ru' ? 'Вперёд' : 'Next'} →
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

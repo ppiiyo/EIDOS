@@ -16,6 +16,7 @@ interface StudioHeaderProps {
   onRestoreCatalog: () => void;
   onOpenCsvModal: () => void;
   onOpenApiModal: () => void;
+  onOpenAdminConsole?: () => void;
 }
 
 export const StudioHeader: React.FC<StudioHeaderProps> = ({
@@ -30,6 +31,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   onRestoreCatalog,
   onOpenCsvModal,
   onOpenApiModal,
+  onOpenAdminConsole,
 }) => {
   const tTop = UI_TRANSLATIONS[uiLang].topbar;
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
@@ -162,6 +164,18 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <FileSpreadsheet size={13} />
           <span>{tTop.csvModal}</span>
         </button>
+
+        {onOpenAdminConsole && (
+          <button
+            type="button"
+            data-testid="header-open-admin-btn"
+            onClick={onOpenAdminConsole}
+            className="btn btn-secondary btn-sm"
+            title="Open standalone EIDOS Admin Console (/admin)"
+          >
+            <span>EIDOS Admin</span>
+          </button>
+        )}
 
         <button type="button" onClick={onOpenApiModal} className="btn btn-primary btn-sm">
           <Terminal size={13} />
