@@ -16,6 +16,7 @@ import { indexRoutes } from '../routes/indexes';
 import { settingsRoutes } from '../routes/settings';
 import { demoRoutes } from '../routes/demo';
 import { adminRoutes } from '../routes/admin';
+import { adminConsoleRoutes } from '../routes/admin-console';
 import { funnelPlugin } from './funnel';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
@@ -110,6 +111,9 @@ export async function apiRoutesPlugin(
   await fastify.register(adminRoutes, {
     vectorStore: opts.vectorStore,
     embedder: opts.embedder,
+  });
+  await fastify.register(adminConsoleRoutes, {
+    vectorStore: opts.vectorStore,
   });
 
   // Serve storefront widget.js directly from API host

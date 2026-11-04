@@ -11,6 +11,7 @@ import { RBACManager, AuditLogger } from '../services/multi-tenancy';
 import { StoreError, StoreRegistry, withTimeout } from '../services/store-registry';
 import { getAverageSearchLatencyMs } from '../plugins/observability';
 import { OperationalLogStore } from '../services/structured-logger';
+import { AdminConsoleStore } from '../services/admin-console-store';
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -259,6 +260,14 @@ export async function catalogRoutes(
           void store.saveSnapshotAsync();
         }
 
+        AdminConsoleStore.getInstance().recordCatalogUpsert({
+          tenantId,
+          indexName,
+          upserted,
+          failed,
+          sampleRowErrors: rowErrors,
+        });
+
         return reply.status(200).send({
           upserted,
           failed,
@@ -303,6 +312,14 @@ export async function catalogRoutes(
           freshness: 1.0,
         });
       }
+
+      AdminConsoleStore.getInstance().recordCatalogUpsert({
+        tenantId,
+        indexName,
+        upserted: 1,
+        failed: 0,
+        sampleRowErrors: [],
+      });
 
       AuditLogger.getInstance().record({
         tenantId,

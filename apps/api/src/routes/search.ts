@@ -35,6 +35,7 @@ import { intentDictionary } from '../services/intent-dictionary';
 import { traceSpan } from '../tracing';
 import { recordSearchLatency } from '../plugins/observability';
 import { OperationalLogStore, summarizeQueryForLog } from '../services/structured-logger';
+import { AdminConsoleStore } from '../services/admin-console-store';
 
 const cognitiveContextSchema = z
   .object({
@@ -78,9 +79,9 @@ const searchRequestSchema = z.object({
   query: z.string().min(1, 'query is required').max(500),
   limit: z.number().int().min(1).max(100).optional(),
   topK: z.number().int().min(1).max(100).optional(),
-  minSimilarity: z.number().min(0).max(1).default(0.25),
+  minSimilarity: z.number().min(0).max(1).optional(),
   minScore: z.number().min(0).max(1).optional(),
-  simpleCategoryGate: z.enum(['hard', 'soft', 'off']).default('hard'),
+  simpleCategoryGate: z.enum(['hard', 'soft', 'off']).optional(),
   filterCategory: z.string().optional(),
   filters: z
     .object({
@@ -94,7 +95,7 @@ const searchRequestSchema = z.object({
     .enum(['dense', 'sparse', 'hybrid', 'semantic'])
     .default('hybrid')
     .transform((m): 'dense' | 'sparse' | 'hybrid' => (m === 'semantic' ? 'dense' : m)),
-  alpha: z.number().min(0).max(1).default(0.5),
+  alpha: z.number().min(0).max(1).optional(),
   weights: searchWeightsSchema,
   rerank: z.boolean().optional().default(false),
   rerankGamma: z.number().min(0).max(1).optional().default(0.65),
@@ -147,13 +148,13 @@ export async function searchRoutes(
         query,
         limit: rawLimit,
         topK,
-        minSimilarity,
-        minScore,
-        simpleCategoryGate,
+        minSimilarity: rawMinSimilarity,
+        minScore: rawMinScore,
+        simpleCategoryGate: rawSimpleCategoryGate,
         filterCategory,
         filters,
         mode,
-        alpha,
+        alpha: rawAlpha,
         weights,
         rerank,
         rerankGamma,
@@ -166,6 +167,29 @@ export async function searchRoutes(
           ? request.apiKeyContext.allowedFilters.category
           : undefined;
       const effectiveCategory = scopedCategory ?? filterCategory ?? filters?.category;
+
+      let activeStore: VectorStore;
+      let tenantId: string;
+      let indexName: string;
+      try {
+        const resolved = storeRegistry.resolveRequestStore(request);
+        activeStore = resolved.store;
+        tenantId = resolved.tenantId;
+        indexName = resolved.indexName;
+      } catch (err) {
+        if (err instanceof StoreError) {
+          return reply.status(err.statusCode).send(err.toJSON());
+        }
+        throw err;
+      }
+
+      const adminStore = AdminConsoleStore.getInstance();
+      const rankingDefaults = adminStore.getRankingDefaults(tenantId);
+      const simpleCategoryGate = rawSimpleCategoryGate ?? rankingDefaults.simpleCategoryGate;
+      const alpha = rawAlpha ?? rankingDefaults.defaultAlpha;
+      const minSimilarity = rawMinSimilarity ?? rankingDefaults.minSimilarity;
+      const minScore =
+        rawMinScore ?? (rankingDefaults.minScore !== 0.09 ? rankingDefaults.minScore : undefined);
 
       // Resolve effective alpha and dense/sparse weights from either weights object or alpha/mode
       let appliedAlpha = alpha;
@@ -188,21 +212,6 @@ export async function searchRoutes(
         sparseWeight: sparseW,
       };
 
-      let activeStore: VectorStore;
-      let tenantId: string;
-      let indexName: string;
-      try {
-        const resolved = storeRegistry.resolveRequestStore(request);
-        activeStore = resolved.store;
-        tenantId = resolved.tenantId;
-        indexName = resolved.indexName;
-      } catch (err) {
-        if (err instanceof StoreError) {
-          return reply.status(err.statusCode).send(err.toJSON());
-        }
-        throw err;
-      }
-
       // Security Guardrail: Scan and sanitize user query against prompt injection and XSS
       const securityScan = SecurityGuardrails.scanAndSanitize(query);
       if (!securityScan.isSafe && securityScan.riskScore >= 0.7) {
@@ -215,9 +224,18 @@ export async function searchRoutes(
       }
 
       const rawSanitized = securityScan.sanitizedInput;
-      const queryInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
-      const safeQuery = queryInfo.normalizedQuery || rawSanitized;
-      const headIntent = extractHeadCategoryIntent(rawSanitized);
+      const layoutInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
+      const layoutQuery = layoutInfo.normalizedQuery || rawSanitized;
+      const dictPrep = adminStore.preprocessQuery(layoutQuery, tenantId);
+      const queryInfo = dictPrep.rewritten
+        ? normalizeQueryWithLayoutRecovery(dictPrep.processedQuery)
+        : layoutInfo;
+      const safeQuery = queryInfo.normalizedQuery || dictPrep.processedQuery || rawSanitized;
+      const headIntent = extractHeadCategoryIntent(safeQuery);
+      const wasRewritten =
+        dictPrep.rewritten ||
+        Boolean((layoutInfo as any).hadLayoutMismatch) ||
+        safeQuery.toLowerCase() !== rawSanitized.trim().toLowerCase();
 
       // Record search event in SearchFunnelService singleton decorator
       const resolvedSessionId =
@@ -301,9 +319,49 @@ export async function searchRoutes(
             mode,
           },
         });
+        const cachedResults = Array.isArray(cachedResponse.results) ? cachedResponse.results : [];
+        const topCached = cachedResults[0];
+        try {
+          adminStore.recordQueryLog({
+            tenantId,
+            indexName,
+            query: rawSanitized,
+            normalizedQuery: safeQuery,
+            resultCount: cachedResults.length,
+            latencyMs: hitLatencyMs,
+            cacheHit: true,
+            headCategoryIntent: headIntent.familyKey,
+            simpleCategoryGate,
+            alpha: appliedAlpha,
+            top1: topCached
+              ? {
+                  id: String(topCached.id),
+                  title: String(topCached.title),
+                  category: String(topCached.category),
+                  scorePercent: Number(topCached.scorePercent ?? 0),
+                  score: Number(topCached.score ?? 0),
+                }
+              : null,
+            flags: {
+              empty: cachedResults.length === 0,
+              gated:
+                cachedResults.length === 0 &&
+                Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
+              rewritten: wasRewritten,
+              fallback_not_applicable: false,
+            },
+            appliedDictionaryRules: dictPrep.appliedRules,
+          });
+        } catch {
+          // Non-blocking log
+        }
         const { extractedIntent: _cachedIntent, ...restCached } = cachedResponse;
         return {
           ...restCached,
+          query: safeQuery,
+          normalizedQuery: safeQuery,
+          originalQuery: rawSanitized,
+          rewritten: wasRewritten,
           alpha: appliedAlpha,
           weights: appliedWeights,
           simpleCategoryGate,
@@ -357,6 +415,42 @@ export async function searchRoutes(
             const semLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
             recordSearchLatency(semLatencyMs, `${mode}_semantic_hit`);
             reply.header('x-cache', 'SEMANTIC_HIT');
+            const semResults = Array.isArray(semHit.response.results) ? semHit.response.results : [];
+            const topSem = semResults[0] as Record<string, unknown> | undefined;
+            try {
+              adminStore.recordQueryLog({
+                tenantId,
+                indexName,
+                query: rawSanitized,
+                normalizedQuery: safeQuery,
+                resultCount: semResults.length,
+                latencyMs: semLatencyMs,
+                cacheHit: true,
+                headCategoryIntent: headIntent.familyKey,
+                simpleCategoryGate,
+                alpha: appliedAlpha,
+                top1: topSem
+                  ? {
+                      id: String(topSem.id),
+                      title: String(topSem.title),
+                      category: String(topSem.category),
+                      scorePercent: Number(topSem.scorePercent ?? 0),
+                      score: Number(topSem.score ?? 0),
+                    }
+                  : null,
+                flags: {
+                  empty: semResults.length === 0,
+                  gated:
+                    semResults.length === 0 &&
+                    Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
+                  rewritten: wasRewritten,
+                  fallback_not_applicable: false,
+                },
+                appliedDictionaryRules: dictPrep.appliedRules,
+              });
+            } catch {
+              // Non-blocking log
+            }
             const { extractedIntent: _semIntent, ...restSem } = semHit.response;
             return {
               ...restSem,
@@ -638,6 +732,12 @@ export async function searchRoutes(
       const cachedAt = new Date().toISOString();
       const responsePayload = {
         query: safeQuery,
+        normalizedQuery: safeQuery,
+        originalQuery: rawSanitized,
+        rewritten: wasRewritten,
+        ...(dictPrep.appliedRules.length > 0
+          ? { appliedDictionaryRules: dictPrep.appliedRules }
+          : {}),
         mode,
         alpha: appliedAlpha,
         weights: appliedWeights,
@@ -656,6 +756,42 @@ export async function searchRoutes(
           serendipityDiscoveriesCount: freshResults.filter((r) => r.isSerendipityDiscovery).length,
         },
       };
+
+      const topFresh = freshResults[0];
+      try {
+        adminStore.recordQueryLog({
+          tenantId,
+          indexName,
+          query: rawSanitized,
+          normalizedQuery: safeQuery,
+          resultCount: freshResults.length,
+          latencyMs,
+          cacheHit: false,
+          headCategoryIntent: headIntent.familyKey,
+          simpleCategoryGate,
+          alpha: appliedAlpha,
+          top1: topFresh
+            ? {
+                id: String(topFresh.id),
+                title: String(topFresh.title),
+                category: String(topFresh.category),
+                scorePercent: Number(topFresh.scorePercent ?? 0),
+                score: Number(topFresh.score ?? 0),
+              }
+            : null,
+          flags: {
+            empty: freshResults.length === 0,
+            gated:
+              freshResults.length === 0 &&
+              Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
+            rewritten: wasRewritten,
+            fallback_not_applicable: false,
+          },
+          appliedDictionaryRules: dictPrep.appliedRules,
+        });
+      } catch {
+        // Non-blocking log
+      }
 
       const qSummary = summarizeQueryForLog(safeQuery);
       OperationalLogStore.getInstance().record('info', 'search.executed', {

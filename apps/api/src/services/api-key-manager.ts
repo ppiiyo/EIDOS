@@ -176,3 +176,8 @@ export class ApiKeyManager {
     this.keys.clear();
   }
 }
+
+export function getApiKeyManager(): ApiKeyManager {
+  return ApiKeyManager.getInstance();
+}
+

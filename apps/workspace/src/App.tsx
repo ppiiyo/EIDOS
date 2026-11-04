@@ -7,11 +7,19 @@ import { ToastContainer } from './components/ToastContainer';
 import { useStudioWorkspace } from './hooks/useStudioWorkspace';
 import { useCatalogImportHandlers } from './hooks/useCatalogImportHandlers';
 
+import { EidosAdminConsole } from './pages/AdminConsolePage/EidosAdminConsole';
+
 export function App() {
   const [view, setView] = useState<ViewId>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location?.pathname || '';
       const search = window.location?.search || '';
+      if (path.startsWith('/public-demo') || search.includes('mode=public-demo')) {
+        return 'public-demo';
+      }
+      if (path.startsWith('/admin') || search.includes('mode=admin')) {
+        return 'admin';
+      }
       if (path.startsWith('/onboarding') || search.includes('onboarding=1')) {
         return 'onboarding';
       }
@@ -60,6 +68,18 @@ export function App() {
       setIsScaledCatalog,
       showToast,
     });
+
+  if (view === 'public-demo') {
+    return (
+      <div className="min-h-screen bg-[#0a0c10] text-slate-100 p-4 md:p-6">
+        <EidosAdminConsole
+          mode="public-demo"
+          uiLang={uiLang === 'en' ? 'en' : 'ru'}
+          onSwitchMode={(m) => setView(m === 'admin' ? 'admin' : 'public-demo')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

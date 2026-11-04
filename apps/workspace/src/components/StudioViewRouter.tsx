@@ -48,6 +48,11 @@ const ConversationalView = React.lazy(() =>
 const SettingsView = React.lazy(() =>
   import('./SettingsView').then((m) => ({ default: m.SettingsView }))
 );
+const EidosAdminConsole = React.lazy(() =>
+  import('../pages/AdminConsolePage/EidosAdminConsole').then((m) => ({
+    default: m.EidosAdminConsole,
+  }))
+);
 
 export interface StudioViewRouterProps {
   view: ViewId;
@@ -127,6 +132,14 @@ export const StudioViewRouter: React.FC<StudioViewRouterProps> = ({
 
   return (
     <Suspense fallback={<LazyTabFallback />}>
+      {(view === 'admin' || view === 'public-demo') && (
+        <EidosAdminConsole
+          mode={view === 'public-demo' ? 'public-demo' : 'admin'}
+          uiLang={uiLang === 'en' ? 'en' : 'ru'}
+          onSwitchMode={(m) => onNavigate(m === 'public-demo' ? 'public-demo' : 'admin')}
+        />
+      )}
+
       {view === 'dashboard' && (
         <DashboardView
           catalog={catalog}
