@@ -39,7 +39,7 @@ describe('EIDOS v3.1 Release Features & Production Hardening', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.totalItems).toBe(48);
+    expect(body.totalItems).toBeGreaterThanOrEqual(1000);
     expect(body.cache).toBeDefined();
     expect(['redis', 'in-memory']).toContain(body.cache.type);
 

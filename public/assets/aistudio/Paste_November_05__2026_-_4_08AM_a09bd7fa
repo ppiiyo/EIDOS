@@ -1,0 +1,310 @@
+2026-11-05T01:06:02.7616792Z ##[group]Run pnpm test
+2026-11-05T01:06:02.7616981Z [36;1mpnpm test[0m
+2026-11-05T01:06:02.7633740Z shell: /usr/bin/bash -e {0}
+2026-11-05T01:06:02.7633884Z env:
+2026-11-05T01:06:02.7634030Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-11-05T01:06:02.7634213Z ##[endgroup]
+2026-11-05T01:06:03.0112781Z 
+2026-11-05T01:06:03.0113837Z > eidos@3.4.0 test /home/runner/work/EIDOS/EIDOS
+2026-11-05T01:06:03.0114215Z > vitest run
+2026-11-05T01:06:03.0114364Z 
+2026-11-05T01:06:03.2437895Z [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+2026-11-05T01:06:03.2623351Z 
+2026-11-05T01:06:03.2624683Z [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/EIDOS/EIDOS[39m
+2026-11-05T01:06:03.2625120Z 
+2026-11-05T01:06:04.5809955Z  [32m✓[39m tests/unit/woocommerce-parity-and-pilot-golden-path.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 180[2mms[22m[39m
+2026-11-05T01:06:05.6975616Z  [32m✓[39m tests/unit/admin-console-and-public-demo.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 527[2mms[22m[39m
+2026-11-05T01:06:05.6977465Z    [33m[2m✓[22m[39m EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)[2m > [22m9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and tests WOW Golden Queries [33m326[2mms[22m[39m
+2026-11-05T01:06:07.3074643Z  [32m✓[39m tests/unit/v34-zero-bug-acceptance.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1291[2mms[22m[39m
+2026-11-05T01:06:07.3076460Z    [33m[2m✓[22m[39m EIDOS v3.4.0 Zero-Bug Acceptance Suite (Server + Client + 1C-Bitrix)[2m > [22m2. 520-SKU catalog on server /v1/search: "недорогие наушники для бега" -> top-3 category = Наушники (never Кроссовки) [33m369[2mms[22m[39m
+2026-11-05T01:06:07.3077758Z    [33m[2m✓[22m[39m EIDOS v3.4.0 Zero-Bug Acceptance Suite (Server + Client + 1C-Bitrix)[2m > [22m3. Client 1,000+ SKU scaled catalog: "недорогие наушники для бега" -> top-3 category = Наушники [33m701[2mms[22m[39m
+2026-11-05T01:06:07.3430275Z {"level":30,"time":1793840767342,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.3554347Z {"level":30,"time":1793840767354,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":11.631405000000086,"msg":"request completed"}
+2026-11-05T01:06:07.3555853Z {"level":30,"time":1793840767354,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.3575867Z {"level":30,"time":1793840767356,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":403},"responseTime":1.3973379999952158,"msg":"request completed"}
+2026-11-05T01:06:07.3576708Z {"level":30,"time":1793840767356,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.3577443Z {"level":30,"time":1793840767356,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":403},"responseTime":0.43729999999777647,"msg":"request completed"}
+2026-11-05T01:06:07.3578173Z {"level":30,"time":1793840767357,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"POST","url":"/v1/keys/generate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.3624731Z {"level":30,"time":1793840767358,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":403},"responseTime":0.7576870000048075,"msg":"request completed"}
+2026-11-05T01:06:07.3777537Z {"level":30,"time":1793840767377,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.3903372Z {"level":30,"time":1793840767382,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":5.395001999997476,"msg":"request completed"}
+2026-11-05T01:06:07.3904805Z {"level":30,"time":1793840767383,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/v1/catalog/export?format=json","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.3906279Z {"level":30,"time":1793840767384,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":1.028889999994135,"msg":"request completed"}
+2026-11-05T01:06:07.4034019Z {"level":30,"time":1793840767402,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/admin/keys","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4051749Z {"level":30,"time":1793840767404,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":201},"responseTime":1.356406999999308,"msg":"request completed"}
+2026-11-05T01:06:07.4052659Z {"level":30,"time":1793840767404,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/keys/rotate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4075909Z {"level":30,"time":1793840767405,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":1.028890000001411,"msg":"request completed"}
+2026-11-05T01:06:07.4077393Z {"level":30,"time":1793840767406,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4136836Z {"level":30,"time":1793840767410,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":3.396380999998655,"msg":"request completed"}
+2026-11-05T01:06:07.4168331Z {"level":30,"time":1793840767410,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4252188Z {"level":30,"time":1793840767412,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":1.5448069999984,"msg":"request completed"}
+2026-11-05T01:06:07.4417456Z {"level":30,"time":1793840767440,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"GET","url":"/v1/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4429884Z {"level":30,"time":1793840767442,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":2.3030040000012377,"msg":"request completed"}
+2026-11-05T01:06:07.4449083Z {"level":30,"time":1793840767443,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/v1/ready","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4450016Z {"level":30,"time":1793840767443,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.6702159999986179,"msg":"request completed"}
+2026-11-05T01:06:07.4585169Z {"level":30,"time":1793840767457,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4647213Z {"level":30,"time":1793840767459,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":1.7903220000007423,"msg":"request completed"}
+2026-11-05T01:06:07.4648605Z {"level":30,"time":1793840767460,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"GET","url":"/metrics","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4649946Z {"level":30,"time":1793840767460,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":0.9042950000002747,"msg":"request completed"}
+2026-11-05T01:06:07.4882850Z {"level":30,"time":1793840767486,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.4907091Z {"level":40,"time":1793840767488,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","event":"auth_failed","reason":"invalid_key","requestId":"req_288c5b1bf83c","keyId":"invali...00 (id:83fe5847)","ip":"127.0.0.1","path":"/v1/catalog/upsert"}
+2026-11-05T01:06:07.4909056Z {"level":30,"time":1793840767489,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":401},"responseTime":2.3792580000008456,"msg":"request completed"}
+2026-11-05T01:06:07.4910868Z {"level":30,"time":1793840767490,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5017189Z {"level":30,"time":1793840767492,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":2.360899999999674,"msg":"request completed"}
+2026-11-05T01:06:07.5018981Z {"level":30,"time":1793840767492,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/logs?limit=20","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5019978Z {"level":30,"time":1793840767493,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":1.1600650000036694,"msg":"request completed"}
+2026-11-05T01:06:07.5133012Z {"level":30,"time":1793840767512,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5160865Z {"level":30,"time":1793840767515,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":2.066722999996273,"msg":"request completed"}
+2026-11-05T01:06:07.5163232Z {"level":30,"time":1793840767515,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5243026Z {"level":30,"time":1793840767523,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":201},"responseTime":8.551549999996496,"msg":"request completed"}
+2026-11-05T01:06:07.5285828Z {"level":30,"time":1793840767524,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"GET","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5287461Z {"level":30,"time":1793840767524,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":0.4103800000011688,"msg":"request completed"}
+2026-11-05T01:06:07.5289551Z {"level":30,"time":1793840767525,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"GET","url":"/v1/catalog/export?format=csv","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5291433Z {"level":30,"time":1793840767525,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":0.4394130000000587,"msg":"request completed"}
+2026-11-05T01:06:07.5292396Z {"level":30,"time":1793840767525,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-5","req":{"method":"DELETE","url":"/v1/catalog/items/snap-item-1","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5293440Z {"level":30,"time":1793840767527,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-5","res":{"statusCode":200},"responseTime":1.2255020000011427,"msg":"request completed"}
+2026-11-05T01:06:07.5296459Z {"level":30,"time":1793840767527,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-6","req":{"method":"POST","url":"/v1/snapshots/restore","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5298520Z {"level":30,"time":1793840767529,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-6","res":{"statusCode":200},"responseTime":1.9734649999954854,"msg":"request completed"}
+2026-11-05T01:06:07.5509391Z {"level":30,"time":1793840767550,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5542267Z {"level":30,"time":1793840767553,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-1","res":{"statusCode":200},"responseTime":3.4006769999978133,"msg":"request completed"}
+2026-11-05T01:06:07.5571016Z {"level":30,"time":1793840767554,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/optimize","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5572626Z {"level":30,"time":1793840767556,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-2","res":{"statusCode":200},"responseTime":1.6931770000010147,"msg":"request completed"}
+2026-11-05T01:06:07.5573558Z {"level":30,"time":1793840767556,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","req":{"method":"POST","url":"/v1/admin/reindex","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5601088Z {"level":30,"time":1793840767557,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-3","res":{"statusCode":200},"responseTime":0.8400289999990491,"msg":"request completed"}
+2026-11-05T01:06:07.5602297Z {"level":30,"time":1793840767557,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","req":{"method":"GET","url":"/v1/analytics/queries","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-05T01:06:07.5603596Z {"level":30,"time":1793840767558,"pid":2421,"hostname":"runnervm48cm3","reqId":"req-4","res":{"statusCode":200},"responseTime":0.7165049999966868,"msg":"request completed"}
+2026-11-05T01:06:07.5605617Z  [32m✓[39m apps/api/tests/v35-production-gate.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 377[2mms[22m[39m
+2026-11-05T01:06:09.0187598Z  [32m✓[39m tests/unit/one-command-pilot-and-widget.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[90m 125[2mms[22m[39m
+2026-11-05T01:06:09.7687504Z  [32m✓[39m apps/api/tests/phase1-api-hardening.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 929[2mms[22m[39m
+2026-11-05T01:06:10.6987671Z  [32m✓[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 175[2mms[22m[39m
+2026-11-05T01:06:10.9789541Z  [32m✓[39m tests/integration/phase2-ui-completion.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 201[2mms[22m[39m
+2026-11-05T01:06:11.5323043Z  [32m✓[39m tests/unit/post-v34-hardening.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 213[2mms[22m[39m
+2026-11-05T01:06:12.0159260Z  [32m✓[39m tests/unit/multilingual-crosslingual.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 79[2mms[22m[39m
+2026-11-05T01:06:12.6017116Z  [32m✓[39m tests/unit/roadmap-optimizations-and-ux.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 251[2mms[22m[39m
+2026-11-05T01:06:12.6870354Z  [32m✓[39m tests/connectors/bitrix-and-all-in-one-docker.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 159[2mms[22m[39m
+2026-11-05T01:06:13.8237091Z  [32m✓[39m packages/core/src/tests/strict-validation.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-05T01:06:14.7538763Z  [32m✓[39m tests/benchmarks/search-sla.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 868[2mms[22m[39m
+2026-11-05T01:06:15.0053470Z  [32m✓[39m packages/core/src/tests/cognitive-vectors.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-05T01:06:15.1807775Z  [32m✓[39m apps/api/tests/redis-cache.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 771[2mms[22m[39m
+2026-11-05T01:06:15.9906109Z  [32m✓[39m tests/integration/prometheus-metrics.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 521[2mms[22m[39m
+2026-11-05T01:06:15.9907198Z    [33m[2m✓[22m[39m PHASE 3: Prometheus Metrics & Observability Integration Suite[2m > [22m1. Records non-zero HTTP request counters, request duration histograms, and search latencies on /metrics [33m419[2mms[22m[39m
+2026-11-05T01:06:16.4110753Z  [32m✓[39m packages/core/src/tests/hnsw-quantization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 64[2mms[22m[39m
+2026-11-05T01:06:17.0940479Z  [32m✓[39m apps/api/tests/ten-bugs-fixes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 171[2mms[22m[39m
+2026-11-05T01:06:17.3007576Z  [32m✓[39m tests/unit/services/intent-dictionary.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 577[2mms[22m[39m
+2026-11-05T01:06:18.3513654Z  [32m✓[39m packages/core/src/tests/v3-enterprise.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+2026-11-05T01:06:19.1957570Z  [32m✓[39m tests/integration/critical-routes.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 588[2mms[22m[39m
+2026-11-05T01:06:19.6599833Z  [32m✓[39m apps/api/tests/phase2-product-improvements.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 839[2mms[22m[39m
+2026-11-05T01:06:19.6600926Z    [33m[2m✓[22m[39m PHASE 2: Product Improvements (5,000+ Seed Dataset, OpenAPI 3.0.3, Sentry Error Tracker, Observability & SLA)[2m > [22mTASK 3 / Checkpoint 3 & 5: Catalog starts empty (0 items), loads demo items on demand, memory <512MB, /v1/search <30ms, /v1/recommend <50ms [33m471[2mms[22m[39m
+2026-11-05T01:06:20.8066810Z  [32m✓[39m tests/integration/split-brain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 132[2mms[22m[39m
+2026-11-05T01:06:20.8417727Z  [32m✓[39m tests/integration/modernization-phases-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 133[2mms[22m[39m
+2026-11-05T01:06:22.7471988Z  [32m✓[39m tests/unit/phase3-deterministic-seeding-metrics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 419[2mms[22m[39m
+2026-11-05T01:06:22.7473449Z    [33m[2m✓[22m[39m PHASE 3: Deterministic Seeding (mulberry32) & Real Search Latency Metrics[2m > [22mGET /v1/metrics and GET /v1/catalog/stats reflect real search and recommend latencies [33m400[2mms[22m[39m
+2026-11-05T01:06:22.8456924Z  [32m✓[39m tests/unit/services/search-funnel.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 508[2mms[22m[39m
+2026-11-05T01:06:22.8457873Z    [33m[2m✓[22m[39m Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regression[2m > [22m5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel [33m406[2mms[22m[39m
+2026-11-05T01:06:23.9588031Z  [32m✓[39m tests/unit/phase2-rate-limit-lru.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+2026-11-05T01:06:24.1498050Z  [32m✓[39m packages/core/src/tests/adaptive/explainability-steering.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-05T01:06:24.7263758Z  [32m✓[39m apps/api/tests/phase3-competitive-edge.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 142[2mms[22m[39m
+2026-11-05T01:06:25.7230813Z  [32m✓[39m apps/api/tests/cache-hardening.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1412[2mms[22m[39m
+2026-11-05T01:06:25.7231476Z    [33m[2m✓[22m[39m Cache Hardening Tests[2m > [22mInMemoryCache[2m > [22mshould expire keys correctly [33m1102[2mms[22m[39m
+2026-11-05T01:06:25.9311290Z  [32m✓[39m packages/core/src/tests/adaptive/multi-interest-tower.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-05T01:06:26.1318744Z  [32m✓[39m packages/core/src/tests/csv-parser.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+2026-11-05T01:06:26.3217316Z  [32m✓[39m tests/unit/architecture-constraints.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+2026-11-05T01:06:26.3631544Z  [32m✓[39m tests/multi-tenancy/tenant-isolation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 72[2mms[22m[39m
+2026-11-05T01:06:26.4964516Z  [32m✓[39m packages/core/src/tests/audit-regressions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-05T01:06:26.5623603Z  [32m✓[39m packages/core/tests/multilingual-bm25.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-05T01:06:26.7592399Z  [32m✓[39m packages/sdk/tests/sdk-client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-05T01:06:26.9417634Z  [32m✓[39m tests/unit/store-registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+2026-11-05T01:06:27.1016771Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-explorer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-05T01:06:27.1794578Z  [32m✓[39m tests/integration/shopify-webhook.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 12[2mms[22m[39m
+2026-11-05T01:06:27.3722386Z  [32m✓[39m tests/unit/indexeddb-storage.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+2026-11-05T01:06:27.5733233Z  [32m✓[39m packages/core/src/tests/priority2-v2.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-05T01:06:27.6084431Z  [32m✓[39m tests/connectors/postgres-cdc.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+2026-11-05T01:06:27.7416418Z  [32m✓[39m packages/core/src/tests/persistence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-05T01:06:27.9994172Z  [32m✓[39m tests/unit/honest-embeddings-and-determinism.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+2026-11-05T01:06:28.0367903Z  [32m✓[39m tests/integration/postgres-cdc.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-05T01:06:28.3166807Z  [32m✓[39m tests/unit/components/query-inspector.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+2026-11-05T01:06:28.5440740Z  [32m✓[39m tests/sharding/lsh-router.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+2026-11-05T01:06:28.7357404Z  [32m✓[39m tests/integration/cluster.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 428[2mms[22m[39m
+2026-11-05T01:06:28.7362682Z    [33m[2m✓[22m[39m PHASE 1 - Task 1.1: Multi-Node Cluster Integration Test (3 Shards + Coordinator)[2m > [22mspins up a 3-node HNSW cluster, indexes 300 items, executes 1,000 search queries, and verifies all 3 shards respond with balanced load [33m427[2mms[22m[39m
+2026-11-05T01:06:28.8002435Z  [32m✓[39m apps/api/tests/cache-invalidation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-11-05T01:06:28.8978957Z  [32m✓[39m packages/core/src/tests/adaptive/cross-encoder.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-05T01:06:28.9922086Z  [32m✓[39m packages/core/src/tests/comprehensive-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-05T01:06:29.3055141Z  [32m✓[39m tests/integration/mongodb-changestream.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-11-05T01:06:29.3447207Z  [32m✓[39m tests/unit/phase2-modern-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+2026-11-05T01:06:29.5861975Z  [32m✓[39m tests/unit/pipeline-sync-and-agent.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+2026-11-05T01:06:29.8626762Z  [32m✓[39m tests/cache/semantic-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:30.0317625Z  [32m✓[39m apps/api/tests/hnsw-store-security.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 176[2mms[22m[39m
+2026-11-05T01:06:30.3868057Z  [32m✓[39m tests/integration/phase3-docs-and-deploy.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 92[2mms[22m[39m
+2026-11-05T01:06:31.1968343Z  [32m✓[39m packages/core/src/tests/adaptive/feature-scaler.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-05T01:06:31.3968066Z  [32m✓[39m packages/core/src/tests/security-guardrails.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-11-05T01:06:31.7127585Z  [32m✓[39m tests/integration/failover.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 113[2mms[22m[39m
+2026-11-05T01:06:32.2848008Z  [31m❯[39m apps/api/tests/v31-release-features.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 721[2mms[22m[39m
+2026-11-05T01:06:32.2849214Z [31m   [31m×[31m EIDOS v3.1 Release Features & Production Hardening[2m > [22m2. /v1/catalog/stats is public and returns indexed categories after loading demo catalog[33m 496[2mms[22m[31m[39m
+2026-11-05T01:06:32.2849796Z [31m     → expected 1048 to be 48 // Object.is equality[39m
+2026-11-05T01:06:32.3132663Z  [32m✓[39m tests/unit/phase1-type-safety-csp.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 142[2mms[22m[39m
+2026-11-05T01:06:33.5075076Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-cholesky.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+2026-11-05T01:06:33.5445525Z  [32m✓[39m tests/reranker/cross-encoder.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 15[2mms[22m[39m
+2026-11-05T01:06:33.6943531Z  [32m✓[39m packages/core/src/tests/adaptive/user-tower.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:33.9027818Z  [32m✓[39m packages/core/src/tests/adaptive/ranker.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-05T01:06:34.0946859Z  [32m✓[39m packages/core/src/tests/adaptive/candidate-fusion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:34.7238954Z  [32m✓[39m apps/api/tests/recommend-adaptive.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 596[2mms[22m[39m
+2026-11-05T01:06:34.7460784Z  [32m✓[39m tests/unit/api-key-manager.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 194[2mms[22m[39m
+2026-11-05T01:06:35.9008308Z  [32m✓[39m packages/core/src/tests/adaptive/feedback-loop.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:35.9018086Z  [32m✓[39m packages/core/src/tests/adaptive/metadata-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:36.0748219Z  [32m✓[39m packages/core/src/tests/adaptive/kg-enricher.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:36.2371456Z  [32m✓[39m packages/core/src/tests/clip-embedder.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:37.0107805Z  [32m✓[39m apps/api/tests/recommend-user.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 581[2mms[22m[39m
+2026-11-05T01:06:37.0282590Z  [32m✓[39m apps/api/tests/feedback.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 301[2mms[22m[39m
+2026-11-05T01:06:38.4368473Z  [32m✓[39m tests/unit/vector-store.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-05T01:06:38.6956616Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould register /v1/search route
+2026-11-05T01:06:38.6957217Z [22m[39mRegistered routes:
+2026-11-05T01:06:38.6957526Z  ├── /v1/telemetry (GET, HEAD)
+2026-11-05T01:06:38.6957802Z ├── /v1/tenants (GET, HEAD)
+2026-11-05T01:06:38.6958020Z ├── /v1/metrics (GET, HEAD)
+2026-11-05T01:06:38.6958209Z │   └── /prometheus (GET, HEAD)
+2026-11-05T01:06:38.6958409Z ├── /v1/merchandising/rules (POST)
+2026-11-05T01:06:38.6958612Z ├── /v1/diagnostics/errors (GET, HEAD)
+2026-11-05T01:06:38.6958816Z ├── /v1/demo/search (POST)
+2026-11-05T01:06:38.6959002Z ├── /v1/demo/optimize/pareto (POST)
+2026-11-05T01:06:38.6959185Z ├── /v1/demo/recommend (POST)
+2026-11-05T01:06:38.6959423Z ├── /v1/demo/reset (POST)
+2026-11-05T01:06:38.6959650Z ├── /v1/demo/load (POST)
+2026-11-05T01:06:38.6959922Z ├── /v1/demo/analytics (GET, HEAD)
+2026-11-05T01:06:38.6960203Z ├── /v1/demo/queries (GET, HEAD)
+2026-11-05T01:06:38.6960490Z ├── /v1/openapi.json (GET, HEAD)
+2026-11-05T01:06:38.6960775Z ├── /v1/optimize/pareto (POST)
+2026-11-05T01:06:38.6961359Z ├── /v1/health (GET, HEAD)
+2026-11-05T01:06:38.6961519Z │   ├── /ready (GET, HEAD)
+2026-11-05T01:06:38.6961674Z │   └── /live (GET, HEAD)
+2026-11-05T01:06:38.6961831Z ├── /v1/ready (GET, HEAD)
+2026-11-05T01:06:38.6961985Z ├── /v1/recommend (POST)
+2026-11-05T01:06:38.6962138Z │   ├── /user (POST)
+2026-11-05T01:06:38.6962294Z │   └── /adaptive (POST)
+2026-11-05T01:06:38.6962447Z ├── /v1/routes (GET, HEAD)
+2026-11-05T01:06:38.6962622Z ├── /v1/cluster/status (GET, HEAD)
+2026-11-05T01:06:38.6962852Z ├── /v1/cluster/shards/:shardId/health (POST)
+2026-11-05T01:06:38.6963058Z ├── /v1/cluster/drain (POST)
+2026-11-05T01:06:38.6963218Z ├── /v1/catalog (POST)
+2026-11-05T01:06:38.6963371Z │   ├── /stats (GET, HEAD)
+2026-11-05T01:06:38.6963523Z │   ├── /upsert (POST)
+2026-11-05T01:06:38.6963667Z │   ├── /items (POST)
+2026-11-05T01:06:38.6963817Z │   │   └── /:id (DELETE)
+2026-11-05T01:06:38.6963973Z │   ├── /import-yml (POST)
+2026-11-05T01:06:38.6964150Z │   ├── /clear (DELETE)
+2026-11-05T01:06:38.6964338Z │   └── /export (GET, HEAD)
+2026-11-05T01:06:38.6964649Z ├── /v1/benchmark/compare-url (POST)
+2026-11-05T01:06:38.6964934Z ├── /v1/search (POST)
+2026-11-05T01:06:38.6965200Z ├── /v1/settings (GET, HEAD, PUT)
+2026-11-05T01:06:38.6965463Z │   └── /webhooks (POST)
+2026-11-05T01:06:38.6965805Z │       └── /:id (DELETE)
+2026-11-05T01:06:38.6966040Z ├── /v1/snapshots (POST, GET, HEAD)
+2026-11-05T01:06:38.6966211Z │   └── /restore (POST)
+2026-11-05T01:06:38.6966362Z ├── /v1/feedback (POST)
+2026-11-05T01:06:38.6966885Z ├── /v1/audit/logs (GET, HEAD)
+2026-11-05T01:06:38.6967052Z ├── /v1/analytics (GET, HEAD)
+2026-11-05T01:06:38.6967216Z │   ├── /seo (GET, HEAD)
+2026-11-05T01:06:38.6967367Z │   ├── /synonym (POST)
+2026-11-05T01:06:38.6967522Z │   ├── /queries (GET, HEAD)
+2026-11-05T01:06:38.6967683Z │   ├── /metrics (GET, HEAD)
+2026-11-05T01:06:38.6967842Z │   ├── /boost (POST)
+2026-11-05T01:06:38.6967991Z │   └── /funnel (GET, HEAD)
+2026-11-05T01:06:38.6968146Z │       └── /event (POST)
+2026-11-05T01:06:38.6968319Z ├── /v1/admin/stats (GET, HEAD)
+2026-11-05T01:06:38.6968519Z ├── /v1/admin/keys (GET, HEAD, POST)
+2026-11-05T01:06:38.6968688Z │   ├── /rotate (POST)
+2026-11-05T01:06:38.6968841Z │   └── /:keyHash (DELETE)
+2026-11-05T01:06:38.6968997Z ├── /v1/admin/reindex (POST)
+2026-11-05T01:06:38.6969206Z ├── /v1/admin/ranking-defaults (GET, HEAD, PUT)
+2026-11-05T01:06:38.6969403Z ├── /v1/admin/optimize (POST)
+2026-11-05T01:06:38.6969580Z ├── /v1/admin/logs (GET, HEAD)
+2026-11-05T01:06:38.6969770Z ├── /v1/admin/queries (GET, HEAD)
+2026-11-05T01:06:38.6969932Z │   └── /log (POST)
+2026-11-05T01:06:38.6970116Z ├── /v1/admin/analytics/summary (GET, HEAD)
+2026-11-05T01:06:38.6970329Z ├── /v1/admin/dictionaries (GET, HEAD, PUT)
+2026-11-05T01:06:38.6970603Z ├── /v1/admin/catalog/summary (GET, HEAD)
+2026-11-05T01:06:38.6970814Z ├── /v1/keys (GET, HEAD)
+2026-11-05T01:06:38.6970967Z │   ├── /revoke (POST)
+2026-11-05T01:06:38.6971120Z │   ├── /rotate (POST)
+2026-11-05T01:06:38.6971268Z │   └── /generate (POST)
+2026-11-05T01:06:38.6971439Z ├── /v1/indexes (GET, HEAD, POST)
+2026-11-05T01:06:38.6971618Z │   └── /:name (DELETE)
+2026-11-05T01:06:38.6971770Z │       └── /documents (POST)
+2026-11-05T01:06:38.6971927Z ├── /v1/events (POST)
+2026-11-05T01:06:38.6972071Z ├── /docs (GET, HEAD)
+2026-11-05T01:06:38.6972249Z │   ├── /static/index.html (GET, HEAD)
+2026-11-05T01:06:38.6972474Z │   ├── /static/swagger-initializer.js (GET, HEAD)
+2026-11-05T01:06:38.6972666Z │   ├── * (HEAD, GET)
+2026-11-05T01:06:38.6972824Z │   ├── /json (GET, HEAD)
+2026-11-05T01:06:38.6972978Z │   └── /yaml (GET, HEAD)
+2026-11-05T01:06:38.6973140Z ├── /metrics (GET, HEAD)
+2026-11-05T01:06:38.6973294Z ├── /health (GET, HEAD)
+2026-11-05T01:06:38.6973446Z ├── /api/health (GET, HEAD)
+2026-11-05T01:06:38.6973600Z ├── /ready (GET, HEAD)
+2026-11-05T01:06:38.6973745Z ├── /live (GET, HEAD)
+2026-11-05T01:06:38.6973897Z ├── /widget.js (GET, HEAD)
+2026-11-05T01:06:38.6974043Z └── * (OPTIONS)
+2026-11-05T01:06:38.6974115Z 
+2026-11-05T01:06:38.6974122Z 
+2026-11-05T01:06:38.6974624Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould respond to POST /v1/demo/search with valid payload
+2026-11-05T01:06:38.6975199Z [22m[39mResponse status: [33m200[39m
+2026-11-05T01:06:38.6982692Z Response body: {"query":"wireless headphones","normalizedQuery":"wireless headphones","originalQuery":"wireless headphones","rewritten":false,"mode":"hybrid","alpha":0.5,"weights":{"semantic":0.5,"lexical":0.5,"denseWeight":1,"sparseWeight":1},"simpleCategoryGate":"hard","headCategoryIntent":"headphones","results":[],"count":0,"total":0,"latencyMs":6.99,"cacheHit":false,"cognitiveDiagnostics":{"routeDecision":{"route":"HYBRID_SEMANTIC_PATH","routeLabelRu":"Сбалансированный гибридный контур (BM25 + HNSW RRF)","complexityScore":0.57,"efSearch":56,"recommendedAlpha":0.6,"enableCrossEncoder":true,"enableSerendipity":true,"estimatedComputeSavingsPct":38,"rationale":"Стандартный гибридный запрос (2 токена) — оптимальный баланс RRF (efSearch=56, экономия 38% вычислительного бюджета)."},"kineticProfile":{"archetype":"decisive_sniper","archetypeLabelRu":"Целевой снайпер (Точный фокус)","archetypeLabelEn":"Decisive Sniper Focus","confidence":0.74,"biometricVector":[0.0475,0,0,0,0,0,0,0.0891,0,0,0.0475,0,0,0.7086,0,0.6967],"alphaAdjustment":0,"recommendedMmrLambda":0.2,"priceElasticityBoost":1,"serendipityBoost":0.15,"comparedItemIds":[],"diagnosticSummary":"Стабильный целевой паттерн внимания; сохраняется максимальная точность ранжирования без избыточной диверсификации."},"chronoProfile":{"mode":"dopamine_discovery","modeLabelRu":"Дофаминовый режим открытий","modeLabelEn":"Dopamine Discovery Mode","explorationTemperature":0.74,"choiceFatigueIndex":0,"recommendedSerendipityWeight":0.32,"recommendedMmrLambda":0.49,"recommendedAlphaShift":0.12,"rationale":"Локальное время 1:00 (ночной инсайт-цикл), температура исследования 74% → усилен вектор неожиданных открытий (Serendipity)."},"serendipityDiscoveriesCount":0}}
+2026-11-05T01:06:38.6988254Z 
+2026-11-05T01:06:38.6988872Z  [32m✓[39m tests/integration/route-registration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 139[2mms[22m[39m
+2026-11-05T01:06:39.0322063Z  [32m✓[39m apps/api/tests/production-hardening.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 138[2mms[22m[39m
+2026-11-05T01:06:39.8681874Z  [32m✓[39m packages/core/src/tests/adaptive/context-signals.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-05T01:06:39.8706966Z  [32m✓[39m packages/core/src/tests/adaptive/smmr.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:40.0792546Z  [32m✓[39m packages/core/src/tests/graph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:40.3944980Z  [32m✓[39m apps/api/tests/singleflight.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 153[2mms[22m[39m
+2026-11-05T01:06:40.6068172Z  [32m✓[39m apps/api/tests/similarity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-05T01:06:40.7545204Z  [32m✓[39m tests/unit/xai-explainer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:40.9173530Z  [32m✓[39m tests/unit/splade-lite.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-05T01:06:41.0767407Z  [32m✓[39m packages/core/src/tests/cosine.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:41.0978038Z  [32m✓[39m apps/api/tests/recommend.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 687[2mms[22m[39m
+2026-11-05T01:06:41.2103932Z  [32m✓[39m tests/unit/sequential-recommender.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-05T01:06:41.3635220Z  [32m✓[39m tests/unit/query-understanding.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:41.3663208Z  [32m✓[39m tests/unit/prometheus.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-05T01:06:41.5133321Z  [32m✓[39m tests/unit/tracing.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:41.5248880Z  [32m✓[39m packages/core/src/tests/entropy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:41.6730081Z  [32m✓[39m tests/unit/webhook-dispatcher.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-05T01:06:41.7189387Z  [32m✓[39m tests/unit/benchmark.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-05T01:06:42.1147564Z 
+2026-11-05T01:06:42.1154993Z [31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-11-05T01:06:42.1155354Z 
+2026-11-05T01:06:42.1156689Z [31m[1m[7m FAIL [27m[22m[39m apps/api/tests/v31-release-features.test.ts[2m > [22mEIDOS v3.1 Release Features & Production Hardening[2m > [22m2. /v1/catalog/stats is public and returns indexed categories after loading demo catalog
+2026-11-05T01:06:42.1170156Z [31m[1mAssertionError[22m: expected 1048 to be 48 // Object.is equality[39m
+2026-11-05T01:06:42.1170465Z 
+2026-11-05T01:06:42.1170642Z [32m- Expected[39m
+2026-11-05T01:06:42.1170883Z [31m+ Received[39m
+2026-11-05T01:06:42.1171005Z 
+2026-11-05T01:06:42.1171101Z [32m- 48[39m
+2026-11-05T01:06:42.1171308Z [31m+ 1048[39m
+2026-11-05T01:06:42.1171418Z 
+2026-11-05T01:06:42.1171782Z [36m [2m❯[22m apps/api/tests/v31-release-features.test.ts:[2m42:29[22m[39m
+2026-11-05T01:06:42.1261699Z     [90m 40| [39m    [34mexpect[39m(res[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+2026-11-05T01:06:42.1262548Z     [90m 41| [39m    [35mconst[39m body [33m=[39m [33mJSON[39m[33m.[39m[34mparse[39m(res[33m.[39mbody)[33m;[39m
+2026-11-05T01:06:42.1263262Z     [90m 42| [39m    [34mexpect[39m(body[33m.[39mtotalItems)[33m.[39m[34mtoBe[39m([34m48[39m)[33m;[39m
+2026-11-05T01:06:42.1263772Z     [90m   | [39m                            [31m^[39m
+2026-11-05T01:06:42.1264293Z     [90m 43| [39m    [34mexpect[39m(body[33m.[39mcache)[33m.[39m[34mtoBeDefined[39m()[33m;[39m
+2026-11-05T01:06:42.1264923Z     [90m 44| [39m    [34mexpect[39m([[32m'redis'[39m[33m,[39m [32m'in-memory'[39m])[33m.[39m[34mtoContain[39m(body[33m.[39mcache[33m.[39mtype)[33m;[39m
+2026-11-05T01:06:42.1265205Z 
+2026-11-05T01:06:42.1265374Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-11-05T01:06:42.1265501Z 
+2026-11-05T01:06:42.1268119Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m95 passed[39m[22m[90m (96)[39m
+2026-11-05T01:06:42.1268952Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m421 passed[39m[22m[90m (422)[39m
+2026-11-05T01:06:42.1269398Z [2m   Start at [22m 01:06:03
+2026-11-05T01:06:42.1271160Z [2m   Duration [22m 38.85s[2m (transform 1.72s, setup 0ms, collect 18.22s, tests 16.74s, environment 16ms, prepare 4.91s)[22m
+2026-11-05T01:06:42.1271448Z 
+2026-11-05T01:06:42.1283454Z 
+2026-11-05T01:06:42.1302650Z ##[error]AssertionError: expected 1048 to be 48 // Object.is equality
+
+- Expected
++ Received
+
+- 48
++ 1048
+
+ ❯ apps/api/tests/v31-release-features.test.ts:42:29
+
+
+2026-11-05T01:06:42.1630399Z  ELIFECYCLE  Test failed. See above for more details.
+2026-11-05T01:06:42.1851519Z ##[error]Process completed with exit code 1.

@@ -111,8 +111,10 @@ export async function demoRoutes(
     '/v1/demo/load',
     { preHandler: applyDemoLifecycleRateLimit },
     async (request: FastifyRequest) => {
-      const body = (request.body as { scale?: string }) || {};
-      const scale = body.scale === '48' ? '48' : '1000';
+      const body = (request.body as { scale?: string | number; size?: string | number }) || {};
+      const query = (request.query as { scale?: string | number; size?: string | number }) || {};
+      const requestedScale = String(body.scale ?? body.size ?? query.scale ?? query.size ?? '1000');
+      const scale = requestedScale === '48' ? '48' : '1000';
       const itemsToLoad = scale === '48' ? DEMO_CATALOG : DEMO_CATALOG_1000;
 
       fastify.storeRegistry?.setDefaultStore(opts.vectorStore);
