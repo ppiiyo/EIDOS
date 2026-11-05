@@ -725,38 +725,59 @@ export function buildHumanExplanation(params: {
     matchesHeadCategory,
     alpha = 0.5,
   } = params;
-  const catRu = category ? `«${category}»` : '';
-  const catEn = category ? `"${category}"` : '';
+  const catRu = category ? `категория «${category}»` : '';
+  const catEn = category ? `category "${category}"` : '';
   const pctSuffix = typeof scorePercent === 'number' ? ` (${scorePercent}%)` : '';
+  const uniqueTokens = Array.from(new Set(matchedTokens)).slice(0, 3);
+  const tokensPlus = uniqueTokens.join(' + ');
 
   if (alpha <= 0.01 || (sparseScore > 0 && denseScore <= 0.01)) {
+    const tokDetailRu = tokensPlus ? ` («${tokensPlus}»)` : '';
+    const tokDetailEn = tokensPlus ? ` ("${tokensPlus}")` : '';
     return {
-      ru: `Точное ключевое совпадение BM25 ${catRu}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
-      en: `Exact lexical BM25 match ${catEn}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
+      ru: `Точное совпадение слов${tokDetailRu}${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+      en: `Exact keyword match${tokDetailEn}${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
     };
   }
-  if (alpha >= 0.99 || (denseScore > 0 && sparseScore <= 0 && titleMatchCount === 0)) {
+  if (alpha >= 0.99 || (denseScore > 0 && sparseScore <= 0 && titleMatchCount === 0 && uniqueTokens.length === 0)) {
     return {
-      ru: `Семантическая близость 384-d вектора ${catRu}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
-      en: `384-d semantic vector similarity ${catEn}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
+      ru: `Близость по смыслу запроса${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+      en: `Semantic meaning match${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
     };
   }
-  if ((matchesHeadCategory || titleMatchCount > 0 || categoryOrTagMatchCount > 0) && matchedTokens.length > 0) {
-    const tokensLabel = matchedTokens.slice(0, 3).join(', ');
+  if ((matchesHeadCategory || titleMatchCount > 0 || categoryOrTagMatchCount > 0) && uniqueTokens.length > 0) {
     return {
-      ru: `Целевая категория ${catRu} + совпадение токенов [${tokensLabel}]${pctSuffix}`.replace(/\s+/g, ' ').trim(),
-      en: `Target category ${catEn} + token match [${tokensLabel}]${pctSuffix}`.replace(/\s+/g, ' ').trim(),
+      ru: `Совпадение по смыслу и словам («${tokensPlus}»)${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+      en: `Matched meaning & words ("${tokensPlus}")${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
     };
   }
   if (denseScore > 0 && (sparseScore > 0 || titleMatchCount > 0)) {
     return {
-      ru: `Гибридный RRF матчинг (семантика + BM25) ${catRu}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
-      en: `Hybrid RRF match (semantic + BM25) ${catEn}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
+      ru: `Совпадение по смыслу и характеристикам товара${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+      en: `Semantic and product attribute match${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+        .replace(/\s+/g, ' ')
+        .trim(),
     };
   }
   return {
-    ru: `Релевантность по смыслу и категории ${catRu}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
-    en: `Semantic and category relevance ${catEn}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
+    ru: `Релевантность по смыслу${catRu ? `, ${catRu}` : ''}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
+    en: `Semantic and category relevance${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      .replace(/\s+/g, ' ')
+      .trim(),
   };
 }
 

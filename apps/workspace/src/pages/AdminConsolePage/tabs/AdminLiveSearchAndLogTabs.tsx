@@ -13,6 +13,7 @@ export interface AdminLiveSearchTabProps {
   isIndexingDemo?: boolean;
   totalSkuCount?: number;
   onReloadDemoCatalog?: () => void;
+  onConnectStore?: () => void;
 }
 
 export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
@@ -27,6 +28,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   isIndexingDemo = false,
   totalSkuCount = 0,
   onReloadDemoCatalog,
+  onConnectStore,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [mode, setMode] = useState<'hybrid' | 'dense' | 'sparse'>('hybrid');
@@ -197,8 +199,8 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                 data-testid="public-demo-story-subtitle"
               >
                 {lang === 'ru'
-                  ? '1000+ товаров · без OpenAI · explainable'
-                  : '1000+ products · zero OpenAI · explainable'}
+                  ? '1000+ товаров · без OpenAI · видно почему в топе · explainable'
+                  : '1000+ products · zero OpenAI · see why it ranks on top · explainable'}
               </p>
             </div>
             <div className="text-xs text-slate-600 font-medium">
@@ -456,7 +458,20 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                   <th className="py-2.5 px-3 font-medium text-right">
                     {lang === 'ru' ? 'Цена' : 'Price'}
                   </th>
-                  <th className="py-2.5 px-3 font-medium text-right">Match %</th>
+                  <th
+                    className="py-2.5 px-3 font-medium text-right"
+                    title={
+                      lang === 'ru'
+                        ? 'Насколько товар подходит запросу покупателя'
+                        : 'How well the product matches the shopper query'
+                    }
+                  >
+                    {isPublicDemo
+                      ? lang === 'ru'
+                        ? 'Подходит (Match %)'
+                        : 'Match %'
+                      : 'Match %'}
+                  </th>
                   {!isPublicDemo && (
                     <th className="py-2.5 px-3 font-medium text-right">Score</th>
                   )}
@@ -504,89 +519,109 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
         </div>
 
         <div
-          className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-4"
+          className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-between gap-4"
           data-testid="admin-xray-panel"
         >
-          <div className="text-xs font-semibold text-slate-500 mb-2">
-            {isPublicDemo
-              ? lang === 'ru'
-                ? 'Почему в топе'
-                : 'Why it ranked on top'
-              : lang === 'ru'
-              ? 'Рентген ранжирования (X-Ray Inspector)'
-              : 'Explainable Ranking X-Ray'}
-          </div>
-          {!selectedHit ? (
-            <div className="text-xs text-slate-400 py-8 text-center">
-              {lang === 'ru'
-                ? 'Выберите товар в списке слева, чтобы увидеть объяснение выбора.'
-                : 'Select a product on the left to see why it matched.'}
+          <div>
+            <div className="text-xs font-semibold text-slate-500 mb-2">
+              {isPublicDemo
+                ? lang === 'ru'
+                  ? 'Почему в топе'
+                  : 'Why it ranked on top'
+                : lang === 'ru'
+                ? 'Рентген ранжирования (X-Ray Inspector)'
+                : 'Explainable Ranking X-Ray'}
             </div>
-          ) : (
-            <div className="space-y-3 text-xs">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">{selectedHit.title}</div>
-                <div className="text-slate-500 mt-0.5">
-                  {selectedHit.category}
-                  {typeof selectedHit.price === 'number'
-                    ? ` · ${selectedHit.price.toLocaleString()} ₽`
-                    : ''}{' '}
-                  · Совпадение {selectedHit.scorePercent}%
-                </div>
+            {!selectedHit ? (
+              <div className="text-xs text-slate-400 py-8 text-center">
+                {lang === 'ru'
+                  ? 'Выберите товар в списке слева, чтобы увидеть объяснение выбора.'
+                  : 'Select a product on the left to see why it matched.'}
               </div>
-
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-md text-slate-800">
-                <div className="font-medium text-slate-900 mb-1">
-                  {lang === 'ru' ? 'Почему этот товар в выдаче:' : 'Why this item ranked here:'}
+            ) : (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">{selectedHit.title}</div>
+                  <div className="text-slate-500 mt-0.5">
+                    {selectedHit.category}
+                    {typeof selectedHit.price === 'number'
+                      ? ` · ${selectedHit.price.toLocaleString()} ₽`
+                      : ''}{' '}
+                    · Насколько подходит запросу: {selectedHit.scorePercent}%
+                  </div>
                 </div>
-                <div data-testid="admin-xray-human-explanation" className="leading-relaxed">
-                  {lang === 'ru'
-                    ? selectedHit.humanExplanation?.ru ||
-                      'Товар соответствует категории запроса и совпадает по смыслу и характеристикам.'
-                    : selectedHit.humanExplanation?.en || 'Hybrid semantic + lexical match'}
-                </div>
-              </div>
 
-              <details
-                open={!isPublicDemo}
-                className="pt-1 group"
-                data-testid="admin-xray-details"
-              >
-                <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800 select-none list-none flex items-center gap-1.5">
-                  <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
-                  <span>
+                <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-md text-slate-800">
+                  <div className="font-medium text-slate-900 mb-1">
+                    {lang === 'ru' ? 'Почему этот товар в выдаче:' : 'Why this item ranked here:'}
+                  </div>
+                  <div data-testid="admin-xray-human-explanation" className="leading-relaxed">
                     {lang === 'ru'
-                      ? 'Подробнее (формула X-Ray: Dense / BM25 / RRF)'
-                      : 'Details (X-Ray math: Dense / BM25 / RRF)'}
-                  </span>
-                </summary>
-                <div className="mt-2.5 grid grid-cols-2 gap-2 font-mono tabular-nums">
-                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                    <div className="text-slate-500">Dense (384-d Cosine)</div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {Number(selectedHit.explanation?.denseComponent || 0).toFixed(4)}
-                    </div>
-                  </div>
-                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                    <div className="text-slate-500">Sparse (BM25+)</div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {Number(selectedHit.explanation?.sparseBm25Component || 0).toFixed(4)}
-                    </div>
-                  </div>
-                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                    <div className="text-slate-500">Hybrid RRF</div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {Number(selectedHit.explanation?.rrfScore || 0).toFixed(4)}
-                    </div>
-                  </div>
-                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                    <div className="text-slate-500">Guardrail Boost</div>
-                    <div className="text-sm font-semibold text-slate-900">
-                      {Number(selectedHit.explanation?.businessBoost || 0).toFixed(4)}
-                    </div>
+                      ? selectedHit.humanExplanation?.ru ||
+                        'Товар соответствует категории запроса и совпадает по смыслу и характеристикам.'
+                      : selectedHit.humanExplanation?.en || 'Hybrid semantic + lexical match'}
                   </div>
                 </div>
-              </details>
+
+                <details
+                  open={!isPublicDemo}
+                  className="pt-1 group"
+                  data-testid="admin-xray-details"
+                >
+                  <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800 select-none list-none flex items-center gap-1.5">
+                    <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
+                    <span>
+                      {lang === 'ru'
+                        ? 'Подробнее (формула X-Ray: Dense / BM25 / RRF)'
+                        : 'Details (X-Ray math: Dense / BM25 / RRF)'}
+                    </span>
+                  </summary>
+                  <div className="mt-2.5 grid grid-cols-2 gap-2 font-mono tabular-nums">
+                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                      <div className="text-slate-500">Dense (384-d Cosine)</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {Number(selectedHit.explanation?.denseComponent || 0).toFixed(4)}
+                      </div>
+                    </div>
+                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                      <div className="text-slate-500">Sparse (BM25+)</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {Number(selectedHit.explanation?.sparseBm25Component || 0).toFixed(4)}
+                      </div>
+                    </div>
+                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                      <div className="text-slate-500">Hybrid RRF</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {Number(selectedHit.explanation?.rrfScore || 0).toFixed(4)}
+                      </div>
+                    </div>
+                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                      <div className="text-slate-500">Guardrail Boost</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {Number(selectedHit.explanation?.businessBoost || 0).toFixed(4)}
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            )}
+          </div>
+
+          {isPublicDemo && (
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+              <span className="text-slate-600">
+                {lang === 'ru'
+                  ? 'Готовы проверить на своём прайсе?'
+                  : 'Ready to test on your own catalog?'}
+              </span>
+              <button
+                type="button"
+                data-testid="public-demo-connect-store-cta"
+                onClick={onConnectStore}
+                className="px-3 py-1.5 font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md transition-colors whitespace-nowrap"
+              >
+                {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV →' : 'Connect Bitrix / Woo / CSV →'}
+              </button>
             </div>
           )}
         </div>

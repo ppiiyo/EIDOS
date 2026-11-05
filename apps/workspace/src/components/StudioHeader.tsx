@@ -17,6 +17,7 @@ interface StudioHeaderProps {
   onOpenCsvModal: () => void;
   onOpenApiModal: () => void;
   onOpenAdminConsole?: () => void;
+  onOpenPublicDemo?: () => void;
 }
 
 export const StudioHeader: React.FC<StudioHeaderProps> = ({
@@ -32,6 +33,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   onOpenCsvModal,
   onOpenApiModal,
   onOpenAdminConsole,
+  onOpenPublicDemo,
 }) => {
   const tTop = UI_TRANSLATIONS[uiLang].topbar;
   const [theme, setTheme] = useState<'light' | 'dark'>(() =>
@@ -165,15 +167,27 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <span>{tTop.csvModal}</span>
         </button>
 
+        {onOpenPublicDemo && (
+          <button
+            type="button"
+            data-testid="header-open-public-demo-btn"
+            onClick={onOpenPublicDemo}
+            className="btn btn-secondary btn-sm"
+            title="Открыть клиентское демо (/public-demo)"
+          >
+            <span>{uiLang === 'ru' ? 'Открыть клиентское демо' : 'Client Demo'}</span>
+          </button>
+        )}
+
         {onOpenAdminConsole && (
           <button
             type="button"
             data-testid="header-open-admin-btn"
             onClick={onOpenAdminConsole}
             className="btn btn-secondary btn-sm"
-            title="Open standalone EIDOS Admin Console (/admin)"
+            title="Открыть админку оператора (/admin)"
           >
-            <span>EIDOS Admin</span>
+            <span>{uiLang === 'ru' ? 'Админка' : 'EIDOS Admin'}</span>
           </button>
         )}
 

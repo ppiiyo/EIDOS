@@ -134,6 +134,7 @@ export function App() {
           onOpenCsvModal={() => setIsCsvModalOpen(true)}
           onOpenApiModal={() => setIsApiModalOpen(true)}
           onOpenAdminConsole={() => navigateView('admin')}
+          onOpenPublicDemo={() => navigateView('public-demo')}
         />
 
         <StudioViewRouter

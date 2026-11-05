@@ -307,15 +307,21 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     );
     expect(publicDemoHtml).toContain('data-testid="public-demo-banner"');
     expect(publicDemoHtml).toContain(
-      'Демо-контур · Только чтение · Для пилота на вашем каталоге — self-hosted EIDOS'
+      'Демо-каталог · read-only · ваш магазин = self-hosted пилот'
     );
+    expect(publicDemoHtml).toContain('EIDOS Витрина');
+    expect(publicDemoHtml).toContain('Как это работает');
+    expect(publicDemoHtml).toContain('Подключить магазин');
+    expect(publicDemoHtml).toContain('Для специалистов');
+    expect(publicDemoHtml).toContain('Режим оператора (/admin)');
     // Write tabs must not appear in public-demo surface
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-dictionaries"');
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-api-keys"');
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-system"');
+    expect(publicDemoHtml).not.toContain('Операторская панель поиска');
   });
 
-  it('8. App routing (/admin and /public-demo) mounts standalone EidosAdminConsole WITHOUT Studio Sidebar', () => {
+  it('8. App routing (/admin, /public-demo, and /) mounts isolated surfaces and links Studio -> Public Demo / Admin', () => {
     const prevWindow = (globalThis as any).window;
     try {
       (globalThis as any).window = {
@@ -336,12 +342,22 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
       expect(demoRouteHtml).toContain('data-testid="eidos-admin-console"');
       expect(demoRouteHtml).toContain('data-testid="public-demo-banner"');
       expect(demoRouteHtml).not.toContain('data-testid="studio-sidebar"');
+
+      (globalThis as any).window = {
+        location: { pathname: '/', search: '' },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      };
+      const studioRouteHtml = renderToStaticMarkup(<App />);
+      expect(studioRouteHtml).toContain('data-testid="header-open-public-demo-btn"');
+      expect(studioRouteHtml).toContain('data-testid="header-open-admin-btn"');
+      expect(studioRouteHtml).toContain('Открыть клиентское демо');
     } finally {
       (globalThis as any).window = prevWindow;
     }
   });
 
-  it('9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and tests WOW Golden Queries', async () => {
+  it('9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and passes 10 WOW Golden Queries with human explanations', async () => {
     // 1. Load 1000+ SKU demo catalog
     const loadRes = await app.inject({
       method: 'POST',
@@ -366,7 +382,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(Array.isArray(aBody.topZeroResultQueries)).toBe(true);
     expect(aBody.topZeroResultQueries.length).toBeGreaterThan(0);
 
-    // 3. Golden query: "недорогие наушники для бега" -> top results are Headphones, never Shoes
+    // Golden #1: "недорогие наушники для бега" -> top results are Headphones, never Shoes, with rich RU humanExplanation
     const runHeadphonesRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -381,8 +397,10 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
       `Top category should be Headphones/Audio but got "${hpBody.results[0].category}"`
     ).toBe(true);
     expect(topCategory.includes('обувь') || topCategory.includes('кроссовк')).toBe(false);
+    expect(hpBody.results[0].humanExplanation?.ru).toContain('Совпадение по смыслу');
+    expect(hpBody.results[0].humanExplanation?.ru).toContain('категория');
 
-    // 4. Golden query: "детский смартфон до 15000" -> smartphones with price <= 15000
+    // Golden #2: "детский смартфон до 15000" -> smartphones with price <= 15000
     const kidsPhoneRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -391,10 +409,9 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(kidsPhoneRes.statusCode).toBe(200);
     const phoneBody = kidsPhoneRes.json();
     expect(phoneBody.count).toBeGreaterThan(0);
-    const topPhone = phoneBody.results[0];
-    expect(topPhone.price).toBeLessThanOrEqual(15000);
+    expect(phoneBody.results[0].price).toBeLessThanOrEqual(15000);
 
-    // 5. Golden query: "5W-40" -> motor oils
+    // Golden #3: "5W-40" -> motor oils
     const oilRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -411,7 +428,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
         topOil.category.includes('масла')
     ).toBe(true);
 
-    // 6. Golden query: "yfeiybrb" (keyboard layout mistype) -> recovered to наушники
+    // Golden #4: "yfeiybrb" (keyboard layout mistype) -> recovered to наушники
     const layoutRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -422,7 +439,48 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(layoutBody.count).toBeGreaterThan(0);
     expect(layoutBody.normalizedQuery).toBe('наушники');
 
-    // 7. Golden query: "zzzz_garbage_999" and "Абракадабра" -> honest count 0
+    // Golden #5: "беговые кроссовки asics" -> Shoes category, not Headphones
+    const shoesRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'беговые кроссовки asics', alpha: 0.55, limit: 5 },
+    });
+    expect(shoesRes.statusCode).toBe(200);
+    const shoesBody = shoesRes.json();
+    expect(shoesBody.count).toBeGreaterThan(0);
+    expect(shoesBody.results[0].category).toContain('Обувь');
+
+    // Golden #6: "робот-пылесос с влажной уборкой" -> Home Appliances
+    const vacRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'робот-пылесос с влажной уборкой', alpha: 0.55, limit: 5 },
+    });
+    expect(vacRes.statusCode).toBe(200);
+    expect(vacRes.json().count).toBeGreaterThan(0);
+    expect(vacRes.json().results[0].category).toContain('Бытовая техника');
+
+    // Golden #7: "кофемашина delonghi" -> Home Appliances
+    const coffeeRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'кофемашина delonghi', alpha: 0.55, limit: 5 },
+    });
+    expect(coffeeRes.statusCode).toBe(200);
+    expect(coffeeRes.json().count).toBeGreaterThan(0);
+    expect(coffeeRes.json().results[0].title.toLowerCase()).toContain('delonghi');
+
+    // Golden #8: "шуруповерт makita" -> Tools & Repair
+    const drillRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'шуруповерт makita', alpha: 0.55, limit: 5 },
+    });
+    expect(drillRes.statusCode).toBe(200);
+    expect(drillRes.json().count).toBeGreaterThan(0);
+    expect(drillRes.json().results[0].category).toContain('Инструменты');
+
+    // Golden #9 & #10: "zzzz_garbage_999" and "Абракадабра" -> honest count 0
     const garbageRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -440,15 +498,17 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(abracadabraRes.json().count).toBe(0);
   });
 
-  it('10. Renders Story-Mode Public Demo UX, Golden Query Presets, collapsed Specialist Levers, and Demo Reload controls', () => {
+  it('10. Renders Story-Mode Public Demo UX, Golden Query Presets, Store Connection CTA, and collapsed Specialist Levers', () => {
     const publicDemoHtml = renderToStaticMarkup(
       <EidosAdminConsole mode="public-demo" uiLang="ru" />
     );
     expect(publicDemoHtml).toContain('Поиск, который понимает покупателя');
-    expect(publicDemoHtml).toContain('1000+ товаров · без OpenAI · explainable');
+    expect(publicDemoHtml).toContain('1000+ товаров · без OpenAI · видно почему в топе');
     expect(publicDemoHtml).toContain('Каталог демо: 1048 товаров');
     expect(publicDemoHtml).toContain('Почему в топе');
     expect(publicDemoHtml).toContain('Для специалиста');
+    expect(publicDemoHtml).toContain('Подключить к Bitrix / Woo / CSV');
+    expect(publicDemoHtml).toContain('data-testid="public-demo-connect-store-cta"');
     expect(publicDemoHtml).toContain('Ничего не найдено — так и должно быть для бессмысленного запроса');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-недорогие наушники для бега"');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-детский смартфон до 15000"');
@@ -459,18 +519,30 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(publicDemoHtml).toContain('data-testid="reload-demo-catalog-btn"');
   });
 
-  it('11. Validates DEMO_CATALOG_1000 store-grade quality: 1048 unique titles, no duplicate word spam, and clean Russian categories', async () => {
+  it('11. Validates DEMO_CATALOG_1000 store-grade quality: 1048 unique titles, zero legacy Игры/Фильмы, and zero article-code spam', async () => {
     const { DEMO_CATALOG_1000 } = await import('../../apps/api/src/demo/demo-catalog-1000');
-    expect(DEMO_CATALOG_1000.length).toBeGreaterThanOrEqual(1000);
+    expect(DEMO_CATALOG_1000.length).toBe(1048);
 
     const uniqueTitles = new Set(DEMO_CATALOG_1000.map((item) => item.title));
     expect(uniqueTitles.size).toBe(DEMO_CATALOG_1000.length);
 
     for (const item of DEMO_CATALOG_1000) {
       expect(item.title.toLowerCase()).not.toContain('детский детский');
+      expect(item.title).not.toContain('[Арт.');
+      expect(item.category).not.toBe('Игры');
+      expect(item.category).not.toBe('Фильмы');
       expect(item.category).not.toMatch(/[ぁ-んァ-ン一-龯]/);
       expect(typeof item.price).toBe('number');
       expect(item.price).toBeGreaterThan(0);
+    }
+
+    // Check 20 evenly spaced titles across the catalog for no adjacent repeated words
+    for (let i = 0; i < 20; i++) {
+      const sample = DEMO_CATALOG_1000[i * 50];
+      const words = sample.title.toLowerCase().split(/\s+/);
+      for (let w = 1; w < words.length; w++) {
+        expect(words[w]).not.toBe(words[w - 1]);
+      }
     }
   });
 });

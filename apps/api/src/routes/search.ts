@@ -672,6 +672,10 @@ export async function searchRoutes(
               const humanExplanation = buildHumanExplanation({
                 titleMatchCount: guardrail.titleMatchCount,
                 categoryOrTagMatchCount: guardrail.categoryOrTagMatchCount,
+                matchedTokens: guardrail.matchedTokens,
+                matchesHeadCategory: guardrail.headNounMatchCount > 0,
+                scorePercent,
+                alpha: appliedAlpha,
                 denseScore: denseComponent,
                 sparseScore: sparseBm25Component,
                 category: r.item.category,

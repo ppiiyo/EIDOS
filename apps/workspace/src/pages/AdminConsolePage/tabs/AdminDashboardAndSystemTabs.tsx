@@ -816,57 +816,102 @@ export const AdminSystemAndDocsTabs: React.FC<{
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs" data-testid="admin-docs-panel">
-      <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-        <div className="text-sm font-semibold text-slate-900">
-          1. Self-Hosted Pilot за 15 минут (docs/PRODUCTION.md)
+    <div className="space-y-4 text-xs" data-testid="admin-docs-panel">
+      <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">
+            {lang === 'ru'
+              ? 'Подключить ваш магазин к EIDOS (3 способа за 1 рабочий день)'
+              : 'Connect Your Store to EIDOS (3 Ways in 1 Business Day)'}
+          </h2>
+          <p className="text-slate-600 mt-0.5">
+            {lang === 'ru'
+              ? 'Выберите готовый коннектор под вашу CMS или загрузите прайс-лист напрямую по CSV/YML. При любой недоступности EIDOS витрина автоматически переключается на штатный поиск CMS.'
+              : 'Choose a native connector for your CMS or upload your catalog via CSV/YML. If EIDOS is unreachable, your storefront automatically falls back to native CMS search.'}
+          </p>
         </div>
-        <p className="text-slate-600">
-          {lang === 'ru'
-            ? 'Запуск в 1 команду без GPU и без внешних LLM API: docker compose -f docker-compose.pilot.yml up -d → загрузка каталога с ADMIN_KEY → проверка GET /v1/ready → подключение витрины по SEARCH_KEY.'
-            : '15-minute CPU-only deployment without GPU or external OpenAI keys: docker compose up -d -> catalog upsert with ADMIN_KEY -> GET /v1/ready -> storefront search with SEARCH_KEY.'}
-        </p>
-        <div className="p-2 bg-slate-50 border border-slate-200 rounded font-mono text-[11px] text-slate-800">
-          bash scripts/install-pilot.sh
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+          <div className="border border-slate-200 rounded-lg p-4 space-y-2 bg-slate-50/50">
+            <div className="font-semibold text-slate-900 text-sm">1. WooCommerce (WordPress)</div>
+            <ol className="list-decimal list-inside space-y-1 text-slate-700">
+              <li>Установите архив плагина <code className="font-mono">eidos-woocommerce.zip</code></li>
+              <li>Укажите URL сервера EIDOS, <code className="font-mono">ADMIN_KEY</code> и <code className="font-mono">SEARCH_KEY</code></li>
+              <li>Нажмите <strong>«Проверить связь (Health)»</strong></li>
+              <li>Нажмите <strong>«Синхронизировать каталог»</strong> (<code className="font-mono">post__in</code> + fallback)</li>
+            </ol>
+            <div className="font-mono text-[11px] text-slate-500 pt-1">
+              docs/integrations/woocommerce.md
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-lg p-4 space-y-2 bg-slate-50/50">
+            <div className="font-semibold text-slate-900 text-sm">2. 1С-Битрикс (Инфоблоки)</div>
+            <ol className="list-decimal list-inside space-y-1 text-slate-700">
+              <li>Установите модуль коннектора <code className="font-mono">packages/connectors/bitrix</code></li>
+              <li>Выберите инфоблок каталога (<code className="font-mono">id = ELEMENT_ID</code>, <code className="font-mono">sku = XML_ID</code>)</li>
+              <li>Запустите выгрузку товаров по <code className="font-mono">ADMIN_KEY</code></li>
+              <li>Включите перехват поиска с авто-fallback на <code className="font-mono">CIBlockElement::GetList</code></li>
+            </ol>
+            <div className="font-mono text-[11px] text-slate-500 pt-1">
+              docs/integrations/bitrix.md
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-lg p-4 space-y-2 bg-slate-50/50">
+            <div className="font-semibold text-slate-900 text-sm">3. CSV / YML / Batch API</div>
+            <ol className="list-decimal list-inside space-y-1 text-slate-700">
+              <li>Подготовьте прайс (<code className="font-mono">id, title, description, category, price</code>)</li>
+              <li>Отправьте батч <code className="font-mono">POST /v1/catalog/upsert</code> с <code className="font-mono">ADMIN_KEY</code></li>
+              <li>Проверьте <code className="font-mono">rowErrors: []</code> и <code className="font-mono">GET /v1/ready</code></li>
+              <li>Подключите виджет <code className="font-mono">/widget.js</code> или API с <code className="font-mono">SEARCH_KEY</code></li>
+            </ol>
+            <div className="font-mono text-[11px] text-slate-500 pt-1">
+              docs/CSV_CONTRACT.md · examples/sample-catalog.csv
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-        <div className="text-sm font-semibold text-slate-900">
-          2. Коннекторы 1С-Битрикс и WooCommerce
+      <div
+        className="bg-white border border-slate-200 rounded-lg p-5 space-y-3"
+        data-testid="pilot-14-days-runbook"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-900">
+            {lang === 'ru'
+              ? 'Пилот 14 дней на каталоге вашего магазина (Runbook приёмки)'
+              : '14-Day Storefront Pilot Runbook & Acceptance Criteria'}
+          </h3>
+          <span className="font-mono text-[11px] text-slate-500">docs/PRODUCTION.md</span>
         </div>
-        <p className="text-slate-600">
-          {lang === 'ru'
-            ? 'Полный паритет Bitrix (id = ELEMENT_ID, sku = XML_ID) и WooCommerce (id = product_id / variation_id, post__in hydration) с сохранением порядка ранжирования EIDOS и автоматическим fallback на штатный поиск CMS при таймауте.'
-            : 'Full parity between 1C-Bitrix and WooCommerce connectors with server-side search replacement and graceful CMS fallback.'}
-        </p>
-        <div className="font-mono text-[11px] text-slate-500">
-          docs/integrations/bitrix.md · docs/integrations/woocommerce.md
-        </div>
-      </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-        <div className="text-sm font-semibold text-slate-900">
-          3. Контракт CSV и пакетный импорт (docs/CSV_CONTRACT.md)
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-slate-700">
+          <div className="p-3 border border-slate-200 rounded-md">
+            <div className="font-semibold text-slate-900 mb-1">День 1: Развёртывание</div>
+            <p>
+              Self-hosted Docker (<code className="font-mono">bash scripts/install-pilot.sh</code>), HTTPS, генерация ключей <code className="font-mono">ADMIN_KEY</code> и <code className="font-mono">SEARCH_KEY</code>.
+            </p>
+          </div>
+          <div className="p-3 border border-slate-200 rounded-md">
+            <div className="font-semibold text-slate-900 mb-1">День 1–2: Синхронизация</div>
+            <p>
+              Загрузка реального прайса клиента (Bitrix / Woo / CSV), фиксация снапшота на диск и проверка <code className="font-mono">GET /v1/ready</code>.
+            </p>
+          </div>
+          <div className="p-3 border border-slate-200 rounded-md">
+            <div className="font-semibold text-slate-900 mb-1">Дни 3–12: Golden-матрица</div>
+            <p>
+              Проверка 15–20 реальных запросов покупателей магазина (категорийные, артикулы, опечатки, синонимы в <code className="font-mono">/admin</code>).
+            </p>
+          </div>
+          <div className="p-3 border border-slate-200 rounded-md">
+            <div className="font-semibold text-slate-900 mb-1">День 14: Решение Go / No-Go</div>
+            <p>
+              Критерий успеха: <strong>≥ 80% top-3 релевантны</strong>, мусор → честный 0, при отключении API витрина CMS работает через штатный fallback.
+            </p>
+          </div>
         </div>
-        <p className="text-slate-600">
-          {lang === 'ru'
-            ? 'Обязательные колонки: id, title, description, category, price. Опциональные: sku, brand, inStock, tags, url, imageUrl. При ошибке строки API и парсер возвращают точный номер строки и имя поля.'
-            : 'Required columns: id, title, description, category, price. Optional: sku, brand, inStock, tags, url, imageUrl. Line-level validation reports exact row and field errors.'}
-        </p>
-        <div className="font-mono text-[11px] text-slate-500">examples/sample-catalog.csv</div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-        <div className="text-sm font-semibold text-slate-900">
-          4. Витринный виджет (GET /widget.js + SEARCH_KEY)
-        </div>
-        <p className="text-slate-600">
-          {lang === 'ru'
-            ? 'Подключается одним тегом <script src="/widget.js"> с публичным SEARCH_KEY. Встроенная защита блокирует использование ADMIN_KEY или MASTER_KEY в браузере покупателя.'
-            : 'Embed with a single <script src="/widget.js"> tag using a read-only SEARCH_KEY. Built-in guardrails reject ADMIN_KEY or MASTER_KEY in storefront browsers.'}
-        </p>
-        <div className="font-mono text-[11px] text-slate-500">docs/PILOT_NO_CODE.md</div>
       </div>
     </div>
   );
