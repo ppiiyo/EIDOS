@@ -422,7 +422,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(layoutBody.count).toBeGreaterThan(0);
     expect(layoutBody.normalizedQuery).toBe('наушники');
 
-    // 7. Golden query: "zzzz_garbage_999" -> honest count 0
+    // 7. Golden query: "zzzz_garbage_999" and "Абракадабра" -> honest count 0
     const garbageRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -430,17 +430,47 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     });
     expect(garbageRes.statusCode).toBe(200);
     expect(garbageRes.json().count).toBe(0);
+
+    const abracadabraRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'Абракадабра', alpha: 0.55, limit: 5 },
+    });
+    expect(abracadabraRes.statusCode).toBe(200);
+    expect(abracadabraRes.json().count).toBe(0);
   });
 
-  it('10. Renders Golden Query Presets and Demo Reload controls on Public Demo', () => {
+  it('10. Renders Story-Mode Public Demo UX, Golden Query Presets, collapsed Specialist Levers, and Demo Reload controls', () => {
     const publicDemoHtml = renderToStaticMarkup(
       <EidosAdminConsole mode="public-demo" uiLang="ru" />
     );
+    expect(publicDemoHtml).toContain('Поиск, который понимает покупателя');
+    expect(publicDemoHtml).toContain('1000+ товаров · без OpenAI · explainable');
+    expect(publicDemoHtml).toContain('Каталог демо: 1048 товаров');
+    expect(publicDemoHtml).toContain('Почему в топе');
+    expect(publicDemoHtml).toContain('Для специалиста');
+    expect(publicDemoHtml).toContain('Ничего не найдено — так и должно быть для бессмысленного запроса');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-недорогие наушники для бега"');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-детский смартфон до 15000"');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-5W-40"');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-yfeiybrb"');
+    expect(publicDemoHtml).toContain('data-testid="admin-live-sample-Абракадабра"');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-zzzz_garbage_999"');
     expect(publicDemoHtml).toContain('data-testid="reload-demo-catalog-btn"');
+  });
+
+  it('11. Validates DEMO_CATALOG_1000 store-grade quality: 1048 unique titles, no duplicate word spam, and clean Russian categories', async () => {
+    const { DEMO_CATALOG_1000 } = await import('../../apps/api/src/demo/demo-catalog-1000');
+    expect(DEMO_CATALOG_1000.length).toBeGreaterThanOrEqual(1000);
+
+    const uniqueTitles = new Set(DEMO_CATALOG_1000.map((item) => item.title));
+    expect(uniqueTitles.size).toBe(DEMO_CATALOG_1000.length);
+
+    for (const item of DEMO_CATALOG_1000) {
+      expect(item.title.toLowerCase()).not.toContain('детский детский');
+      expect(item.category).not.toMatch(/[ぁ-んァ-ン一-龯]/);
+      expect(typeof item.price).toBe('number');
+      expect(item.price).toBeGreaterThan(0);
+    }
   });
 });

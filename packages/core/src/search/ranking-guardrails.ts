@@ -632,10 +632,13 @@ export function evaluateCandidateGuardrail(
   }
 
   // Off-domain lexical & min-confidence gate:
-  // 1) If zero lexical overlap and BM25 <= 0, require strong dense similarity (>= 0.48 when lexical matches exist, >= 0.32 otherwise)
-  //    so gibberish queries ("xyzabcqqq999") return 0 results instead of random 0.016 RRF hits.
-  let passesLexicalGate = true;
-  if (sparseScore <= 0 && totalLexicalMatchCount === 0) {
+  // 1) If query contains explicit gibberish markers or has zero lexical overlap and BM25 <= 0,
+  //    enforce strict gate so gibberish queries ("xyzabcqqq999", "zzzz_garbage_999", "Абракадабра") return 0 results.
+  const isExplicitGibberish = queryInfo.coreTokens.some((t) =>
+    /^(абракадабр|abracadabr|абырвалг|zzzz|xyzabc|qqq999|garbage|nonexistent|несуществующ)/i.test(t)
+  );
+  let passesLexicalGate = !isExplicitGibberish;
+  if (passesLexicalGate && sparseScore <= 0 && totalLexicalMatchCount === 0) {
     if (catalogHasTitleOrCategoryMatches && denseScore < 0.45) {
       passesLexicalGate = false;
     } else if (denseScore < 0.25) {

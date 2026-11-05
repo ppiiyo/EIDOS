@@ -45,11 +45,16 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  const [searchTrigger, setSearchTrigger] = useState(0);
+
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
 
   useEffect(() => {
+    if (isIndexingDemo) {
+      return;
+    }
     const trimmed = query.trim();
     if (!trimmed) {
       setResults([]);
@@ -111,10 +116,10 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
       } finally {
         setLoading(false);
       }
-    }, 300);
+    }, 220);
 
     return () => clearTimeout(timer);
-  }, [query, mode, alpha, gate, apiKey, isPublicDemo]);
+  }, [query, mode, alpha, gate, apiKey, isPublicDemo, isIndexingDemo, searchTrigger]);
 
   const handleRecordClick = async (hit: LiveSearchHitDto) => {
     setSelectedHit(hit);
@@ -136,33 +141,83 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
     }
   };
 
+  const samplePresets = [
+    {
+      query: 'недорогие наушники для бега',
+      labelRu: isPublicDemo ? 'Наушники для бега' : 'недорогие наушники для бега',
+      labelEn: isPublicDemo ? 'Running headphones' : 'недорогие наушники для бега',
+    },
+    {
+      query: 'детский смартфон до 15000',
+      labelRu: isPublicDemo ? 'Детский смартфон' : 'детский смартфон до 15000',
+      labelEn: isPublicDemo ? 'Kids smartphone' : 'детский смартфон до 15000',
+    },
+    { query: '5W-40', labelRu: '5W-40', labelEn: '5W-40' },
+    { query: 'yfeiybrb', labelRu: 'yfeiybrb', labelEn: 'yfeiybrb' },
+    { query: 'Абракадабра', labelRu: 'Абракадабра', labelEn: 'Абракадабра' },
+    { query: 'zzzz_garbage_999', labelRu: 'zzzz_garbage_999', labelEn: 'zzzz_garbage_999' },
+  ];
+
+  const topCategoryLabel =
+    results[0]?.category || meta?.headCategoryIntent || (lang === 'ru' ? 'Все категории' : 'All');
+
   return (
     <div className="space-y-4" data-testid="admin-live-search">
       {isIndexingDemo && (
         <div
-          className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900 flex items-center justify-between gap-2 shadow-sm"
+          className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900 flex items-center justify-between gap-2 shadow-sm"
           data-testid="admin-catalog-indexing-banner"
         >
           <div className="flex items-center gap-2 font-medium">
             <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping inline-block" />
             <span>
               {lang === 'ru'
-                ? 'Индексируем демо-каталог (1000+ SKU)... Дождитесь завершения для моментального поиска.'
-                : 'Indexing demo catalog (1000+ SKU)... Live search ready in a moment.'}
+                ? 'Загружаем витрину… Индексируем каталог 1000+ товаров для моментального поиска.'
+                : 'Loading storefront… Indexing 1000+ products for instant search.'}
             </span>
           </div>
-          <span className="text-indigo-600 font-mono text-[11px]">~1048 SKU</span>
+          <span className="text-indigo-700 font-mono text-[11px]">1048 товаров</span>
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-lg p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-          <div className="lg:col-span-5">
+      <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3.5 shadow-xs">
+        {isPublicDemo && (
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h1
+                className="text-lg font-semibold text-slate-900 tracking-tight"
+                data-testid="public-demo-story-title"
+              >
+                {lang === 'ru'
+                  ? 'Поиск, который понимает покупателя'
+                  : 'Search that understands the shopper'}
+              </h1>
+              <p
+                className="text-xs text-slate-500 mt-0.5"
+                data-testid="public-demo-story-subtitle"
+              >
+                {lang === 'ru'
+                  ? '1000+ товаров · без OpenAI · explainable'
+                  : '1000+ products · zero OpenAI · explainable'}
+              </p>
+            </div>
+            <div className="text-xs text-slate-600 font-medium">
+              {lang === 'ru'
+                ? `Каталог демо: ${totalSkuCount || 1048} товаров`
+                : `Demo catalog: ${totalSkuCount || 1048} products`}
+            </div>
+          </div>
+        )}
+
+        <div>
+          {!isPublicDemo && (
             <label className="block text-xs font-medium text-slate-600 mb-1">
               {lang === 'ru'
-                ? 'Поисковый запрос (debounce 300ms)'
-                : 'Search Query (300ms debounce)'}
+                ? 'Поисковый запрос (debounce 220ms)'
+                : 'Search Query (220ms debounce)'}
             </label>
+          )}
+          <div className="flex items-center gap-2">
             <input
               type="text"
               data-testid="admin-live-search-input"
@@ -170,78 +225,44 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
               onChange={(e) => setQuery(e.target.value)}
               placeholder={
                 lang === 'ru'
-                  ? 'Введите запрос, артикул или фразу с опечаткой...'
-                  : 'Enter search query, SKU, or phrase...'
+                  ? 'Введите запрос покупателя...'
+                  : 'Enter a shopper search query...'
               }
-              className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:border-slate-900"
+              className="flex-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:border-slate-900 focus:bg-white"
             />
-          </div>
-
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              {lang === 'ru' ? 'Режим' : 'Mode'}
-            </label>
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as 'hybrid' | 'dense' | 'sparse')}
-              className="w-full px-2.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-md text-slate-900"
+            <button
+              type="button"
+              data-testid="admin-live-search-submit"
+              onClick={() => setSearchTrigger((n) => n + 1)}
+              className="px-4 py-2.5 text-sm font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md transition-colors shrink-0"
             >
-              <option value="hybrid">Hybrid (HNSW + BM25)</option>
-              <option value="dense">Semantic (Dense 384-d)</option>
-              <option value="sparse">Lexical (BM25+)</option>
-            </select>
-          </div>
-
-          <div className="lg:col-span-3">
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              {lang === 'ru'
-                ? `Баланс α (Семантика: ${Math.round(alpha * 100)}%)`
-                : `Alpha (${Math.round(alpha * 100)}% Semantic)`}
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={alpha}
-              onChange={(e) => setAlpha(parseFloat(e.target.value))}
-              className="w-full accent-slate-900"
-            />
-          </div>
-
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Category Gate</label>
-            <select
-              data-testid="admin-live-gate-select"
-              value={gate}
-              onChange={(e) => setGate(e.target.value as 'hard' | 'soft' | 'off')}
-              className="w-full px-2.5 py-2 text-sm bg-slate-50 border border-slate-300 rounded-md text-slate-900"
-            >
-              <option value="hard">hard (strict)</option>
-              <option value="soft">soft (demote)</option>
-              <option value="off">off</option>
-            </select>
+              {lang === 'ru' ? 'Найти' : 'Search'}
+            </button>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-medium text-slate-600">{lang === 'ru' ? 'Golden Queries:' : 'Golden Queries:'}</span>
-            {[
-              'недорогие наушники для бега',
-              'детский смартфон до 15000',
-              '5W-40',
-              'yfeiybrb',
-              'zzzz_garbage_999',
-            ].map((sample) => (
+            <span className="font-medium text-slate-500">
+              {isPublicDemo
+                ? lang === 'ru'
+                  ? 'Попробовать:'
+                  : 'Try:'
+                : 'Golden Queries:'}
+            </span>
+            {samplePresets.map((preset) => (
               <button
-                key={sample}
+                key={preset.query}
                 type="button"
-                data-testid={`admin-live-sample-${sample}`}
-                onClick={() => setQuery(sample)}
-                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors font-medium hover:text-slate-900 border border-slate-200/60"
+                data-testid={`admin-live-sample-${preset.query}`}
+                onClick={() => setQuery(preset.query)}
+                className={`px-2.5 py-1 rounded-md transition-colors font-medium border ${
+                  query === preset.query
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/80 hover:text-slate-900'
+                }`}
               >
-                {sample}
+                {lang === 'ru' ? preset.labelRu : preset.labelEn}
               </button>
             ))}
             {isPublicDemo && onReloadDemoCatalog && (
@@ -250,62 +271,164 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                 data-testid="reload-demo-catalog-btn"
                 onClick={onReloadDemoCatalog}
                 disabled={isIndexingDemo}
-                className="ml-2 px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded font-medium transition-colors disabled:opacity-50"
+                className="ml-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-md font-medium transition-colors disabled:opacity-50"
               >
-                {lang === 'ru' ? '↻ Сбросить / перезагрузить 1000+ SKU' : '↻ Reload 1000+ SKU'}
+                {lang === 'ru' ? '↻ Обновить витрину (1048 товаров)' : '↻ Reload 1048 items'}
               </button>
             )}
           </div>
-
-          {meta && (
-            <div
-              className="flex flex-wrap items-center gap-1.5 font-mono tabular-nums text-slate-600"
-              data-testid="admin-live-meta"
-            >
-              <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800 font-semibold">
-                {results.length} hits
-              </span>
-              <span>{meta.latencyMs.toFixed(1)} ms</span>
-              {meta.headCategoryIntent && (
-                <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">
-                  intent: {meta.headCategoryIntent}
-                </span>
-              )}
-              <span
-                className={`px-2 py-0.5 rounded border ${
-                  meta.rewritten
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold'
-                    : 'bg-slate-50 border-slate-200 text-slate-600'
-                }`}
-                data-testid="admin-normalized-query"
-              >
-                normalized: «{meta.normalizedQuery}»
-              </span>
-              {meta.appliedRules.length > 0 && (
-                <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 rounded text-amber-800">
-                  rules: {meta.appliedRules.join(', ')}
-                </span>
-              )}
-            </div>
-          )}
         </div>
+
+        {meta && (
+          <div
+            className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"
+            data-testid="admin-live-meta"
+          >
+            {isPublicDemo ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-slate-800">
+                  {lang === 'ru'
+                    ? `Найдено: ${results.length} товаров · ${Math.max(1, Math.round(meta.latencyMs))} ms${
+                        results.length > 0 ? ` · категория: ${topCategoryLabel}` : ''
+                      }`
+                    : `Found: ${results.length} items · ${Math.max(1, Math.round(meta.latencyMs))} ms${
+                        results.length > 0 ? ` · category: ${topCategoryLabel}` : ''
+                      }`}
+                </span>
+                {meta.rewritten && (
+                  <span
+                    className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium"
+                    data-testid="admin-normalized-query"
+                  >
+                    {lang === 'ru'
+                      ? `исправлена раскладка / синоним → «${meta.normalizedQuery}»`
+                      : `auto-corrected → "${meta.normalizedQuery}"`}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5 font-mono tabular-nums text-slate-600">
+                <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800 font-semibold">
+                  {results.length} hits
+                </span>
+                <span>{meta.latencyMs.toFixed(1)} ms</span>
+                {meta.headCategoryIntent && (
+                  <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">
+                    intent: {meta.headCategoryIntent}
+                  </span>
+                )}
+                <span
+                  className={`px-2 py-0.5 rounded border ${
+                    meta.rewritten
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
+                  }`}
+                  data-testid="admin-normalized-query"
+                >
+                  normalized: «{meta.normalizedQuery}»
+                </span>
+                {meta.appliedRules.length > 0 && (
+                  <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 rounded text-amber-800">
+                    rules: {meta.appliedRules.join(', ')}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <details
+          open={!isPublicDemo}
+          className="pt-2 border-t border-slate-100 group"
+          data-testid="specialist-levers-details"
+        >
+          <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800 select-none list-none flex items-center gap-1.5">
+            <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
+            <span>
+              {lang === 'ru'
+                ? 'Для специалиста (режим поиска, баланс α, Category Gate)'
+                : 'For specialists (search mode, alpha balance, Category Gate)'}
+            </span>
+          </summary>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end bg-slate-50/70 p-3 rounded-md border border-slate-200/70">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {lang === 'ru' ? 'Режим' : 'Mode'}
+              </label>
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as 'hybrid' | 'dense' | 'sparse')}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900"
+              >
+                <option value="hybrid">Hybrid (HNSW + BM25)</option>
+                <option value="dense">Semantic (Dense 384-d)</option>
+                <option value="sparse">Lexical (BM25+)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {lang === 'ru'
+                  ? `Баланс α (Семантика: ${Math.round(alpha * 100)}%)`
+                  : `Alpha (${Math.round(alpha * 100)}% Semantic)`}
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={alpha}
+                onChange={(e) => setAlpha(parseFloat(e.target.value))}
+                className="w-full accent-slate-900"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Category Gate</label>
+              <select
+                data-testid="admin-live-gate-select"
+                value={gate}
+                onChange={(e) => setGate(e.target.value as 'hard' | 'soft' | 'off')}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900"
+              >
+                <option value="hard">hard (strict)</option>
+                <option value="soft">soft (demote)</option>
+                <option value="off">off</option>
+              </select>
+            </div>
+          </div>
+        </details>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-7 bg-white border border-slate-200 rounded-lg overflow-hidden">
-          {loading ? (
+          {isIndexingDemo || loading ? (
             <div className="p-8 text-center text-sm text-slate-500">
-              {lang === 'ru' ? 'Выполняется гибридный поиск...' : 'Executing hybrid search...'}
+              {isIndexingDemo
+                ? lang === 'ru'
+                  ? 'Загружаем витрину…'
+                  : 'Loading storefront…'
+                : lang === 'ru'
+                ? 'Ищем подходящие товары…'
+                : 'Searching products…'}
             </div>
           ) : results.length === 0 ? (
-            <div className="p-8 text-center space-y-3" data-testid="admin-live-empty-state">
+            <div className="p-8 text-center space-y-2.5" data-testid="admin-live-empty-state">
               <div className="text-sm font-semibold text-slate-900">
-                {lang === 'ru'
+                {isPublicDemo
+                  ? lang === 'ru'
+                    ? 'Ничего не найдено — так и должно быть для бессмысленного запроса'
+                    : 'Nothing found — as expected for a nonsensical query'
+                  : lang === 'ru'
                   ? 'По запросу ничего не найдено (count: 0)'
                   : 'Zero results returned (count: 0)'}
               </div>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                {lang === 'ru'
+                {isPublicDemo
+                  ? lang === 'ru'
+                    ? 'Поиск EIDOS не засоряет витрину случайными товарами, если в каталоге нет подходящего ответа.'
+                    : 'EIDOS never pollutes the storefront with random items when no relevant product exists.'
+                  : lang === 'ru'
                   ? 'Запрос отсечён порогом минимальной уверенности или строгим фильтром категории (Category Gate). Если это сленг или синоним покупателя — добавьте правило в словарь.'
                   : 'Filtered by minimum confidence threshold or strict Category Gate. Add a synonym rule if shoppers use this phrase for an existing product.'}
               </p>
@@ -330,8 +453,13 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                   <th className="py-2.5 px-3 font-medium">
                     {lang === 'ru' ? 'Категория' : 'Category'}
                   </th>
+                  <th className="py-2.5 px-3 font-medium text-right">
+                    {lang === 'ru' ? 'Цена' : 'Price'}
+                  </th>
                   <th className="py-2.5 px-3 font-medium text-right">Match %</th>
-                  <th className="py-2.5 px-3 font-medium text-right">Score</th>
+                  {!isPublicDemo && (
+                    <th className="py-2.5 px-3 font-medium text-right">Score</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -351,18 +479,22 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="font-medium text-slate-900">{hit.title}</div>
-                        <div className="text-xs text-slate-500 font-mono">
-                          ID: {hit.id}{' '}
-                          {typeof hit.price === 'number' ? `· ${hit.price.toLocaleString()} ₽` : ''}
-                        </div>
+                        {!isPublicDemo && (
+                          <div className="text-xs text-slate-500 font-mono">ID: {hit.id}</div>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-xs text-slate-600">{hit.category}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-xs font-medium text-slate-900 tabular-nums whitespace-nowrap">
+                        {typeof hit.price === 'number' ? `${hit.price.toLocaleString()} ₽` : '—'}
+                      </td>
                       <td className="py-2.5 px-3 text-right font-mono text-xs font-semibold text-emerald-700 tabular-nums">
                         {hit.scorePercent}%
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-xs text-slate-500 tabular-nums">
-                        {Number(hit.score || 0).toFixed(4)}
-                      </td>
+                      {!isPublicDemo && (
+                        <td className="py-2.5 px-3 text-right font-mono text-xs text-slate-500 tabular-nums">
+                          {Number(hit.score || 0).toFixed(4)}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -376,63 +508,85 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           data-testid="admin-xray-panel"
         >
           <div className="text-xs font-semibold text-slate-500 mb-2">
-            {lang === 'ru'
+            {isPublicDemo
+              ? lang === 'ru'
+                ? 'Почему в топе'
+                : 'Why it ranked on top'
+              : lang === 'ru'
               ? 'Рентген ранжирования (X-Ray Inspector)'
               : 'Explainable Ranking X-Ray'}
           </div>
           {!selectedHit ? (
             <div className="text-xs text-slate-400 py-8 text-center">
               {lang === 'ru'
-                ? 'Выберите строку в таблице результатов для просмотра формулы ранжирования.'
-                : 'Select a result row to inspect its ranking math breakdown.'}
+                ? 'Выберите товар в списке слева, чтобы увидеть объяснение выбора.'
+                : 'Select a product on the left to see why it matched.'}
             </div>
           ) : (
             <div className="space-y-3 text-xs">
               <div>
                 <div className="text-sm font-semibold text-slate-900">{selectedHit.title}</div>
                 <div className="text-slate-500 mt-0.5">
-                  {selectedHit.category} · ID {selectedHit.id} · Match {selectedHit.scorePercent}%
+                  {selectedHit.category}
+                  {typeof selectedHit.price === 'number'
+                    ? ` · ${selectedHit.price.toLocaleString()} ₽`
+                    : ''}{' '}
+                  · Совпадение {selectedHit.scorePercent}%
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded text-slate-700">
+              <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-md text-slate-800">
                 <div className="font-medium text-slate-900 mb-1">
                   {lang === 'ru' ? 'Почему этот товар в выдаче:' : 'Why this item ranked here:'}
                 </div>
-                <div data-testid="admin-xray-human-explanation">
+                <div data-testid="admin-xray-human-explanation" className="leading-relaxed">
                   {lang === 'ru'
                     ? selectedHit.humanExplanation?.ru ||
-                      'Гибридное совпадение по смыслу и ключевым словам'
+                      'Товар соответствует категории запроса и совпадает по смыслу и характеристикам.'
                     : selectedHit.humanExplanation?.en || 'Hybrid semantic + lexical match'}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 font-mono tabular-nums">
-                <div className="p-2.5 border border-slate-200 rounded">
-                  <div className="text-slate-500">Dense (384-d Cosine)</div>
-                  <div className="text-sm font-semibold text-slate-900">
-                    {Number(selectedHit.explanation?.denseComponent || 0).toFixed(4)}
+              <details
+                open={!isPublicDemo}
+                className="pt-1 group"
+                data-testid="admin-xray-details"
+              >
+                <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800 select-none list-none flex items-center gap-1.5">
+                  <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
+                  <span>
+                    {lang === 'ru'
+                      ? 'Подробнее (формула X-Ray: Dense / BM25 / RRF)'
+                      : 'Details (X-Ray math: Dense / BM25 / RRF)'}
+                  </span>
+                </summary>
+                <div className="mt-2.5 grid grid-cols-2 gap-2 font-mono tabular-nums">
+                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                    <div className="text-slate-500">Dense (384-d Cosine)</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {Number(selectedHit.explanation?.denseComponent || 0).toFixed(4)}
+                    </div>
+                  </div>
+                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                    <div className="text-slate-500">Sparse (BM25+)</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {Number(selectedHit.explanation?.sparseBm25Component || 0).toFixed(4)}
+                    </div>
+                  </div>
+                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                    <div className="text-slate-500">Hybrid RRF</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {Number(selectedHit.explanation?.rrfScore || 0).toFixed(4)}
+                    </div>
+                  </div>
+                  <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
+                    <div className="text-slate-500">Guardrail Boost</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {Number(selectedHit.explanation?.businessBoost || 0).toFixed(4)}
+                    </div>
                   </div>
                 </div>
-                <div className="p-2.5 border border-slate-200 rounded">
-                  <div className="text-slate-500">Sparse (BM25+)</div>
-                  <div className="text-sm font-semibold text-slate-900">
-                    {Number(selectedHit.explanation?.sparseBm25Component || 0).toFixed(4)}
-                  </div>
-                </div>
-                <div className="p-2.5 border border-slate-200 rounded">
-                  <div className="text-slate-500">Hybrid RRF</div>
-                  <div className="text-sm font-semibold text-slate-900">
-                    {Number(selectedHit.explanation?.rrfScore || 0).toFixed(4)}
-                  </div>
-                </div>
-                <div className="p-2.5 border border-slate-200 rounded">
-                  <div className="text-slate-500">Guardrail Boost</div>
-                  <div className="text-sm font-semibold text-slate-900">
-                    {Number(selectedHit.explanation?.businessBoost || 0).toFixed(4)}
-                  </div>
-                </div>
-              </div>
+              </details>
             </div>
           )}
         </div>

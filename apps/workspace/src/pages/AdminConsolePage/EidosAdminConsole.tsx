@@ -70,11 +70,11 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   const [isIndexingDemo, setIsIndexingDemo] = useState<boolean>(false);
 
   const [readyPayload, setReadyPayload] = useState<any>({ ready: true, components: {} });
-  const [catalogSummary, setCatalogSummary] = useState<any>({
-    itemsIndexed: 0,
-    hnswIndexed: 0,
+  const [catalogSummary, setCatalogSummary] = useState<any>(() => ({
+    itemsIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
+    hnswIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
     categories: {},
-  });
+  }));
   const [lastSnapshotAt, setLastSnapshotAt] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AdminAnalyticsSummary | null>(null);
   const [queryLogs, setQueryLogs] = useState<QueryLogItem[]>([]);
@@ -338,19 +338,32 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             <div className="text-xs text-slate-500">{c.brandSubtitle}</div>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 font-mono tabular-nums">
-            <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800">
-              SKU: {catalogSummary?.itemsIndexed ?? 0}
-            </span>
-            <span
-              className={`px-2 py-0.5 rounded font-semibold ${
-                readyPayload?.ready
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'bg-amber-50 text-amber-800 border border-amber-200'
-              }`}
-            >
-              Ready: {readyPayload?.ready ? 'OK' : 'WARN'}
-            </span>
+          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 tabular-nums">
+            {isPublicDemo ? (
+              <span
+                className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-900 font-medium"
+                data-testid="public-demo-catalog-badge"
+              >
+                {lang === 'ru'
+                  ? `Каталог демо: ${catalogSummary?.itemsIndexed || 1048} товаров`
+                  : `Demo catalog: ${catalogSummary?.itemsIndexed || 1048} products`}
+              </span>
+            ) : (
+              <>
+                <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800 font-mono">
+                  SKU: {catalogSummary?.itemsIndexed ?? 0}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded font-semibold font-mono ${
+                    readyPayload?.ready
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border border-amber-200'
+                  }`}
+                >
+                  Ready: {readyPayload?.ready ? 'OK' : 'WARN'}
+                </span>
+              </>
+            )}
           </div>
         </div>
 

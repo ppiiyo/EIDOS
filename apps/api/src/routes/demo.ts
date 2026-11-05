@@ -22,9 +22,9 @@ export function seedDemoAnalyticsIfEmpty(adminStore: AdminConsoleStore): void {
     { q: 'ноутбук для учебы', count: 6, topCat: 'Ноутбуки и компьютеры', empty: false, gated: false, latency: 2.7 },
     { q: 'детский конструктор lego', count: 7, topCat: 'Детские товары', empty: false, gated: false, latency: 2.2 },
     { q: 'лазерный уровень 3d', count: 5, topCat: 'Инструменты и ремонт', empty: false, gated: false, latency: 2.0 },
+    { q: 'Абракадабра', count: 5, topCat: null, empty: true, gated: false, latency: 1.3 },
     { q: 'zzzz_garbage_999', count: 4, topCat: null, empty: true, gated: false, latency: 1.4 },
     { q: 'несуществующая_деталь_abc_123', count: 3, topCat: null, empty: true, gated: false, latency: 1.6 },
-    { q: 'редкая_запчасть_999', count: 2, topCat: null, empty: true, gated: false, latency: 1.5 },
   ];
 
   for (const s of sampleQueries) {
