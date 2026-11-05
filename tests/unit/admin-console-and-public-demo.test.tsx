@@ -340,4 +340,107 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
       (globalThis as any).window = prevWindow;
     }
   });
+
+  it('9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and tests WOW Golden Queries', async () => {
+    // 1. Load 1000+ SKU demo catalog
+    const loadRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/load',
+      payload: { scale: '1000' },
+    });
+    expect(loadRes.statusCode).toBe(200);
+    const loadBody = loadRes.json();
+    expect(loadBody.ok).toBe(true);
+    expect(loadBody.itemsLoaded).toBeGreaterThanOrEqual(1000);
+
+    // 2. GET /v1/demo/analytics without x-api-key returns non-zero metrics
+    const analyticsRes = await app.inject({
+      method: 'GET',
+      url: '/v1/demo/analytics?period=7d',
+    });
+    expect(analyticsRes.statusCode).toBe(200);
+    const aBody = analyticsRes.json();
+    expect(aBody.totalSearches).toBeGreaterThanOrEqual(10);
+    expect(aBody.zeroResultRate).toBeGreaterThan(0);
+    expect(aBody.avgLatencyMs).toBeGreaterThan(0);
+    expect(Array.isArray(aBody.topZeroResultQueries)).toBe(true);
+    expect(aBody.topZeroResultQueries.length).toBeGreaterThan(0);
+
+    // 3. Golden query: "недорогие наушники для бега" -> top results are Headphones, never Shoes
+    const runHeadphonesRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'недорогие наушники для бега', alpha: 0.55, limit: 5 },
+    });
+    expect(runHeadphonesRes.statusCode).toBe(200);
+    const hpBody = runHeadphonesRes.json();
+    expect(hpBody.count).toBeGreaterThan(0);
+    const topCategory = hpBody.results[0].category.toLowerCase();
+    expect(
+      topCategory.includes('наушник') || topCategory.includes('аудио'),
+      `Top category should be Headphones/Audio but got "${hpBody.results[0].category}"`
+    ).toBe(true);
+    expect(topCategory.includes('обувь') || topCategory.includes('кроссовк')).toBe(false);
+
+    // 4. Golden query: "детский смартфон до 15000" -> smartphones with price <= 15000
+    const kidsPhoneRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'детский смартфон до 15000', alpha: 0.55, limit: 5 },
+    });
+    expect(kidsPhoneRes.statusCode).toBe(200);
+    const phoneBody = kidsPhoneRes.json();
+    expect(phoneBody.count).toBeGreaterThan(0);
+    const topPhone = phoneBody.results[0];
+    expect(topPhone.price).toBeLessThanOrEqual(15000);
+
+    // 5. Golden query: "5W-40" -> motor oils
+    const oilRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: '5W-40', alpha: 0.55, limit: 5 },
+    });
+    expect(oilRes.statusCode).toBe(200);
+    const oilBody = oilRes.json();
+    expect(oilBody.count).toBeGreaterThan(0);
+    const topOil = oilBody.results[0];
+    expect(
+      topOil.title.includes('5W-40') ||
+        topOil.description.includes('5W-40') ||
+        topOil.category.includes('Авто') ||
+        topOil.category.includes('масла')
+    ).toBe(true);
+
+    // 6. Golden query: "yfeiybrb" (keyboard layout mistype) -> recovered to наушники
+    const layoutRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'yfeiybrb', alpha: 0.55, limit: 5 },
+    });
+    expect(layoutRes.statusCode).toBe(200);
+    const layoutBody = layoutRes.json();
+    expect(layoutBody.count).toBeGreaterThan(0);
+    expect(layoutBody.normalizedQuery).toBe('наушники');
+
+    // 7. Golden query: "zzzz_garbage_999" -> honest count 0
+    const garbageRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'zzzz_garbage_999', alpha: 0.55, limit: 5 },
+    });
+    expect(garbageRes.statusCode).toBe(200);
+    expect(garbageRes.json().count).toBe(0);
+  });
+
+  it('10. Renders Golden Query Presets and Demo Reload controls on Public Demo', () => {
+    const publicDemoHtml = renderToStaticMarkup(
+      <EidosAdminConsole mode="public-demo" uiLang="ru" />
+    );
+    expect(publicDemoHtml).toContain('data-testid="admin-live-sample-недорогие наушники для бега"');
+    expect(publicDemoHtml).toContain('data-testid="admin-live-sample-детский смартфон до 15000"');
+    expect(publicDemoHtml).toContain('data-testid="admin-live-sample-5W-40"');
+    expect(publicDemoHtml).toContain('data-testid="admin-live-sample-yfeiybrb"');
+    expect(publicDemoHtml).toContain('data-testid="admin-live-sample-zzzz_garbage_999"');
+    expect(publicDemoHtml).toContain('data-testid="reload-demo-catalog-btn"');
+  });
 });

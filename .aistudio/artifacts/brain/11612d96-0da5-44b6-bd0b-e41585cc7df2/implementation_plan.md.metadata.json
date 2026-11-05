@@ -1,6 +1,6 @@
 {
-  "summary":  "Comprehensive implementation plan for EIDOS v3.4.0 Performance & Architecture Optimizations (Web Worker vectorization, batch catalog upsert, automatic Int8 scalar quantization at 5,000+ SKUs, and React.lazy code-splitting) and Priority 1 & 2 Product/UX Conversion Upgrades (Full-screen Storefront Widget Live Preview, YML/XML Feed URL & File Importer, Industry Synonym & Stopword Dictionaries, Visual 1-Click Pinning/Hiding on Search Cards, Zero-Result Revenue Recovery Report, and Side-by-Side Storefront URL Benchmark).",
-  "updatedAt":  "2026-11-01T04:14:27.840362347Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Implemented WOW-демо + 1000+ SKU for EIDOS Admin Console and Public Demo (/public-demo). Features 1,048 SKU realistic e-commerce catalog across 12 diverse categories with overlapping tokens, sub-5ms hybrid search, category gate enforcement, zero auth barrier on public demo, non-zero live demo analytics, and 5 golden test queries.",
+  "updatedAt": "2026-11-05T00:34:50.469938599Z",
+  "requestFeedback": true,
+  "userFacing": true
 }

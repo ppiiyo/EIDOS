@@ -84,17 +84,20 @@ export class VectorStore {
       for (let j = 0; j < batch.length; j++) {
         const it = batch[j];
         const vec = vectors[j];
-        this.upsert({
-          id: String(it.id),
-          title: it.title,
-          description: it.description || '',
-          category: it.category || 'General',
-          price: typeof it.price === 'number' ? it.price : 0,
-          inStock: typeof it.inStock === 'boolean' ? it.inStock : true,
-          tags: Array.isArray(it.tags) ? it.tags : [],
-          embedding: Array.from(vec),
-          normalizedVector: vec instanceof Float32Array ? vec : new Float32Array(vec),
-        });
+        this.upsert(
+          {
+            id: String(it.id),
+            title: it.title,
+            description: it.description || '',
+            category: it.category || 'General',
+            price: typeof it.price === 'number' ? it.price : 0,
+            inStock: typeof it.inStock === 'boolean' ? it.inStock : true,
+            tags: Array.isArray(it.tags) ? it.tags : [],
+            embedding: Array.from(vec),
+            normalizedVector: vec instanceof Float32Array ? vec : new Float32Array(vec),
+          },
+          { fastLeaf: this.items.size > 150 }
+        );
       }
     }
 

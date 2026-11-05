@@ -67,6 +67,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   const [liveQuerySeed, setLiveQuerySeed] = useState<string>('недорогие наушники для бега');
   const [synonymPrefill, setSynonymPrefill] = useState<string>('');
   const [period, setPeriod] = useState<'24h' | '7d' | '30d'>('7d');
+  const [isIndexingDemo, setIsIndexingDemo] = useState<boolean>(false);
 
   const [readyPayload, setReadyPayload] = useState<any>({ ready: true, components: {} });
   const [catalogSummary, setCatalogSummary] = useState<any>({
@@ -119,18 +120,39 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
       }
 
       if (isPublicDemo) {
-        await fetch('/v1/demo/load', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scale: '48' }),
-        });
-        const stRes = await fetch('/v1/catalog/stats');
-        const st = stRes.ok ? await stRes.json() : fallbackStats;
+        let st = fallbackStats;
+        if (!st || (st.itemsIndexed ?? 0) < 1000) {
+          setIsIndexingDemo(true);
+          try {
+            await fetch('/v1/demo/load', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ scale: '1000' }),
+            });
+            const stRes = await fetch('/v1/catalog/stats');
+            if (stRes.ok) st = await stRes.json();
+          } finally {
+            setIsIndexingDemo(false);
+          }
+        }
         setCatalogSummary({
-          itemsIndexed: st?.itemsIndexed ?? 48,
-          hnswIndexed: st?.hnswIndexed ?? 48,
+          itemsIndexed: st?.itemsIndexed ?? 1048,
+          hnswIndexed: st?.hnswIndexed ?? 1048,
           categories: st?.categories || {},
         });
+
+        // Non-auth public analytics and queries for demo stand
+        const [demoAnalyticsRes, demoQueriesRes] = await Promise.all([
+          fetch(`/v1/demo/analytics?period=${period}`),
+          fetch('/v1/demo/queries?limit=100'),
+        ]);
+        if (demoAnalyticsRes.ok) {
+          setAnalytics(await demoAnalyticsRes.json());
+        }
+        if (demoQueriesRes.ok) {
+          const qData = await demoQueriesRes.json();
+          setQueryLogs(Array.isArray(qData.items) ? qData.items : []);
+        }
         return;
       }
 
@@ -195,12 +217,28 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
     void fetchAdminData();
   }, [fetchAdminData]);
 
+  const handleReloadDemoCatalog = async () => {
+    setIsIndexingDemo(true);
+    try {
+      await fetch('/v1/demo/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scale: '1000' }),
+      });
+      await fetchAdminData();
+    } catch {
+      // Ignore network errors
+    } finally {
+      setIsIndexingDemo(false);
+    }
+  };
+
   const handleSeedPilotCatalog = async () => {
     try {
       await fetch('/v1/demo/load', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scale: '48' }),
+        body: JSON.stringify({ scale: '1000' }),
       });
       await fetchAdminData();
     } catch {
@@ -413,6 +451,9 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               initialQuery={liveQuerySeed}
               defaultAlpha={rankingDefaults.defaultAlpha}
               defaultGate={rankingDefaults.simpleCategoryGate}
+              isIndexingDemo={isIndexingDemo}
+              totalSkuCount={catalogSummary?.itemsIndexed ?? 0}
+              onReloadDemoCatalog={handleReloadDemoCatalog}
               onAddSynonymForQuery={(q) => {
                 if (isPublicDemo) return;
                 setSynonymPrefill(q);

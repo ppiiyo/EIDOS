@@ -102,6 +102,10 @@ const SEMANTIC_CONCEPT_CLUSTERS: ReadonlyArray<{ dims: number[]; roots: string[]
     dims: [52, 53, 54, 55],
     roots: ['python', 'rust', 'programming', 'algorithm', 'database', 'vector', 'hnsw', 'программирован', 'алгоритм', 'разработ', 'код', 'プログラミング'],
   },
+  {
+    dims: [56, 57, 58, 59],
+    roots: ['oil', 'motor', '5w40', '5w-40', '5w30', '5w-30', 'масло', 'автомасло', 'моторн', 'автохимия', 'motul', 'mobil'],
+  },
 ];
 
 function hashFeatureToVector(vec: Float32Array, feature: string, weight: number, dim: number): void {
@@ -114,7 +118,7 @@ function hashFeatureToVector(vec: Float32Array, feature: string, weight: number,
     h2 ^= code + i * 31;
     h2 = Math.imul(h2, 1099511628211 & 0xffffffff);
   }
-  const offset = 56;
+  const offset = 60;
   const span = dim - offset;
   for (let d = 0; d < 8; d++) {
     const idx = offset + (Math.abs(h1 + Math.imul(d, h2)) % span);

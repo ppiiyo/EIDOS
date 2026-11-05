@@ -85,6 +85,7 @@ const KNOWN_RU_ECOM_STEMS = [
   'спорт',
   'игр',
   'кофе',
+  'масл',
 ];
 
 const TRANSLIT_MAP: Record<string, string> = {
@@ -234,6 +235,13 @@ export const PRODUCT_CATEGORY_FAMILIES: ReadonlyArray<CategoryFamilySpec> = [
     canonicalEn: 'movies',
     queryStems: ['фильм', 'кино', 'сериал', 'movie', 'cinema', 'film'],
     itemStems: ['фильм', 'кино', 'сериал', 'movie', 'cinema', 'film'],
+  },
+  {
+    id: 'oils',
+    canonicalRu: 'масла и автохимия',
+    canonicalEn: 'motor oils',
+    queryStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil'],
+    itemStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil', 'motul', 'mobil', 'лукойл', 'shell'],
   },
 ];
 

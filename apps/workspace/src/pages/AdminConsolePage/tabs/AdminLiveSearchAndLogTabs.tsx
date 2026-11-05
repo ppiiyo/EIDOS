@@ -10,6 +10,9 @@ export interface AdminLiveSearchTabProps {
   defaultGate: 'hard' | 'soft' | 'off';
   onAddSynonymForQuery?: (query: string) => void;
   onSearchExecuted?: () => void;
+  isIndexingDemo?: boolean;
+  totalSkuCount?: number;
+  onReloadDemoCatalog?: () => void;
 }
 
 export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
@@ -21,6 +24,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   defaultGate,
   onAddSynonymForQuery,
   onSearchExecuted,
+  isIndexingDemo = false,
+  totalSkuCount = 0,
+  onReloadDemoCatalog,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [mode, setMode] = useState<'hybrid' | 'dense' | 'sparse'>('hybrid');
@@ -132,6 +138,23 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
 
   return (
     <div className="space-y-4" data-testid="admin-live-search">
+      {isIndexingDemo && (
+        <div
+          className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900 flex items-center justify-between gap-2 shadow-sm"
+          data-testid="admin-catalog-indexing-banner"
+        >
+          <div className="flex items-center gap-2 font-medium">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping inline-block" />
+            <span>
+              {lang === 'ru'
+                ? 'Индексируем демо-каталог (1000+ SKU)... Дождитесь завершения для моментального поиска.'
+                : 'Indexing demo catalog (1000+ SKU)... Live search ready in a moment.'}
+            </span>
+          </div>
+          <span className="text-indigo-600 font-mono text-[11px]">~1048 SKU</span>
+        </div>
+      )}
+
       <div className="bg-white border border-slate-200 rounded-lg p-4">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
           <div className="lg:col-span-5">
@@ -203,22 +226,35 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span>{lang === 'ru' ? 'Примеры:' : 'Presets:'}</span>
+            <span className="font-medium text-slate-600">{lang === 'ru' ? 'Golden Queries:' : 'Golden Queries:'}</span>
             {[
               'недорогие наушники для бега',
+              'детский смартфон до 15000',
+              '5W-40',
               'yfeiybrb',
-              'беспроводная клавиатура',
               'zzzz_garbage_999',
             ].map((sample) => (
               <button
                 key={sample}
                 type="button"
+                data-testid={`admin-live-sample-${sample}`}
                 onClick={() => setQuery(sample)}
-                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors"
+                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors font-medium hover:text-slate-900 border border-slate-200/60"
               >
                 {sample}
               </button>
             ))}
+            {isPublicDemo && onReloadDemoCatalog && (
+              <button
+                type="button"
+                data-testid="reload-demo-catalog-btn"
+                onClick={onReloadDemoCatalog}
+                disabled={isIndexingDemo}
+                className="ml-2 px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded font-medium transition-colors disabled:opacity-50"
+              >
+                {lang === 'ru' ? '↻ Сбросить / перезагрузить 1000+ SKU' : '↻ Reload 1000+ SKU'}
+              </button>
+            )}
           </div>
 
           {meta && (
