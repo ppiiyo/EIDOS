@@ -240,8 +240,36 @@ export const PRODUCT_CATEGORY_FAMILIES: ReadonlyArray<CategoryFamilySpec> = [
     id: 'oils',
     canonicalRu: 'масла и автохимия',
     canonicalEn: 'motor oils',
-    queryStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil'],
-    itemStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil', 'motul', 'mobil', 'лукойл', 'shell'],
+    queryStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil', 'колодк', 'тормозн'],
+    itemStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil', 'motul', 'mobil', 'лукойл', 'shell', 'колодк', 'тормозн', 'brembo', 'автотовар'],
+  },
+  {
+    id: 'appliances',
+    canonicalRu: 'бытовая техника',
+    canonicalEn: 'home appliances',
+    queryStems: ['пылесос', 'робот-пылесос', 'уборк', 'стиральн', 'холодильник', 'аэрогриль', 'блендер'],
+    itemStems: ['пылесос', 'робот-пылесос', 'бытовая техника', 'уборк', 'dreame', 'roborock', 'dyson', 'delonghi'],
+  },
+  {
+    id: 'tools',
+    canonicalRu: 'инструменты и ремонт',
+    canonicalEn: 'power tools',
+    queryStems: ['шуруповерт', 'шуруповёрт', 'дрель', 'перфоратор', 'нивелир', 'лазерный уровень', 'гайковерт'],
+    itemStems: ['шуруповерт', 'шуруповёрт', 'дрель', 'перфоратор', 'нивелир', 'инструмент', 'makita', 'bosch', 'dewalt'],
+  },
+  {
+    id: 'kids_goods',
+    canonicalRu: 'детские товары',
+    canonicalEn: 'kids goods & toys',
+    queryStems: ['конструктор', 'коляск', 'автокресл', 'игрушк', 'lego', 'лего'],
+    itemStems: ['конструктор', 'коляск', 'автокресл', 'игрушк', 'lego', 'детские товары'],
+  },
+  {
+    id: 'tv_media',
+    canonicalRu: 'телевизоры и медиа',
+    canonicalEn: 'tv & media',
+    queryStems: ['телевизор', 'саундбар', 'проектор', 'oled', 'qled', 'smart tv'],
+    itemStems: ['телевизор', 'саундбар', 'проектор', 'oled', 'qled', 'телевизоры и медиа'],
   },
 ];
 

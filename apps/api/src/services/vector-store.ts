@@ -798,7 +798,28 @@ export class VectorStore {
       return b.sparseScore - a.sparseScore;
     });
 
-    return finalPool.slice(0, limit).map((c) => ({
+    // Diversify near-identical color/size variants of the same product model so top results
+    // show distinct models first rather than multiple color/size clones of a single model.
+    const seenModels = new Set<string>();
+    const primaryModels: typeof finalPool = [];
+    const overflowVariants: typeof finalPool = [];
+    for (const candidate of finalPool) {
+      const descMatch = candidate.item.description?.match(/^([^,]+),\s*комплектация:/i);
+      const modelKey = descMatch
+        ? descMatch[1].trim().toLowerCase()
+        : /\([^)]+\)\s*$/.test(candidate.item.title)
+        ? candidate.item.title.replace(/\s*\([^)]+\)\s*$/, '').trim().toLowerCase()
+        : `id:${candidate.item.id}`;
+      if (!seenModels.has(modelKey)) {
+        seenModels.add(modelKey);
+        primaryModels.push(candidate);
+      } else {
+        overflowVariants.push(candidate);
+      }
+    }
+    const diversifiedPool = [...primaryModels, ...overflowVariants];
+
+    return diversifiedPool.slice(0, limit).map((c) => ({
       item: c.item,
       score: Math.round(c.rawScore * 10000) / 10000,
       rrfScore: Math.round(c.rrfScore * 10000) / 10000,

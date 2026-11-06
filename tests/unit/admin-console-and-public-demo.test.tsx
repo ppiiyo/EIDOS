@@ -312,8 +312,10 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(publicDemoHtml).toContain('EIDOS Витрина');
     expect(publicDemoHtml).toContain('Как это работает');
     expect(publicDemoHtml).toContain('Подключить магазин');
-    expect(publicDemoHtml).toContain('Для специалистов');
+    expect(publicDemoHtml).toContain('data-testid="public-demo-footer"');
+    expect(publicDemoHtml).toContain('Для специалистов:');
     expect(publicDemoHtml).toContain('Режим оператора (/admin)');
+    expect(publicDemoHtml).toContain('Студия (/)');
     // Write tabs must not appear in public-demo surface
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-dictionaries"');
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-api-keys"');
@@ -357,7 +359,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     }
   });
 
-  it('9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and passes 10 WOW Golden Queries with human explanations', async () => {
+  it('9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and passes 10 WOW Golden Queries with model diversity & human explanations', async () => {
     // 1. Load 1000+ SKU demo catalog
     const loadRes = await app.inject({
       method: 'POST',
@@ -382,7 +384,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(Array.isArray(aBody.topZeroResultQueries)).toBe(true);
     expect(aBody.topZeroResultQueries.length).toBeGreaterThan(0);
 
-    // Golden #1: "недорогие наушники для бега" -> top results are Headphones, never Shoes, with rich RU humanExplanation
+    // Golden #1: "недорогие наушники для бега" -> top results are Headphones, never Shoes, with rich RU humanExplanation and distinct models (no color clones)
     const runHeadphonesRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -399,6 +401,15 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(topCategory.includes('обувь') || topCategory.includes('кроссовк')).toBe(false);
     expect(hpBody.results[0].humanExplanation?.ru).toContain('Совпадение по смыслу');
     expect(hpBody.results[0].humanExplanation?.ru).toContain('категория');
+
+    // Verify top-5 headphone results have 5 distinct product models (no color-variant clones)
+    const hpBaseModels = new Set(
+      hpBody.results.map((r: { description?: string; title: string }) => {
+        const m = r.description?.match(/^([^,]+),\s*комплектация:/i);
+        return m ? m[1].trim().toLowerCase() : r.title.replace(/\s*\([^)]+\)\s*$/, '').trim().toLowerCase();
+      })
+    );
+    expect(hpBaseModels.size).toBe(hpBody.results.length);
 
     // Golden #2: "детский смартфон до 15000" -> smartphones with price <= 15000
     const kidsPhoneRes = await app.inject({
@@ -439,7 +450,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(layoutBody.count).toBeGreaterThan(0);
     expect(layoutBody.normalizedQuery).toBe('наушники');
 
-    // Golden #5: "беговые кроссовки asics" -> Shoes category, not Headphones
+    // Golden #5: "беговые кроссовки asics" -> Shoes category, not Headphones, with distinct models
     const shoesRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/search',
@@ -544,5 +555,75 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
         expect(words[w]).not.toBe(words[w - 1]);
       }
     }
+  });
+
+  it('12. Cold-start /v1/demo/search auto-seeds 1000+ SKU without manual click and passes 15-query Pilot Golden Matrix (>=80% top-3 OK, garbage -> 0)', async () => {
+    // Simulate a completely cold server index (0 SKU)
+    await app.inject({ method: 'POST', url: '/v1/demo/reset' });
+
+    // Immediate /v1/demo/search without prior /v1/demo/load must auto-seed 1048 SKU and return hits
+    const coldSearchRes = await app.inject({
+      method: 'POST',
+      url: '/v1/demo/search',
+      payload: { query: 'недорогие наушники для бега', alpha: 0.55, limit: 5 },
+    });
+    expect(coldSearchRes.statusCode).toBe(200);
+    expect(coldSearchRes.json().count).toBeGreaterThan(0);
+
+    const statsAfterCold = await app.inject({ method: 'GET', url: '/v1/catalog/stats' });
+    expect(statsAfterCold.statusCode).toBe(200);
+    expect(statsAfterCold.json().itemsIndexed).toBeGreaterThanOrEqual(1000);
+
+    // Run 15 Pilot Golden Queries against the store catalog
+    const pilotMatrix: Array<{
+      query: string;
+      expectEmpty?: boolean;
+      expectedCategorySubstr?: string;
+    }> = [
+      { query: 'недорогие наушники для бега', expectedCategorySubstr: 'Наушники' },
+      { query: 'детский смартфон до 15000', expectedCategorySubstr: 'Смартфоны' },
+      { query: '5W-40', expectedCategorySubstr: 'Автотовары' },
+      { query: 'yfeiybrb', expectedCategorySubstr: 'Наушники' },
+      { query: 'беговые кроссовки asics', expectedCategorySubstr: 'Обувь' },
+      { query: 'робот-пылесос с влажной уборкой', expectedCategorySubstr: 'Бытовая техника' },
+      { query: 'кофемашина delonghi', expectedCategorySubstr: 'Бытовая техника' },
+      { query: 'шуруповерт makita', expectedCategorySubstr: 'Инструменты' },
+      { query: 'ноутбук для учебы', expectedCategorySubstr: 'Ноутбуки' },
+      { query: 'детский конструктор lego', expectedCategorySubstr: 'Детские товары' },
+      { query: 'тормозные колодки brembo', expectedCategorySubstr: 'Автотовары' },
+      { query: 'телевизор 4k oled', expectedCategorySubstr: 'Телевизоры' },
+      { query: 'книга чистая архитектура', expectedCategorySubstr: 'Книги' },
+      { query: 'Абракадабра', expectEmpty: true },
+      { query: 'zzzz_garbage_999', expectEmpty: true },
+    ];
+
+    let passedCount = 0;
+    for (const row of pilotMatrix) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: { query: row.query, alpha: 0.55, simpleCategoryGate: 'hard', limit: 3 },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      if (row.expectEmpty) {
+        expect(body.count, `Garbage query "${row.query}" must return 0`).toBe(0);
+        passedCount++;
+      } else {
+        const top3 = body.results.slice(0, 3);
+        const matchesCat =
+          top3.length > 0 &&
+          top3.every((r: { category: string }) =>
+            r.category.toLowerCase().includes((row.expectedCategorySubstr || '').toLowerCase())
+          );
+        if (matchesCat) {
+          passedCount++;
+        }
+      }
+    }
+
+    const passRate = passedCount / pilotMatrix.length;
+    expect(passRate).toBeGreaterThanOrEqual(0.8);
+    expect(passedCount).toBe(15);
   });
 });

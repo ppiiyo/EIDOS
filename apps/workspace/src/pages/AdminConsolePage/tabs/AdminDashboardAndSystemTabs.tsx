@@ -883,7 +883,9 @@ export const AdminSystemAndDocsTabs: React.FC<{
               ? 'Пилот 14 дней на каталоге вашего магазина (Runbook приёмки)'
               : '14-Day Storefront Pilot Runbook & Acceptance Criteria'}
           </h3>
-          <span className="font-mono text-[11px] text-slate-500">docs/PRODUCTION.md</span>
+          <span className="font-mono text-[11px] text-slate-500">
+            PILOT.md · docs/PRODUCTION.md
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-slate-700">
@@ -910,6 +912,34 @@ export const AdminSystemAndDocsTabs: React.FC<{
             <p>
               Критерий успеха: <strong>≥ 80% top-3 релевантны</strong>, мусор → честный 0, при отключении API витрина CMS работает через штатный fallback.
             </p>
+          </div>
+        </div>
+
+        <div
+          className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-slate-700"
+          data-testid="pilot-launch-checklist"
+        >
+          <span className="font-medium text-slate-900">
+            {lang === 'ru'
+              ? 'Чеклист запуска боевого пилота:'
+              : 'Pilot Launch Checklist:'}
+          </span>
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+            <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded">
+              1. GET /v1/ready (OK)
+            </span>
+            <span>→</span>
+            <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded">
+              2. POST /v1/catalog/upsert + snapshot
+            </span>
+            <span>→</span>
+            <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded">
+              3. 15–20 Golden Queries (≥80% PASS)
+            </span>
+            <span>→</span>
+            <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded">
+              4. docker stop → CMS Fallback OK
+            </span>
           </div>
         </div>
       </div>

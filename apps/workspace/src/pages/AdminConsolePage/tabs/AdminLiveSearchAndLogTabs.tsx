@@ -5,6 +5,7 @@ export interface AdminLiveSearchTabProps {
   lang: 'ru' | 'en';
   apiKey: string;
   isPublicDemo?: boolean;
+  isDemoReady?: boolean;
   initialQuery?: string;
   defaultAlpha: number;
   defaultGate: 'hard' | 'soft' | 'off';
@@ -20,6 +21,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   lang,
   apiKey,
   isPublicDemo = false,
+  isDemoReady = true,
   initialQuery = 'недорогие наушники для бега',
   defaultAlpha,
   defaultGate,
@@ -54,7 +56,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   }, [initialQuery]);
 
   useEffect(() => {
-    if (isIndexingDemo) {
+    if (isIndexingDemo || (isPublicDemo && !isDemoReady)) {
       return;
     }
     const trimmed = query.trim();
@@ -121,7 +123,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
     }, 220);
 
     return () => clearTimeout(timer);
-  }, [query, mode, alpha, gate, apiKey, isPublicDemo, isIndexingDemo, searchTrigger]);
+  }, [query, mode, alpha, gate, apiKey, isPublicDemo, isDemoReady, isIndexingDemo, searchTrigger]);
 
   const handleRecordClick = async (hit: LiveSearchHitDto) => {
     setSelectedHit(hit);
@@ -235,8 +237,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
             <button
               type="button"
               data-testid="admin-live-search-submit"
+              disabled={isIndexingDemo}
               onClick={() => setSearchTrigger((n) => n + 1)}
-              className="px-4 py-2.5 text-sm font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md transition-colors shrink-0"
+              className="px-4 py-2.5 text-sm font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md transition-colors shrink-0 disabled:opacity-50"
             >
               {lang === 'ru' ? 'Найти' : 'Search'}
             </button>
@@ -256,9 +259,10 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
               <button
                 key={preset.query}
                 type="button"
+                disabled={isIndexingDemo}
                 data-testid={`admin-live-sample-${preset.query}`}
                 onClick={() => setQuery(preset.query)}
-                className={`px-2.5 py-1 rounded-md transition-colors font-medium border ${
+                className={`px-2.5 py-1 rounded-md transition-colors font-medium border disabled:opacity-50 ${
                   query === preset.query
                     ? 'bg-slate-900 text-white border-slate-900'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/80 hover:text-slate-900'

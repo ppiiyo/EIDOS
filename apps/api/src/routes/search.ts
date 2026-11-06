@@ -36,6 +36,8 @@ import { traceSpan } from '../tracing';
 import { recordSearchLatency } from '../plugins/observability';
 import { OperationalLogStore, summarizeQueryForLog } from '../services/structured-logger';
 import { AdminConsoleStore } from '../services/admin-console-store';
+import { DEMO_CATALOG_1000 } from '../demo/demo-catalog-1000';
+import { seedDemoAnalyticsIfEmpty } from './demo';
 
 const cognitiveContextSchema = z
   .object({
@@ -847,6 +849,11 @@ export async function searchRoutes(
         request.demoMode = true;
         request.demoRateLimit = 60;
         await demoRateLimit(request, reply);
+        if (!reply.sent && opts.vectorStore.count() === 0) {
+          fastify.storeRegistry?.setDefaultStore(opts.vectorStore);
+          await opts.vectorStore.loadDemoCatalog(DEMO_CATALOG_1000, opts.embedder);
+          seedDemoAnalyticsIfEmpty(AdminConsoleStore.getInstance());
+        }
       },
     },
     handleSearch

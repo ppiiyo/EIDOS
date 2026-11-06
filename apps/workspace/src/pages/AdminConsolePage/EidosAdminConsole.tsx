@@ -68,6 +68,9 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   const [synonymPrefill, setSynonymPrefill] = useState<string>('');
   const [period, setPeriod] = useState<'24h' | '7d' | '30d'>('7d');
   const [isIndexingDemo, setIsIndexingDemo] = useState<boolean>(false);
+  const [isDemoReady, setIsDemoReady] = useState<boolean>(
+    (mode || initialMode) !== 'public-demo'
+  );
 
   const [readyPayload, setReadyPayload] = useState<any>({ ready: true, components: {} });
   const [catalogSummary, setCatalogSummary] = useState<any>(() => ({
@@ -129,8 +132,14 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ scale: '1000' }),
             });
-            const stRes = await fetch('/v1/catalog/stats');
-            if (stRes.ok) st = await stRes.json();
+            for (let attempt = 0; attempt < 5; attempt++) {
+              const stRes = await fetch('/v1/catalog/stats');
+              if (stRes.ok) {
+                st = await stRes.json();
+                if ((st?.itemsIndexed ?? 0) >= 1000) break;
+              }
+              await new Promise((r) => setTimeout(r, 80));
+            }
           } finally {
             setIsIndexingDemo(false);
           }
@@ -140,6 +149,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
           hnswIndexed: st?.hnswIndexed ?? 1048,
           categories: st?.categories || {},
         });
+        setIsDemoReady(true);
 
         // Non-auth public analytics and queries for demo stand
         const [demoAnalyticsRes, demoQueriesRes] = await Promise.all([
@@ -209,7 +219,9 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         setLastSnapshotAt(stData?.snapshots?.latestSnapshot?.createdAt || null);
       }
     } catch {
-      // Non-blocking background refresh
+      if (isPublicDemo) {
+        setIsDemoReady(true);
+      }
     }
   }, [apiKey, isPublicDemo, period, lang]);
 
@@ -457,41 +469,39 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             ))}
           </div>
 
-          <div className="pt-4 mt-4 border-t border-slate-100 space-y-1.5 text-[11px] text-slate-500">
-            <div className="font-medium text-slate-400 px-2">
-              {lang === 'ru' ? 'Для специалистов' : 'For Specialists'}
-            </div>
-            <button
-              type="button"
-              data-testid="switch-surface-admin"
-              onClick={() => switchSurface('admin')}
-              className={`w-full text-left px-2 py-1 rounded hover:bg-slate-100 transition-colors ${
-                !isPublicDemo ? 'font-semibold text-slate-900' : 'text-slate-600'
-              }`}
-            >
-              {lang === 'ru' ? 'Режим оператора (/admin)' : 'Operator Console (/admin)'}
-            </button>
-            <button
-              type="button"
-              data-testid="switch-surface-demo"
-              onClick={() => switchSurface('public-demo')}
-              className={`w-full text-left px-2 py-1 rounded hover:bg-slate-100 transition-colors ${
-                isPublicDemo ? 'font-semibold text-slate-900' : 'text-slate-600'
-              }`}
-            >
-              {lang === 'ru' ? 'Клиентское демо (/public-demo)' : 'Public Demo (/public-demo)'}
-            </button>
-            {onReturnToStudio && (
+          {!isPublicDemo && (
+            <div className="pt-4 mt-4 border-t border-slate-100 space-y-1.5 text-[11px] text-slate-500">
+              <div className="font-medium text-slate-400 px-2">
+                {lang === 'ru' ? 'Для специалистов' : 'For Specialists'}
+              </div>
               <button
                 type="button"
-                data-testid="admin-return-to-studio"
-                onClick={onReturnToStudio}
-                className="w-full text-left px-2 py-1 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                data-testid="switch-surface-admin"
+                onClick={() => switchSurface('admin')}
+                className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 transition-colors font-semibold text-slate-900"
               >
-                {lang === 'ru' ? 'Инженерная студия (/)' : 'Engineering Studio (/)'}
+                {lang === 'ru' ? 'Режим оператора (/admin)' : 'Operator Console (/admin)'}
               </button>
-            )}
-          </div>
+              <button
+                type="button"
+                data-testid="switch-surface-demo"
+                onClick={() => switchSurface('public-demo')}
+                className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 transition-colors text-slate-600"
+              >
+                {lang === 'ru' ? 'Клиентское демо (/public-demo)' : 'Public Demo (/public-demo)'}
+              </button>
+              {onReturnToStudio && (
+                <button
+                  type="button"
+                  data-testid="admin-return-to-studio"
+                  onClick={onReturnToStudio}
+                  className="w-full text-left px-2 py-1 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                >
+                  {lang === 'ru' ? 'Инженерная студия (/)' : 'Engineering Studio (/)'}
+                </button>
+              )}
+            </div>
+          )}
         </aside>
 
         <main className="flex-1 p-5 max-w-6xl">
@@ -500,6 +510,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               lang={lang}
               apiKey={isPublicDemo ? '' : apiKey}
               isPublicDemo={isPublicDemo}
+              isDemoReady={isDemoReady}
               initialQuery={liveQuerySeed}
               defaultAlpha={rankingDefaults.defaultAlpha}
               defaultGate={rankingDefaults.simpleCategoryGate}
@@ -641,6 +652,45 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
           )}
         </main>
       </div>
+
+      {isPublicDemo && (
+        <footer
+          className="bg-white border-t border-slate-200 px-5 py-3 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-3"
+          data-testid="public-demo-footer"
+        >
+          <span>
+            {lang === 'ru'
+              ? 'EIDOS Витрина · Демо-каталог 1048 товаров · Self-hosted умный поиск для интернет-магазина'
+              : 'EIDOS Storefront · 1048-SKU Demo Catalog · Self-hosted smart search for e-commerce'}
+          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-slate-400">
+              {lang === 'ru' ? 'Для специалистов:' : 'For Specialists:'}
+            </span>
+            <button
+              type="button"
+              data-testid="switch-surface-admin"
+              onClick={() => switchSurface('admin')}
+              className="text-slate-600 hover:text-slate-900 underline"
+            >
+              {lang === 'ru' ? 'Режим оператора (/admin)' : 'Operator Mode (/admin)'}
+            </button>
+            <a
+              href="/"
+              data-testid="footer-return-to-studio"
+              onClick={(e) => {
+                if (onReturnToStudio) {
+                  e.preventDefault();
+                  onReturnToStudio();
+                }
+              }}
+              className="text-slate-600 hover:text-slate-900 underline"
+            >
+              {lang === 'ru' ? 'Студия (/)' : 'Studio (/)'}
+            </a>
+          </div>
+        </footer>
+      )}
     </div>
   );
 };
