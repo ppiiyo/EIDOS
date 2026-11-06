@@ -31,6 +31,7 @@ export interface QueryLogRecord {
   top1: QueryLogTopHit | null;
   flags: QueryLogFlags;
   appliedDictionaryRules?: string[];
+  source?: 'full' | 'suggest';
 }
 
 export interface SynonymRule {
@@ -38,6 +39,29 @@ export interface SynonymRule {
   phrase: string;
   replacement: string;
   enabled: boolean;
+}
+
+export interface SynonymGroup {
+  id: string;
+  enabled: boolean;
+  terms: string[];
+  bidirectional: true;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MerchRule {
+  id: string;
+  enabled: boolean;
+  queryPattern: string;
+  type: 'pin' | 'boost' | 'bury';
+  productId: string;
+  position?: 1 | 2 | 3;
+  weight?: number;
+  match?: { sku?: string; brand?: string; id?: string };
+  value?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface RewriteRule {
@@ -51,6 +75,7 @@ export interface TenantDictionaries {
   version: number;
   updatedAt: string;
   synonyms: SynonymRule[];
+  synonymGroups?: SynonymGroup[];
   rewrites: RewriteRule[];
   stopwords: string[];
 }
@@ -82,10 +107,17 @@ export interface CatalogUpsertSummary {
   sampleRowErrors: Array<{ row: number; field: string; message: string }>;
 }
 
+export interface QueryRewriteItem {
+  type: 'layout' | 'synonym' | 'rewrite' | 'stopwords';
+  from: string;
+  to: string;
+}
+
 export interface QueryPreprocessResult {
   processedQuery: string;
   rewritten: boolean;
   appliedRules: string[];
+  rewrites: QueryRewriteItem[];
 }
 
 function escapeRegExp(str: string): string {
@@ -99,6 +131,8 @@ export class AdminConsoleStore {
   private queryLogs: QueryLogRecord[] = [];
   private events: StorefrontEventRecord[] = [];
   private dictionariesByTenant = new Map<string, TenantDictionaries>();
+  private synonymGroupsByTenant = new Map<string, SynonymGroup[]>();
+  private merchRulesByTenant = new Map<string, MerchRule[]>();
   private rankingDefaultsByTenant = new Map<string, TenantRankingDefaults>();
   private lastUpsertByTenant = new Map<string, CatalogUpsertSummary>();
   private error5xxCountByTenant = new Map<string, number>();
@@ -110,13 +144,191 @@ export class AdminConsoleStore {
     return AdminConsoleStore.instance;
   }
 
+  public getSynonymGroups(tenantId = 'default'): SynonymGroup[] {
+    return this.synonymGroupsByTenant.get(tenantId) || [];
+  }
+
+  public createSynonymGroup(
+    tenantId = 'default',
+    input: { terms: string[]; enabled?: boolean; id?: string }
+  ): SynonymGroup {
+    const cleanTerms = Array.from(
+      new Set(
+        (input.terms || [])
+          .map((t) => String(t || '').trim().toLowerCase())
+          .filter((t) => t.length > 0)
+      )
+    );
+    const now = new Date().toISOString();
+    const group: SynonymGroup = {
+      id: input.id || `syngrp_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
+      enabled: input.enabled !== false,
+      terms: cleanTerms,
+      bidirectional: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const existing = this.getSynonymGroups(tenantId).slice();
+    existing.push(group);
+    this.synonymGroupsByTenant.set(tenantId, existing);
+    this.syncSynonymGroupsIntoLegacyRules(tenantId, existing);
+    return group;
+  }
+
+  public updateSynonymGroup(
+    tenantId = 'default',
+    id: string,
+    patch: { terms?: string[]; enabled?: boolean }
+  ): SynonymGroup | null {
+    const existing = this.getSynonymGroups(tenantId).slice();
+    const idx = existing.findIndex((g) => g.id === id);
+    if (idx === -1) return null;
+    const current = existing[idx];
+    const cleanTerms =
+      patch.terms !== undefined
+        ? Array.from(
+            new Set(
+              patch.terms
+                .map((t) => String(t || '').trim().toLowerCase())
+                .filter((t) => t.length > 0)
+            )
+          )
+        : current.terms;
+    const updated: SynonymGroup = {
+      ...current,
+      enabled: patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
+      terms: cleanTerms,
+      updatedAt: new Date().toISOString(),
+    };
+    existing[idx] = updated;
+    this.synonymGroupsByTenant.set(tenantId, existing);
+    this.syncSynonymGroupsIntoLegacyRules(tenantId, existing);
+    return updated;
+  }
+
+  public deleteSynonymGroup(tenantId = 'default', id: string): boolean {
+    const existing = this.getSynonymGroups(tenantId);
+    const next = existing.filter((g) => g.id !== id);
+    if (next.length === existing.length) return false;
+    this.synonymGroupsByTenant.set(tenantId, next);
+    this.syncSynonymGroupsIntoLegacyRules(tenantId, next);
+    return true;
+  }
+
+  private syncSynonymGroupsIntoLegacyRules(tenantId: string, groups: SynonymGroup[]): void {
+    const current = this.getDictionaries(tenantId);
+    const nonGroupSynonyms = current.synonyms.filter((s) => !s.id.startsWith('syngrp_'));
+    const groupSynonyms: SynonymRule[] = [];
+    for (const grp of groups) {
+      if (grp.terms.length < 2) continue;
+      const canonical = grp.terms[0];
+      for (let i = 1; i < grp.terms.length; i++) {
+        groupSynonyms.push({
+          id: `${grp.id}_${i}`,
+          phrase: grp.terms[i],
+          replacement: canonical,
+          enabled: grp.enabled,
+        });
+      }
+    }
+    this.dictionariesByTenant.set(tenantId, {
+      ...current,
+      version: current.version + 1,
+      updatedAt: new Date().toISOString(),
+      synonyms: [...nonGroupSynonyms, ...groupSynonyms],
+      synonymGroups: groups,
+    });
+  }
+
+  public getMerchRules(tenantId = 'default'): MerchRule[] {
+    return this.merchRulesByTenant.get(tenantId) || [];
+  }
+
+  public createMerchRule(
+    tenantId = 'default',
+    input: {
+      id?: string;
+      enabled?: boolean;
+      queryPattern?: string;
+      type: 'pin' | 'boost' | 'bury';
+      productId?: string;
+      position?: 1 | 2 | 3;
+      weight?: number;
+      match?: { sku?: string; brand?: string; id?: string };
+      value?: number;
+    }
+  ): MerchRule {
+    const now = new Date().toISOString();
+    const resolvedProductId =
+      input.productId || input.match?.id || input.match?.sku || '';
+    const rule: MerchRule = {
+      id: input.id || `merch_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
+      enabled: input.enabled !== false,
+      queryPattern: (input.queryPattern || '*').trim(),
+      type: input.type,
+      productId: String(resolvedProductId).trim(),
+      ...(input.position !== undefined ? { position: input.position } : {}),
+      ...(input.weight !== undefined ? { weight: input.weight } : {}),
+      match: input.match || { id: resolvedProductId },
+      value: Number(input.value ?? input.weight ?? input.position ?? 1),
+      createdAt: now,
+      updatedAt: now,
+    };
+    const existing = this.getMerchRules(tenantId).slice();
+    existing.push(rule);
+    this.merchRulesByTenant.set(tenantId, existing);
+    return rule;
+  }
+
+  public updateMerchRule(
+    tenantId = 'default',
+    id: string,
+    patch: Partial<Omit<MerchRule, 'id' | 'createdAt' | 'updatedAt'>>
+  ): MerchRule | null {
+    const existing = this.getMerchRules(tenantId).slice();
+    const idx = existing.findIndex((r) => r.id === id);
+    if (idx === -1) return null;
+    const current = existing[idx];
+    const updated: MerchRule = {
+      ...current,
+      enabled: patch.enabled !== undefined ? Boolean(patch.enabled) : current.enabled,
+      queryPattern:
+        patch.queryPattern !== undefined ? patch.queryPattern.trim() : current.queryPattern,
+      type: patch.type ?? current.type,
+      productId:
+        patch.productId !== undefined ? String(patch.productId).trim() : current.productId,
+      position: patch.position ?? current.position,
+      weight: patch.weight ?? current.weight,
+      match: patch.match ?? current.match,
+      value: patch.value !== undefined ? Number(patch.value) : current.value,
+      updatedAt: new Date().toISOString(),
+    };
+    existing[idx] = updated;
+    this.merchRulesByTenant.set(tenantId, existing);
+    return updated;
+  }
+
+  public deleteMerchRule(tenantId = 'default', id: string): boolean {
+    const existing = this.getMerchRules(tenantId);
+    const next = existing.filter((r) => r.id !== id);
+    if (next.length === existing.length) return false;
+    this.merchRulesByTenant.set(tenantId, next);
+    return true;
+  }
+
   public getDictionaries(tenantId = 'default'): TenantDictionaries {
     const existing = this.dictionariesByTenant.get(tenantId);
-    if (existing) return existing;
+    if (existing) {
+      return {
+        ...existing,
+        synonymGroups: this.getSynonymGroups(tenantId),
+      };
+    }
     const initial: TenantDictionaries = {
       version: 1,
       updatedAt: new Date().toISOString(),
       synonyms: [],
+      synonymGroups: [],
       rewrites: [],
       stopwords: [],
     };
@@ -145,6 +357,19 @@ export class AdminConsoleStore {
             .filter((s) => s.phrase.length > 0 && s.replacement.length > 0)
         : current.synonyms;
 
+    if (patch.synonyms !== undefined) {
+      // Rebuild SynonymGroups from updated synonyms list
+      const syncedGroups: SynonymGroup[] = synonyms.map((s) => ({
+        id: s.id.startsWith('syngrp_') ? s.id.replace(/_\d+$/, '') : `syngrp_${s.id}`,
+        enabled: s.enabled,
+        terms: [s.replacement.toLowerCase(), s.phrase.toLowerCase()],
+        bidirectional: true,
+        createdAt: current.updatedAt,
+        updatedAt: new Date().toISOString(),
+      }));
+      this.synonymGroupsByTenant.set(tenantId, syncedGroups);
+    }
+
     const rewrites: RewriteRule[] =
       patch.rewrites !== undefined
         ? patch.rewrites
@@ -172,6 +397,7 @@ export class AdminConsoleStore {
       version: current.version + 1,
       updatedAt: new Date().toISOString(),
       synonyms,
+      synonymGroups: this.getSynonymGroups(tenantId),
       rewrites,
       stopwords,
     };
@@ -181,41 +407,88 @@ export class AdminConsoleStore {
 
   public preprocessQuery(rawQuery: string, tenantId = 'default'): QueryPreprocessResult {
     const dict = this.getDictionaries(tenantId);
+    const groups = this.getSynonymGroups(tenantId);
     let working = rawQuery.trim();
     if (!working) {
-      return { processedQuery: rawQuery, rewritten: false, appliedRules: [] };
+      return { processedQuery: rawQuery, rewritten: false, appliedRules: [], rewrites: [] };
     }
 
     const appliedRules: string[] = [];
+    const rewrites: QueryRewriteItem[] = [];
+    let replacementCount = 0;
+    const maxReplacements = 5;
 
-    // 1. Apply exact or phrase rewrites
-    for (const rw of dict.rewrites) {
-      if (!rw.enabled || !rw.from || !rw.to) continue;
+    // 1. Apply exact or phrase rewrites (longest match first)
+    const sortedRewrites = dict.rewrites
+      .filter((rw) => rw.enabled && rw.from && rw.to)
+      .slice()
+      .sort((a, b) => b.from.length - a.from.length);
+
+    for (const rw of sortedRewrites) {
+      if (replacementCount >= maxReplacements) break;
       const pattern = new RegExp(`(^|\\s|[.,!?;:()\\[\\]"'-])${escapeRegExp(rw.from)}(?=$|\\s|[.,!?;:()\\[\\]"'-])`, 'giu');
       if (pattern.test(working)) {
         working = working.replace(pattern, `$1${rw.to}`).replace(/\s+/g, ' ').trim();
         appliedRules.push(`rewrite:${rw.from}->${rw.to}`);
+        rewrites.push({ type: 'rewrite', from: rw.from, to: rw.to });
+        replacementCount++;
       }
     }
 
-    // 2. Apply synonym replacements / expansions
+    // 2. Build unified single-pass synonym candidates (longest multi-word match first)
+    const synCandidates: Array<{ from: string; to: string }> = [];
+    for (const grp of groups) {
+      if (!grp.enabled || grp.terms.length < 2) continue;
+      const canonical = grp.terms[0];
+      for (let i = 1; i < grp.terms.length; i++) {
+        if (grp.terms[i] && grp.terms[i] !== canonical) {
+          synCandidates.push({ from: grp.terms[i], to: canonical });
+        }
+      }
+    }
     for (const syn of dict.synonyms) {
       if (!syn.enabled || !syn.phrase || !syn.replacement) continue;
-      const pattern = new RegExp(`(^|\\s|[.,!?;:()\\[\\]"'-])${escapeRegExp(syn.phrase)}(?=$|\\s|[.,!?;:()\\[\\]"'-])`, 'giu');
-      if (pattern.test(working)) {
-        working = working.replace(pattern, `$1${syn.replacement}`).replace(/\s+/g, ' ').trim();
-        appliedRules.push(`synonym:${syn.phrase}->${syn.replacement}`);
+      if (!synCandidates.some((c) => c.from.toLowerCase() === syn.phrase.toLowerCase())) {
+        synCandidates.push({ from: syn.phrase, to: syn.replacement });
       }
+    }
+    synCandidates.sort((a, b) => b.from.length - a.from.length);
+
+    // One-pass replacement using placeholders so replaced spans never chain-trigger further rules
+    const placeholders: Array<{ token: string; replacement: string }> = [];
+    for (const cand of synCandidates) {
+      if (replacementCount >= maxReplacements) break;
+      const pattern = new RegExp(`(^|\\s|[.,!?;:()\\[\\]"'-])(${escapeRegExp(cand.from)})(?=$|\\s|[.,!?;:()\\[\\]"'-])`, 'giu');
+      if (pattern.test(working)) {
+        const ph = `__EIDOS_SYN_${placeholders.length}__`;
+        placeholders.push({ token: ph, replacement: cand.to });
+        working = working.replace(pattern, `$1${ph}`).replace(/\s+/g, ' ').trim();
+        appliedRules.push(`synonym:${cand.from}->${cand.to}`);
+        rewrites.push({ type: 'synonym', from: cand.from, to: cand.to });
+        replacementCount++;
+      }
+    }
+    for (const ph of placeholders) {
+      working = working.split(ph.token).join(ph.replacement);
     }
 
     // 3. Apply stopwords removal (never strip if it would leave 0 tokens)
     if (dict.stopwords.length > 0) {
       const stopSet = new Set(dict.stopwords.map((w) => w.toLowerCase()));
       const tokens = working.split(/\s+/);
-      const filtered = tokens.filter((tok) => !stopSet.has(tok.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')));
+      const removed: string[] = [];
+      const filtered = tokens.filter((tok) => {
+        const clean = tok.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+        if (stopSet.has(clean)) {
+          removed.push(clean);
+          return false;
+        }
+        return true;
+      });
       if (filtered.length > 0 && filtered.length < tokens.length) {
         working = filtered.join(' ').trim();
         appliedRules.push('stopwords');
+        rewrites.push({ type: 'stopwords', from: removed.join(', '), to: '' });
       }
     }
 
@@ -224,6 +497,7 @@ export class AdminConsoleStore {
       processedQuery: working || rawQuery.trim(),
       rewritten,
       appliedRules,
+      rewrites,
     };
   }
 
@@ -284,6 +558,7 @@ export class AdminConsoleStore {
       alpha: input.alpha ?? 0.5,
       top1: input.top1 ?? null,
       flags: input.flags,
+      ...(input.source ? { source: input.source } : {}),
       ...(input.appliedDictionaryRules?.length
         ? { appliedDictionaryRules: input.appliedDictionaryRules }
         : {}),
@@ -521,7 +796,10 @@ export class AdminConsoleStore {
     return {
       period,
       totalSearches,
+      totalQueries: totalSearches,
+      uniqueQueries: queryAgg.size,
       emptySearches,
+      zeroResultCount: emptySearches,
       zeroResultRate,
       avgLatencyMs,
       p50LatencyMs,
@@ -532,6 +810,11 @@ export class AdminConsoleStore {
       searchesByDay,
       topQueries,
       topZeroResultQueries,
+      topZeroQueries: topZeroResultQueries,
+      clickCount: clicks,
+      clickEventsCount: clicks,
+      ctrEstimate: ctrPercent,
+      hasClickEvents: clicks > 0,
       honestFunnel: {
         searches: totalSearches,
         clicks,
@@ -544,10 +827,55 @@ export class AdminConsoleStore {
     };
   }
 
+  public exportAnalyticsCsv(options?: {
+    tenantId?: string;
+    period?: '24h' | '7d' | '30d';
+    filter?: 'zero' | 'all';
+  }): string {
+    const listed = this.listQueryLogs({
+      tenantId: options?.tenantId,
+      period: options?.period || '7d',
+      emptyOnly: options?.filter === 'zero',
+      page: 1,
+      limit: 500,
+    });
+    const escapeCsv = (val: unknown): string => {
+      const s = String(val ?? '');
+      if (/[",\n\r]/.test(s)) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+
+    const header = [
+      'query',
+      'normalizedQuery',
+      'resultCount',
+      'latencyMs',
+      'top1Category',
+      'timestamp',
+    ].join(',');
+
+    const rows = listed.items.map((item) =>
+      [
+        escapeCsv(item.query),
+        escapeCsv(item.normalizedQuery),
+        item.resultCount,
+        item.latencyMs,
+        escapeCsv(item.top1?.category || ''),
+        escapeCsv(item.timestamp),
+      ].join(',')
+    );
+
+    return `\uFEFF${[header, ...rows].join('\n')}\n`;
+  }
+
   public resetForTests(): void {
     this.queryLogs = [];
     this.events = [];
     this.dictionariesByTenant.clear();
+    this.synonymGroupsByTenant.clear();
+    this.merchRulesByTenant.clear();
     this.rankingDefaultsByTenant.clear();
     this.lastUpsertByTenant.clear();
     this.error5xxCountByTenant.clear();

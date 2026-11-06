@@ -175,9 +175,16 @@ export async function healthRoutes(
       embeddingModel.status === 'ok' &&
       redisHealthy;
 
+    const itemCount = opts.vectorStore.count();
+    const hnswSize = opts.vectorStore.getHNSW().size();
+
     return reply.status(isReady ? 200 : 503).send({
       status: isReady ? 'ready' : 'not ready',
       ready: isReady,
+      itemsIndexed: itemCount,
+      hnswIndexed: hnswSize,
+      redis: redisHealthy ? 'ok' : 'degraded',
+      version: process.env.npm_package_version || '3.4.0',
       draining: false,
       nodeId: fastify.clusterCoordinator?.nodeId || 'standalone',
       catalogVersion: fastify.clusterCoordinator?.getCatalogVersion() ?? 1,

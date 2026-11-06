@@ -78,7 +78,7 @@ const searchWeightsSchema = z
   .optional();
 
 const searchRequestSchema = z.object({
-  query: z.string().min(1, 'query is required').max(500),
+  query: z.string().max(500).optional().default(''),
   limit: z.number().int().min(1).max(100).optional(),
   topK: z.number().int().min(1).max(100).optional(),
   minSimilarity: z.number().min(0).max(1).optional(),
@@ -105,6 +105,8 @@ const searchRequestSchema = z.object({
   indexName: z.string().optional(),
   sessionId: z.string().optional(),
   cognitiveContext: cognitiveContextSchema,
+  responseView: z.enum(['full', 'compact']).optional(),
+  failClosed: z.boolean().optional(),
 });
 
 const paretoRequestSchema = z
@@ -133,11 +135,16 @@ export async function searchRoutes(
   storeRegistry.setDefaultStore(opts.vectorStore);
   const reranker = NeuralCrossEncoderReranker.getInstance();
 
-  const handleSearch = async (request: FastifyRequest, reply: FastifyReply) => {
+  const handleSearch = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    routeOpts?: { isSuggest?: boolean }
+  ) => {
     const startTime = performance.now();
+    const isSuggest = Boolean(routeOpts?.isSuggest);
 
     return traceSpan('http.request', { route: request.url }, async () => {
-      const parseResult = searchRequestSchema.safeParse(request.body);
+      const parseResult = searchRequestSchema.safeParse(request.body || {});
       if (!parseResult.success) {
         return reply.status(400).send({
           statusCode: 400,
@@ -162,8 +169,28 @@ export async function searchRoutes(
         rerankGamma,
         sessionId,
         cognitiveContext,
+        responseView: rawResponseView,
+        failClosed,
       } = parseResult.data;
-      const limit = rawLimit ?? topK ?? 10;
+
+      const trimmedQuery = (query || '').trim();
+      const graphemeCount = Array.from(trimmedQuery).length;
+
+      // For /v1/search (non-suggest), empty query is 400 Bad Request
+      if (!isSuggest && graphemeCount === 0) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'query: query is required',
+        });
+      }
+
+      const responseView = isSuggest ? 'compact' : (rawResponseView ?? 'full');
+      const limit = isSuggest
+        ? Math.min(Math.max(rawLimit ?? topK ?? 6, 1), 8)
+        : (rawLimit ?? topK ?? 10);
+      const candidateFetchLimit = Math.max(limit, 10);
+
       const scopedCategory =
         typeof request.apiKeyContext?.allowedFilters?.category === 'string'
           ? request.apiKeyContext.allowedFilters.category
@@ -183,6 +210,47 @@ export async function searchRoutes(
           return reply.status(err.statusCode).send(err.toJSON());
         }
         throw err;
+      }
+
+      // P0-3 Fail-Safe: If index is empty (0 items) in production/fail-closed mode or after explicit clear, return 503 INDEX_EMPTY
+      const isFailClosedEmpty =
+        !request.demoMode &&
+        activeStore.count() === 0 &&
+        (activeStore.isExplicitlyCleared() ||
+          process.env.EIDOS_FAIL_CLOSED_EMPTY_INDEX === 'true' ||
+          request.headers['x-eidos-fail-closed'] === 'true' ||
+          failClosed === true);
+
+      if (isFailClosedEmpty) {
+        return reply.status(503).send({
+          statusCode: 503,
+          error: 'Service Unavailable',
+          code: 'INDEX_EMPTY',
+          message:
+            'Search index is empty (0 items indexed). Storefront should fallback to native CMS search.',
+        });
+      }
+
+      // P0-2 Live Suggest: queries < 2 unicode graphemes return 200 with empty results immediately
+      if (isSuggest && graphemeCount < 2) {
+        return reply.status(200).send({
+          query: trimmedQuery,
+          normalizedQuery: '',
+          originalQuery: query || '',
+          rewritten: false,
+          rewriteApplied: false,
+          count: 0,
+          total: 0,
+          results: [],
+          latencyMs: 0,
+          meta: {
+            latencyMs: 0,
+            queryRaw: query || '',
+            normalizedQuery: '',
+            rewrites: [],
+            headCategoryIntent: null,
+          },
+        });
       }
 
       const adminStore = AdminConsoleStore.getInstance();
@@ -228,16 +296,62 @@ export async function searchRoutes(
       const rawSanitized = securityScan.sanitizedInput;
       const layoutInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
       const layoutQuery = layoutInfo.normalizedQuery || rawSanitized;
+      const layoutRewrites: Array<{
+        type: 'layout' | 'synonym' | 'rewrite' | 'stopwords';
+        from: string;
+        to: string;
+      }> = [];
+      if (
+        layoutInfo.layoutRecovered &&
+        layoutQuery.trim().toLowerCase() !== rawSanitized.trim().toLowerCase()
+      ) {
+        layoutRewrites.push({
+          type: 'layout',
+          from: rawSanitized.trim(),
+          to: layoutQuery.trim(),
+        });
+      }
+
       const dictPrep = adminStore.preprocessQuery(layoutQuery, tenantId);
       const queryInfo = dictPrep.rewritten
         ? normalizeQueryWithLayoutRecovery(dictPrep.processedQuery)
         : layoutInfo;
       const safeQuery = queryInfo.normalizedQuery || dictPrep.processedQuery || rawSanitized;
       const headIntent = extractHeadCategoryIntent(safeQuery);
+      const allRewrites = [...layoutRewrites, ...(dictPrep.rewrites || [])];
       const wasRewritten =
+        allRewrites.length > 0 ||
         dictPrep.rewritten ||
-        Boolean((layoutInfo as any).hadLayoutMismatch) ||
+        Boolean(layoutInfo.layoutRecovered) ||
         safeQuery.toLowerCase() !== rawSanitized.trim().toLowerCase();
+
+      const formatResultForView = (item: any) => {
+        const resolvedUrl = item.url || `/product/${encodeURIComponent(String(item.id))}`;
+        if (responseView === 'compact') {
+          return {
+            id: item.id,
+            title: item.title,
+            price: item.price,
+            category: item.category,
+            ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
+            url: resolvedUrl,
+            score: item.score,
+            scorePercent: item.scorePercent,
+            humanExplanation: item.humanExplanation,
+          };
+        }
+        return {
+          ...item,
+          url: resolvedUrl,
+        };
+      };
+
+      const shouldRecordLog = (isEmptyResult: boolean): boolean => {
+        if (!isSuggest) return true;
+        if (isEmptyResult) return true;
+        const rate = Number(process.env.LOG_SUGGEST_RATE ?? 0.2);
+        return Math.random() < Math.max(0, Math.min(1, rate));
+      };
 
       // Record search event in SearchFunnelService singleton decorator
       const resolvedSessionId =
@@ -246,7 +360,7 @@ export async function searchRoutes(
           ? request.headers['x-session-id']
           : undefined) ||
         'anonymous';
-      if (fastify.funnelService) {
+      if (fastify.funnelService && !isSuggest) {
         fastify.funnelService.addEvent({
           type: 'search',
           query: safeQuery,
@@ -289,7 +403,12 @@ export async function searchRoutes(
       }
 
       const cacheNamespace = `${tenantId}:${indexName}`;
-      const cacheKey = CacheKeys.search(safeQuery, normalizedFilters, limit, cacheNamespace);
+      const cacheKey = CacheKeys.search(
+        safeQuery,
+        normalizedFilters,
+        candidateFetchLimit,
+        cacheNamespace
+      );
       const keySafe = isCacheKeySafe(cacheKey);
       const l1Cache = ApiQueryCache.getInstance();
 
@@ -307,6 +426,10 @@ export async function searchRoutes(
         const hitLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
         recordSearchLatency(hitLatencyMs, `${mode}_cache_hit`);
         reply.header('x-cache', 'HIT');
+        const rawCachedResults = Array.isArray(cachedResponse.results)
+          ? cachedResponse.results.slice(0, limit)
+          : [];
+        const formattedCachedResults = rawCachedResults.map(formatResultForView);
         const qSummary = summarizeQueryForLog(safeQuery);
         OperationalLogStore.getInstance().record('info', 'search.executed', {
           requestId: request.headers['x-request-id'] as string,
@@ -316,46 +439,49 @@ export async function searchRoutes(
           latencyMs: hitLatencyMs,
           details: {
             ...qSummary,
-            resultCount: Array.isArray(cachedResponse.results) ? cachedResponse.results.length : 0,
+            resultCount: formattedCachedResults.length,
             cacheStatus: 'HIT',
             mode,
+            source: isSuggest ? 'suggest' : 'full',
           },
         });
-        const cachedResults = Array.isArray(cachedResponse.results) ? cachedResponse.results : [];
-        const topCached = cachedResults[0];
-        try {
-          adminStore.recordQueryLog({
-            tenantId,
-            indexName,
-            query: rawSanitized,
-            normalizedQuery: safeQuery,
-            resultCount: cachedResults.length,
-            latencyMs: hitLatencyMs,
-            cacheHit: true,
-            headCategoryIntent: headIntent.familyKey,
-            simpleCategoryGate,
-            alpha: appliedAlpha,
-            top1: topCached
-              ? {
-                  id: String(topCached.id),
-                  title: String(topCached.title),
-                  category: String(topCached.category),
-                  scorePercent: Number(topCached.scorePercent ?? 0),
-                  score: Number(topCached.score ?? 0),
-                }
-              : null,
-            flags: {
-              empty: cachedResults.length === 0,
-              gated:
-                cachedResults.length === 0 &&
-                Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
-              rewritten: wasRewritten,
-              fallback_not_applicable: false,
-            },
-            appliedDictionaryRules: dictPrep.appliedRules,
-          });
-        } catch {
-          // Non-blocking log
+        const topCached = formattedCachedResults[0];
+        if (shouldRecordLog(formattedCachedResults.length === 0)) {
+          try {
+            adminStore.recordQueryLog({
+              tenantId,
+              indexName,
+              query: rawSanitized,
+              normalizedQuery: safeQuery,
+              resultCount: formattedCachedResults.length,
+              latencyMs: hitLatencyMs,
+              cacheHit: true,
+              headCategoryIntent: headIntent.familyKey,
+              simpleCategoryGate,
+              alpha: appliedAlpha,
+              source: isSuggest ? 'suggest' : 'full',
+              top1: topCached
+                ? {
+                    id: String(topCached.id),
+                    title: String(topCached.title),
+                    category: String(topCached.category),
+                    scorePercent: Number(topCached.scorePercent ?? 0),
+                    score: Number(topCached.score ?? 0),
+                  }
+                : null,
+              flags: {
+                empty: formattedCachedResults.length === 0,
+                gated:
+                  formattedCachedResults.length === 0 &&
+                  Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
+                rewritten: wasRewritten,
+                fallback_not_applicable: false,
+              },
+              appliedDictionaryRules: dictPrep.appliedRules,
+            });
+          } catch {
+            // Non-blocking log
+          }
         }
         const { extractedIntent: _cachedIntent, ...restCached } = cachedResponse;
         return {
@@ -364,9 +490,20 @@ export async function searchRoutes(
           normalizedQuery: safeQuery,
           originalQuery: rawSanitized,
           rewritten: wasRewritten,
+          rewriteApplied: wasRewritten,
           alpha: appliedAlpha,
           weights: appliedWeights,
           simpleCategoryGate,
+          results: formattedCachedResults,
+          count: formattedCachedResults.length,
+          total: formattedCachedResults.length,
+          meta: {
+            latencyMs: hitLatencyMs,
+            queryRaw: rawSanitized,
+            normalizedQuery: safeQuery,
+            rewrites: allRewrites,
+            headCategoryIntent: headIntent.familyKey,
+          },
           ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
           cached: true,
           cacheHit: true,
@@ -375,7 +512,7 @@ export async function searchRoutes(
         };
       }
 
-      const filterKey = JSON.stringify({ normalizedFilters, limit });
+      const filterKey = JSON.stringify({ normalizedFilters, limit: candidateFetchLimit });
 
       // 2. Cache miss - check Semantic Query Cache or execute SingleFlight
       let freshResults: Array<{
@@ -385,6 +522,8 @@ export async function searchRoutes(
         category: string;
         tags?: string[];
         price?: number;
+        url?: string;
+        imageUrl?: string;
         score: number;
         scorePercent: number;
         humanExplanation: { ru: string; en: string };
@@ -402,6 +541,7 @@ export async function searchRoutes(
         };
       }>;
       let queryVectorForSemCache: Float32Array | number[] | null = null;
+      const appliedMerchRuleLabels: string[] = [];
 
       try {
         const queryVector = await withTimeout(
@@ -417,41 +557,47 @@ export async function searchRoutes(
             const semLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
             recordSearchLatency(semLatencyMs, `${mode}_semantic_hit`);
             reply.header('x-cache', 'SEMANTIC_HIT');
-            const semResults = Array.isArray(semHit.response.results) ? semHit.response.results : [];
-            const topSem = semResults[0] as Record<string, unknown> | undefined;
-            try {
-              adminStore.recordQueryLog({
-                tenantId,
-                indexName,
-                query: rawSanitized,
-                normalizedQuery: safeQuery,
-                resultCount: semResults.length,
-                latencyMs: semLatencyMs,
-                cacheHit: true,
-                headCategoryIntent: headIntent.familyKey,
-                simpleCategoryGate,
-                alpha: appliedAlpha,
-                top1: topSem
-                  ? {
-                      id: String(topSem.id),
-                      title: String(topSem.title),
-                      category: String(topSem.category),
-                      scorePercent: Number(topSem.scorePercent ?? 0),
-                      score: Number(topSem.score ?? 0),
-                    }
-                  : null,
-                flags: {
-                  empty: semResults.length === 0,
-                  gated:
-                    semResults.length === 0 &&
-                    Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
-                  rewritten: wasRewritten,
-                  fallback_not_applicable: false,
-                },
-                appliedDictionaryRules: dictPrep.appliedRules,
-              });
-            } catch {
-              // Non-blocking log
+            const rawSemResults = Array.isArray(semHit.response.results)
+              ? semHit.response.results.slice(0, limit)
+              : [];
+            const formattedSemResults = rawSemResults.map(formatResultForView);
+            const topSem = formattedSemResults[0] as Record<string, unknown> | undefined;
+            if (shouldRecordLog(formattedSemResults.length === 0)) {
+              try {
+                adminStore.recordQueryLog({
+                  tenantId,
+                  indexName,
+                  query: rawSanitized,
+                  normalizedQuery: safeQuery,
+                  resultCount: formattedSemResults.length,
+                  latencyMs: semLatencyMs,
+                  cacheHit: true,
+                  headCategoryIntent: headIntent.familyKey,
+                  simpleCategoryGate,
+                  alpha: appliedAlpha,
+                  source: isSuggest ? 'suggest' : 'full',
+                  top1: topSem
+                    ? {
+                        id: String(topSem.id),
+                        title: String(topSem.title),
+                        category: String(topSem.category),
+                        scorePercent: Number(topSem.scorePercent ?? 0),
+                        score: Number(topSem.score ?? 0),
+                      }
+                    : null,
+                  flags: {
+                    empty: formattedSemResults.length === 0,
+                    gated:
+                      formattedSemResults.length === 0 &&
+                      Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
+                    rewritten: wasRewritten,
+                    fallback_not_applicable: false,
+                  },
+                  appliedDictionaryRules: dictPrep.appliedRules,
+                });
+              } catch {
+                // Non-blocking log
+              }
             }
             const { extractedIntent: _semIntent, ...restSem } = semHit.response;
             return {
@@ -459,6 +605,17 @@ export async function searchRoutes(
               alpha: appliedAlpha,
               weights: appliedWeights,
               simpleCategoryGate,
+              rewriteApplied: wasRewritten,
+              results: formattedSemResults,
+              count: formattedSemResults.length,
+              total: formattedSemResults.length,
+              meta: {
+                latencyMs: semLatencyMs,
+                queryRaw: rawSanitized,
+                normalizedQuery: safeQuery,
+                rewrites: allRewrites,
+                headCategoryIntent: headIntent.familyKey,
+              },
               ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
               cached: true,
               cacheHit: true,
@@ -492,59 +649,82 @@ export async function searchRoutes(
               );
             }
 
-            let results: Array<{ item: any; score: number; rrfScore?: number; source?: string }> = [];
+            let results: Array<{
+              item: any;
+              score: number;
+              rrfScore?: number;
+              source?: string;
+              merchBoostDelta?: number;
+            }> = [];
 
             if (mode === 'hybrid') {
-              results = await traceSpan('rrf.fusion', { mode: 'hybrid', limit }, async () =>
-                activeStore.hybridSearch(
-                  safeQuery,
-                  cleanVector,
-                  limit,
-                  denseW,
-                  sparseW,
-                  effectiveCategory,
-                  {
-                    simpleCategoryGate,
-                    minScore,
-                  }
-                )
+              results = await traceSpan(
+                'rrf.fusion',
+                { mode: 'hybrid', limit: candidateFetchLimit },
+                async () =>
+                  activeStore.hybridSearch(
+                    safeQuery,
+                    cleanVector,
+                    candidateFetchLimit,
+                    denseW,
+                    sparseW,
+                    effectiveCategory,
+                    {
+                      simpleCategoryGate,
+                      minScore,
+                    }
+                  )
               );
             } else if (mode === 'dense') {
-              results = await traceSpan('hnsw.search', { mode: 'dense', limit }, async () => {
-                const effectiveMinSim = Math.max(minSimilarity, minScore ?? 0.3);
-                const denseHits = activeStore
-                  .search(cleanVector, limit * 2, effectiveMinSim, undefined, effectiveCategory)
-                  .map((r) => ({ ...r, source: 'dense' }));
+              results = await traceSpan(
+                'hnsw.search',
+                { mode: 'dense', limit: candidateFetchLimit },
+                async () => {
+                  const effectiveMinSim = Math.max(minSimilarity, minScore ?? 0.3);
+                  const denseHits = activeStore
+                    .search(
+                      cleanVector,
+                      candidateFetchLimit * 2,
+                      effectiveMinSim,
+                      undefined,
+                      effectiveCategory
+                    )
+                    .map((r) => ({ ...r, source: 'dense' }));
 
-                const gated = denseHits.filter((r) => {
-                  const g = evaluateCandidateGuardrail(queryInfo, r.item, r.score, 0, false);
-                  if (!g.passesLexicalGate && r.score < 0.32) return false;
-                  if (simpleCategoryGate === 'hard' && headIntent.hasHeadCategoryIntent) {
-                    const cg = evaluateCandidateCategoryGate(headIntent, r.item, 'hard');
-                    if (cg.conflictsWithHeadCategory) return false;
-                  }
-                  return true;
-                });
-                return gated.slice(0, limit);
-              });
-            } else {
-              results = await traceSpan('bm25.lexical_search', { mode: 'sparse', limit }, async () => {
-                const out: Array<{ item: any; score: number; source?: string }> = [];
-                const bm25Hits = activeStore.getBM25().search(safeQuery, limit * 3);
-                for (const hit of bm25Hits) {
-                  if (hit.score <= 0) continue;
-                  const item = activeStore.get(hit.id);
-                  if (!item) continue;
-                  if (effectiveCategory && item.category !== effectiveCategory) continue;
-                  if (simpleCategoryGate === 'hard' && headIntent.hasHeadCategoryIntent) {
-                    const cg = evaluateCandidateCategoryGate(headIntent, item, 'hard');
-                    if (cg.conflictsWithHeadCategory) continue;
-                  }
-                  out.push({ item, score: hit.score, source: 'sparse' });
-                  if (out.length >= limit) break;
+                  const gated = denseHits.filter((r) => {
+                    const g = evaluateCandidateGuardrail(queryInfo, r.item, r.score, 0, false);
+                    if (!g.passesLexicalGate && r.score < 0.32) return false;
+                    if (simpleCategoryGate === 'hard' && headIntent.hasHeadCategoryIntent) {
+                      const cg = evaluateCandidateCategoryGate(headIntent, r.item, 'hard');
+                      if (cg.conflictsWithHeadCategory) return false;
+                    }
+                    return true;
+                  });
+                  return gated.slice(0, candidateFetchLimit);
                 }
-                return out;
-              });
+              );
+            } else {
+              results = await traceSpan(
+                'bm25.lexical_search',
+                { mode: 'sparse', limit: candidateFetchLimit },
+                async () => {
+                  const out: Array<{ item: any; score: number; source?: string }> = [];
+                  const bm25Hits = activeStore.getBM25().search(safeQuery, candidateFetchLimit * 3);
+                  for (const hit of bm25Hits) {
+                    if (hit.score <= 0) continue;
+                    const item = activeStore.get(hit.id);
+                    if (!item) continue;
+                    if (effectiveCategory && item.category !== effectiveCategory) continue;
+                    if (simpleCategoryGate === 'hard' && headIntent.hasHeadCategoryIntent) {
+                      const cg = evaluateCandidateCategoryGate(headIntent, item, 'hard');
+                      if (cg.conflictsWithHeadCategory) continue;
+                    }
+                    out.push({ item, score: hit.score, source: 'sparse' });
+                    if (out.length >= candidateFetchLimit) break;
+                  }
+                  return out;
+                }
+              );
             }
 
             // Apply optional price filters if provided in filters object
@@ -591,9 +771,83 @@ export async function searchRoutes(
               );
             }
 
+            // P1-4 Merchandising Rules (pin / boost / bury) applied after RRF and before final truncate
+            const activeMerchRules = adminStore
+              .getMerchRules(tenantId)
+              .filter((mr) => {
+                if (!mr.enabled) return false;
+                const pat = mr.queryPattern.trim().toLowerCase();
+                return (
+                  pat === safeQuery.trim().toLowerCase() ||
+                  pat === rawSanitized.trim().toLowerCase()
+                );
+              });
+
+            if (activeMerchRules.length > 0) {
+              for (const rule of activeMerchRules) {
+                if (rule.type === 'boost' || rule.type === 'bury') {
+                  const weight =
+                    rule.weight ?? (rule.type === 'boost' ? 1.35 : 0.25);
+                  const target = results.find((r) => String(r.item.id) === String(rule.productId));
+                  if (target) {
+                    const prevScore = target.score;
+                    target.score = Number((prevScore * weight).toFixed(6));
+                    target.merchBoostDelta =
+                      (target.merchBoostDelta ?? 0) + Number((target.score - prevScore).toFixed(4));
+                    appliedMerchRuleLabels.push(`merch:${rule.type}:${rule.productId}`);
+                  }
+                }
+              }
+
+              results.sort((a, b) => b.score - a.score);
+
+              const pinRules = activeMerchRules
+                .filter((r) => r.type === 'pin')
+                .sort((a, b) => (a.position ?? 1) - (b.position ?? 1));
+
+              for (const pinRule of pinRules) {
+                const targetIdx = Math.max(0, Math.min(2, (pinRule.position ?? 1) - 1));
+                const existingIdx = results.findIndex(
+                  (r) => String(r.item.id) === String(pinRule.productId)
+                );
+                let pinnedEntry =
+                  existingIdx >= 0 ? results.splice(existingIdx, 1)[0] : undefined;
+                if (!pinnedEntry) {
+                  const storeItem = activeStore.get(pinRule.productId);
+                  if (
+                    storeItem &&
+                    (!effectiveCategory || storeItem.category === effectiveCategory)
+                  ) {
+                    const topScore = results[0]?.score ?? 0.05;
+                    pinnedEntry = {
+                      item: storeItem,
+                      score: Number((topScore + 0.01).toFixed(6)),
+                      rrfScore: topScore,
+                      source: 'merch_pin',
+                      merchBoostDelta: 0.25,
+                    };
+                  }
+                } else {
+                  const topScore = results[0]?.score ?? pinnedEntry.score;
+                  pinnedEntry.score = Number((Math.max(pinnedEntry.score, topScore) + 0.005).toFixed(6));
+                  pinnedEntry.merchBoostDelta = (pinnedEntry.merchBoostDelta ?? 0) + 0.2;
+                }
+
+                if (pinnedEntry) {
+                  const insertAt = Math.min(targetIdx, results.length);
+                  results.splice(insertAt, 0, pinnedEntry);
+                  appliedMerchRuleLabels.push(
+                    `merch:pin:${pinRule.productId}@${pinRule.position ?? 1}`
+                  );
+                }
+              }
+            }
+
             const bm25Map = new Map<string, number>();
             if (mode !== 'dense' && appliedAlpha < 1) {
-              const bm25Hits = activeStore.getBM25().search(safeQuery, Math.max(limit * 3, 25));
+              const bm25Hits = activeStore
+                .getBM25()
+                .search(safeQuery, Math.max(candidateFetchLimit * 3, 25));
               for (const h of bm25Hits) {
                 bm25Map.set(h.id, h.score);
               }
@@ -681,6 +935,8 @@ export async function searchRoutes(
                 denseScore: denseComponent,
                 sparseScore: sparseBm25Component,
                 category: r.item.category,
+                rewrittenFrom: wasRewritten ? rawSanitized.trim() : undefined,
+                rewrittenTo: wasRewritten ? safeQuery : undefined,
               });
 
               const explanation = {
@@ -689,10 +945,18 @@ export async function searchRoutes(
                 rrfScore,
                 mmrPenalty: 0,
                 businessBoost:
-                  Math.round((kineticMod.kineticBonus + guardrail.consistencyBoost) * 10000) / 10000,
+                  Math.round(
+                    (kineticMod.kineticBonus +
+                      guardrail.consistencyBoost +
+                      (r.merchBoostDelta ?? 0)) *
+                      10000
+                  ) / 10000,
                 serendipityScore: serendipityEval?.serendipityScore ?? 0,
                 kineticBonus: kineticMod.kineticBonus,
               };
+
+              const resolvedUrl =
+                r.item.url || `/product/${encodeURIComponent(String(r.item.id))}`;
 
               return {
                 id: r.item.id,
@@ -701,7 +965,8 @@ export async function searchRoutes(
                 category: r.item.category,
                 tags: r.item.tags,
                 price: r.item.price,
-                ...(r.item.url ? { url: r.item.url } : {}),
+                url: resolvedUrl,
+                ...(r.item.imageUrl ? { imageUrl: r.item.imageUrl } : {}),
                 score: finalScore,
                 scorePercent,
                 humanExplanation,
@@ -736,14 +1001,16 @@ export async function searchRoutes(
       const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
       recordSearchLatency(latencyMs, mode);
       const cachedAt = new Date().toISOString();
-      const responsePayload = {
+      const combinedRules = [...dictPrep.appliedRules, ...appliedMerchRuleLabels];
+      const slicedFresh = freshResults.slice(0, limit).map(formatResultForView);
+
+      const fullCachePayload = {
         query: safeQuery,
         normalizedQuery: safeQuery,
         originalQuery: rawSanitized,
         rewritten: wasRewritten,
-        ...(dictPrep.appliedRules.length > 0
-          ? { appliedDictionaryRules: dictPrep.appliedRules }
-          : {}),
+        rewriteApplied: wasRewritten,
+        ...(combinedRules.length > 0 ? { appliedDictionaryRules: combinedRules } : {}),
         mode,
         alpha: appliedAlpha,
         weights: appliedWeights,
@@ -754,6 +1021,13 @@ export async function searchRoutes(
         total: freshResults.length,
         latencyMs,
         cacheHit: false,
+        meta: {
+          latencyMs,
+          queryRaw: rawSanitized,
+          normalizedQuery: safeQuery,
+          rewrites: allRewrites,
+          headCategoryIntent: headIntent.familyKey,
+        },
         ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
         cognitiveDiagnostics: {
           routeDecision,
@@ -763,40 +1037,50 @@ export async function searchRoutes(
         },
       };
 
-      const topFresh = freshResults[0];
-      try {
-        adminStore.recordQueryLog({
-          tenantId,
-          indexName,
-          query: rawSanitized,
-          normalizedQuery: safeQuery,
-          resultCount: freshResults.length,
-          latencyMs,
-          cacheHit: false,
-          headCategoryIntent: headIntent.familyKey,
-          simpleCategoryGate,
-          alpha: appliedAlpha,
-          top1: topFresh
-            ? {
-                id: String(topFresh.id),
-                title: String(topFresh.title),
-                category: String(topFresh.category),
-                scorePercent: Number(topFresh.scorePercent ?? 0),
-                score: Number(topFresh.score ?? 0),
-              }
-            : null,
-          flags: {
-            empty: freshResults.length === 0,
-            gated:
-              freshResults.length === 0 &&
-              Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
-            rewritten: wasRewritten,
-            fallback_not_applicable: false,
-          },
-          appliedDictionaryRules: dictPrep.appliedRules,
-        });
-      } catch {
-        // Non-blocking log
+      const responsePayload = {
+        ...fullCachePayload,
+        results: slicedFresh,
+        count: slicedFresh.length,
+        total: slicedFresh.length,
+      };
+
+      const topFresh = slicedFresh[0];
+      if (shouldRecordLog(slicedFresh.length === 0)) {
+        try {
+          adminStore.recordQueryLog({
+            tenantId,
+            indexName,
+            query: rawSanitized,
+            normalizedQuery: safeQuery,
+            resultCount: slicedFresh.length,
+            latencyMs,
+            cacheHit: false,
+            headCategoryIntent: headIntent.familyKey,
+            simpleCategoryGate,
+            alpha: appliedAlpha,
+            source: isSuggest ? 'suggest' : 'full',
+            top1: topFresh
+              ? {
+                  id: String(topFresh.id),
+                  title: String(topFresh.title),
+                  category: String(topFresh.category),
+                  scorePercent: Number(topFresh.scorePercent ?? 0),
+                  score: Number(topFresh.score ?? 0),
+                }
+              : null,
+            flags: {
+              empty: slicedFresh.length === 0,
+              gated:
+                slicedFresh.length === 0 &&
+                Boolean(headIntent.hasHeadCategoryIntent && simpleCategoryGate === 'hard'),
+              rewritten: wasRewritten,
+              fallback_not_applicable: false,
+            },
+            appliedDictionaryRules: combinedRules,
+          });
+        } catch {
+          // Non-blocking log
+        }
       }
 
       const qSummary = summarizeQueryForLog(safeQuery);
@@ -808,15 +1092,16 @@ export async function searchRoutes(
         latencyMs,
         details: {
           ...qSummary,
-          resultCount: freshResults.length,
+          resultCount: slicedFresh.length,
           cacheStatus: 'MISS',
           mode,
+          source: isSuggest ? 'suggest' : 'full',
         },
       });
 
       // 3. Only cache if key and response are safe (Cache Poisoning Protection)
-      if (keySafe && isResponseCacheable(responsePayload)) {
-        const cacheEntry = { ...responsePayload, cachedAt };
+      if (keySafe && isResponseCacheable(fullCachePayload)) {
+        const cacheEntry = { ...fullCachePayload, cachedAt };
         const adaptiveTtl = CacheKeys.getAdaptiveTTL(safeQuery);
         await redisCache.set(cacheKey, cacheEntry, adaptiveTtl, 'search');
         l1Cache.set(cacheKey, cacheEntry);
@@ -841,22 +1126,28 @@ export async function searchRoutes(
     return ParetoWeightOptimizer.optimize(parsed.data);
   };
 
-  fastify.post('/v1/search', { preHandler: authenticate }, handleSearch);
-  fastify.post(
-    '/v1/demo/search',
-    {
-      preHandler: async (request, reply) => {
-        request.demoMode = true;
-        request.demoRateLimit = 60;
-        await demoRateLimit(request, reply);
-        if (!reply.sent && opts.vectorStore.count() === 0) {
-          fastify.storeRegistry?.setDefaultStore(opts.vectorStore);
-          await opts.vectorStore.loadDemoCatalog(DEMO_CATALOG_1000, opts.embedder);
-          seedDemoAnalyticsIfEmpty(AdminConsoleStore.getInstance());
-        }
-      },
-    },
-    handleSearch
+  const demoSearchPreHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+    request.demoMode = true;
+    request.demoRateLimit = 60;
+    await demoRateLimit(request, reply);
+    if (!reply.sent && opts.vectorStore.count() === 0) {
+      fastify.storeRegistry?.setDefaultStore(opts.vectorStore);
+      await opts.vectorStore.loadDemoCatalog(DEMO_CATALOG_1000, opts.embedder);
+      seedDemoAnalyticsIfEmpty(AdminConsoleStore.getInstance());
+    }
+  };
+
+  fastify.post('/v1/search', { preHandler: authenticate }, (req, reply) =>
+    handleSearch(req, reply, { isSuggest: false })
+  );
+  fastify.post('/v1/suggest', { preHandler: authenticate }, (req, reply) =>
+    handleSearch(req, reply, { isSuggest: true })
+  );
+  fastify.post('/v1/demo/search', { preHandler: demoSearchPreHandler }, (req, reply) =>
+    handleSearch(req, reply, { isSuggest: false })
+  );
+  fastify.post('/v1/demo/suggest', { preHandler: demoSearchPreHandler }, (req, reply) =>
+    handleSearch(req, reply, { isSuggest: true })
   );
 
   fastify.post('/v1/optimize/pareto', { preHandler: authenticate }, handleParetoOptimize);

@@ -63,6 +63,10 @@ const EN_TO_RU_KEYMAP: Record<string, string> = {
   z: 'я', x: 'ч', c: 'с', v: 'м', b: 'и', n: 'т', m: 'ь', ',': 'б', '.': 'ю',
 };
 
+const RU_TO_EN_KEYMAP: Record<string, string> = Object.fromEntries(
+  Object.entries(EN_TO_RU_KEYMAP).map(([en, ru]) => [ru, en])
+);
+
 const KNOWN_RU_ECOM_STEMS = [
   'наушник',
   'кроссовк',
@@ -86,6 +90,31 @@ const KNOWN_RU_ECOM_STEMS = [
   'игр',
   'кофе',
   'масл',
+  'пылесос',
+  'перфорат',
+  'шуруповерт',
+  'телевизор',
+  'конструктор',
+];
+
+const KNOWN_EN_BRAND_STEMS = [
+  'iphone',
+  'samsung',
+  'xiaomi',
+  'shokz',
+  'jbl',
+  'sony',
+  'sennheiser',
+  'asics',
+  'nike',
+  'makita',
+  'bosch',
+  'delonghi',
+  'dreame',
+  'roborock',
+  'brembo',
+  'motul',
+  'lego',
 ];
 
 const TRANSLIT_MAP: Record<string, string> = {
@@ -254,8 +283,8 @@ export const PRODUCT_CATEGORY_FAMILIES: ReadonlyArray<CategoryFamilySpec> = [
     id: 'tools',
     canonicalRu: 'инструменты и ремонт',
     canonicalEn: 'power tools',
-    queryStems: ['шуруповерт', 'шуруповёрт', 'дрель', 'перфоратор', 'нивелир', 'лазерный уровень', 'гайковерт'],
-    itemStems: ['шуруповерт', 'шуруповёрт', 'дрель', 'перфоратор', 'нивелир', 'инструмент', 'makita', 'bosch', 'dewalt'],
+    queryStems: ['шуруповерт', 'шуруповёрт', 'дрель', 'перфоратор', 'перфорат', 'нивелир', 'лазерный уровень', 'гайковерт'],
+    itemStems: ['шуруповерт', 'шуруповёрт', 'дрель', 'перфоратор', 'перфорат', 'нивелир', 'инструмент', 'makita', 'bosch', 'dewalt'],
   },
   {
     id: 'kids_goods',
@@ -343,6 +372,74 @@ function mapEnLayoutToRu(word: string): string {
   return out;
 }
 
+function mapRuLayoutToEn(word: string): string {
+  let out = '';
+  for (const ch of word.toLowerCase()) {
+    out += RU_TO_EN_KEYMAP[ch] ?? ch;
+  }
+  return out;
+}
+
+/**
+ * Pure bidirectional keyboard layout converter (qwerty <-> йцукен).
+ */
+export function layoutConvert(
+  query: string,
+  direction: 'en2ru' | 'ru2en' | 'auto' = 'auto'
+): string {
+  const collapsed = (query || '').trim().replace(/\s+/g, ' ');
+  if (!collapsed) return '';
+
+  const words = collapsed.split(' ');
+  const converted = words.map((w) => {
+    const lower = w.toLowerCase();
+    if (direction === 'en2ru') {
+      if (TRANSLIT_MAP[lower]) return TRANSLIT_MAP[lower];
+      return mapEnLayoutToRu(lower);
+    }
+    if (direction === 'ru2en') {
+      return mapRuLayoutToEn(lower);
+    }
+    // 'auto' mode: conservative conversion only when mapped tokens match known RU stems or EN brands
+    if (TRANSLIT_MAP[lower]) return TRANSLIT_MAP[lower];
+    if (/^[a-z,;'\[\].]{4,}$/i.test(w)) {
+      const mappedRu = mapEnLayoutToRu(lower);
+      if (KNOWN_RU_ECOM_STEMS.some((stem) => mappedRu.includes(stem))) {
+        return mappedRu;
+      }
+    }
+    if (/^[а-яё]{4,}$/i.test(w)) {
+      const mappedEn = mapRuLayoutToEn(lower);
+      if (KNOWN_EN_BRAND_STEMS.some((brand) => mappedEn === brand)) {
+        return mappedEn;
+      }
+    }
+    return w;
+  });
+
+  return converted.join(' ');
+}
+
+const CANONICAL_RU_TYPO_DICTIONARY: ReadonlyArray<string> = [
+  'перфоратор',
+  'шуруповерт',
+  'наушники',
+  'кроссовки',
+  'смартфон',
+  'ноутбук',
+  'пылесос',
+  'кофемашина',
+  'телевизор',
+  'клавиатура',
+  'видеорегистратор',
+  'холодильник',
+  'конструктор',
+  'аккумулятор',
+  'коляска',
+  'блендер',
+  'монитор',
+];
+
 /**
  * Trims, collapses spaces, recovers EN->RU keyboard layout mistypes ("yfceiybrb" -> "наушники")
  * and separates head product tokens from prepositional modifier tokens ("для бега").
@@ -375,6 +472,13 @@ export function normalizeQueryWithLayoutRecovery(rawQuery: string): NormalizedQu
       if (KNOWN_RU_ECOM_STEMS.some((stem) => mapped.includes(stem))) {
         layoutRecovered = true;
         return mapped;
+      }
+    }
+    if (/^[а-яё]{6,}$/i.test(w) && !CANONICAL_RU_TYPO_DICTIONARY.includes(lower)) {
+      for (const canonical of CANONICAL_RU_TYPO_DICTIONARY) {
+        if (!lower.startsWith(canonical) && isEditDistanceAtMostOne(lower, canonical)) {
+          return canonical;
+        }
       }
     }
     return w;
@@ -588,6 +692,51 @@ export function evaluateCandidateCategoryGate(
   };
 }
 
+function isEditDistanceAtMostOne(a: string, b: string): boolean {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < la && j < lb) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+    } else {
+      edits++;
+      if (edits > 1) return false;
+      if (la > lb) {
+        i++;
+      } else if (lb > la) {
+        j++;
+      } else {
+        i++;
+        j++;
+      }
+    }
+  }
+  if (i < la || j < lb) edits++;
+  return edits <= 1;
+}
+
+function hasLightTypoWordMatch(token: string, fieldTextLower: string): boolean {
+  if (token.length < 4) return false;
+  const words = fieldTextLower.split(/[\s,_\-—"«»'().:;!?/]+/);
+  for (const w of words) {
+    if (w.length < 4) continue;
+    if (w[0] !== token[0]) continue;
+    if (
+      isEditDistanceAtMostOne(token, w) ||
+      (w.length > token.length && isEditDistanceAtMostOne(token, w.slice(0, token.length + 1)))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Evaluates lexical/category consistency and off-domain gating for a candidate item.
  * Gives strict precedence to headTokens ("наушники") over modifierTokens ("бега").
@@ -617,8 +766,12 @@ export function evaluateCandidateGuardrail(
     if (tok.length >= 4) stems.push(tok.slice(0, -1));
     if (tok.length >= 5) stems.push(tok.slice(0, -2));
 
-    const inTitle = stems.some((s) => s.length >= 3 && titleLower.includes(s));
-    const inCatTag = stems.some((s) => s.length >= 3 && catTagLower.includes(s));
+    const inTitle =
+      stems.some((s) => s.length >= 3 && titleLower.includes(s)) ||
+      hasLightTypoWordMatch(tok, titleLower);
+    const inCatTag =
+      stems.some((s) => s.length >= 3 && catTagLower.includes(s)) ||
+      hasLightTypoWordMatch(tok, catTagLower);
     const inDesc = stems.some((s) => s.length >= 3 && descLower.includes(s));
 
     if (inTitle) titleMatchCount++;
@@ -741,6 +894,8 @@ export function buildHumanExplanation(params: {
   matchedTokens?: string[];
   matchesHeadCategory?: boolean;
   alpha?: number;
+  rewrittenFrom?: string;
+  rewrittenTo?: string;
 }): { ru: string; en: string } {
   const {
     category,
@@ -752,58 +907,66 @@ export function buildHumanExplanation(params: {
     matchedTokens = [],
     matchesHeadCategory,
     alpha = 0.5,
+    rewrittenFrom,
+    rewrittenTo,
   } = params;
   const catRu = category ? `категория «${category}»` : '';
   const catEn = category ? `category "${category}"` : '';
   const pctSuffix = typeof scorePercent === 'number' ? ` (${scorePercent}%)` : '';
   const uniqueTokens = Array.from(new Set(matchedTokens)).slice(0, 3);
   const tokensPlus = uniqueTokens.join(' + ');
+  const hasRewrite =
+    rewrittenFrom &&
+    rewrittenTo &&
+    rewrittenFrom.trim().toLowerCase() !== rewrittenTo.trim().toLowerCase();
+  const rwPrefixRu = hasRewrite ? `Запрос исправлен: ${rewrittenFrom} → ${rewrittenTo}. ` : '';
+  const rwPrefixEn = hasRewrite ? `Query rewritten: ${rewrittenFrom} → ${rewrittenTo}. ` : '';
 
   if (alpha <= 0.01 || (sparseScore > 0 && denseScore <= 0.01)) {
     const tokDetailRu = tokensPlus ? ` («${tokensPlus}»)` : '';
     const tokDetailEn = tokensPlus ? ` ("${tokensPlus}")` : '';
     return {
-      ru: `Точное совпадение слов${tokDetailRu}${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+      ru: `${rwPrefixRu}Точное совпадение слов${tokDetailRu}${catRu ? `, ${catRu}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
-      en: `Exact keyword match${tokDetailEn}${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      en: `${rwPrefixEn}Exact keyword match${tokDetailEn}${catEn ? `, ${catEn}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
     };
   }
   if (alpha >= 0.99 || (denseScore > 0 && sparseScore <= 0 && titleMatchCount === 0 && uniqueTokens.length === 0)) {
     return {
-      ru: `Близость по смыслу запроса${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+      ru: `${rwPrefixRu}Близость по смыслу запроса${catRu ? `, ${catRu}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
-      en: `Semantic meaning match${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      en: `${rwPrefixEn}Semantic meaning match${catEn ? `, ${catEn}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
     };
   }
   if ((matchesHeadCategory || titleMatchCount > 0 || categoryOrTagMatchCount > 0) && uniqueTokens.length > 0) {
     return {
-      ru: `Совпадение по смыслу и словам («${tokensPlus}»)${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+      ru: `${rwPrefixRu}Совпадение по смыслу и словам («${tokensPlus}»)${catRu ? `, ${catRu}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
-      en: `Matched meaning & words ("${tokensPlus}")${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      en: `${rwPrefixEn}Matched meaning & words ("${tokensPlus}")${catEn ? `, ${catEn}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
     };
   }
   if (denseScore > 0 && (sparseScore > 0 || titleMatchCount > 0)) {
     return {
-      ru: `Совпадение по смыслу и характеристикам товара${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+      ru: `${rwPrefixRu}Совпадение по смыслу и характеристикам товара${catRu ? `, ${catRu}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
-      en: `Semantic and product attribute match${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      en: `${rwPrefixEn}Semantic and product attribute match${catEn ? `, ${catEn}` : ''}${pctSuffix}`
         .replace(/\s+/g, ' ')
         .trim(),
     };
   }
   return {
-    ru: `Релевантность по смыслу${catRu ? `, ${catRu}` : ''}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
-    en: `Semantic and category relevance${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+    ru: `${rwPrefixRu}Релевантность по смыслу${catRu ? `, ${catRu}` : ''}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
+    en: `${rwPrefixEn}Semantic and category relevance${catEn ? `, ${catEn}` : ''}${pctSuffix}`
       .replace(/\s+/g, ' ')
       .trim(),
   };

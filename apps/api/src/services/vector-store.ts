@@ -50,6 +50,7 @@ export class VectorStore {
   private hybrid: HybridSearch;
   private wal: WriteAheadLog;
   private options?: VectorStoreOptions;
+  private explicitlyCleared = false;
 
   constructor(options?: VectorStoreOptions) {
     this.options = options;
@@ -65,6 +66,10 @@ export class VectorStore {
     this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync());
   }
 
+  public isExplicitlyCleared(): boolean {
+    return this.explicitlyCleared && this.items.size === 0;
+  }
+
   private snapshotTimer: NodeJS.Timeout | null = null;
 
   /**
@@ -74,6 +79,7 @@ export class VectorStore {
     items: CatalogItem[],
     embedder: ServerEmbedder = ServerEmbedder.getInstance()
   ): Promise<void> {
+    this.explicitlyCleared = false;
     const BATCH_SIZE = 100;
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
@@ -93,6 +99,7 @@ export class VectorStore {
             price: typeof it.price === 'number' ? it.price : 0,
             inStock: typeof it.inStock === 'boolean' ? it.inStock : true,
             tags: Array.isArray(it.tags) ? it.tags : [],
+            url: (it as any).url || `/product/${it.id}`,
             embedding: Array.from(vec),
             normalizedVector: vec instanceof Float32Array ? vec : new Float32Array(vec),
           },
@@ -117,6 +124,7 @@ export class VectorStore {
    */
   public async clear(): Promise<void> {
     this.items.clear();
+    this.explicitlyCleared = true;
     this.hnsw = new HNSWIndex({
       M: this.options?.M ?? 16,
       M0: (this.options?.M ?? 16) * 2,
@@ -140,6 +148,7 @@ export class VectorStore {
   }
 
   public upsert(item: StoredItem, options?: { fastLeaf?: boolean }): void {
+    this.explicitlyCleared = false;
     const id = String(item.id);
     const normalized =
       item.normalizedVector ||

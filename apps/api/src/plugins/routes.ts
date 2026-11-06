@@ -114,6 +114,7 @@ export async function apiRoutesPlugin(
   });
   await fastify.register(adminConsoleRoutes, {
     vectorStore: opts.vectorStore,
+    embedder: opts.embedder,
   });
 
   // Serve storefront widget.js directly from API host

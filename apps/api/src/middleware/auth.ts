@@ -133,6 +133,8 @@ export function signJwtToken(payload: Record<string, unknown>, secret: string): 
 function isSearchOrPublicReadRoute(method: string, cleanPath: string): boolean {
   if (
     cleanPath === '/v1/search' ||
+    cleanPath === '/v1/suggest' ||
+    cleanPath === '/v1/events' ||
     cleanPath === '/v1/recommend' ||
     cleanPath.startsWith('/v1/recommend/') ||
     cleanPath === '/v1/feedback' ||

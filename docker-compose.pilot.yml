@@ -14,18 +14,23 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - EIDOS_STRICT_PROD_BOOT=true
-      - EIDOS_MASTER_KEY=${EIDOS_MASTER_KEY}
-      - EIDOS_ADMIN_KEY=${EIDOS_ADMIN_KEY}
-      - EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY}
-      - EIDOS_API_KEY=${EIDOS_ADMIN_KEY}
+      - DATA_DIR=/var/lib/eidos
+      - EIDOS_MASTER_KEY=${EIDOS_MASTER_KEY:-${ADMIN_KEY}}
+      - EIDOS_ADMIN_KEY=${EIDOS_ADMIN_KEY:-${ADMIN_KEY}}
+      - EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY:-${SEARCH_KEY}}
+      - EIDOS_API_KEY=${EIDOS_ADMIN_KEY:-${ADMIN_KEY}}
+      - ADMIN_KEY=${ADMIN_KEY:-${EIDOS_ADMIN_KEY}}
+      - SEARCH_KEY=${SEARCH_KEY:-${EIDOS_SEARCH_KEY}}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
       - REDIS_URL=redis://redis:6379
-      - EIDOS_SNAPSHOT_PATH=/app/data/snapshots/catalog.snapshot.json
+      - EIDOS_SNAPSHOT_PATH=/var/lib/eidos/snapshots/catalog.snapshot.json
       - EIDOS_SNAPSHOT_INTERVAL_MS=300000
       - EIDOS_AUTO_RESTORE_SNAPSHOT=true
+      - EIDOS_FAIL_CLOSED_EMPTY_INDEX=true
+      - LOG_SUGGEST_RATE=${LOG_SUGGEST_RATE:-0.2}
       - EIDOS_RATE_LIMIT_MAX=${EIDOS_RATE_LIMIT_MAX:-600}
     volumes:
-      - eidos_pilot_snapshots:/app/data
+      - eidos_pilot_snapshots:/var/lib/eidos
     depends_on:
       redis:
         condition: service_healthy

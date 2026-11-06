@@ -1,9 +1,11 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { normalizeQueryWithLayoutRecovery } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { RBACManager } from '../services/multi-tenancy';
 import { StoreRegistry } from '../services/store-registry';
 import { VectorStore } from '../services/vector-store';
+import { ServerEmbedder } from '../services/embedder';
 import { AdminConsoleStore } from '../services/admin-console-store';
 import { ApiQueryCache } from '../services/query-cache';
 import { getCache, getSemanticCache } from '../services/cache';
@@ -20,6 +22,19 @@ const updateDictionariesSchema = z.object({
     )
     .max(500)
     .optional(),
+  synonymGroups: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        enabled: z.boolean().optional().default(true),
+        terms: z.array(z.string().min(1).max(200)).min(2).max(50),
+        bidirectional: z.literal(true).optional().default(true),
+        createdAt: z.string().optional(),
+        updatedAt: z.string().optional(),
+      })
+    )
+    .max(500)
+    .optional(),
   rewrites: z
     .array(
       z.object({
@@ -32,6 +47,62 @@ const updateDictionariesSchema = z.object({
     .max(500)
     .optional(),
   stopwords: z.array(z.string().min(1).max(80)).max(1000).optional(),
+});
+
+const createSynonymGroupSchema = z.object({
+  terms: z.union([
+    z.array(z.string().min(1).max(200)).min(2),
+    z
+      .string()
+      .min(3)
+      .transform((s) =>
+        s
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+      ),
+  ]),
+  enabled: z.boolean().optional().default(true),
+});
+
+const patchSynonymGroupSchema = z.object({
+  terms: z
+    .union([
+      z.array(z.string().min(1).max(200)).min(2),
+      z
+        .string()
+        .min(3)
+        .transform((s) =>
+          s
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        ),
+    ])
+    .optional(),
+  enabled: z.boolean().optional(),
+});
+
+const testSynonymQuerySchema = z.object({
+  query: z.string().min(1).max(500),
+});
+
+const createMerchRuleSchema = z.object({
+  enabled: z.boolean().optional().default(true),
+  queryPattern: z.string().min(1).max(200),
+  type: z.enum(['pin', 'boost', 'bury']),
+  productId: z.string().min(1).max(128),
+  position: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  weight: z.number().min(0.05).max(10).optional(),
+});
+
+const patchMerchRuleSchema = z.object({
+  enabled: z.boolean().optional(),
+  queryPattern: z.string().min(1).max(200).optional(),
+  type: z.enum(['pin', 'boost', 'bury']).optional(),
+  productId: z.string().min(1).max(128).optional(),
+  position: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  weight: z.number().min(0.05).max(10).optional(),
 });
 
 const updateRankingDefaultsSchema = z.object({
@@ -79,11 +150,12 @@ const storefrontEventSchema = z.object({
 
 export async function adminConsoleRoutes(
   fastify: FastifyInstance,
-  opts: { vectorStore: VectorStore }
+  opts: { vectorStore: VectorStore; embedder?: ServerEmbedder }
 ): Promise<void> {
   const adminStore = AdminConsoleStore.getInstance();
   const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
   storeRegistry.setDefaultStore(opts.vectorStore);
+  const embedder = opts.embedder || ServerEmbedder.getInstance();
   const cache = getCache();
 
   function requireAdminRole(request: FastifyRequest, reply: FastifyReply): boolean {
@@ -166,7 +238,8 @@ export async function adminConsoleRoutes(
 
     const result = adminStore.listQueryLogs({
       q: qParams.q,
-      emptyOnly: qParams.emptyOnly === 'true' || qParams.empty === 'true',
+      emptyOnly:
+        qParams.emptyOnly === 'true' || qParams.empty === 'true' || qParams.filter === 'zero',
       gatedOnly: qParams.gatedOnly === 'true',
       rewrittenOnly: qParams.rewrittenOnly === 'true',
       period,
@@ -192,6 +265,62 @@ export async function adminConsoleRoutes(
         periodRaw === '24h' || periodRaw === '7d' || periodRaw === '30d' ? periodRaw : '7d';
 
       return adminStore.getAnalyticsSummary({ period });
+    }
+  );
+
+  /**
+   * GET /v1/admin/analytics/queries
+   * Filtered analytics query list (?period=7d&filter=zero|all&limit=100)
+   */
+  fastify.get(
+    '/v1/admin/analytics/queries',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const qParams = (request.query as Record<string, string | undefined>) || {};
+      const periodRaw = qParams.period;
+      const period: '24h' | '7d' | '30d' =
+        periodRaw === '24h' || periodRaw === '7d' || periodRaw === '30d' ? periodRaw : '7d';
+      const filter = qParams.filter === 'zero' ? 'zero' : 'all';
+      const limit = Math.min(500, Math.max(1, parseInt(qParams.limit || '100', 10) || 100));
+
+      const listed = adminStore.listQueryLogs({
+        emptyOnly: filter === 'zero',
+        period,
+        page: 1,
+        limit,
+      });
+
+      return {
+        period,
+        filter,
+        items: listed.items,
+        total: listed.total,
+      };
+    }
+  );
+
+  /**
+   * GET /v1/admin/analytics/export.csv
+   * Exports query logs as UTF-8 CSV with BOM for Excel/Sheets compatibility.
+   */
+  fastify.get(
+    '/v1/admin/analytics/export.csv',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const qParams = (request.query as Record<string, string | undefined>) || {};
+      const periodRaw = qParams.period;
+      const period: '24h' | '7d' | '30d' =
+        periodRaw === '24h' || periodRaw === '7d' || periodRaw === '30d' ? periodRaw : '7d';
+      const filter = qParams.filter === 'zero' ? 'zero' : 'all';
+
+      const csvContent = adminStore.exportAnalyticsCsv({ period, filter });
+      return reply
+        .status(200)
+        .header('content-type', 'text/csv; charset=utf-8')
+        .header('content-disposition', `attachment; filename="eidos-analytics-${period}.csv"`)
+        .send(csvContent);
     }
   );
 
@@ -223,6 +352,284 @@ export async function adminConsoleRoutes(
     await flushSearchCaches();
     return updated;
   });
+
+  /**
+   * GET /v1/admin/dictionaries/synonyms
+   * Lists bidirectional SynonymGroups.
+   */
+  fastify.get(
+    '/v1/admin/dictionaries/synonyms',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const tenantId = resolveTenantId(request);
+      const groups = adminStore.getSynonymGroups(tenantId);
+      return { groups, items: groups, total: groups.length };
+    }
+  );
+
+  /**
+   * POST /v1/admin/dictionaries/synonyms
+   * Creates a new SynonymGroup (terms: string[] or comma-separated string).
+   */
+  fastify.post(
+    '/v1/admin/dictionaries/synonyms',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const parsed = createSynonymGroupSchema.safeParse(request.body || {});
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+        });
+      }
+      if (parsed.data.terms.length < 2) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Synonym group must contain at least 2 terms.',
+        });
+      }
+
+      const tenantId = resolveTenantId(request);
+      const group = adminStore.createSynonymGroup(tenantId, {
+        terms: parsed.data.terms,
+        enabled: parsed.data.enabled,
+      });
+      await flushSearchCaches();
+      const groups = adminStore.getSynonymGroups(tenantId);
+      return reply.status(201).send({ group, groups });
+    }
+  );
+
+  /**
+   * PATCH /v1/admin/dictionaries/synonyms/:id
+   * Updates an existing SynonymGroup.
+   */
+  fastify.patch(
+    '/v1/admin/dictionaries/synonyms/:id',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const { id } = request.params as { id: string };
+      const parsed = patchSynonymGroupSchema.safeParse(request.body || {});
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+        });
+      }
+
+      const tenantId = resolveTenantId(request);
+      const group = adminStore.updateSynonymGroup(tenantId, id, parsed.data);
+      if (!group) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Synonym group ${id} not found`,
+        });
+      }
+      await flushSearchCaches();
+      const groups = adminStore.getSynonymGroups(tenantId);
+      return { group, groups };
+    }
+  );
+
+  /**
+   * DELETE /v1/admin/dictionaries/synonyms/:id
+   * Deletes a SynonymGroup by ID.
+   */
+  fastify.delete(
+    '/v1/admin/dictionaries/synonyms/:id',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const { id } = request.params as { id: string };
+      const tenantId = resolveTenantId(request);
+      const deleted = adminStore.deleteSynonymGroup(tenantId, id);
+      if (!deleted) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Synonym group ${id} not found`,
+        });
+      }
+      await flushSearchCaches();
+      const groups = adminStore.getSynonymGroups(tenantId);
+      return { deleted: true, id, groups };
+    }
+  );
+
+  /**
+   * POST /v1/admin/dictionaries/synonyms/test
+   * Tests query normalization + synonyms and returns before/after top-3 preview results.
+   */
+  fastify.post(
+    '/v1/admin/dictionaries/synonyms/test',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const parsed = testSynonymQuerySchema.safeParse(request.body || {});
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+        });
+      }
+
+      const { store, tenantId } = storeRegistry.resolveRequestStore(request);
+      const queryRaw = parsed.data.query.trim();
+      const layoutInfo = normalizeQueryWithLayoutRecovery(queryRaw);
+      const layoutQuery = layoutInfo.normalizedQuery || queryRaw;
+      const layoutRewrites: Array<{
+        type: 'layout' | 'synonym' | 'rewrite' | 'stopwords';
+        from: string;
+        to: string;
+      }> = [];
+      if (
+        layoutInfo.layoutRecovered &&
+        layoutQuery.trim().toLowerCase() !== queryRaw.toLowerCase()
+      ) {
+        layoutRewrites.push({
+          type: 'layout',
+          from: queryRaw,
+          to: layoutQuery.trim(),
+        });
+      }
+
+      const dictPrep = adminStore.preprocessQuery(layoutQuery, tenantId);
+      const normalizedQuery = dictPrep.processedQuery || layoutQuery;
+      const rewrites = [...layoutRewrites, ...(dictPrep.rewrites || [])];
+
+      const rawVec = await embedder.embed(queryRaw);
+      const normVec =
+        normalizedQuery.toLowerCase() === queryRaw.toLowerCase()
+          ? rawVec
+          : await embedder.embed(normalizedQuery);
+
+      const beforeHits = store
+        .hybridSearch(queryRaw, rawVec, 3, 1, 1, undefined, { simpleCategoryGate: 'hard' })
+        .map((r) => ({
+          id: r.item.id,
+          title: r.item.title,
+          category: r.item.category,
+          price: r.item.price,
+          score: r.score,
+        }));
+
+      const afterHits = store
+        .hybridSearch(normalizedQuery, normVec, 3, 1, 1, undefined, {
+          simpleCategoryGate: 'hard',
+        })
+        .map((r) => ({
+          id: r.item.id,
+          title: r.item.title,
+          category: r.item.category,
+          price: r.item.price,
+          score: r.score,
+        }));
+
+      return {
+        queryRaw,
+        normalizedQuery,
+        rewrites,
+        beforeResults: beforeHits,
+        previewResults: afterHits,
+      };
+    }
+  );
+
+  /**
+   * GET /v1/admin/merch/rules
+   */
+  fastify.get('/v1/admin/merch/rules', { preHandler: authenticate }, async (request, reply) => {
+    if (!requireAdminRole(request, reply)) return reply;
+    const tenantId = resolveTenantId(request);
+    const rules = adminStore.getMerchRules(tenantId);
+    return { rules, items: rules, total: rules.length };
+  });
+
+  /**
+   * POST /v1/admin/merch/rules
+   */
+  fastify.post('/v1/admin/merch/rules', { preHandler: authenticate }, async (request, reply) => {
+    if (!requireAdminRole(request, reply)) return reply;
+    const parsed = createMerchRuleSchema.safeParse(request.body || {});
+    if (!parsed.success) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+      });
+    }
+
+    const tenantId = resolveTenantId(request);
+    const rule = adminStore.createMerchRule(tenantId, parsed.data);
+    await flushSearchCaches();
+    const rules = adminStore.getMerchRules(tenantId);
+    return reply.status(201).send({ rule, rules });
+  });
+
+  /**
+   * PATCH /v1/admin/merch/rules/:id
+   */
+  fastify.patch(
+    '/v1/admin/merch/rules/:id',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const { id } = request.params as { id: string };
+      const parsed = patchMerchRuleSchema.safeParse(request.body || {});
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+        });
+      }
+
+      const tenantId = resolveTenantId(request);
+      const rule = adminStore.updateMerchRule(tenantId, id, parsed.data);
+      if (!rule) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Merch rule ${id} not found`,
+        });
+      }
+      await flushSearchCaches();
+      const rules = adminStore.getMerchRules(tenantId);
+      return { rule, rules };
+    }
+  );
+
+  /**
+   * DELETE /v1/admin/merch/rules/:id
+   */
+  fastify.delete(
+    '/v1/admin/merch/rules/:id',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const { id } = request.params as { id: string };
+      const tenantId = resolveTenantId(request);
+      const deleted = adminStore.deleteMerchRule(tenantId, id);
+      if (!deleted) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Merch rule ${id} not found`,
+        });
+      }
+      await flushSearchCaches();
+      const rules = adminStore.getMerchRules(tenantId);
+      return { deleted: true, id, rules };
+    }
+  );
 
   /**
    * GET /v1/admin/ranking-defaults
@@ -293,6 +700,18 @@ export async function adminConsoleRoutes(
       };
     }
   );
+
+  /**
+   * POST /v1/catalog/clear
+   * Clears the active tenant store and marks it explicitly cleared so /v1/search returns 503 INDEX_EMPTY.
+   */
+  fastify.post('/v1/catalog/clear', { preHandler: authenticate }, async (request, reply) => {
+    if (!requireAdminRole(request, reply)) return reply;
+    const { store } = storeRegistry.resolveRequestStore(request);
+    await store.clear();
+    await flushSearchCaches();
+    return { ok: true, itemsIndexed: store.count() };
+  });
 
   /**
    * POST /v1/events

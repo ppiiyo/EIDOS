@@ -66,10 +66,11 @@ export const AdminAnalyticsTab: React.FC<{
         </div>
         <button
           type="button"
+          data-testid="analytics-export-csv-btn"
           onClick={handleExportCsv}
           className="px-3 py-1.5 text-xs font-medium bg-slate-900 text-white rounded hover:bg-slate-800"
         >
-          {lang === 'ru' ? 'Скачать CSV' : 'Export CSV'}
+          {lang === 'ru' ? 'Экспорт CSV' : 'Export CSV'}
         </button>
       </div>
 
@@ -247,6 +248,7 @@ export const AdminDictionariesTab: React.FC<{
 }> = ({ lang, dictionaries, prefillPhrase = '', onSaveDictionaries, onTestInLiveSearch }) => {
   const [phrase, setPhrase] = useState(prefillPhrase);
   const [replacement, setReplacement] = useState('');
+  const [groupTermsInput, setGroupTermsInput] = useState('');
   const [rwFrom, setRwFrom] = useState('');
   const [rwTo, setRwTo] = useState('');
   const [stopwordInput, setStopwordInput] = useState(dictionaries.stopwords.join(', '));
@@ -302,6 +304,26 @@ export const AdminDictionariesTab: React.FC<{
     });
     setPhrase('');
     setReplacement('');
+  };
+
+  const handleAddSynonymGroup = async () => {
+    const terms = groupTermsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (terms.length < 2) return;
+    const canonical = terms[0];
+    const newRules = terms.slice(1).map((term) => ({
+      phrase: term,
+      replacement: canonical,
+      enabled: true,
+    }));
+    await onSaveDictionaries({
+      synonyms: [...dictionaries.synonyms, ...newRules],
+      rewrites: dictionaries.rewrites,
+      stopwords: dictionaries.stopwords,
+    });
+    setGroupTermsInput('');
   };
 
   const handleAddRewrite = async () => {
@@ -379,10 +401,11 @@ export const AdminDictionariesTab: React.FC<{
           </div>
           <button
             type="button"
+            data-testid="dict-test-preview-btn"
             onClick={() => onTestInLiveSearch(previewQuery)}
             className="md:col-span-2 py-1.5 px-3 text-xs font-medium bg-slate-900 text-white rounded hover:bg-slate-800"
           >
-            {lang === 'ru' ? 'В Live Search →' : 'Test in Live →'}
+            {lang === 'ru' ? 'Проверить →' : 'Test in Live →'}
           </button>
         </div>
       </div>
@@ -391,12 +414,44 @@ export const AdminDictionariesTab: React.FC<{
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold text-slate-900">
             {lang === 'ru'
-              ? 'Синонимы (фраза покупателя → канонический термин индекса)'
-              : 'Synonyms (Shopper Phrase → Canonical Index Term)'}
+              ? 'Синонимы (группа терминов через запятую или фраза → канонический термин)'
+              : 'Synonyms (Comma-separated Group or Shopper Phrase → Canonical Term)'}
           </h4>
           <span className="text-xs font-mono text-slate-500">
             {dictionaries.synonyms.length} rules
           </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end pb-2 border-b border-slate-100">
+          <div className="md:col-span-10">
+            <label className="block text-xs text-slate-600 mb-1">
+              {lang === 'ru'
+                ? 'Быстрое добавление группы синонимов через запятую (первый термин — канонический)'
+                : 'Quick Synonym Group (comma-separated; first term is canonical)'}
+            </label>
+            <input
+              type="text"
+              data-testid="dict-synonym-group-terms"
+              value={groupTermsInput}
+              onChange={(e) => setGroupTermsInput(e.target.value)}
+              placeholder={
+                lang === 'ru'
+                  ? 'Например: наушники, гарнитура, вкладыши, затычки, tws'
+                  : 'e.g., headphones, earbuds, headset, tws'
+              }
+              className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded text-slate-900"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <button
+              type="button"
+              data-testid="dict-add-synonym-group-btn"
+              onClick={handleAddSynonymGroup}
+              className="w-full py-1.5 px-3 text-xs font-medium bg-slate-800 text-white rounded hover:bg-slate-700"
+            >
+              {lang === 'ru' ? '+ Группу' : '+ Group'}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
