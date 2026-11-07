@@ -225,18 +225,6 @@ export async function searchRoutes(
         });
       }
 
-      // Auto-hydrate demo catalog on cold start for demo-key requests unless explicitly cleared
-      if (
-        request.demoMode &&
-        activeStore.count() === 0 &&
-        !activeStore.isExplicitlyCleared() &&
-        request.headers['x-eidos-fail-closed'] !== 'true' &&
-        failClosed !== true
-      ) {
-        await activeStore.loadDemoCatalog(DEMO_CATALOG_1000, opts.embedder);
-        seedDemoAnalyticsIfEmpty(AdminConsoleStore.getInstance());
-      }
-
       // P0-3 / PR2 Fail-Safe: If index is empty (0 items) in production/fail-closed mode or after explicit clear, return 503 INDEX_EMPTY
       const isFailClosedEmpty =
         activeStore.count() === 0 &&

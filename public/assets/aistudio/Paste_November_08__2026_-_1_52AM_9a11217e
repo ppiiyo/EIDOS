@@ -1,0 +1,374 @@
+2026-11-07T20:58:04.6884052Z ##[group]Run pnpm test
+2026-11-07T20:58:04.6884328Z [36;1mpnpm test[0m
+2026-11-07T20:58:04.6902338Z shell: /usr/bin/bash -e {0}
+2026-11-07T20:58:04.6902561Z env:
+2026-11-07T20:58:04.6902778Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-11-07T20:58:04.6903039Z ##[endgroup]
+2026-11-07T20:58:05.0056445Z 
+2026-11-07T20:58:05.0057316Z > eidos@3.4.0 test /home/runner/work/EIDOS/EIDOS
+2026-11-07T20:58:05.0057808Z > vitest run
+2026-11-07T20:58:05.0057969Z 
+2026-11-07T20:58:05.2904366Z [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+2026-11-07T20:58:05.3120045Z 
+2026-11-07T20:58:05.3121486Z [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/EIDOS/EIDOS[39m
+2026-11-07T20:58:05.3121951Z 
+2026-11-07T20:58:06.8783597Z  [32m✓[39m tests/unit/woocommerce-parity-and-pilot-golden-path.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 246[2mms[22m[39m
+2026-11-07T20:58:09.5003528Z  [32m✓[39m tests/unit/admin-console-and-public-demo.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 1835[2mms[22m[39m
+2026-11-07T20:58:09.5005966Z    [33m[2m✓[22m[39m EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)[2m > [22m9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and passes 10 WOW Golden Queries with model diversity & human explanations [33m759[2mms[22m[39m
+2026-11-07T20:58:09.5008390Z    [33m[2m✓[22m[39m EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)[2m > [22m12. Cold-start /v1/demo/search auto-seeds 1000+ SKU without manual click and passes 15-query Pilot Golden Matrix (>=80% top-3 OK, garbage -> 0) [33m687[2mms[22m[39m
+2026-11-07T20:58:10.3669937Z  [32m✓[39m tests/unit/p0-p1-master-spec.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1895[2mms[22m[39m
+2026-11-07T20:58:10.3671617Z    [33m[2m✓[22m[39m EIDOS Master Spec (P0 + P1) Automated Acceptance Suite[2m > [22m9. merch.rules & fallback.contract: pin rule moves product to position #1 and empty index returns 503 INDEX_EMPTY [33m570[2mms[22m[39m
+2026-11-07T20:58:11.4369708Z {"level":30,"time":1794085091435,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.4533188Z {"level":30,"time":1794085091451,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":15.345761000004131,"msg":"request completed"}
+2026-11-07T20:58:11.4535547Z {"level":30,"time":1794085091452,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.4559960Z {"level":30,"time":1794085091454,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":403},"responseTime":1.7692890000034822,"msg":"request completed"}
+2026-11-07T20:58:11.4561981Z {"level":30,"time":1794085091454,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.4564077Z {"level":30,"time":1794085091455,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":403},"responseTime":0.5005660000024363,"msg":"request completed"}
+2026-11-07T20:58:11.4566210Z {"level":30,"time":1794085091455,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"POST","url":"/v1/keys/generate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.4624680Z {"level":30,"time":1794085091456,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":403},"responseTime":1.0819029999984195,"msg":"request completed"}
+2026-11-07T20:58:11.4918665Z {"level":30,"time":1794085091485,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.5055885Z {"level":30,"time":1794085091490,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":5.442804999998771,"msg":"request completed"}
+2026-11-07T20:58:11.5116043Z {"level":30,"time":1794085091491,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"GET","url":"/v1/catalog/export?format=json","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.5145455Z {"level":30,"time":1794085091492,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.6787019999974291,"msg":"request completed"}
+2026-11-07T20:58:11.5406669Z {"level":30,"time":1794085091539,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/admin/keys","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.5425479Z {"level":30,"time":1794085091541,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":201},"responseTime":1.505224000000453,"msg":"request completed"}
+2026-11-07T20:58:11.5427483Z {"level":30,"time":1794085091542,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/keys/rotate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.5447120Z {"level":30,"time":1794085091543,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.9948629999998957,"msg":"request completed"}
+2026-11-07T20:58:11.5449584Z {"level":30,"time":1794085091544,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.5471549Z {"level":30,"time":1794085091546,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":2.2188380000006873,"msg":"request completed"}
+2026-11-07T20:58:11.5473472Z {"level":30,"time":1794085091546,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.5565544Z {"level":30,"time":1794085091547,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":200},"responseTime":1.2686010000034003,"msg":"request completed"}
+2026-11-07T20:58:11.5759282Z {"level":30,"time":1794085091575,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"GET","url":"/v1/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.6186170Z {"level":30,"time":1794085091618,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":42.528058999996574,"msg":"request completed"}
+2026-11-07T20:58:11.6206609Z {"level":30,"time":1794085091619,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"GET","url":"/v1/ready","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.6317919Z {"level":30,"time":1794085091619,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.825460000000021,"msg":"request completed"}
+2026-11-07T20:58:11.6491260Z {"level":30,"time":1794085091648,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.6601367Z {"level":30,"time":1794085091651,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":2.472186999999394,"msg":"request completed"}
+2026-11-07T20:58:11.6604624Z {"level":30,"time":1794085091651,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"GET","url":"/metrics","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.6607313Z {"level":30,"time":1794085091652,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":1.4292209999985062,"msg":"request completed"}
+2026-11-07T20:58:11.6773847Z {"level":30,"time":1794085091676,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.6785404Z {"level":40,"time":1794085091677,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","event":"auth_failed","reason":"invalid_key","requestId":"req_5b864fc72544","keyId":"invali...00 (id:83fe5847)","ip":"127.0.0.1","path":"/v1/catalog/upsert"}
+2026-11-07T20:58:11.6787143Z {"level":30,"time":1794085091678,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":401},"responseTime":0.9255000000048312,"msg":"request completed"}
+2026-11-07T20:58:11.6788784Z {"level":30,"time":1794085091678,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.6887225Z {"level":30,"time":1794085091680,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":1.843008000003465,"msg":"request completed"}
+2026-11-07T20:58:11.6889118Z {"level":30,"time":1794085091680,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/logs?limit=20","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.6915384Z {"level":30,"time":1794085091680,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":0.5281570000006468,"msg":"request completed"}
+2026-11-07T20:58:11.7089333Z {"level":30,"time":1794085091708,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7111464Z {"level":30,"time":1794085091710,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":2.01468400000158,"msg":"request completed"}
+2026-11-07T20:58:11.7112817Z {"level":30,"time":1794085091710,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7128737Z {"level":30,"time":1794085091712,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":201},"responseTime":1.787255000002915,"msg":"request completed"}
+2026-11-07T20:58:11.7160240Z {"level":30,"time":1794085091712,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"GET","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7161649Z {"level":30,"time":1794085091713,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":0.37795400000322843,"msg":"request completed"}
+2026-11-07T20:58:11.7162778Z {"level":30,"time":1794085091713,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"GET","url":"/v1/catalog/export?format=csv","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7163841Z {"level":30,"time":1794085091713,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":200},"responseTime":0.39960599999903934,"msg":"request completed"}
+2026-11-07T20:58:11.7165213Z {"level":30,"time":1794085091714,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-5","req":{"method":"DELETE","url":"/v1/catalog/items/snap-item-1","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7166698Z {"level":30,"time":1794085091715,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-5","res":{"statusCode":200},"responseTime":0.8199529999983497,"msg":"request completed"}
+2026-11-07T20:58:11.7168417Z {"level":30,"time":1794085091715,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-6","req":{"method":"POST","url":"/v1/snapshots/restore","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7170226Z {"level":30,"time":1794085091716,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-6","res":{"statusCode":200},"responseTime":1.294039000000339,"msg":"request completed"}
+2026-11-07T20:58:11.7411484Z {"level":30,"time":1794085091740,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7424769Z {"level":30,"time":1794085091742,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":1.6204869999928633,"msg":"request completed"}
+2026-11-07T20:58:11.7438874Z {"level":30,"time":1794085091742,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/optimize","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7440675Z {"level":30,"time":1794085091743,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.8001430000003893,"msg":"request completed"}
+2026-11-07T20:58:11.7442462Z {"level":30,"time":1794085091743,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"POST","url":"/v1/admin/reindex","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7461044Z {"level":30,"time":1794085091744,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":0.5432900000014342,"msg":"request completed"}
+2026-11-07T20:58:11.7462478Z {"level":30,"time":1794085091744,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"GET","url":"/v1/analytics/queries","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-07T20:58:11.7463587Z {"level":30,"time":1794085091744,"pid":2450,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":200},"responseTime":0.5934540000016568,"msg":"request completed"}
+2026-11-07T20:58:11.7467044Z  [32m✓[39m apps/api/tests/v35-production-gate.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 593[2mms[22m[39m
+2026-11-07T20:58:12.7782698Z  [32m✓[39m tests/unit/v34-zero-bug-acceptance.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1618[2mms[22m[39m
+2026-11-07T20:58:12.7795869Z    [33m[2m✓[22m[39m EIDOS v3.4.0 Zero-Bug Acceptance Suite (Server + Client + 1C-Bitrix)[2m > [22m2. 520-SKU catalog on server /v1/search: "недорогие наушники для бега" -> top-3 category = Наушники (never Кроссовки) [33m589[2mms[22m[39m
+2026-11-07T20:58:12.7798249Z    [33m[2m✓[22m[39m EIDOS v3.4.0 Zero-Bug Acceptance Suite (Server + Client + 1C-Bitrix)[2m > [22m3. Client 1,000+ SKU scaled catalog: "недорогие наушники для бега" -> top-3 category = Наушники [33m803[2mms[22m[39m
+2026-11-07T20:58:14.9895597Z  [32m✓[39m apps/api/tests/phase1-api-hardening.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1740[2mms[22m[39m
+2026-11-07T20:58:14.9897868Z    [33m[2m✓[22m[39m PHASE 1: Critical API Fixes & Security Hardening[2m > [22mTASK 1.2: Security Stack (CORS, Helmet CSP, Rate Limiting)[2m > [22menforces rate limiting with 429 Too Many Requests when threshold is exceeded [33m584[2mms[22m[39m
+2026-11-07T20:58:15.6394470Z  [31m❯[39m tests/unit/one-command-pilot-and-widget.test.tsx [2m([22m[2m8 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1224[2mms[22m[39m
+2026-11-07T20:58:15.6396437Z [31m   [31m×[31m EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite[2m > [22mPart D.2 & C.1 — Fastify API Empty Catalog 200 OK, Calibrated scorePercent, and GET /widget.js[2m > [22mreturns 200 OK with empty results on 0 SKU catalog, serves /widget.js, and returns scorePercent after upsert[33m 1195[2mms[22m[31m[39m
+2026-11-07T20:58:15.6397570Z [31m     → expected 5 to be +0 // Object.is equality[39m
+2026-11-07T20:58:16.9292462Z  [32m✓[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 224[2mms[22m[39m
+2026-11-07T20:58:17.2487344Z  [32m✓[39m tests/integration/phase2-ui-completion.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 205[2mms[22m[39m
+2026-11-07T20:58:18.9775029Z  [32m✓[39m tests/unit/roadmap-optimizations-and-ux.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 261[2mms[22m[39m
+2026-11-07T20:58:18.9877316Z  [32m✓[39m tests/unit/post-v34-hardening.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 312[2mms[22m[39m
+2026-11-07T20:58:20.3757615Z  [32m✓[39m tests/unit/multilingual-crosslingual.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 121[2mms[22m[39m
+2026-11-07T20:58:20.6131345Z  [32m✓[39m packages/core/src/tests/strict-validation.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-07T20:58:20.8308958Z  [32m✓[39m tests/connectors/bitrix-and-all-in-one-docker.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 199[2mms[22m[39m
+2026-11-07T20:58:21.4914040Z  [32m✓[39m tests/benchmarks/search-sla.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 646[2mms[22m[39m
+2026-11-07T20:58:21.7572336Z  [32m✓[39m packages/core/src/tests/cognitive-vectors.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+2026-11-07T20:58:23.0828034Z  [32m✓[39m apps/api/tests/redis-cache.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 957[2mms[22m[39m
+2026-11-07T20:58:23.5656721Z  [32m✓[39m tests/integration/prometheus-metrics.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1226[2mms[22m[39m
+2026-11-07T20:58:23.5658529Z    [33m[2m✓[22m[39m PHASE 3: Prometheus Metrics & Observability Integration Suite[2m > [22m1. Records non-zero HTTP request counters, request duration histograms, and search latencies on /metrics [33m789[2mms[22m[39m
+2026-11-07T20:58:24.3516136Z  [32m✓[39m packages/core/src/tests/hnsw-quantization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 65[2mms[22m[39m
+2026-11-07T20:58:25.5010976Z  [32m✓[39m apps/api/tests/ten-bugs-fixes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 530[2mms[22m[39m
+2026-11-07T20:58:25.5012864Z    [33m[2m✓[22m[39m Production Readiness: 10 Critical Bug Fixes[2m > [22mBUG #7: POST /v1/catalog/upsert validates input with Zod and rejects malformed items [33m433[2mms[22m[39m
+2026-11-07T20:58:25.7110398Z  [32m✓[39m tests/unit/services/intent-dictionary.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 986[2mms[22m[39m
+2026-11-07T20:58:26.7683863Z  [32m✓[39m packages/core/src/tests/v3-enterprise.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+2026-11-07T20:58:28.1533818Z  [32m✓[39m tests/integration/critical-routes.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 1007[2mms[22m[39m
+2026-11-07T20:58:28.6042738Z  [32m✓[39m apps/api/tests/phase2-product-improvements.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1240[2mms[22m[39m
+2026-11-07T20:58:28.6044445Z    [33m[2m✓[22m[39m PHASE 2: Product Improvements (5,000+ Seed Dataset, OpenAPI 3.0.3, Sentry Error Tracker, Observability & SLA)[2m > [22mTASK 3 / Checkpoint 3 & 5: Catalog starts empty (0 items), loads demo items on demand, memory <512MB, /v1/search <30ms, /v1/recommend <50ms [33m816[2mms[22m[39m
+2026-11-07T20:58:30.0015954Z  [32m✓[39m tests/integration/modernization-phases-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 164[2mms[22m[39m
+2026-11-07T20:58:30.0524692Z  [32m✓[39m tests/integration/split-brain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 207[2mms[22m[39m
+2026-11-07T20:58:32.1129746Z  [32m✓[39m tests/unit/phase3-deterministic-seeding-metrics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 463[2mms[22m[39m
+2026-11-07T20:58:32.1130978Z    [33m[2m✓[22m[39m PHASE 3: Deterministic Seeding (mulberry32) & Real Search Latency Metrics[2m > [22mGET /v1/metrics and GET /v1/catalog/stats reflect real search and recommend latencies [33m439[2mms[22m[39m
+2026-11-07T20:58:32.5322772Z  [32m✓[39m tests/unit/services/search-funnel.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 887[2mms[22m[39m
+2026-11-07T20:58:32.5324579Z    [33m[2m✓[22m[39m Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regression[2m > [22m5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel [33m754[2mms[22m[39m
+2026-11-07T20:58:33.3610800Z  [31m❯[39m tests/unit/phase2-rate-limit-lru.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 41[2mms[22m[39m
+2026-11-07T20:58:33.3623851Z [31m   [31m×[31m PHASE 2: Memory Leak Prevention (Rate Limiting LRU & Bounded Store)[2m > [22menforces demoRateLimit per IP and returns 429 when exceeded[90m 7[2mms[22m[31m[39m
+2026-11-07T20:58:33.3631791Z [31m     → expected { statusCode: 429, …(4) } to deeply equal { statusCode: 429, …(2) }[39m
+2026-11-07T20:58:33.5854176Z  [32m✓[39m packages/core/src/tests/adaptive/explainability-steering.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-07T20:58:34.3082333Z  [32m✓[39m apps/api/tests/phase3-competitive-edge.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 187[2mms[22m[39m
+2026-11-07T20:58:35.1747552Z  [32m✓[39m apps/api/tests/cache-hardening.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1407[2mms[22m[39m
+2026-11-07T20:58:35.1748428Z    [33m[2m✓[22m[39m Cache Hardening Tests[2m > [22mInMemoryCache[2m > [22mshould expire keys correctly [33m1102[2mms[22m[39m
+2026-11-07T20:58:35.5316075Z  [32m✓[39m packages/core/src/tests/adaptive/multi-interest-tower.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-11-07T20:58:35.7637736Z  [32m✓[39m packages/core/src/tests/csv-parser.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+2026-11-07T20:58:35.9889855Z  [32m✓[39m tests/unit/architecture-constraints.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+2026-11-07T20:58:36.0813239Z  [32m✓[39m tests/multi-tenancy/tenant-isolation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 96[2mms[22m[39m
+2026-11-07T20:58:36.2073776Z  [32m✓[39m packages/core/src/tests/audit-regressions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-11-07T20:58:36.3336080Z  [32m✓[39m packages/core/tests/multilingual-bm25.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-07T20:58:36.5904843Z  [32m✓[39m packages/sdk/tests/sdk-client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-11-07T20:58:36.7538809Z  [32m✓[39m tests/unit/store-registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+2026-11-07T20:58:36.9829977Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-explorer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-07T20:58:37.0925997Z  [32m✓[39m tests/integration/shopify-webhook.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 15[2mms[22m[39m
+2026-11-07T20:58:37.3046372Z  [32m✓[39m tests/unit/indexeddb-storage.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+2026-11-07T20:58:37.5395645Z  [32m✓[39m packages/core/src/tests/priority2-v2.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-11-07T20:58:37.6025913Z  [32m✓[39m tests/connectors/postgres-cdc.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+2026-11-07T20:58:37.7511325Z  [32m✓[39m packages/core/src/tests/persistence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-07T20:58:38.0767694Z  [32m✓[39m tests/unit/honest-embeddings-and-determinism.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 44[2mms[22m[39m
+2026-11-07T20:58:38.1555103Z  [32m✓[39m tests/integration/postgres-cdc.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 11[2mms[22m[39m
+2026-11-07T20:58:38.4787408Z  [32m✓[39m tests/unit/components/query-inspector.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+2026-11-07T20:58:38.7517692Z  [32m✓[39m tests/sharding/lsh-router.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+2026-11-07T20:58:39.0164222Z  [32m✓[39m tests/integration/cluster.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 571[2mms[22m[39m
+2026-11-07T20:58:39.0166756Z    [33m[2m✓[22m[39m PHASE 1 - Task 1.1: Multi-Node Cluster Integration Test (3 Shards + Coordinator)[2m > [22mspins up a 3-node HNSW cluster, indexes 300 items, executes 1,000 search queries, and verifies all 3 shards respond with balanced load [33m569[2mms[22m[39m
+2026-11-07T20:58:39.0820014Z  [32m✓[39m apps/api/tests/cache-invalidation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-07T20:58:39.2042727Z  [32m✓[39m packages/core/src/tests/adaptive/cross-encoder.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:39.3245884Z  [32m✓[39m packages/core/src/tests/comprehensive-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+2026-11-07T20:58:39.7268087Z  [32m✓[39m tests/integration/mongodb-changestream.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-07T20:58:39.7780761Z  [32m✓[39m tests/unit/phase2-modern-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+2026-11-07T20:58:40.0512488Z  [32m✓[39m tests/unit/pipeline-sync-and-agent.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+2026-11-07T20:58:40.3907467Z  [32m✓[39m tests/cache/semantic-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:40.6811951Z  [32m✓[39m apps/api/tests/hnsw-store-security.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 230[2mms[22m[39m
+2026-11-07T20:58:41.1103379Z  [32m✓[39m tests/integration/phase3-docs-and-deploy.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 169[2mms[22m[39m
+2026-11-07T20:58:41.8961233Z  [32m✓[39m packages/core/src/tests/adaptive/feature-scaler.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-07T20:58:42.1626244Z  [32m✓[39m packages/core/src/tests/security-guardrails.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+2026-11-07T20:58:42.5612726Z  [32m✓[39m tests/integration/failover.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 145[2mms[22m[39m
+2026-11-07T20:58:43.5189798Z  [32m✓[39m apps/api/tests/v31-release-features.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1181[2mms[22m[39m
+2026-11-07T20:58:43.5191432Z    [33m[2m✓[22m[39m EIDOS v3.1 Release Features & Production Hardening[2m > [22m2. /v1/catalog/stats is public and returns indexed categories after loading demo catalog [33m859[2mms[22m[39m
+2026-11-07T20:58:43.5385252Z  [32m✓[39m tests/unit/phase1-type-safety-csp.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 431[2mms[22m[39m
+2026-11-07T20:58:44.7591385Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-cholesky.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 45[2mms[22m[39m
+2026-11-07T20:58:44.7878752Z  [32m✓[39m tests/reranker/cross-encoder.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 20[2mms[22m[39m
+2026-11-07T20:58:44.9612018Z  [32m✓[39m packages/core/src/tests/adaptive/user-tower.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:45.1556994Z  [32m✓[39m packages/core/src/tests/adaptive/ranker.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-07T20:58:45.3723320Z  [32m✓[39m packages/core/src/tests/adaptive/candidate-fusion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:46.3860406Z  [32m✓[39m apps/api/tests/recommend-adaptive.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 959[2mms[22m[39m
+2026-11-07T20:58:46.3967095Z  [32m✓[39m tests/unit/api-key-manager.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 449[2mms[22m[39m
+2026-11-07T20:58:46.3968279Z    [33m[2m✓[22m[39m ApiKeyManager & /v1/keys/revoke Rotation[2m > [22mPOST /v1/keys/revoke revokes key and middleware rejects subsequent requests with 401 [33m447[2mms[22m[39m
+2026-11-07T20:58:47.5827898Z  [32m✓[39m packages/core/src/tests/adaptive/feedback-loop.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:47.5853191Z  [32m✓[39m packages/core/src/tests/adaptive/metadata-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:47.7769228Z  [32m✓[39m packages/core/src/tests/adaptive/kg-enricher.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-07T20:58:47.9849038Z  [32m✓[39m packages/core/src/tests/clip-embedder.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:49.0423019Z  [32m✓[39m apps/api/tests/feedback.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 429[2mms[22m[39m
+2026-11-07T20:58:49.1828812Z  [32m✓[39m apps/api/tests/recommend-user.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 970[2mms[22m[39m
+2026-11-07T20:58:50.5165776Z  [32m✓[39m tests/unit/vector-store.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-07T20:58:51.5332741Z  [32m✓[39m apps/api/tests/production-hardening.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 427[2mms[22m[39m
+2026-11-07T20:58:51.5334188Z    [33m[2m✓[22m[39m Production Hardening API Integration Tests[2m > [22mTASK 2.1: OpenAPI /docs Swagger specification endpoints [33m425[2mms[22m[39m
+2026-11-07T20:58:51.6491304Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould register /v1/search route
+2026-11-07T20:58:51.6493031Z [22m[39mRegistered routes:
+2026-11-07T20:58:51.6493553Z  ├── /v1/telemetry (GET, HEAD)
+2026-11-07T20:58:51.6494076Z ├── /v1/tenants (GET, HEAD)
+2026-11-07T20:58:51.6494404Z ├── /v1/metrics (GET, HEAD)
+2026-11-07T20:58:51.6494739Z │   └── /prometheus (GET, HEAD)
+2026-11-07T20:58:51.6495113Z ├── /v1/merchandising/rules (POST)
+2026-11-07T20:58:51.6495506Z ├── /v1/diagnostics/errors (GET, HEAD)
+2026-11-07T20:58:51.6495867Z ├── /v1/demo/search (POST)
+2026-11-07T20:58:51.6496213Z ├── /v1/demo/suggest (POST)
+2026-11-07T20:58:51.6496563Z ├── /v1/demo/optimize/pareto (POST)
+2026-11-07T20:58:51.6496921Z ├── /v1/demo/recommend (POST)
+2026-11-07T20:58:51.6497233Z ├── /v1/demo/reset (POST)
+2026-11-07T20:58:51.6497599Z ├── /v1/demo/load (POST)
+2026-11-07T20:58:51.6498014Z ├── /v1/demo/analytics (GET, HEAD)
+2026-11-07T20:58:51.6498285Z ├── /v1/demo/queries (GET, HEAD)
+2026-11-07T20:58:51.6498554Z ├── /v1/openapi.json (GET, HEAD)
+2026-11-07T20:58:51.6498838Z ├── /v1/optimize/pareto (POST)
+2026-11-07T20:58:51.6499109Z ├── /v1/health (GET, HEAD)
+2026-11-07T20:58:51.6499336Z │   ├── /ready (GET, HEAD)
+2026-11-07T20:58:51.6499550Z │   └── /live (GET, HEAD)
+2026-11-07T20:58:51.6499892Z ├── /v1/ready (GET, HEAD)
+2026-11-07T20:58:51.6500222Z ├── /v1/recommend (POST)
+2026-11-07T20:58:51.6500550Z │   ├── /user (POST)
+2026-11-07T20:58:51.6500881Z │   └── /adaptive (POST)
+2026-11-07T20:58:51.6501205Z ├── /v1/routes (GET, HEAD)
+2026-11-07T20:58:51.6501591Z ├── /v1/cluster/status (GET, HEAD)
+2026-11-07T20:58:51.6502109Z ├── /v1/cluster/shards/:shardId/health (POST)
+2026-11-07T20:58:51.6502550Z ├── /v1/cluster/drain (POST)
+2026-11-07T20:58:51.6502904Z ├── /v1/catalog (POST)
+2026-11-07T20:58:51.6503247Z │   ├── /stats (GET, HEAD)
+2026-11-07T20:58:51.6503591Z │   ├── /upsert (POST)
+2026-11-07T20:58:51.6504056Z │   ├── /items (POST)
+2026-11-07T20:58:51.6504423Z │   │   └── /:id (DELETE)
+2026-11-07T20:58:51.6504732Z │   ├── /import-yml (POST)
+2026-11-07T20:58:51.6505053Z │   ├── /clear (DELETE, POST)
+2026-11-07T20:58:51.6505399Z │   └── /export (GET, HEAD)
+2026-11-07T20:58:51.6505781Z ├── /v1/benchmark/compare-url (POST)
+2026-11-07T20:58:51.6506137Z ├── /v1/search (POST)
+2026-11-07T20:58:51.6506483Z ├── /v1/settings (GET, HEAD, PUT)
+2026-11-07T20:58:51.6506835Z │   └── /webhooks (POST)
+2026-11-07T20:58:51.6507158Z │       └── /:id (DELETE)
+2026-11-07T20:58:51.6507458Z ├── /v1/suggest (POST)
+2026-11-07T20:58:51.6507812Z ├── /v1/snapshots (POST, GET, HEAD)
+2026-11-07T20:58:51.6508156Z │   └── /restore (POST)
+2026-11-07T20:58:51.6508790Z ├── /v1/feedback (POST)
+2026-11-07T20:58:51.6509139Z ├── /v1/audit/logs (GET, HEAD)
+2026-11-07T20:58:51.6509389Z ├── /v1/analytics (GET, HEAD)
+2026-11-07T20:58:51.6509624Z │   ├── /seo (GET, HEAD)
+2026-11-07T20:58:51.6509844Z │   ├── /synonym (POST)
+2026-11-07T20:58:51.6510073Z │   ├── /queries (GET, HEAD)
+2026-11-07T20:58:51.6510305Z │   ├── /metrics (GET, HEAD)
+2026-11-07T20:58:51.6510523Z │   ├── /boost (POST)
+2026-11-07T20:58:51.6510735Z │   └── /funnel (GET, HEAD)
+2026-11-07T20:58:51.6510986Z │       └── /event (POST)
+2026-11-07T20:58:51.6511227Z ├── /v1/admin/stats (GET, HEAD)
+2026-11-07T20:58:51.6511501Z ├── /v1/admin/keys (GET, HEAD, POST)
+2026-11-07T20:58:51.6511757Z │   ├── /rotate (POST)
+2026-11-07T20:58:51.6511973Z │   └── /:keyHash (DELETE)
+2026-11-07T20:58:51.6512203Z ├── /v1/admin/reindex (POST)
+2026-11-07T20:58:51.6512498Z ├── /v1/admin/ranking-defaults (GET, HEAD, PUT)
+2026-11-07T20:58:51.6512804Z ├── /v1/admin/optimize (POST)
+2026-11-07T20:58:51.6513087Z ├── /v1/admin/overview (GET, HEAD)
+2026-11-07T20:58:51.6513428Z ├── /v1/admin/logs (GET, HEAD)
+2026-11-07T20:58:51.6513712Z ├── /v1/admin/queries (GET, HEAD)
+2026-11-07T20:58:51.6514127Z │   └── /log (POST)
+2026-11-07T20:58:51.6514393Z ├── /v1/admin/analytics/summary (GET, HEAD)
+2026-11-07T20:58:51.6514698Z ├── /v1/admin/analytics/queries (GET, HEAD)
+2026-11-07T20:58:51.6515008Z ├── /v1/admin/analytics/export.csv (GET, HEAD)
+2026-11-07T20:58:51.6515369Z ├── /v1/admin/dictionaries (GET, HEAD, PUT)
+2026-11-07T20:58:51.6515801Z │   └── /synonyms (GET, HEAD, POST)
+2026-11-07T20:58:51.6516388Z │       ├── /test (POST)
+2026-11-07T20:58:51.6516758Z │       └── /:id (PATCH, DELETE)
+2026-11-07T20:58:51.6517160Z ├── /v1/admin/merch/rules (GET, HEAD, POST)
+2026-11-07T20:58:51.6517561Z │   └── /:id (PATCH, DELETE)
+2026-11-07T20:58:51.6517990Z ├── /v1/admin/catalog/summary (GET, HEAD)
+2026-11-07T20:58:51.6518401Z ├── /v1/keys (GET, HEAD)
+2026-11-07T20:58:51.6518730Z │   ├── /revoke (POST)
+2026-11-07T20:58:51.6519056Z │   ├── /rotate (POST)
+2026-11-07T20:58:51.6519389Z │   └── /generate (POST)
+2026-11-07T20:58:51.6519747Z ├── /v1/indexes (GET, HEAD, POST)
+2026-11-07T20:58:51.6520117Z │   └── /:name (DELETE)
+2026-11-07T20:58:51.6520442Z │       └── /documents (POST)
+2026-11-07T20:58:51.6520792Z ├── /v1/events (POST)
+2026-11-07T20:58:51.6521104Z ├── /docs (GET, HEAD)
+2026-11-07T20:58:51.6521495Z │   ├── /static/index.html (GET, HEAD)
+2026-11-07T20:58:51.6522017Z │   ├── /static/swagger-initializer.js (GET, HEAD)
+2026-11-07T20:58:51.6522434Z │   ├── * (HEAD, GET)
+2026-11-07T20:58:51.6522807Z │   ├── /json (GET, HEAD)
+2026-11-07T20:58:51.6523174Z │   └── /yaml (GET, HEAD)
+2026-11-07T20:58:51.6523521Z ├── /metrics (GET, HEAD)
+2026-11-07T20:58:51.6524110Z ├── /health (GET, HEAD)
+2026-11-07T20:58:51.6524490Z ├── /api/health (GET, HEAD)
+2026-11-07T20:58:51.6524833Z ├── /ready (GET, HEAD)
+2026-11-07T20:58:51.6525171Z ├── /live (GET, HEAD)
+2026-11-07T20:58:51.6525510Z ├── /widget.js (GET, HEAD)
+2026-11-07T20:58:51.6525903Z └── * (OPTIONS)
+2026-11-07T20:58:51.6526056Z 
+2026-11-07T20:58:51.6526065Z 
+2026-11-07T20:58:51.6527154Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould respond to POST /v1/demo/search with valid payload
+2026-11-07T20:58:51.6528222Z [22m[39mResponse status: [33m200[39m
+2026-11-07T20:58:51.6558106Z Response body: {"query":"wireless headphones","normalizedQuery":"wireless headphones","originalQuery":"wireless headphones","rewritten":false,"rewriteApplied":false,"mode":"hybrid","alpha":0.5,"weights":{"semantic":0.5,"lexical":0.5,"denseWeight":1,"sparseWeight":1},"simpleCategoryGate":"hard","headCategoryIntent":"headphones","results":[{"id":"sku-ecom-02160","sku":"SKU-ECOM-02160","title":"Внутриканальные TWS-наушники Sennheiser Accentum True Wireless (Тёмный деним)","description":"Sennheiser Accentum True Wireless, комплектация: Тёмный деним. Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":16250,"url":"/product/sku-ecom-02160","imageUrl":"/assets/demo/product-sku-ecom-02160.svg","score":0.2119,"scorePercent":90,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (90%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (90%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.5696,"sparseBm25Component":5.6211,"rrfScore":0.0304,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.5696,"sparseBm25Component":5.6211,"rrfScore":0.0304,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-01380","sku":"SKU-ECOM-01380","title":"Внутриканальные TWS-наушники Sennheiser Sport True Wireless (Графит (Graphite))","description":"Sennheiser Sport True Wireless, комплектация: Графит (Graphite). Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":15550,"url":"/product/sku-ecom-01380","imageUrl":"/assets/demo/product-sku-ecom-01380.svg","score":0.2109,"scorePercent":86,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (86%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (86%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.557,"sparseBm25Component":5.6211,"rrfScore":0.0307,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.557,"sparseBm25Component":5.6211,"rrfScore":0.0307,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-01146","sku":"SKU-ECOM-01146","title":"Внутриканальные TWS-наушники Sennheiser Momentum True Wireless 4 (Графит (Graphite))","description":"Sennheiser Momentum True Wireless 4, комплектация: Графит (Graphite). Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":16050,"url":"/product/sku-ecom-01146","imageUrl":"/assets/demo/product-sku-ecom-01146.svg","score":0.2078,"scorePercent":82,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (82%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (82%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.5379,"sparseBm25Component":5.5616,"rrfScore":0.0302,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.5379,"sparseBm25Component":5.5616,"rrfScore":0.0302,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-00366","sku":"SKU-ECOM-00366","title":"Внутриканальные TWS-наушники Sennheiser CX Plus True Wireless (Чёрная медь (Black Copper))","description":"Sennheiser CX Plus True Wireless, комплектация: Чёрная медь (Black Copper). Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":12650,"url":"/product/sku-ecom-00366","imageUrl":"/assets/demo/product-sku-ecom-00366.svg","score":0.2063,"scorePercent":79,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (79%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (79%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.539,"sparseBm25Component":5.4466,"rrfScore":0.0294,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.539,"sparseBm25Component":5.4466,"rrfScore":0.0294,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-01458","sku":"SKU-ECOM-01458","title":"Беспроводные наушники Hi-Fi класса Sennheiser Accentum Plus Wireless (Графит (Graphite))","description":"Sennheiser Accentum Plus Wireless, комплектация: Графит (Graphite). Характеристики: фирменные излучатели TrueResponse 7 мм, поддержка aptX Adaptive, адаптивный шумодав. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":12850,"url":"/product/sku-ecom-01458","imageUrl":"/assets/demo/product-sku-ecom-01458.svg","score":0.2053,"scorePercent":75,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (75%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (75%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.5201,"sparseBm25Component":5.5616,"rrfScore":0.0297,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.5201,"sparseBm25Component":5.5616,"rrfScore":0.0297,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}}],"count":5,"total":5,"latencyMs":17.77,"cacheHit":false,"meta":{"latencyMs":17.77,"queryRaw":"wireless headphones","normalizedQuery":"wireless headphones","rewrites":[],"headCategoryIntent":"headphones"},"cognitiveDiagnostics":{"routeDecision":{"route":"HYBRID_SEMANTIC_PATH","routeLabelRu":"Сбалансированный гибридный контур (BM25 + HNSW RRF)","complexityScore":0.57,"efSearch":56,"recommendedAlpha":0.6,"enableCrossEncoder":true,"enableSerendipity":true,"estimatedComputeSavingsPct":38,"rationale":"Стандартный гибридный запрос (2 токена) — оптимальный баланс RRF (efSearch=56, экономия 38% вычислительного бюджета)."},"kineticProfile":{"archetype":"decisive_sniper","archetypeLabelRu":"Целевой снайпер (Точный фокус)","archetypeLabelEn":"Decisive Sniper Focus","confidence":0.74,"biometricVector":[0.0475,0,0,0,0,0,0,0.0891,0,0,0.0475,0,0,0.7086,0,0.6967],"alphaAdjustment":0,"recommendedMmrLambda":0.2,"priceElasticityBoost":1,"serendipityBoost":0.15,"comparedItemIds":[],"diagnosticSummary":"Стабильный целевой паттерн внимания; сохраняется максимальная точность ранжирования без избыточной диверсификации."},"chronoProfile":{"mode":"dopamine_discovery","modeLabelRu":"Дофаминовый режим открытий","modeLabelEn":"Dopamine Discovery Mode","explorationTemperature":0.74,"choiceFatigueIndex":0,"recommendedSerendipityWeight":0.32,"recommendedMmrLambda":0.49,"recommendedAlphaShift":0.12,"rationale":"Локальное время 20:00 (вечерний исследовательский цикл), температура исследования 74% → усилен вектор неожиданных открытий (Serendipity)."},"serendipityDiscoveriesCount":0}}
+2026-11-07T20:58:51.6575980Z 
+2026-11-07T20:58:51.6576503Z  [32m✓[39m tests/integration/route-registration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 956[2mms[22m[39m
+2026-11-07T20:58:51.6577327Z    [33m[2m✓[22m[39m Route Registration Diagnostics[2m > [22mshould respond to POST /v1/demo/search with valid payload [33m800[2mms[22m[39m
+2026-11-07T20:58:52.7356033Z  [32m✓[39m packages/core/src/tests/adaptive/context-signals.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:52.7435378Z  [32m✓[39m packages/core/src/tests/adaptive/smmr.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-07T20:58:52.9402469Z  [32m✓[39m packages/core/src/tests/graph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:53.3096044Z  [32m✓[39m apps/api/tests/singleflight.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 156[2mms[22m[39m
+2026-11-07T20:58:53.5671123Z  [32m✓[39m apps/api/tests/similarity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:53.7480540Z  [32m✓[39m tests/unit/xai-explainer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:53.9289416Z  [32m✓[39m tests/unit/splade-lite.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:54.1128839Z  [32m✓[39m packages/core/src/tests/cosine.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:54.2816803Z  [32m✓[39m tests/unit/sequential-recommender.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:54.4715121Z  [32m✓[39m apps/api/tests/recommend.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1115[2mms[22m[39m
+2026-11-07T20:58:54.4716322Z  [32m✓[39m tests/unit/query-understanding.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:54.6614908Z  [32m✓[39m tests/unit/prometheus.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:54.6676958Z  [32m✓[39m packages/core/src/tests/entropy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:54.8648337Z  [32m✓[39m tests/unit/tracing.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-07T20:58:54.8732506Z  [32m✓[39m tests/unit/webhook-dispatcher.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:55.0854768Z  [32m✓[39m tests/unit/benchmark.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-07T20:58:55.4894815Z 
+2026-11-07T20:58:55.4905383Z [31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-11-07T20:58:55.4905756Z 
+2026-11-07T20:58:55.4908666Z [31m[1m[7m FAIL [27m[22m[39m tests/unit/one-command-pilot-and-widget.test.tsx[2m > [22mEIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite[2m > [22mPart D.2 & C.1 — Fastify API Empty Catalog 200 OK, Calibrated scorePercent, and GET /widget.js[2m > [22mreturns 200 OK with empty results on 0 SKU catalog, serves /widget.js, and returns scorePercent after upsert
+2026-11-07T20:58:55.4922006Z [31m[1mAssertionError[22m: expected 5 to be +0 // Object.is equality[39m
+2026-11-07T20:58:55.4922424Z 
+2026-11-07T20:58:55.4922617Z [32m- Expected[39m
+2026-11-07T20:58:55.4922946Z [31m+ Received[39m
+2026-11-07T20:58:55.4923109Z 
+2026-11-07T20:58:55.4923251Z [32m- 0[39m
+2026-11-07T20:58:55.4923521Z [31m+ 5[39m
+2026-11-07T20:58:55.4923698Z 
+2026-11-07T20:58:55.4924385Z [36m [2m❯[22m tests/unit/one-command-pilot-and-widget.test.tsx:[2m228:33[22m[39m
+2026-11-07T20:58:55.5067549Z     [90m226| [39m        [34mexpect[39m(emptyRes[33m.[39mstatusCode)[33m.[39m[34mtoBe[39m([34m200[39m)[33m;[39m
+2026-11-07T20:58:55.5068711Z     [90m227| [39m        [35mconst[39m emptyBody [33m=[39m emptyRes[33m.[39m[34mjson[39m()[33m;[39m
+2026-11-07T20:58:55.5069698Z     [90m228| [39m        [34mexpect[39m(emptyBody[33m.[39mcount)[33m.[39m[34mtoBe[39m([34m0[39m)[33m;[39m
+2026-11-07T20:58:55.5070514Z     [90m   | [39m                                [31m^[39m
+2026-11-07T20:58:55.5071318Z     [90m229| [39m        [34mexpect[39m(emptyBody[33m.[39mtotal)[33m.[39m[34mtoBe[39m([34m0[39m)[33m;[39m
+2026-11-07T20:58:55.5072494Z     [90m230| [39m        [34mexpect[39m([33mArray[39m[33m.[39m[34misArray[39m(emptyBody[33m.[39mresults))[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+2026-11-07T20:58:55.5073618Z 
+2026-11-07T20:58:55.5074163Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+2026-11-07T20:58:55.5074439Z 
+2026-11-07T20:58:55.5075705Z [31m[1m[7m FAIL [27m[22m[39m tests/unit/phase2-rate-limit-lru.test.ts[2m > [22mPHASE 2: Memory Leak Prevention (Rate Limiting LRU & Bounded Store)[2m > [22menforces demoRateLimit per IP and returns 429 when exceeded
+2026-11-07T20:58:55.5077365Z [31m[1mAssertionError[22m: expected { statusCode: 429, …(4) } to deeply equal { statusCode: 429, …(2) }[39m
+2026-11-07T20:58:55.5077899Z 
+2026-11-07T20:58:55.5078075Z [32m- Expected[39m
+2026-11-07T20:58:55.5078397Z [31m+ Received[39m
+2026-11-07T20:58:55.5078573Z 
+2026-11-07T20:58:55.5078729Z [2m  Object {[22m
+2026-11-07T20:58:55.5079118Z [31m+   "code": "RATE_LIMIT",[39m
+2026-11-07T20:58:55.5079588Z [2m    "error": "Too Many Requests",[22m
+2026-11-07T20:58:55.5080442Z [32m-   "message": "Demo key rate limit exceeded (3 req/min). Get your own API key for production use.",[39m
+2026-11-07T20:58:55.5081385Z [31m+   "message": "Rate limit exceeded (3 req/min). Retry shortly.",[39m
+2026-11-07T20:58:55.5081958Z [31m+   "retryAfterMs": 59999,[39m
+2026-11-07T20:58:55.5082382Z [2m    "statusCode": 429,[22m
+2026-11-07T20:58:55.5082724Z [2m  }[22m
+2026-11-07T20:58:55.5082868Z 
+2026-11-07T20:58:55.5083338Z [36m [2m❯[22m tests/unit/phase2-rate-limit-lru.test.ts:[2m76:26[22m[39m
+2026-11-07T20:58:55.5094741Z     [90m 74| [39m
+2026-11-07T20:58:55.5095489Z     [90m 75| [39m    [34mexpect[39m([34mgetStatus[39m())[33m.[39m[34mtoBe[39m([34m429[39m)[33m;[39m
+2026-11-07T20:58:55.5096332Z     [90m 76| [39m    [34mexpect[39m([34mgetPayload[39m())[33m.[39m[34mtoEqual[39m({
+2026-11-07T20:58:55.5096904Z     [90m   | [39m                         [31m^[39m
+2026-11-07T20:58:55.5097416Z     [90m 77| [39m      statusCode[33m:[39m [34m429[39m[33m,[39m
+2026-11-07T20:58:55.5097997Z     [90m 78| [39m      error[33m:[39m [32m'Too Many Requests'[39m[33m,[39m
+2026-11-07T20:58:55.5098466Z 
+2026-11-07T20:58:55.5098873Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+2026-11-07T20:58:55.5099117Z 
+2026-11-07T20:58:55.5104385Z [2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m95 passed[39m[22m[90m (97)[39m
+2026-11-07T20:58:55.5105745Z [2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m432 passed[39m[22m[90m (434)[39m
+2026-11-07T20:58:55.5106422Z [2m   Start at [22m 20:58:05
+2026-11-07T20:58:55.5125230Z [2m   Duration [22m 50.18s[2m (transform 2.16s, setup 0ms, collect 23.23s, tests 29.39s, environment 18ms, prepare 6.03s)[22m
+2026-11-07T20:58:55.5134628Z 
+2026-11-07T20:58:55.5134667Z 
+2026-11-07T20:58:55.5158484Z ##[error]AssertionError: expected 5 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 5
+
+ ❯ tests/unit/one-command-pilot-and-widget.test.tsx:228:33
+
+
+2026-11-07T20:58:55.5167496Z 
+2026-11-07T20:58:55.5172022Z ##[error]AssertionError: expected { statusCode: 429, …(4) } to deeply equal { statusCode: 429, …(2) }
+
+- Expected
++ Received
+
+  Object {
++   "code": "RATE_LIMIT",
+    "error": "Too Many Requests",
+-   "message": "Demo key rate limit exceeded (3 req/min). Get your own API key for production use.",
++   "message": "Rate limit exceeded (3 req/min). Retry shortly.",
++   "retryAfterMs": 59999,
+    "statusCode": 429,
+  }
+
+ ❯ tests/unit/phase2-rate-limit-lru.test.ts:76:26
+
+
+2026-11-07T20:58:55.5563685Z  ELIFECYCLE  Test failed. See above for more details.
+2026-11-07T20:58:55.5757860Z ##[error]Process completed with exit code 1.
