@@ -251,6 +251,30 @@ export async function adminConsoleRoutes(
   });
 
   /**
+   * GET /v1/admin/overview
+   * Combined admin console overview (analytics summary + catalog status).
+   */
+  fastify.get(
+    '/v1/admin/overview',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      if (!requireAdminRole(request, reply)) return reply;
+      const qParams = (request.query as Record<string, string | undefined>) || {};
+      const periodRaw = qParams.period;
+      const period: '24h' | '7d' | '30d' =
+        periodRaw === '24h' || periodRaw === '7d' || periodRaw === '30d' ? periodRaw : '7d';
+      const { store, tenantId, indexName } = storeRegistry.resolveRequestStore(request);
+      return {
+        ...adminStore.getAnalyticsSummary({ period }),
+        tenantId,
+        indexName,
+        itemsIndexed: store.count(),
+        hnswIndexed: store.getHNSW().size(),
+      };
+    }
+  );
+
+  /**
    * GET /v1/admin/analytics/summary
    * Honest search & click aggregates over 24h / 7d / 30d without fake orders.
    */
@@ -692,10 +716,10 @@ export async function adminConsoleRoutes(
         categories,
         lastUpsert: adminStore.getLastCatalogUpsert(tenantId),
         syncGuides: {
-          bitrix: 'docs/integrations/bitrix.md',
-          woocommerce: 'docs/integrations/woocommerce.md',
+          bitrix: 'connectors/bitrix/eidos.search',
+          woocommerce: 'connectors/woocommerce/eidos-search',
           csvContract: 'docs/CSV_CONTRACT.md',
-          productionRunbook: 'docs/PRODUCTION.md',
+          productionRunbook: 'docs/PILOT.md',
         },
       };
     }

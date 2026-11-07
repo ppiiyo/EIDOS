@@ -49,6 +49,13 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
     keyGenerator: (request) => {
       return (request.headers['x-api-key'] as string) || request.ip;
     },
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      code: 'RATE_LIMIT',
+      error: 'Too Many Requests',
+      retryAfterMs: typeof context.ttl === 'number' && context.ttl > 0 ? context.ttl : 12000,
+      message: 'Rate limit exceeded. Retry shortly.',
+    }),
   });
 
   // Security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, COOP, CORP).

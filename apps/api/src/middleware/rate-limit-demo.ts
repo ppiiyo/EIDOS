@@ -80,10 +80,13 @@ export async function demoRateLimit(request: FastifyRequest, reply: FastifyReply
   demoRequests.set(key, record);
 
   if (record.count >= limit) {
+    const retryAfterMs = Math.max(1000, record.resetAt - now);
     reply.status(429).send({
       statusCode: 429,
+      code: 'RATE_LIMIT',
       error: 'Too Many Requests',
-      message: `Demo key rate limit exceeded (${limit} req/min). Get your own API key for production use.`,
+      retryAfterMs,
+      message: `Rate limit exceeded (${limit} req/min). Retry shortly.`,
     });
     return;
   }

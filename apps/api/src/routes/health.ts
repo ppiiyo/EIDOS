@@ -177,14 +177,18 @@ export async function healthRoutes(
 
     const itemCount = opts.vectorStore.count();
     const hnswSize = opts.vectorStore.getHNSW().size();
+    const searchReady = isReady && itemCount > 0;
 
     return reply.status(isReady ? 200 : 503).send({
       status: isReady ? 'ready' : 'not ready',
       ready: isReady,
+      processReady: isReady,
+      searchReady,
       itemsIndexed: itemCount,
       hnswIndexed: hnswSize,
       redis: redisHealthy ? 'ok' : 'degraded',
       version: process.env.npm_package_version || '3.4.0',
+      ...(itemCount === 0 ? { code: 'INDEX_EMPTY' } : {}),
       draining: false,
       nodeId: fastify.clusterCoordinator?.nodeId || 'standalone',
       catalogVersion: fastify.clusterCoordinator?.getCatalogVersion() ?? 1,

@@ -62,3 +62,30 @@ function eidosBitrixSearchWithFallback(string $query, int $limit = 24): array
 
     return ['ok' => true, 'fallback' => false, 'results' => $decoded['results'] ?? [], 'meta' => $decoded['meta'] ?? []];
 }
+
+/**
+ * Maps a 1C-Bitrix IBlock element into EIDOS upsert contract (id, sku, title, category, price, url, imageUrl).
+ */
+function eidosBitrixMapElement(array $arFields, array $arProps = []): array
+{
+    $id = (string)($arFields['ID'] ?? '');
+    $article = trim((string)($arProps['CML2_ARTICLE']['VALUE'] ?? $arProps['ARTNUMBER']['VALUE'] ?? $arFields['XML_ID'] ?? ''));
+    $sku = $article !== '' ? $article : $id;
+    $url = !empty($arFields['DETAIL_PAGE_URL']) ? (string)$arFields['DETAIL_PAGE_URL'] : ('/catalog/' . rawurlencode($id) . '/');
+    $imageUrl = !empty($arFields['DETAIL_PICTURE_SRC'])
+        ? (string)$arFields['DETAIL_PICTURE_SRC']
+        : (!empty($arFields['PREVIEW_PICTURE_SRC']) ? (string)$arFields['PREVIEW_PICTURE_SRC'] : null);
+
+    return [
+        'id'          => $id,
+        'sku'         => $sku,
+        'title'       => strip_tags((string)($arFields['NAME'] ?? '')),
+        'description' => strip_tags((string)($arFields['PREVIEW_TEXT'] ?: ($arFields['DETAIL_TEXT'] ?? ''))),
+        'category'    => (string)($arFields['SECTION_NAME'] ?? 'Каталог'),
+        'price'       => (float)($arFields['CATALOG_PRICE_1'] ?? 0),
+        'inStock'     => ((float)($arFields['CATALOG_QUANTITY'] ?? 1)) > 0,
+        'url'         => $url,
+        'imageUrl'    => $imageUrl,
+        'tags'        => array_values(array_filter([$sku, $arFields['SECTION_NAME'] ?? null])),
+    ];
+}

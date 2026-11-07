@@ -204,9 +204,10 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
 
   const maskedKey = maskApiKey(token);
 
-  // Determine if request is a read-only demo-eligible endpoint (/v1/search, /v1/recommend, /v1/events, /v1/catalog/stats)
+  // Determine if request is a read-only demo-eligible endpoint (/v1/search, /v1/suggest, /v1/recommend, /v1/events, /v1/catalog/stats)
   const isReadOnlyDemoEndpoint =
     cleanPath === '/v1/search' ||
+    cleanPath === '/v1/suggest' ||
     cleanPath === '/v1/recommend' ||
     cleanPath === '/v1/events' ||
     (request.method === 'GET' && cleanPath.startsWith('/v1/catalog'));

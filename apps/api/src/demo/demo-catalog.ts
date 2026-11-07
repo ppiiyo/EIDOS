@@ -1,18 +1,22 @@
 export interface CatalogItem {
   id: string;
+  sku?: string;
+  brand?: string;
   title: string;
   description: string;
   category: string;
   price: number;
   inStock: boolean;
   tags: string[];
+  url?: string;
+  imageUrl?: string;
   rating?: number;
   reviews?: number;
   badge?: string;
   icon?: string;
 }
 
-export const DEMO_CATALOG: CatalogItem[] = [
+const RAW_DEMO_CATALOG: CatalogItem[] = [
   // 1. Маркетплейс & E-Commerce (18 SKU)
   {
     id: '1',
@@ -570,5 +574,15 @@ export const DEMO_CATALOG: CatalogItem[] = [
     tags: ['programmierung', 'rust', 'database', 'ai', 'wissenschaft'],
   },
 ];
+
+export const DEMO_CATALOG: CatalogItem[] = RAW_DEMO_CATALOG.map((item) => {
+  const sku = item.sku || `SKU-${String(item.id).toUpperCase()}`;
+  return {
+    ...item,
+    sku,
+    url: item.url || `/product/${encodeURIComponent(String(item.id))}`,
+    imageUrl: item.imageUrl || `/assets/demo/product-${encodeURIComponent(String(item.id))}.svg`,
+  };
+});
 
 export const DEMO_ITEMS_COUNT = DEMO_CATALOG.length;

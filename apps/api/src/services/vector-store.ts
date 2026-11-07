@@ -22,6 +22,8 @@ import { getCache, CacheKeys, getSemanticCache } from './cache';
 
 export interface SnapshotCatalogItem {
   id: string;
+  sku?: string;
+  brand?: string;
   title: string;
   description: string;
   category: string;
@@ -29,6 +31,7 @@ export interface SnapshotCatalogItem {
   inStock: boolean;
   tags: string[];
   url: string;
+  imageUrl?: string | null;
 }
 
 export interface VectorStoreOptions {
@@ -90,16 +93,20 @@ export class VectorStore {
       for (let j = 0; j < batch.length; j++) {
         const it = batch[j];
         const vec = vectors[j];
+        const idStr = String(it.id);
         this.upsert(
           {
-            id: String(it.id),
+            id: idStr,
+            sku: it.sku || (idStr.startsWith('sku-') ? idStr.toUpperCase() : `SKU-${idStr}`),
+            brand: it.brand,
             title: it.title,
             description: it.description || '',
             category: it.category || 'General',
             price: typeof it.price === 'number' ? it.price : 0,
             inStock: typeof it.inStock === 'boolean' ? it.inStock : true,
             tags: Array.isArray(it.tags) ? it.tags : [],
-            url: (it as any).url || `/product/${it.id}`,
+            url: it.url || `/product/${encodeURIComponent(idStr)}`,
+            imageUrl: it.imageUrl || `/assets/demo/product-${encodeURIComponent(idStr)}.svg`,
             embedding: Array.from(vec),
             normalizedVector: vec instanceof Float32Array ? vec : new Float32Array(vec),
           },
@@ -150,6 +157,9 @@ export class VectorStore {
   public upsert(item: StoredItem, options?: { fastLeaf?: boolean }): void {
     this.explicitlyCleared = false;
     const id = String(item.id);
+    const sku = item.sku && String(item.sku).trim() !== '' ? String(item.sku).trim() : id;
+    const url = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : `/product/${encodeURIComponent(id)}`;
+    const imageUrl = item.imageUrl !== undefined ? item.imageUrl : null;
     const normalized =
       item.normalizedVector ||
       (item.embedding instanceof Float32Array
@@ -159,6 +169,9 @@ export class VectorStore {
     this.items.set(id, {
       ...item,
       id,
+      sku,
+      url,
+      imageUrl,
       normalizedVector: normalized,
     });
 
@@ -170,7 +183,7 @@ export class VectorStore {
     }
 
     // Update in-memory BM25 sparse index
-    const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
+    const docText = `${item.title} ${sku} ${item.brand || ''} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
     this.bm25.addDocument(id, docText);
 
     // Append to Write-Ahead Log for crash resilience
@@ -191,6 +204,9 @@ export class VectorStore {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const id = String(item.id);
+      const sku = item.sku && String(item.sku).trim() !== '' ? String(item.sku).trim() : id;
+      const url = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : `/product/${encodeURIComponent(id)}`;
+      const imageUrl = item.imageUrl !== undefined ? item.imageUrl : null;
       const normalized =
         item.normalizedVector ||
         (item.embedding instanceof Float32Array
@@ -200,6 +216,9 @@ export class VectorStore {
       this.items.set(id, {
         ...item,
         id,
+        sku,
+        url,
+        imageUrl,
         normalizedVector: normalized,
       });
 

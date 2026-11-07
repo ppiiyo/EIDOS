@@ -23,6 +23,9 @@ function resolvePort(): number {
 
 const PORT = resolvePort();
 const isProduction = process.env.NODE_ENV === 'production';
+if (process.env.EIDOS_FAIL_CLOSED_EMPTY_INDEX === undefined) {
+  process.env.EIDOS_FAIL_CLOSED_EMPTY_INDEX = 'true';
+}
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

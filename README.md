@@ -10,7 +10,7 @@
 [![Status](https://img.shields.io/badge/Status-v3.4.0--pilot_Ready-10B981?style=for-the-badge)](./docs/PRODUCTION.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](./LICENSE)
 
-**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🛡️ Pilot & Production Runbook ](./docs/PRODUCTION.md)** · **[ 🛒 1C-Bitrix Connector ](./docs/integrations/bitrix.md)** · **[ 🛍️ WooCommerce Connector ](./docs/integrations/woocommerce.md)** · **[ 📄 CSV Contract ](./docs/CSV_CONTRACT.md)** · **[ 🚀 No-Code Pilot Guide ](./docs/PILOT_NO_CODE.md)**
+**[ 🌐 Live Interactive Studio Demo ](https://eidos-semantic-ideation-platform.ai.studio/)** · **[ 🛡️ Pilot & Production Runbook ](./docs/PILOT.md)** · **[ 🛒 1C-Bitrix Connector ](./connectors/bitrix/eidos.search)** · **[ 🛍️ WooCommerce Connector ](./connectors/woocommerce/eidos-search)** · **[ 📄 CSV Contract ](./docs/CSV_CONTRACT.md)** · **[ 🚀 No-Code Pilot Guide ](./docs/PILOT_NO_CODE.md)**
 
 </div>
 
@@ -20,11 +20,11 @@
 
 1. **Step 1 — Spin up self-hosted EIDOS in 1 command** (generates `EIDOS_MASTER_KEY`, `EIDOS_ADMIN_KEY`, and `EIDOS_SEARCH_KEY`, launches `eidos-api` + `redis`, and verifies `GET /v1/ready == 200`):
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/ppiiyo/EIDOS/main/scripts/install-pilot.sh | bash
+   ./deploy/pilot/install.sh
    ```
 2. **Step 2 — Connect your catalog (WooCommerce, 1C-Bitrix, or CSV/YML)**:
-   - **WooCommerce**: Zip `packages/connectors/woocommerce`, upload & activate in WordPress Admin, enter `ADMIN_KEY` + `SEARCH_KEY` under **Settings → EIDOS Search**, click **Check Connection** and **Synchronize** ([`docs/integrations/woocommerce.md`](./docs/integrations/woocommerce.md)).
-   - **1C-Bitrix**: Connect `packages/connectors/bitrix` (`id = ELEMENT_ID`, `sku = XML_ID`) with `ADMIN_KEY` for sync and `SEARCH_KEY` for storefront `/v1/search` with automatic fallback ([`docs/integrations/bitrix.md`](./docs/integrations/bitrix.md)).
+   - **WooCommerce**: Run `pnpm pack:woo` (`bash connectors/woocommerce/pack.sh`), upload & activate `dist/eidos-woocommerce-plugin.zip` in WordPress Admin, enter `ADMIN_KEY` + `SEARCH_KEY` under **WooCommerce → EIDOS Search**, click **Check Connection** and **Synchronize** ([`connectors/woocommerce/eidos-search`](./connectors/woocommerce/eidos-search)).
+   - **1C-Bitrix**: Run `pnpm pack:bitrix` (`bash connectors/bitrix/pack.sh`) or copy `connectors/bitrix/eidos.search` (`id = ELEMENT_ID`, `sku = PROPERTY_CML2_ARTICLE || XML_ID || ID`) with `ADMIN_KEY` for sync and `SEARCH_KEY` for storefront `/v1/search` & `/v1/suggest` with automatic fallback ([`connectors/bitrix/eidos.search`](./connectors/bitrix/eidos.search)).
    - **CSV / JSON / YML**: Upload via `POST /v1/catalog/upsert` ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)) or via `/onboarding` in the Studio UI.
 3. **Step 3 — Server-Side Storefront Replacement (or Optional `<script src="/widget.js">`)**:
    - For **WooCommerce** (`pre_get_posts`) and **1C-Bitrix** (`SearchReplacer`), search results are injected server-side into your native store theme with automatic zero-downtime fallback to native CMS search if EIDOS is unreachable.

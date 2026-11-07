@@ -332,7 +332,7 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
       headers: { 'x-api-key': ADMIN_KEY },
     });
 
-    // Test fallback.contract: when index is explicitly cleared via /v1/catalog/clear, /v1/search returns 503 INDEX_EMPTY
+    // Test E1 (Empty index cycle): clear -> ready (searchReady: false, code: INDEX_EMPTY) -> search/suggest (503 INDEX_EMPTY) -> demo/load (searchReady: true, itemsIndexed >= 1000)
     const clearRes = await app.inject({
       method: 'POST',
       url: '/v1/catalog/clear',
@@ -340,6 +340,18 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
       payload: {},
     });
     expect(clearRes.statusCode).toBe(200);
+
+    const emptyReadyRes = await app.inject({
+      method: 'GET',
+      url: '/v1/ready',
+    });
+    expect(emptyReadyRes.statusCode).toBe(200);
+    const emptyReadyBody = emptyReadyRes.json();
+    expect(emptyReadyBody.ready).toBe(true);
+    expect(emptyReadyBody.processReady).toBe(true);
+    expect(emptyReadyBody.searchReady).toBe(false);
+    expect(emptyReadyBody.itemsIndexed).toBe(0);
+    expect(emptyReadyBody.code).toBe('INDEX_EMPTY');
 
     const emptyIndexRes = await app.inject({
       method: 'POST',
@@ -349,12 +361,116 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
     });
     expect(emptyIndexRes.statusCode).toBe(503);
     expect(emptyIndexRes.json().code).toBe('INDEX_EMPTY');
+    expect(emptyIndexRes.json().itemsIndexed).toBe(0);
+
+    const emptySuggestRes = await app.inject({
+      method: 'POST',
+      url: '/v1/suggest',
+      headers: { 'x-api-key': SEARCH_KEY },
+      payload: { query: 'наушники', limit: 5 },
+    });
+    expect(emptySuggestRes.statusCode).toBe(503);
+    expect(emptySuggestRes.json().code).toBe('INDEX_EMPTY');
 
     // Restore catalog via /v1/demo/load
-    await app.inject({
+    const reloadRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/load',
       payload: {},
     });
+    expect(reloadRes.statusCode).toBe(200);
+
+    const readyAfterLoadRes = await app.inject({
+      method: 'GET',
+      url: '/v1/ready',
+    });
+    expect(readyAfterLoadRes.statusCode).toBe(200);
+    expect(readyAfterLoadRes.json().searchReady).toBe(true);
+    expect(readyAfterLoadRes.json().itemsIndexed).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('10. Fix-PR Audit Suite (G1-G6, S1, A1, PR1-PR6): suggest parity, non-null sku/imageUrl/url, and typo meta.rewrites completeness', async () => {
+    // PR4 / G5: перфоратр -> meta.rewrites includes { type: 'typo', from: 'перфоратр', to: 'перфоратор' }
+    const typoSingleRes = await app.inject({
+      method: 'POST',
+      url: '/v1/search',
+      headers: { 'x-api-key': SEARCH_KEY },
+      payload: { query: 'перфоратр', limit: 5 },
+    });
+    expect(typoSingleRes.statusCode).toBe(200);
+    const typoSingleBody = typoSingleRes.json();
+    expect(typoSingleBody.rewriteApplied).toBe(true);
+    expect(typoSingleBody.normalizedQuery).toBe('перфоратор');
+    expect(typoSingleBody.meta.rewrites.length).toBeGreaterThan(0);
+    expect(typoSingleBody.meta.rewrites).toContainEqual({
+      type: 'typo',
+      from: 'перфоратр',
+      to: 'перфоратор',
+    });
+    expect(typoSingleBody.rewriteApplied).toBe(typoSingleBody.meta.rewrites.length > 0);
+    expect(typoSingleBody.results.length).toBeGreaterThan(0);
+
+    // G2: детский смартфон до 15000 -> smartphones with price <= 15000
+    const g2Res = await app.inject({
+      method: 'POST',
+      url: '/v1/search',
+      headers: { 'x-api-key': SEARCH_KEY },
+      payload: { query: 'детский смартфон до 15000', limit: 5 },
+    });
+    expect(g2Res.statusCode).toBe(200);
+    const g2Results = g2Res.json().results;
+    expect(g2Results.length).toBeGreaterThan(0);
+    for (const hit of g2Results.slice(0, 3)) {
+      expect(hit.category.toLowerCase()).toContain('смартфон');
+      expect(hit.price).toBeLessThanOrEqual(15000);
+      expect(hit.sku).toBeTruthy();
+      expect(hit.url).toBeTruthy();
+      expect(hit.imageUrl).toBeTruthy();
+    }
+
+    // G6: xyzabcqqq999 -> count === 0 on both /v1/search and /v1/suggest
+    const [g6Search, g6Suggest] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/v1/search',
+        headers: { 'x-api-key': SEARCH_KEY },
+        payload: { query: 'xyzabcqqq999', limit: 5 },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/v1/suggest',
+        headers: { 'x-api-key': SEARCH_KEY },
+        payload: { query: 'xyzabcqqq999', limit: 5 },
+      }),
+    ]);
+    expect(g6Search.json().count).toBe(0);
+    expect(g6Suggest.json().count).toBe(0);
+
+    // PR1 / S1: Public demo key works on POST /v1/suggest and supports includeXRay, returning non-null sku, url, imageUrl
+    const demoKeySuggestRes = await app.inject({
+      method: 'POST',
+      url: '/v1/suggest',
+      headers: { 'x-api-key': 'eidos_public_demo_key_2026' },
+      payload: { query: 'наушники для бега', limit: 6, includeXRay: true },
+    });
+    expect(demoKeySuggestRes.statusCode).toBe(200);
+    const demoSuggestBody = demoKeySuggestRes.json();
+    expect(demoSuggestBody.results.length).toBeGreaterThan(0);
+    for (const hit of demoSuggestBody.results) {
+      expect(typeof hit.sku).toBe('string');
+      expect(hit.sku.length).toBeGreaterThan(0);
+      expect(typeof hit.url).toBe('string');
+      expect(typeof hit.imageUrl).toBe('string');
+      expect(hit.humanExplanation).toBeDefined();
+      expect(hit.xray).toBeDefined();
+    }
+
+    // A1: Public demo key on /v1/admin/overview -> 401
+    const demoAdminRes = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/overview',
+      headers: { 'x-api-key': 'eidos_public_demo_key_2026' },
+    });
+    expect(demoAdminRes.statusCode).toBe(401);
   });
 });

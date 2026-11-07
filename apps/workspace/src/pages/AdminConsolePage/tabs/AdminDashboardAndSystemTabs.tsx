@@ -540,7 +540,7 @@ export const AdminCatalogAndKeysTabs: React.FC<{
               <code className="font-mono">sku = XML_ID</code>. Гидратация через{' '}
               <code className="font-mono">CIBlockElement::GetList</code> с сохранением порядка EIDOS.
             </p>
-            <div className="font-mono text-[11px] text-slate-500">docs/integrations/bitrix.md</div>
+            <div className="font-mono text-[11px] text-slate-500">connectors/bitrix/eidos.search</div>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-1.5">
             <div className="font-semibold text-slate-900">WooCommerce (WordPress)</div>
@@ -548,7 +548,7 @@ export const AdminCatalogAndKeysTabs: React.FC<{
               Контракт ID: <code className="font-mono">id = String(product_id)</code>. Гидратация через{' '}
               <code className="font-mono">post__in + orderby=post__in</code> + graceful fallback.
             </p>
-            <div className="font-mono text-[11px] text-slate-500">docs/integrations/woocommerce.md</div>
+            <div className="font-mono text-[11px] text-slate-500">connectors/woocommerce/eidos-search</div>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-1.5">
             <div className="font-semibold text-slate-900">CSV / Batch API Upsert</div>
@@ -841,20 +841,20 @@ export const AdminSystemAndDocsTabs: React.FC<{
               <li>Нажмите <strong>«Синхронизировать каталог»</strong> (<code className="font-mono">post__in</code> + fallback)</li>
             </ol>
             <div className="font-mono text-[11px] text-slate-500 pt-1">
-              docs/integrations/woocommerce.md
+              connectors/woocommerce/eidos-search
             </div>
           </div>
 
           <div className="border border-slate-200 rounded-lg p-4 space-y-2 bg-slate-50/50">
             <div className="font-semibold text-slate-900 text-sm">2. 1С-Битрикс (Инфоблоки)</div>
             <ol className="list-decimal list-inside space-y-1 text-slate-700">
-              <li>Установите модуль коннектора <code className="font-mono">packages/connectors/bitrix</code></li>
+              <li>Установите модуль коннектора <code className="font-mono">connectors/bitrix/eidos.search</code></li>
               <li>Выберите инфоблок каталога (<code className="font-mono">id = ELEMENT_ID</code>, <code className="font-mono">sku = XML_ID</code>)</li>
               <li>Запустите выгрузку товаров по <code className="font-mono">ADMIN_KEY</code></li>
               <li>Включите перехват поиска с авто-fallback на <code className="font-mono">CIBlockElement::GetList</code></li>
             </ol>
             <div className="font-mono text-[11px] text-slate-500 pt-1">
-              docs/integrations/bitrix.md
+              connectors/bitrix/eidos.search
             </div>
           </div>
 

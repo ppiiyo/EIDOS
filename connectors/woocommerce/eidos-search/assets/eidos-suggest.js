@@ -192,11 +192,21 @@
         signal: abortCtrl ? abortCtrl.signal : undefined
       })
         .then(function (res) {
+          if (res.status === 429) {
+            return res.json().catch(function () { return {}; }).then(function (rlBody) {
+              emitEvent(input, 'eidos:suggest:ratelimit', {
+                query: rawQuery,
+                retryAfterMs: (rlBody && rlBody.retryAfterMs) || 12000
+              });
+              return null;
+            });
+          }
           if (!res.ok) throw new Error('HTTP ' + res.status);
           return res.json();
         })
         .then(function (data) {
-          if (!data || data.fallback === true || data.code === 'INDEX_EMPTY') {
+          if (!data) return;
+          if (data.fallback === true || data.code === 'INDEX_EMPTY' || data.code === 'RATE_LIMIT') {
             closeDropdown();
             emitEvent(input, 'eidos:suggest:fallback', { query: rawQuery });
             return;

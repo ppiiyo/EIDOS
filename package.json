@@ -34,7 +34,9 @@
     "loadtest:spike": "k6 run --out prometheus=http://localhost:9090/api/v1/write load-testing/scripts/spike.js",
     "loadtest:soak": "k6 run --out prometheus=http://localhost:9090/api/v1/write load-testing/scripts/soak.js",
     "loadtest:analyze": "chmod +x load-testing/scripts/analyze-results.sh && ./load-testing/scripts/analyze-results.sh",
-    "loadtest:report": "node load-testing/scripts/generate-report.js"
+    "loadtest:report": "node load-testing/scripts/generate-report.js",
+    "pack:woo": "bash connectors/woocommerce/pack.sh",
+    "pack:bitrix": "bash connectors/bitrix/pack.sh"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

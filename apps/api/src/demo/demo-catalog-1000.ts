@@ -1341,15 +1341,22 @@ export function buildDemoCatalog1000(targetTotal: number = 1048): CatalogItem[] 
     const badge = badges[Math.floor(prng() * badges.length)];
 
     const description = `${series.brand} ${model}, комплектация: ${variant}. Характеристики: ${spec}. Официальная гарантия 12 мес., товар в наличии на складе.`;
+    const sku = id.startsWith('sku-') ? id.toUpperCase() : `SKU-${String(id).padStart(4, '0')}`;
+    const url = `/product/${encodeURIComponent(id)}`;
+    const imageUrl = `/assets/demo/product-${encodeURIComponent(id)}.svg`;
 
     items.push({
       id,
+      sku,
+      brand: series.brand,
       title,
       description,
       category: series.category,
       price,
       inStock: prng() > 0.04,
       tags: [...series.tags],
+      url,
+      imageUrl,
       rating,
       reviews,
       badge,

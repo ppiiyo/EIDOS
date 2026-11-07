@@ -18,12 +18,13 @@ export const upsertItemSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),
   category: z.string().max(100).optional().default('General'),
-  sku: z.string().max(100).optional(),
+  sku: z.string().max(100).optional().nullable(),
   brand: z.string().max(100).optional(),
   tags: z.array(z.string()).max(20).optional().default([]),
   price: z.number().nonnegative().optional().default(0),
   inStock: z.boolean().optional().default(true),
-  url: z.string().optional(),
+  url: z.string().max(2000).optional(),
+  imageUrl: z.string().max(2000).optional().nullable(),
   embedding: z.array(z.number()).length(384).optional(),
   index: z.string().optional(),
   indexName: z.string().optional(),
@@ -34,12 +35,13 @@ const catalogItemSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(2000).optional().default(''),
   category: z.string().max(100).optional().default('General'),
-  sku: z.string().max(100).optional(),
+  sku: z.string().max(100).optional().nullable(),
   brand: z.string().max(100).optional(),
   tags: z.array(z.string()).default([]),
   price: z.number().nonnegative().optional().default(0),
   inStock: z.boolean().optional().default(true),
-  url: z.string().optional(),
+  url: z.string().max(2000).optional(),
+  imageUrl: z.string().max(2000).optional().nullable(),
   embedding: z.array(z.number()).optional(),
 });
 
@@ -218,6 +220,8 @@ export async function catalogRoutes(
           store.upsert(
             {
               ...item,
+              sku: item.sku || String(item.id),
+              imageUrl: item.imageUrl ?? null,
               title: cleanTitle,
               description: cleanDesc,
               category: item.category || 'General',
@@ -295,6 +299,8 @@ export async function catalogRoutes(
 
       store.upsert({
         ...validated,
+        sku: validated.sku || String(validated.id),
+        imageUrl: validated.imageUrl ?? null,
         title: cleanTitle,
         description: cleanDesc,
         category: validated.category || 'General',
@@ -346,6 +352,7 @@ export async function catalogRoutes(
         errors: [],
         item: {
           id: validated.id,
+          sku: validated.sku || String(validated.id),
           title: cleanTitle,
           category: validated.category,
         },
@@ -398,6 +405,8 @@ export async function catalogRoutes(
 
         store.upsert({
           ...item,
+          sku: item.sku || String(item.id),
+          imageUrl: item.imageUrl ?? null,
           description: item.description || '',
           category: item.category || 'General',
           tags: item.tags || [],
@@ -585,6 +594,8 @@ export async function catalogRoutes(
       for (const item of items) {
         store.upsert({
           ...item,
+          sku: item.sku || String(item.id),
+          imageUrl: item.imageUrl ?? null,
           description: item.description || '',
           category: item.category || 'General',
           tags: item.tags || [],

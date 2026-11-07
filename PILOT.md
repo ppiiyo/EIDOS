@@ -30,21 +30,21 @@ docker run -d --name eidos-search \
 
 ## 2. Короткие пути подключения каталога (Woo / Bitrix / CSV)
 
-### Путь A — WooCommerce (`integrations/woocommerce`)
-1. Соберите архив плагина: `cd integrations/woocommerce && zip -r eidos-woocommerce.zip eidos-search/` и загрузите его в **Плагины → Добавить новый → Загрузить плагин**.
+### Путь A — WooCommerce (`connectors/woocommerce/eidos-search`)
+1. Соберите архив плагина: `pnpm pack:woo` (или `bash connectors/woocommerce/pack.sh`) и загрузите полученный `dist/eidos-woocommerce-plugin.zip` в **Плагины → Добавить новый → Загрузить плагин**.
 2. В разделе **WooCommerce → EIDOS Search** укажите:
    - `Endpoint URL`: `https://search.yourstore.ru`
    - `Admin API Key`: ваш `ADMIN_KEY`
    - `Search API Key`: ваш `SEARCH_KEY`
 3. Нажмите **«Проверить связь (Health)»** → убедитесь в ответе `ready: true`.
-4. Нажмите **«Синхронизировать каталог»** → товары выгрузятся батчами (`id = String(post->ID)`, `sku = _sku`).
-5. При любой сетевой ошибке или остановке API плагин автоматически возвращает выдачу штатного `WP_Query`.
+4. Нажмите **«Синхронизировать каталог»** → товары выгрузятся батчами (`id = String(post->ID)`, `sku = _sku || id`).
+5. При любой сетевой ошибке, пустом индексе (`503 INDEX_EMPTY`) или остановке API плагин автоматически возвращает выдачу штатного `WP_Query`.
 
-### Путь B — 1С-Битрикс (`packages/connectors/bitrix` / `integrations/bitrix/eidos.search`)
-1. Скопируйте модуль в `/bitrix/modules/eidos.search/` и установите его в **Marketplace → Установленные решения**.
+### Путь B — 1С-Битрикс (`connectors/bitrix/eidos.search`)
+1. Соберите архив модуля: `pnpm pack:bitrix` (или скопируйте `connectors/bitrix/eidos.search` в `/bitrix/modules/eidos.search/`) и установите его в **Marketplace → Установленные решения**.
 2. В настройках модуля укажите `URL сервера EIDOS`, `ADMIN_KEY`, `SEARCH_KEY` и выберите инфоблок каталога (`IBLOCK_ID`).
-3. Нажмите **«Выгрузить каталог сейчас»** (передаются `id = ELEMENT_ID`, `sku = XML_ID / PROPERTY_CML2_ARTICLE`, название, категория, цена и остаток).
-4. Включите перехват стандартного компонента `bitrix:search.page`: при недоступности EIDOS (таймаут 1.5 сек) модуль бесшовно переключается на `CSearch` / `CIBlockElement::GetList`.
+3. Нажмите **«Выгрузить каталог сейчас»** (передаются `id = ELEMENT_ID`, `sku = PROPERTY_CML2_ARTICLE || XML_ID || ID`, название, категория, цена и остаток).
+4. Включите перехват стандартного компонента `bitrix:search.page`: при недоступности EIDOS или `503 INDEX_EMPTY` модуль бесшовно переключается на `CSearch` / `CIBlockElement::GetList`.
 
 ### Путь C — CSV / JSON / YML (`POST /v1/catalog/upsert`)
 1. Подготовьте массив товаров с полями `id`, `title`, `description`, `category`, `price`, `inStock`, `tags`.

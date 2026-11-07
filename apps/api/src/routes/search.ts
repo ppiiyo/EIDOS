@@ -106,6 +106,7 @@ const searchRequestSchema = z.object({
   sessionId: z.string().optional(),
   cognitiveContext: cognitiveContextSchema,
   responseView: z.enum(['full', 'compact']).optional(),
+  includeXRay: z.boolean().optional().default(false),
   failClosed: z.boolean().optional(),
 });
 
@@ -170,6 +171,7 @@ export async function searchRoutes(
         sessionId,
         cognitiveContext,
         responseView: rawResponseView,
+        includeXRay,
         failClosed,
       } = parseResult.data;
 
@@ -212,9 +214,31 @@ export async function searchRoutes(
         throw err;
       }
 
-      // P0-3 Fail-Safe: If index is empty (0 items) in production/fail-closed mode or after explicit clear, return 503 INDEX_EMPTY
+      // Security Guardrail: Scan and sanitize user query against prompt injection and XSS before index checks
+      const securityScan = SecurityGuardrails.scanAndSanitize(query);
+      if (!securityScan.isSafe && securityScan.riskScore >= 0.7) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Security Policy Violation',
+          message: 'Malicious payload or prompt injection attempt blocked by security guardrails.',
+          threats: securityScan.threatsDetected,
+        });
+      }
+
+      // Auto-hydrate demo catalog on cold start for demo-key requests unless explicitly cleared
+      if (
+        request.demoMode &&
+        activeStore.count() === 0 &&
+        !activeStore.isExplicitlyCleared() &&
+        request.headers['x-eidos-fail-closed'] !== 'true' &&
+        failClosed !== true
+      ) {
+        await activeStore.loadDemoCatalog(DEMO_CATALOG_1000, opts.embedder);
+        seedDemoAnalyticsIfEmpty(AdminConsoleStore.getInstance());
+      }
+
+      // P0-3 / PR2 Fail-Safe: If index is empty (0 items) in production/fail-closed mode or after explicit clear, return 503 INDEX_EMPTY
       const isFailClosedEmpty =
-        !request.demoMode &&
         activeStore.count() === 0 &&
         (activeStore.isExplicitlyCleared() ||
           process.env.EIDOS_FAIL_CLOSED_EMPTY_INDEX === 'true' ||
@@ -226,8 +250,8 @@ export async function searchRoutes(
           statusCode: 503,
           error: 'Service Unavailable',
           code: 'INDEX_EMPTY',
-          message:
-            'Search index is empty (0 items indexed). Storefront should fallback to native CMS search.',
+          message: 'Catalog index is empty. Run sync/upsert or demo/load.',
+          itemsIndexed: 0,
         });
       }
 
@@ -282,35 +306,9 @@ export async function searchRoutes(
         sparseWeight: sparseW,
       };
 
-      // Security Guardrail: Scan and sanitize user query against prompt injection and XSS
-      const securityScan = SecurityGuardrails.scanAndSanitize(query);
-      if (!securityScan.isSafe && securityScan.riskScore >= 0.7) {
-        return reply.status(400).send({
-          statusCode: 400,
-          error: 'Security Policy Violation',
-          message: 'Malicious payload or prompt injection attempt blocked by security guardrails.',
-          threats: securityScan.threatsDetected,
-        });
-      }
-
       const rawSanitized = securityScan.sanitizedInput;
       const layoutInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
       const layoutQuery = layoutInfo.normalizedQuery || rawSanitized;
-      const layoutRewrites: Array<{
-        type: 'layout' | 'synonym' | 'rewrite' | 'stopwords';
-        from: string;
-        to: string;
-      }> = [];
-      if (
-        layoutInfo.layoutRecovered &&
-        layoutQuery.trim().toLowerCase() !== rawSanitized.trim().toLowerCase()
-      ) {
-        layoutRewrites.push({
-          type: 'layout',
-          from: rawSanitized.trim(),
-          to: layoutQuery.trim(),
-        });
-      }
 
       const dictPrep = adminStore.preprocessQuery(layoutQuery, tenantId);
       const queryInfo = dictPrep.rewritten
@@ -318,31 +316,61 @@ export async function searchRoutes(
         : layoutInfo;
       const safeQuery = queryInfo.normalizedQuery || dictPrep.processedQuery || rawSanitized;
       const headIntent = extractHeadCategoryIntent(safeQuery);
-      const allRewrites = [...layoutRewrites, ...(dictPrep.rewrites || [])];
-      const wasRewritten =
-        allRewrites.length > 0 ||
-        dictPrep.rewritten ||
-        Boolean(layoutInfo.layoutRecovered) ||
-        safeQuery.toLowerCase() !== rawSanitized.trim().toLowerCase();
+
+      const allRewrites: Array<{
+        type: 'layout' | 'typo' | 'synonym' | 'normalize' | 'rewrite' | 'stopwords';
+        from: string;
+        to: string;
+      }> = [
+        ...(layoutInfo.rewrites || []),
+        ...(dictPrep.rewrites || []),
+        ...(dictPrep.rewritten && queryInfo.rewrites ? queryInfo.rewrites : []),
+      ];
+
+      if (
+        allRewrites.length === 0 &&
+        safeQuery.trim().toLowerCase() !== rawSanitized.trim().toLowerCase()
+      ) {
+        allRewrites.push({
+          type: 'normalize',
+          from: rawSanitized.trim(),
+          to: safeQuery.trim(),
+        });
+      }
+
+      const wasRewritten = allRewrites.length > 0;
 
       const formatResultForView = (item: any) => {
-        const resolvedUrl = item.url || `/product/${encodeURIComponent(String(item.id))}`;
+        const resolvedId = String(item.id);
+        const resolvedSku =
+          item.sku && String(item.sku).trim() !== '' ? String(item.sku).trim() : resolvedId;
+        const resolvedUrl = item.url || `/product/${encodeURIComponent(resolvedId)}`;
+        const resolvedImageUrl = item.imageUrl !== undefined ? item.imageUrl : null;
         if (responseView === 'compact') {
           return {
             id: item.id,
+            sku: resolvedSku,
             title: item.title,
             price: item.price,
             category: item.category,
-            ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
+            imageUrl: resolvedImageUrl,
             url: resolvedUrl,
             score: item.score,
             scorePercent: item.scorePercent,
             humanExplanation: item.humanExplanation,
+            ...(includeXRay
+              ? {
+                  explanation: item.explanation,
+                  xray: item.xray ?? item.explanation,
+                }
+              : {}),
           };
         }
         return {
           ...item,
+          sku: resolvedSku,
           url: resolvedUrl,
+          imageUrl: resolvedImageUrl,
         };
       };
 
@@ -517,13 +545,14 @@ export async function searchRoutes(
       // 2. Cache miss - check Semantic Query Cache or execute SingleFlight
       let freshResults: Array<{
         id: string;
+        sku: string;
         title: string;
         description?: string;
         category: string;
         tags?: string[];
         price?: number;
-        url?: string;
-        imageUrl?: string;
+        url: string;
+        imageUrl: string | null;
         score: number;
         scorePercent: number;
         humanExplanation: { ru: string; en: string };
@@ -955,18 +984,26 @@ export async function searchRoutes(
                 kineticBonus: kineticMod.kineticBonus,
               };
 
+              const resolvedId = String(r.item.id);
+              const resolvedSku =
+                r.item.sku && String(r.item.sku).trim() !== ''
+                  ? String(r.item.sku).trim()
+                  : resolvedId;
               const resolvedUrl =
-                r.item.url || `/product/${encodeURIComponent(String(r.item.id))}`;
+                r.item.url || `/product/${encodeURIComponent(resolvedId)}`;
+              const resolvedImageUrl =
+                r.item.imageUrl !== undefined ? r.item.imageUrl : null;
 
               return {
                 id: r.item.id,
+                sku: resolvedSku,
                 title: r.item.title,
                 description: r.item.description,
                 category: r.item.category,
                 tags: r.item.tags,
                 price: r.item.price,
                 url: resolvedUrl,
-                ...(r.item.imageUrl ? { imageUrl: r.item.imageUrl } : {}),
+                imageUrl: resolvedImageUrl,
                 score: finalScore,
                 scorePercent,
                 humanExplanation,

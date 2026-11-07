@@ -198,19 +198,23 @@ class Eidos_WooCommerce_Pilot_Plugin {
                 $tags[] = $tt->name;
             }
         }
-        if ($product->get_sku()) {
-            $tags[] = $product->get_sku();
+        $raw_sku = trim((string) $product->get_sku());
+        $sku     = $raw_sku !== '' ? $raw_sku : (string) $product->get_id();
+        if ($raw_sku !== '') {
+            $tags[] = $raw_sku;
         }
+        $img_url = wp_get_attachment_url($product->get_image_id());
 
         return [
             'id'          => (string) $product->get_id(),
+            'sku'         => $sku,
             'title'       => wp_strip_all_tags($product->get_name()),
             'description' => wp_strip_all_tags($product->get_short_description() ?: $product->get_description()),
             'category'    => !empty($cat_names) ? implode(' / ', $cat_names) : 'Каталог',
             'price'       => (float) $product->get_price(),
             'inStock'     => $product->is_in_stock(),
             'url'         => get_permalink($product->get_id()),
-            'imageUrl'    => wp_get_attachment_url($product->get_image_id()) ?: '',
+            'imageUrl'    => $img_url ? (string) $img_url : null,
             'tags'        => array_values(array_unique($tags)),
         ];
     }

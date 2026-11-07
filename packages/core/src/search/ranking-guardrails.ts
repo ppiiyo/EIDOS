@@ -330,10 +330,18 @@ export interface CategoryGateEvaluation {
   categoryBonus: number;
 }
 
+export interface QueryRewriteStep {
+  type: 'layout' | 'typo' | 'synonym' | 'normalize';
+  from: string;
+  to: string;
+}
+
 export interface NormalizedQueryResult {
   originalQuery: string;
   normalizedQuery: string;
   layoutRecovered: boolean;
+  typoRecovered: boolean;
+  rewrites: QueryRewriteStep[];
   coreTokens: string[];
   coreStems: string[];
   headTokens: string[];
@@ -441,8 +449,8 @@ const CANONICAL_RU_TYPO_DICTIONARY: ReadonlyArray<string> = [
 ];
 
 /**
- * Trims, collapses spaces, recovers EN->RU keyboard layout mistypes ("yfceiybrb" -> "наушники")
- * and separates head product tokens from prepositional modifier tokens ("для бега").
+ * Trims, collapses spaces, recovers EN->RU / RU->EN keyboard layout mistypes ("yfeiybrb" -> "наушники")
+ * and edit-distance-1 typos ("перфоратр" -> "перфоратор"), recording every rewrite step in `rewrites`.
  */
 export function normalizeQueryWithLayoutRecovery(rawQuery: string): NormalizedQueryResult {
   const collapsed = (rawQuery || '').trim().replace(/\s+/g, ' ');
@@ -451,6 +459,8 @@ export function normalizeQueryWithLayoutRecovery(rawQuery: string): NormalizedQu
       originalQuery: rawQuery,
       normalizedQuery: '',
       layoutRecovered: false,
+      typoRecovered: false,
+      rewrites: [],
       coreTokens: [],
       coreStems: [],
       headTokens: [],
@@ -460,23 +470,38 @@ export function normalizeQueryWithLayoutRecovery(rawQuery: string): NormalizedQu
   }
 
   let layoutRecovered = false;
+  let typoRecovered = false;
+  const rewrites: QueryRewriteStep[] = [];
   const words = collapsed.split(' ');
   const convertedWords = words.map((w) => {
     const lower = w.toLowerCase();
     if (TRANSLIT_MAP[lower]) {
+      const target = TRANSLIT_MAP[lower];
       layoutRecovered = true;
-      return TRANSLIT_MAP[lower];
+      rewrites.push({ type: 'layout', from: w, to: target });
+      return target;
     }
     if (/^[a-z,;'\[\].]{4,}$/i.test(w)) {
       const mapped = mapEnLayoutToRu(lower);
       if (KNOWN_RU_ECOM_STEMS.some((stem) => mapped.includes(stem))) {
         layoutRecovered = true;
+        rewrites.push({ type: 'layout', from: w, to: mapped });
         return mapped;
       }
     }
-    if (/^[а-яё]{6,}$/i.test(w) && !CANONICAL_RU_TYPO_DICTIONARY.includes(lower)) {
+    if (/^[а-яё]{4,}$/i.test(w)) {
+      const mappedEn = mapRuLayoutToEn(lower);
+      if (KNOWN_EN_BRAND_STEMS.some((brand) => mappedEn === brand)) {
+        layoutRecovered = true;
+        rewrites.push({ type: 'layout', from: w, to: mappedEn });
+        return mappedEn;
+      }
+    }
+    if (/^[а-яё]{5,}$/i.test(w) && !CANONICAL_RU_TYPO_DICTIONARY.includes(lower)) {
       for (const canonical of CANONICAL_RU_TYPO_DICTIONARY) {
         if (!lower.startsWith(canonical) && isEditDistanceAtMostOne(lower, canonical)) {
+          typoRecovered = true;
+          rewrites.push({ type: 'typo', from: w, to: canonical });
           return canonical;
         }
       }
@@ -528,6 +553,8 @@ export function normalizeQueryWithLayoutRecovery(rawQuery: string): NormalizedQu
     originalQuery: rawQuery,
     normalizedQuery,
     layoutRecovered,
+    typoRecovered,
+    rewrites,
     coreTokens: effectiveTokens,
     coreStems: Array.from(stemSet),
     headTokens: effectiveHeadTokens,

@@ -10,6 +10,8 @@ export interface FastifyEnv {
 
 export interface StoredItem {
   id: string;
+  sku?: string;
+  brand?: string;
   title: string;
   description: string;
   category: string;
@@ -17,6 +19,7 @@ export interface StoredItem {
   price?: number;
   inStock?: boolean;
   url?: string;
+  imageUrl?: string | null;
   metadata?: Record<string, string | number | boolean | string[] | undefined>;
   embedding: number[] | Float32Array;
   normalizedVector?: Float32Array;
