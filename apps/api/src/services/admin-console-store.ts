@@ -93,10 +93,15 @@ export interface TenantRankingDefaults {
   minScore: number;
   minSimilarity: number;
   fieldBoosts: Required<FieldBoosts>;
+  fieldImportance: Required<FieldBoosts>;
   rankWindow: Required<RankWindow>;
+  channelWindows: Required<RankWindow>;
   rankConstant: number;
   weights: { semantic: number; lexical: number };
+  queryShapeBias: { enabled: boolean };
+  fusionMode: 'rrf' | 'linear';
   filterStrictMissing: boolean;
+  constraintStrictMissing: boolean;
   updatedAt: string;
 }
 
@@ -522,10 +527,15 @@ export class AdminConsoleStore {
       minScore: 0.09,
       minSimilarity: 0.25,
       fieldBoosts: { ...DEFAULT_FIELD_BOOSTS },
+      fieldImportance: { ...DEFAULT_FIELD_BOOSTS },
       rankWindow: { ...DEFAULT_RANK_WINDOW },
+      channelWindows: { ...DEFAULT_RANK_WINDOW },
       rankConstant: DEFAULT_RANK_CONSTANT,
       weights: { semantic: 0.5, lexical: 0.5 },
+      queryShapeBias: { enabled: true },
+      fusionMode: 'rrf',
       filterStrictMissing: true,
+      constraintStrictMissing: true,
       updatedAt: new Date().toISOString(),
     };
     this.rankingDefaultsByTenant.set(tenantId, defaults);
@@ -534,10 +544,18 @@ export class AdminConsoleStore {
 
   public updateRankingDefaults(
     tenantId = 'default',
-    patch: Partial<Omit<TenantRankingDefaults, 'updatedAt' | 'fieldBoosts' | 'rankWindow' | 'weights'>> & {
+    patch: Partial<
+      Omit<
+        TenantRankingDefaults,
+        'updatedAt' | 'fieldBoosts' | 'fieldImportance' | 'rankWindow' | 'channelWindows' | 'weights' | 'queryShapeBias'
+      >
+    > & {
       fieldBoosts?: Partial<FieldBoosts>;
+      fieldImportance?: Partial<FieldBoosts>;
       rankWindow?: Partial<RankWindow>;
+      channelWindows?: Partial<RankWindow>;
       weights?: Partial<{ semantic: number; lexical: number }>;
+      queryShapeBias?: Partial<{ enabled: boolean }>;
     }
   ): TenantRankingDefaults {
     const current = this.getRankingDefaults(tenantId);
@@ -566,6 +584,49 @@ export class AdminConsoleStore {
         }
       : { ...current.weights };
 
+    const fiPatch = patch.fieldImportance ?? patch.fieldBoosts;
+    const nextFieldBoosts: Required<FieldBoosts> = {
+      title:
+        typeof fiPatch?.title === 'number' && fiPatch.title >= 0
+          ? fiPatch.title
+          : current.fieldBoosts.title,
+      sku:
+        typeof fiPatch?.sku === 'number' && fiPatch.sku >= 0
+          ? fiPatch.sku
+          : current.fieldBoosts.sku,
+      brand:
+        typeof fiPatch?.brand === 'number' && fiPatch.brand >= 0
+          ? fiPatch.brand
+          : current.fieldBoosts.brand,
+      category:
+        typeof fiPatch?.category === 'number' && fiPatch.category >= 0
+          ? fiPatch.category
+          : current.fieldBoosts.category,
+      description:
+        typeof fiPatch?.description === 'number' && fiPatch.description >= 0
+          ? fiPatch.description
+          : current.fieldBoosts.description,
+    };
+
+    const cwPatch = patch.channelWindows ?? patch.rankWindow;
+    const nextRankWindow: Required<RankWindow> = {
+      lexical:
+        typeof cwPatch?.lexical === 'number'
+          ? Math.min(200, Math.max(1, Math.round(cwPatch.lexical)))
+          : current.rankWindow.lexical,
+      dense:
+        typeof cwPatch?.dense === 'number'
+          ? Math.min(200, Math.max(1, Math.round(cwPatch.dense)))
+          : current.rankWindow.dense,
+    };
+
+    const nextStrictMissing =
+      typeof patch.constraintStrictMissing === 'boolean'
+        ? patch.constraintStrictMissing
+        : typeof patch.filterStrictMissing === 'boolean'
+        ? patch.filterStrictMissing
+        : current.filterStrictMissing;
+
     const updated: TenantRankingDefaults = {
       simpleCategoryGate: patch.simpleCategoryGate ?? current.simpleCategoryGate,
       defaultAlpha: nextAlpha,
@@ -577,47 +638,27 @@ export class AdminConsoleStore {
         typeof patch.minSimilarity === 'number'
           ? Math.min(1, Math.max(0, Number(patch.minSimilarity.toFixed(4))))
           : current.minSimilarity,
-      fieldBoosts: {
-        title:
-          typeof patch.fieldBoosts?.title === 'number' && patch.fieldBoosts.title >= 0
-            ? patch.fieldBoosts.title
-            : current.fieldBoosts.title,
-        sku:
-          typeof patch.fieldBoosts?.sku === 'number' && patch.fieldBoosts.sku >= 0
-            ? patch.fieldBoosts.sku
-            : current.fieldBoosts.sku,
-        brand:
-          typeof patch.fieldBoosts?.brand === 'number' && patch.fieldBoosts.brand >= 0
-            ? patch.fieldBoosts.brand
-            : current.fieldBoosts.brand,
-        category:
-          typeof patch.fieldBoosts?.category === 'number' && patch.fieldBoosts.category >= 0
-            ? patch.fieldBoosts.category
-            : current.fieldBoosts.category,
-        description:
-          typeof patch.fieldBoosts?.description === 'number' && patch.fieldBoosts.description >= 0
-            ? patch.fieldBoosts.description
-            : current.fieldBoosts.description,
-      },
-      rankWindow: {
-        lexical:
-          typeof patch.rankWindow?.lexical === 'number'
-            ? Math.min(200, Math.max(1, Math.round(patch.rankWindow.lexical)))
-            : current.rankWindow.lexical,
-        dense:
-          typeof patch.rankWindow?.dense === 'number'
-            ? Math.min(200, Math.max(1, Math.round(patch.rankWindow.dense)))
-            : current.rankWindow.dense,
-      },
+      fieldBoosts: { ...nextFieldBoosts },
+      fieldImportance: { ...nextFieldBoosts },
+      rankWindow: { ...nextRankWindow },
+      channelWindows: { ...nextRankWindow },
       rankConstant:
         typeof patch.rankConstant === 'number' && patch.rankConstant > 0
           ? patch.rankConstant
           : current.rankConstant,
       weights: nextWeights,
-      filterStrictMissing:
-        typeof patch.filterStrictMissing === 'boolean'
-          ? patch.filterStrictMissing
-          : current.filterStrictMissing,
+      queryShapeBias: {
+        enabled:
+          typeof patch.queryShapeBias?.enabled === 'boolean'
+            ? patch.queryShapeBias.enabled
+            : current.queryShapeBias.enabled,
+      },
+      fusionMode:
+        patch.fusionMode === 'linear' || patch.fusionMode === 'rrf'
+          ? patch.fusionMode
+          : current.fusionMode,
+      filterStrictMissing: nextStrictMissing,
+      constraintStrictMissing: nextStrictMissing,
       updatedAt: new Date().toISOString(),
     };
     this.rankingDefaultsByTenant.set(tenantId, updated);

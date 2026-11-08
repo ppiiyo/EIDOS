@@ -16,13 +16,26 @@ import {
   extractHeadCategoryIntent,
   evaluateCandidateCategoryGate,
   validateAndResolveFieldBoosts,
+  validateAndResolveFieldImportance,
   validateAndResolveRankWindow,
+  validateAndResolveChannelWindows,
   validateAndResolveRankConstant,
+  validateAndNormalizeConstraints,
+  validateAndResolveFusionMode,
+  validateFacetsRequest,
+  classifyQueryShape,
+  applyQueryShapeBias,
+  buildHitHighlights,
   normalizeSearchFilters,
   resolveWeightedRrfWeights,
   RrfBreakdown,
+  FusionMode,
+  QueryShape,
+  HitHighlights,
+  FacetCounts,
   LexicalFieldContribution,
   FieldBoostField,
+  EIDOS_RETRIEVAL_PIPELINE_STAGES,
 } from '@eidos/core';
 import { authenticate } from '../middleware/auth';
 import { demoRateLimit } from '../middleware/rate-limit-demo';
@@ -93,23 +106,20 @@ const searchRequestSchema = z.object({
   minScore: z.number().min(0).max(1).optional(),
   simpleCategoryGate: z.enum(['hard', 'soft', 'off']).optional(),
   filterCategory: z.string().optional(),
-  filters: z
-    .object({
-      category: z.union([z.string(), z.array(z.string())]).optional(),
-      brand: z.union([z.string(), z.array(z.string())]).optional(),
-      priceMin: z.number().optional(),
-      priceMax: z.number().optional(),
-      inStock: z.boolean().optional(),
-      ids: z.array(z.string()).optional(),
-      excludeIds: z.array(z.string()).optional(),
-      min_price: z.number().optional(),
-      max_price: z.number().optional(),
-    })
-    .passthrough()
-    .optional(),
+  constraints: z.unknown().optional(),
+  filters: z.unknown().optional(),
+  fieldImportance: z.unknown().optional(),
   fieldBoosts: z.unknown().optional(),
+  channelWindows: z.unknown().optional(),
   rankWindow: z.unknown().optional(),
   rankConstant: z.unknown().optional(),
+  fusionMode: z.unknown().optional(),
+  facets: z.unknown().optional(),
+  queryShapeBias: z
+    .object({
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
   mode: z
     .enum(['dense', 'sparse', 'hybrid', 'semantic'])
     .default('hybrid')
@@ -179,10 +189,16 @@ export async function searchRoutes(
         minScore: rawMinScore,
         simpleCategoryGate: rawSimpleCategoryGate,
         filterCategory,
-        filters,
+        constraints: rawConstraints,
+        filters: rawFilters,
+        fieldImportance: rawFieldImportance,
         fieldBoosts: rawFieldBoosts,
+        channelWindows: rawChannelWindows,
         rankWindow: rawRankWindow,
         rankConstant: rawRankConstant,
+        fusionMode: rawFusionMode,
+        facets: rawFacets,
+        queryShapeBias: rawQueryShapeBias,
         mode,
         alpha: rawAlpha,
         weights,
@@ -217,10 +233,6 @@ export async function searchRoutes(
         typeof request.apiKeyContext?.allowedFilters?.category === 'string'
           ? request.apiKeyContext.allowedFilters.category
           : undefined;
-      const effectiveCategory =
-        scopedCategory ??
-        filterCategory ??
-        (typeof filters?.category === 'string' ? filters.category : undefined);
 
       let activeStore: VectorStore;
       let tenantId: string;
@@ -240,11 +252,54 @@ export async function searchRoutes(
       const adminStore = AdminConsoleStore.getInstance();
       const rankingDefaults = adminStore.getRankingDefaults(tenantId);
 
-      // Validate P1 Retrieval Controls (Feature A: fieldBoosts, Feature C: rankWindow, Feature D: rankConstant)
-      const fbValidation = validateAndResolveFieldBoosts(
-        rawFieldBoosts as any,
-        rankingDefaults.fieldBoosts
-      );
+      // 1. Validate CatalogConstraints (constraints / filters)
+      let effectiveFilters = normalizeSearchFilters(undefined, scopedCategory ?? filterCategory);
+      if (rawConstraints !== undefined) {
+        const cVal = validateAndNormalizeConstraints(
+          rawConstraints,
+          scopedCategory ?? filterCategory
+        );
+        if (!cVal.valid) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            code: cVal.code,
+            message: cVal.message,
+          });
+        }
+        effectiveFilters = cVal.value;
+      } else if (rawFilters !== undefined) {
+        const fVal = validateAndNormalizeConstraints(
+          rawFilters,
+          scopedCategory ?? filterCategory
+        );
+        if (!fVal.valid) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            code: fVal.code,
+            message: fVal.message,
+          });
+        }
+        effectiveFilters = fVal.value;
+      }
+
+      const effectiveCategory =
+        scopedCategory ??
+        filterCategory ??
+        (typeof effectiveFilters?.category === 'string' ? effectiveFilters.category : undefined);
+
+      // 2. Validate FieldImportance (fieldImportance / fieldBoosts)
+      const fbValidation =
+        rawFieldImportance !== undefined
+          ? validateAndResolveFieldImportance(
+              rawFieldImportance as any,
+              rankingDefaults.fieldImportance ?? rankingDefaults.fieldBoosts
+            )
+          : validateAndResolveFieldBoosts(
+              rawFieldBoosts as any,
+              rankingDefaults.fieldBoosts
+            );
       if (!fbValidation.valid) {
         return reply.status(400).send({
           statusCode: 400,
@@ -255,10 +310,17 @@ export async function searchRoutes(
       }
       const resolvedFieldBoosts = fbValidation.value;
 
-      const rwValidation = validateAndResolveRankWindow(
-        rawRankWindow as any,
-        rankingDefaults.rankWindow
-      );
+      // 3. Validate ChannelWindows (channelWindows / rankWindow)
+      const rwValidation =
+        rawChannelWindows !== undefined
+          ? validateAndResolveChannelWindows(
+              rawChannelWindows as any,
+              rankingDefaults.channelWindows ?? rankingDefaults.rankWindow
+            )
+          : validateAndResolveRankWindow(
+              rawRankWindow as any,
+              rankingDefaults.rankWindow
+            );
       if (!rwValidation.valid) {
         return reply.status(400).send({
           statusCode: 400,
@@ -269,6 +331,7 @@ export async function searchRoutes(
       }
       const resolvedRankWindow = rwValidation.value;
 
+      // 4. Validate RankConstant (rankConstant)
       const rcValidation = validateAndResolveRankConstant(
         rawRankConstant,
         rankingDefaults.rankConstant
@@ -283,11 +346,35 @@ export async function searchRoutes(
       }
       const resolvedRankConstant = rcValidation.value;
 
-      const effectiveFilters = normalizeSearchFilters(
-        filters as any,
-        scopedCategory ?? filterCategory
+      // 5. Validate FusionMode (fusionMode: "rrf" | "linear")
+      const fmValidation = validateAndResolveFusionMode(
+        rawFusionMode,
+        rankingDefaults.fusionMode ?? 'rrf'
       );
-      const filterStrictMissing = rankingDefaults.filterStrictMissing ?? true;
+      if (!fmValidation.valid) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          code: fmValidation.code,
+          message: fmValidation.message,
+        });
+      }
+      const resolvedFusionMode: FusionMode = fmValidation.value;
+
+      // 6. Validate Facets (facets: Array<"brand" | "category">)
+      const facetsValidation = validateFacetsRequest(rawFacets);
+      if (!facetsValidation.valid) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          code: facetsValidation.code,
+          message: facetsValidation.message,
+        });
+      }
+      const resolvedFacets = facetsValidation.value;
+
+      const filterStrictMissing =
+        rankingDefaults.constraintStrictMissing ?? rankingDefaults.filterStrictMissing ?? true;
 
       // Security Guardrail: Scan and sanitize user query against prompt injection and XSS before index checks
       const securityScan = SecurityGuardrails.scanAndSanitize(query);
@@ -318,6 +405,8 @@ export async function searchRoutes(
         });
       }
 
+      const catalogVersion = activeStore.getCatalogVersion();
+
       // P0-2 Live Suggest: queries < 2 unicode graphemes return 200 with empty results immediately
       if (isSuggest && graphemeCount < 2) {
         return reply.status(200).send({
@@ -330,16 +419,27 @@ export async function searchRoutes(
           total: 0,
           results: [],
           latencyMs: 0,
+          cacheHit: false,
           meta: {
             latencyMs: 0,
+            cacheHit: false,
+            catalogVersion,
             queryRaw: query || '',
             normalizedQuery: '',
             rewrites: [],
+            queryShape: 'short' as QueryShape,
+            weightsEffective: { lexical: 0.5, semantic: 0.5 },
+            fusionMode: resolvedFusionMode,
             headCategoryIntent: null,
+            constraintsApplied: effectiveFilters,
+            candidatesBeforeConstraints: activeStore.count(),
+            candidatesAfterConstraints: activeStore.count(),
             filtersApplied: effectiveFilters,
             candidatesBeforeFilter: activeStore.count(),
             candidatesAfterFilter: activeStore.count(),
+            fieldImportance: resolvedFieldBoosts,
             fieldBoosts: resolvedFieldBoosts,
+            channelWindows: resolvedRankWindow,
             rankWindow: resolvedRankWindow,
             rankConstant: resolvedRankConstant,
           },
@@ -352,16 +452,60 @@ export async function searchRoutes(
       const minScore =
         rawMinScore ?? (rankingDefaults.minScore !== 0.09 ? rankingDefaults.minScore : undefined);
 
-      // Feature D: Formalized Weighted RRF weights resolution
+      const rawSanitized = securityScan.sanitizedInput;
+      const layoutInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
+      const layoutQuery = layoutInfo.normalizedQuery || rawSanitized;
+
+      const dictPrep = adminStore.preprocessQuery(layoutQuery, tenantId);
+      const queryInfo = dictPrep.rewritten
+        ? normalizeQueryWithLayoutRecovery(dictPrep.processedQuery)
+        : layoutInfo;
+      const safeQuery = queryInfo.normalizedQuery || dictPrep.processedQuery || rawSanitized;
+      const headIntent = extractHeadCategoryIntent(safeQuery);
+
+      // Stage 3: Classify query shape ('sku_like' | 'short' | 'natural') and apply Query-Shape Bias
+      const queryShape: QueryShape = classifyQueryShape(safeQuery, rawSanitized);
+      const queryShapeBiasEnabled =
+        rawQueryShapeBias?.enabled ?? rankingDefaults.queryShapeBias?.enabled ?? true;
+      const hasExplicitRequestWeights = Boolean(
+        weights !== undefined || rawAlpha !== undefined || mode !== 'hybrid'
+      );
+
+      // Feature D: Formalized Weighted Fusion weights resolution
       const rrfWeights = resolveWeightedRrfWeights({
         weights,
         alpha,
         mode,
         defaultWeights: rankingDefaults.weights,
       });
-      const appliedAlpha = rrfWeights.effectiveAlpha;
-      const denseW = rrfWeights.denseWeight;
-      const sparseW = rrfWeights.lexicalWeight;
+
+      const shouldApplyBiasToFusion =
+        queryShapeBiasEnabled &&
+        (!hasExplicitRequestWeights || rawQueryShapeBias?.enabled === true);
+
+      const weightsEffective = shouldApplyBiasToFusion
+        ? applyQueryShapeBias(
+            {
+              lexical: rrfWeights.lexicalWeight,
+              semantic: rrfWeights.denseWeight,
+            },
+            queryShape
+          ).weightsEffective
+        : {
+            lexical: rrfWeights.lexicalWeight,
+            semantic: rrfWeights.denseWeight,
+          };
+
+      const denseW = shouldApplyBiasToFusion
+        ? weightsEffective.semantic
+        : rrfWeights.denseWeight;
+      const sparseW = shouldApplyBiasToFusion
+        ? weightsEffective.lexical
+        : rrfWeights.lexicalWeight;
+      const appliedAlpha = shouldApplyBiasToFusion
+        ? weightsEffective.semantic
+        : rrfWeights.effectiveAlpha;
+
       const appliedWeights = {
         semantic: appliedAlpha,
         lexical: Number((1 - appliedAlpha).toFixed(4)),
@@ -373,24 +517,16 @@ export async function searchRoutes(
       const preserveExactRrfOrder = Boolean(
         rawRankConstant !== undefined ||
           rawFieldBoosts !== undefined ||
+          rawFieldImportance !== undefined ||
           rawRankWindow !== undefined ||
+          rawChannelWindows !== undefined ||
+          rawFusionMode !== undefined ||
           (weights &&
             (weights.lexical === 0 ||
               weights.dense === 0 ||
               weights.sparse === 0 ||
               weights.semantic === 0))
       );
-
-      const rawSanitized = securityScan.sanitizedInput;
-      const layoutInfo = normalizeQueryWithLayoutRecovery(rawSanitized);
-      const layoutQuery = layoutInfo.normalizedQuery || rawSanitized;
-
-      const dictPrep = adminStore.preprocessQuery(layoutQuery, tenantId);
-      const queryInfo = dictPrep.rewritten
-        ? normalizeQueryWithLayoutRecovery(dictPrep.processedQuery)
-        : layoutInfo;
-      const safeQuery = queryInfo.normalizedQuery || dictPrep.processedQuery || rawSanitized;
-      const headIntent = extractHeadCategoryIntent(safeQuery);
 
       const allRewrites: Array<{
         type: 'layout' | 'typo' | 'synonym' | 'normalize' | 'rewrite' | 'stopwords';
@@ -435,7 +571,9 @@ export async function searchRoutes(
             score: item.score,
             scorePercent: item.scorePercent,
             humanExplanation: item.humanExplanation,
+            fusion: item.fusion ?? item.rrf,
             rrf: item.rrf,
+            highlights: item.highlights,
             ...(includeXRay
               ? {
                   explanation: item.explanation,
@@ -488,9 +626,11 @@ export async function searchRoutes(
         explorationTemperature: chronoProfile.explorationTemperature,
       });
 
-      // 1. Check Redis Cache first
+      // 1. Check Cache (with catalogVersion included in key for deterministic invalidation)
       const normalizedFilters: Record<string, any> = {
         ...(effectiveFilters || {}),
+        cv: catalogVersion,
+        qs: queryShape,
       };
       if (effectiveCategory) normalizedFilters.category = effectiveCategory;
       if (minSimilarity !== 0.25) normalizedFilters.minSimilarity = minSimilarity;
@@ -502,6 +642,7 @@ export async function searchRoutes(
         normalizedFilters.w = `${denseW}:${sparseW}`;
       }
       if (resolvedRankConstant !== 60) normalizedFilters.k = resolvedRankConstant;
+      if (resolvedFusionMode !== 'rrf') normalizedFilters.fm = resolvedFusionMode;
       if (resolvedRankWindow.lexical !== 50 || resolvedRankWindow.dense !== 50) {
         normalizedFilters.rw = `${resolvedRankWindow.lexical}:${resolvedRankWindow.dense}`;
       }
@@ -513,6 +654,9 @@ export async function searchRoutes(
         resolvedFieldBoosts.description !== 1
       ) {
         normalizedFilters.fb = resolvedFieldBoosts;
+      }
+      if (resolvedFacets && resolvedFacets.length > 0) {
+        normalizedFilters.facets = resolvedFacets.join(',');
       }
       if (preserveExactRrfOrder) normalizedFilters.pureRrf = true;
       if (tenantId !== 'default') normalizedFilters.tenantId = tenantId;
@@ -621,20 +765,38 @@ export async function searchRoutes(
           results: formattedCachedResults,
           count: formattedCachedResults.length,
           total: formattedCachedResults.length,
+          ...(cachedResponse.facets ? { facets: cachedResponse.facets } : {}),
           meta: {
             latencyMs: hitLatencyMs,
+            cacheHit: true,
+            catalogVersion,
             queryRaw: rawSanitized,
             normalizedQuery: safeQuery,
             rewrites: allRewrites,
+            queryShape,
+            weightsEffective,
+            fusionMode: resolvedFusionMode,
             headCategoryIntent: headIntent.familyKey,
+            constraintsApplied: effectiveFilters,
+            candidatesBeforeConstraints:
+              cachedMeta.candidatesBeforeConstraints ??
+              cachedMeta.candidatesBeforeFilter ??
+              activeStore.count(),
+            candidatesAfterConstraints:
+              cachedMeta.candidatesAfterConstraints ??
+              cachedMeta.candidatesAfterFilter ??
+              activeStore.count(),
             filtersApplied: effectiveFilters,
             candidatesBeforeFilter:
               cachedMeta.candidatesBeforeFilter ?? activeStore.count(),
             candidatesAfterFilter:
               cachedMeta.candidatesAfterFilter ?? activeStore.count(),
+            fieldImportance: resolvedFieldBoosts,
             fieldBoosts: resolvedFieldBoosts,
+            channelWindows: resolvedRankWindow,
             rankWindow: resolvedRankWindow,
             rankConstant: resolvedRankConstant,
+            pipelineStages: EIDOS_RETRIEVAL_PIPELINE_STAGES,
           },
           ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
           cached: true,
@@ -649,6 +811,7 @@ export async function searchRoutes(
         candidatesBeforeFilter: activeStore.count(),
         candidatesAfterFilter: activeStore.count(),
       };
+      const facetsHolder: { facets?: FacetCounts } = {};
 
       // 2. Cache miss - check Semantic Query Cache or execute SingleFlight
       let freshResults: Array<{
@@ -670,7 +833,9 @@ export async function searchRoutes(
         source?: string;
         isSerendipityDiscovery?: boolean;
         discoveryReason?: string;
+        fusion: RrfBreakdown;
         rrf: RrfBreakdown;
+        highlights: HitHighlights;
         explanation: {
           denseComponent: number;
           sparseBm25Component: number;
@@ -680,6 +845,11 @@ export async function searchRoutes(
           serendipityScore?: number;
           kineticBonus?: number;
           lexicalFieldContributions: LexicalFieldContribution[];
+          fieldImportanceContributions: LexicalFieldContribution[];
+          fusion: RrfBreakdown;
+          queryShape: QueryShape;
+          weightsEffective: { lexical: number; semantic: number };
+          constraintsApplied: typeof effectiveFilters;
         };
       }>;
       let queryVectorForSemCache: Float32Array | number[] | null = null;
@@ -752,20 +922,38 @@ export async function searchRoutes(
               results: formattedSemResults,
               count: formattedSemResults.length,
               total: formattedSemResults.length,
+              ...(semHit.response.facets ? { facets: semHit.response.facets } : {}),
               meta: {
                 latencyMs: semLatencyMs,
+                cacheHit: true,
+                catalogVersion,
                 queryRaw: rawSanitized,
                 normalizedQuery: safeQuery,
                 rewrites: allRewrites,
+                queryShape,
+                weightsEffective,
+                fusionMode: resolvedFusionMode,
                 headCategoryIntent: headIntent.familyKey,
+                constraintsApplied: effectiveFilters,
+                candidatesBeforeConstraints:
+                  semMeta.candidatesBeforeConstraints ??
+                  semMeta.candidatesBeforeFilter ??
+                  activeStore.count(),
+                candidatesAfterConstraints:
+                  semMeta.candidatesAfterConstraints ??
+                  semMeta.candidatesAfterFilter ??
+                  activeStore.count(),
                 filtersApplied: effectiveFilters,
                 candidatesBeforeFilter:
                   semMeta.candidatesBeforeFilter ?? activeStore.count(),
                 candidatesAfterFilter:
                   semMeta.candidatesAfterFilter ?? activeStore.count(),
+                fieldImportance: resolvedFieldBoosts,
                 fieldBoosts: resolvedFieldBoosts,
+                channelWindows: resolvedRankWindow,
                 rankWindow: resolvedRankWindow,
                 rankConstant: resolvedRankConstant,
+                pipelineStages: EIDOS_RETRIEVAL_PIPELINE_STAGES,
               },
               ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
               cached: true,
@@ -837,6 +1025,9 @@ export async function searchRoutes(
                     filterStrictMissing,
                     rankWindow: resolvedRankWindow,
                     rankConstant: resolvedRankConstant,
+                    fusionMode: resolvedFusionMode,
+                    facets: resolvedFacets,
+                    facetsOut: facetsHolder,
                     preserveExactRrfOrder,
                     filterStatsOut: filterStats,
                   }
@@ -938,6 +1129,7 @@ export async function searchRoutes(
                       source: 'merch_pin',
                       merchBoostDelta: 0.25,
                       rrf: {
+                        mode: resolvedFusionMode,
                         k: resolvedRankConstant,
                         lexicalRank: null,
                         denseRank: null,
@@ -995,6 +1187,7 @@ export async function searchRoutes(
                 mode === 'dense' || appliedAlpha === 1 ? 0 : (r.sparseScore ?? 0);
               const sparseBm25Component = Math.round(rawSparse * 10000) / 10000;
               const resolvedRrf: RrfBreakdown = r.rrf ?? {
+                mode: resolvedFusionMode,
                 k: resolvedRankConstant,
                 lexicalRank: null,
                 denseRank: null,
@@ -1065,6 +1258,23 @@ export async function searchRoutes(
                 dominantLexicalField: r.dominantLexicalField ?? null,
               });
 
+              const resolvedId = String(r.item.id);
+              const resolvedSku =
+                r.item.sku && String(r.item.sku).trim() !== ''
+                  ? String(r.item.sku).trim()
+                  : resolvedId;
+              const resolvedUrl =
+                r.item.url || `/product/${encodeURIComponent(resolvedId)}`;
+              const resolvedImageUrl =
+                r.item.imageUrl !== undefined ? r.item.imageUrl : null;
+
+              const highlights = buildHitHighlights({
+                normalizedQuery: safeQuery,
+                rawQuery: rawSanitized,
+                title: r.item.title || '',
+                sku: resolvedSku,
+              });
+
               const explanation = {
                 denseComponent,
                 sparseBm25Component,
@@ -1080,17 +1290,12 @@ export async function searchRoutes(
                 serendipityScore: serendipityEval?.serendipityScore ?? 0,
                 kineticBonus: kineticMod.kineticBonus,
                 lexicalFieldContributions,
+                fieldImportanceContributions: lexicalFieldContributions,
+                fusion: resolvedRrf,
+                queryShape,
+                weightsEffective,
+                constraintsApplied: effectiveFilters,
               };
-
-              const resolvedId = String(r.item.id);
-              const resolvedSku =
-                r.item.sku && String(r.item.sku).trim() !== ''
-                  ? String(r.item.sku).trim()
-                  : resolvedId;
-              const resolvedUrl =
-                r.item.url || `/product/${encodeURIComponent(resolvedId)}`;
-              const resolvedImageUrl =
-                r.item.imageUrl !== undefined ? r.item.imageUrl : null;
 
               return {
                 id: r.item.id,
@@ -1111,7 +1316,9 @@ export async function searchRoutes(
                 source: r.source,
                 isSerendipityDiscovery: serendipityEval?.isSerendipityDiscovery ?? false,
                 discoveryReason: serendipityEval?.discoveryReason,
+                fusion: resolvedRrf,
                 rrf: resolvedRrf,
+                highlights,
                 explanation,
                 xray: explanation,
               };
@@ -1158,20 +1365,32 @@ export async function searchRoutes(
         results: freshResults,
         count: freshResults.length,
         total: freshResults.length,
+        ...(resolvedFacets && facetsHolder.facets ? { facets: facetsHolder.facets } : {}),
         latencyMs,
         cacheHit: false,
         meta: {
           latencyMs,
+          cacheHit: false,
+          catalogVersion,
           queryRaw: rawSanitized,
           normalizedQuery: safeQuery,
           rewrites: allRewrites,
+          queryShape,
+          weightsEffective,
+          fusionMode: resolvedFusionMode,
           headCategoryIntent: headIntent.familyKey,
+          constraintsApplied: effectiveFilters,
+          candidatesBeforeConstraints: filterStats.candidatesBeforeFilter,
+          candidatesAfterConstraints: filterStats.candidatesAfterFilter,
           filtersApplied: effectiveFilters,
           candidatesBeforeFilter: filterStats.candidatesBeforeFilter,
           candidatesAfterFilter: filterStats.candidatesAfterFilter,
+          fieldImportance: resolvedFieldBoosts,
           fieldBoosts: resolvedFieldBoosts,
+          channelWindows: resolvedRankWindow,
           rankWindow: resolvedRankWindow,
           rankConstant: resolvedRankConstant,
+          pipelineStages: EIDOS_RETRIEVAL_PIPELINE_STAGES,
         },
         ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
         cognitiveDiagnostics: {

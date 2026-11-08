@@ -105,26 +105,32 @@ const patchMerchRuleSchema = z.object({
   weight: z.number().min(0.05).max(10).optional(),
 });
 
+const fieldImportanceSchema = z
+  .object({
+    title: z.number().min(0).optional(),
+    sku: z.number().min(0).optional(),
+    brand: z.number().min(0).optional(),
+    category: z.number().min(0).optional(),
+    description: z.number().min(0).optional(),
+  })
+  .optional();
+
+const channelWindowsSchema = z
+  .object({
+    lexical: z.number().int().min(1).max(200).optional(),
+    dense: z.number().int().min(1).max(200).optional(),
+  })
+  .optional();
+
 const updateRankingDefaultsSchema = z.object({
   simpleCategoryGate: z.enum(['hard', 'soft', 'off']).optional(),
   defaultAlpha: z.number().min(0).max(1).optional(),
   minScore: z.number().min(0).max(1).optional(),
   minSimilarity: z.number().min(0).max(1).optional(),
-  fieldBoosts: z
-    .object({
-      title: z.number().min(0).optional(),
-      sku: z.number().min(0).optional(),
-      brand: z.number().min(0).optional(),
-      category: z.number().min(0).optional(),
-      description: z.number().min(0).optional(),
-    })
-    .optional(),
-  rankWindow: z
-    .object({
-      lexical: z.number().int().min(1).max(200).optional(),
-      dense: z.number().int().min(1).max(200).optional(),
-    })
-    .optional(),
+  fieldBoosts: fieldImportanceSchema,
+  fieldImportance: fieldImportanceSchema,
+  rankWindow: channelWindowsSchema,
+  channelWindows: channelWindowsSchema,
   rankConstant: z.number().positive().max(10000).optional(),
   weights: z
     .object({
@@ -132,7 +138,14 @@ const updateRankingDefaultsSchema = z.object({
       lexical: z.number().min(0).max(10).optional(),
     })
     .optional(),
+  queryShapeBias: z
+    .object({
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
+  fusionMode: z.enum(['rrf', 'linear']).optional(),
   filterStrictMissing: z.boolean().optional(),
+  constraintStrictMissing: z.boolean().optional(),
 });
 
 const logQueryBodySchema = z.object({

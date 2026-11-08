@@ -1,11 +1,20 @@
 /**
- * EIDOS Engine P1 — High-ROI Retrieval Controls
+ * EIDOS Retrieval Product Layer v1 & Engine P1 Controls
  *
  * Implements native EIDOS retrieval stages:
- * 1. Multi-field BM25 lexical scoring with configurable FieldBoosts (`title`, `sku`, `brand`, `category`, `description`)
- * 2. Pre-fusion Structured Filters (`SearchFilters`) with strict conjunction (AND) and OR within multi-value arrays
- * 3. Per-channel RankWindow candidate truncation (`lexical`, `dense`, default 50, max 200)
- * 4. Formalized Weighted Reciprocal Rank Fusion (`Weighted RRF`, default k=60) + honest X-Ray breakdown
+ * 1. ingest_query
+ * 2. normalize_query (layout / typo / synonyms)
+ * 3. classify_query_shape (sku_like | short | natural)
+ * 4. category_gate_intent (simpleCategoryGate: hard | soft | off)
+ * 5. apply_catalog_constraints (CatalogConstraints — boolean eligibility, filter != score)
+ * 6. retrieve_lexical_candidates (Multi-field BM25 with FieldImportance)
+ * 7. retrieve_dense_candidates (HNSW 384-d + exact cosine)
+ * 8. truncate_channel_windows (ChannelWindows: lexical, dense)
+ * 9. fuse_channels (Weighted RRF or Linear min-max fusion)
+ * 10. apply_business_signals (optional merch rules)
+ * 11. limit_sort_stable_tiebreak (score desc, id asc)
+ * 12. attach_xray_highlights_facets (X-Ray, XSS-safe <em> highlights, side-channel facet counts)
+ * 13. respond
  */
 
 import { BM25Index } from './bm25';
@@ -20,6 +29,8 @@ export interface FieldBoosts {
   description?: number; // default 1
 }
 
+export type FieldImportance = FieldBoosts;
+
 export const DEFAULT_FIELD_BOOSTS: Required<FieldBoosts> = Object.freeze({
   title: 3,
   sku: 5,
@@ -28,9 +39,28 @@ export const DEFAULT_FIELD_BOOSTS: Required<FieldBoosts> = Object.freeze({
   description: 1,
 });
 
+export const DEFAULT_FIELD_IMPORTANCE: Required<FieldImportance> = DEFAULT_FIELD_BOOSTS;
+
+export const EIDOS_RETRIEVAL_PIPELINE_STAGES = Object.freeze([
+  '1. ingest_query',
+  '2. normalize_query',
+  '3. classify_query_shape',
+  '4. category_gate_intent',
+  '5. apply_catalog_constraints',
+  '6. retrieve_lexical_candidates',
+  '7. retrieve_dense_candidates',
+  '8. truncate_channel_windows',
+  '9. fuse_channels',
+  '10. apply_business_signals',
+  '11. limit_sort_stable_tiebreak',
+  '12. attach_xray_highlights_facets',
+  '13. respond',
+] as const);
+
 export interface LexicalFieldContribution {
   field: FieldBoostField;
   boost: number;
+  importance: number;
   contribution: number;
 }
 
@@ -47,18 +77,40 @@ export interface SearchFilters {
   max_price?: number;
 }
 
+export type CatalogConstraints = SearchFilters;
+
 export interface RankWindow {
   lexical?: number; // default 50, max 200
   dense?: number;   // default 50, max 200
 }
+
+export type ChannelWindows = RankWindow;
 
 export const DEFAULT_RANK_WINDOW: Required<RankWindow> = Object.freeze({
   lexical: 50,
   dense: 50,
 });
 
+export const DEFAULT_CHANNEL_WINDOWS: Required<ChannelWindows> = DEFAULT_RANK_WINDOW;
+
 export const MAX_RANK_WINDOW = 200;
 export const DEFAULT_RANK_CONSTANT = 60;
+
+export type FusionMode = 'rrf' | 'linear';
+export type QueryShape = 'sku_like' | 'short' | 'natural';
+export type FacetField = 'brand' | 'category';
+
+export interface FacetBucket {
+  value: string;
+  count: number;
+}
+
+export type FacetCounts = Partial<Record<FacetField, FacetBucket[]>>;
+
+export interface HitHighlights {
+  title?: string;
+  sku?: string;
+}
 
 export interface RrfChannelWeights {
   semantic?: number;
@@ -68,6 +120,7 @@ export interface RrfChannelWeights {
 }
 
 export interface RrfBreakdown {
+  mode?: FusionMode;
   k: number;
   lexicalRank: number | null;
   denseRank: number | null;
@@ -77,6 +130,8 @@ export interface RrfBreakdown {
   denseContribution: number;
   fusedScore: number;
 }
+
+export type FusionBreakdown = RrfBreakdown;
 
 export interface RetrievalValidationResult<T> {
   valid: boolean;
@@ -94,16 +149,24 @@ const VALID_FIELD_BOOST_KEYS: ReadonlyArray<FieldBoostField> = [
 ];
 
 /**
- * Validates and resolves FieldBoosts against defaults.
- * Any negative, NaN, or non-finite boost value is rejected with INVALID_FIELD_BOOSTS.
+ * Validates and resolves FieldImportance / FieldBoosts against defaults.
  */
 export function validateAndResolveFieldBoosts(
   input?: FieldBoosts | Record<string, unknown>,
-  defaults: Required<FieldBoosts> = DEFAULT_FIELD_BOOSTS
+  defaults: Required<FieldBoosts> = DEFAULT_FIELD_BOOSTS,
+  errorCode: 'INVALID_FIELD_BOOSTS' | 'INVALID_FIELD_IMPORTANCE' = 'INVALID_FIELD_BOOSTS'
 ): RetrievalValidationResult<Required<FieldBoosts>> {
   const resolved: Required<FieldBoosts> = { ...defaults };
-  if (!input || typeof input !== 'object') {
+  if (input === undefined || input === null) {
     return { valid: true, value: resolved };
+  }
+  if (typeof input !== 'object' || Array.isArray(input)) {
+    return {
+      valid: false,
+      value: resolved,
+      code: errorCode,
+      message: 'fieldImportance must be an object mapping field names to non-negative numbers',
+    };
   }
 
   for (const [rawKey, rawVal] of Object.entries(input)) {
@@ -112,16 +175,16 @@ export function validateAndResolveFieldBoosts(
       return {
         valid: false,
         value: resolved,
-        code: 'INVALID_FIELD_BOOSTS',
-        message: `fieldBoosts.${rawKey}: unknown field (allowed: title, sku, brand, category, description)`,
+        code: errorCode,
+        message: `${rawKey}: unknown field (allowed: title, sku, brand, category, description)`,
       };
     }
     if (typeof rawVal !== 'number' || !Number.isFinite(rawVal) || rawVal < 0) {
       return {
         valid: false,
         value: resolved,
-        code: 'INVALID_FIELD_BOOSTS',
-        message: `fieldBoosts.${rawKey}: must be a non-negative finite number (>= 0)`,
+        code: errorCode,
+        message: `${rawKey}: must be a non-negative finite number (>= 0)`,
       };
     }
     resolved[rawKey as FieldBoostField] = rawVal;
@@ -130,16 +193,43 @@ export function validateAndResolveFieldBoosts(
   return { valid: true, value: resolved };
 }
 
+export function validateAndResolveFieldImportance(
+  input?: FieldImportance | Record<string, unknown>,
+  defaults: Required<FieldImportance> = DEFAULT_FIELD_IMPORTANCE
+): RetrievalValidationResult<Required<FieldImportance>> {
+  return validateAndResolveFieldBoosts(input, defaults, 'INVALID_FIELD_IMPORTANCE');
+}
+
 /**
- * Validates and resolves RankWindow against defaults (min 1, max 200).
+ * Validates and resolves ChannelWindows / RankWindow against defaults (min 1, max 200).
  */
 export function validateAndResolveRankWindow(
   input?: RankWindow | Record<string, unknown>,
-  defaults: Required<RankWindow> = DEFAULT_RANK_WINDOW
+  defaults: Required<RankWindow> = DEFAULT_RANK_WINDOW,
+  errorCode: 'INVALID_RANK_WINDOW' | 'INVALID_CHANNEL_WINDOWS' = 'INVALID_RANK_WINDOW'
 ): RetrievalValidationResult<Required<RankWindow>> {
   const resolved: Required<RankWindow> = { ...defaults };
-  if (!input || typeof input !== 'object') {
+  if (input === undefined || input === null) {
     return { valid: true, value: resolved };
+  }
+  if (typeof input !== 'object' || Array.isArray(input)) {
+    return {
+      valid: false,
+      value: resolved,
+      code: errorCode,
+      message: 'channelWindows must be an object with lexical and/or dense window sizes',
+    };
+  }
+
+  for (const rawKey of Object.keys(input)) {
+    if (rawKey !== 'lexical' && rawKey !== 'dense') {
+      return {
+        valid: false,
+        value: resolved,
+        code: errorCode,
+        message: `channelWindows.${rawKey}: unknown channel (allowed: lexical, dense)`,
+      };
+    }
   }
 
   for (const key of ['lexical', 'dense'] as const) {
@@ -155,14 +245,39 @@ export function validateAndResolveRankWindow(
       return {
         valid: false,
         value: resolved,
-        code: 'INVALID_RANK_WINDOW',
-        message: `rankWindow.${key}: must be an integer between 1 and ${MAX_RANK_WINDOW}`,
+        code: errorCode,
+        message: `${key}: must be an integer between 1 and ${MAX_RANK_WINDOW}`,
       };
     }
     resolved[key] = val;
   }
 
   return { valid: true, value: resolved };
+}
+
+export function validateAndResolveChannelWindows(
+  input?: ChannelWindows | Record<string, unknown>,
+  defaults: Required<ChannelWindows> = DEFAULT_CHANNEL_WINDOWS
+): RetrievalValidationResult<Required<ChannelWindows>> {
+  return validateAndResolveRankWindow(input, defaults, 'INVALID_CHANNEL_WINDOWS');
+}
+
+export function validateAndResolveFusionMode(
+  input?: unknown,
+  defaultMode: FusionMode = 'rrf'
+): RetrievalValidationResult<FusionMode> {
+  if (input === undefined || input === null) {
+    return { valid: true, value: defaultMode };
+  }
+  if (input !== 'rrf' && input !== 'linear') {
+    return {
+      valid: false,
+      value: defaultMode,
+      code: 'INVALID_FUSION_MODE',
+      message: 'fusionMode: must be "rrf" or "linear"',
+    };
+  }
+  return { valid: true, value: input };
 }
 
 /**
@@ -207,7 +322,13 @@ export function resolveWeightedRrfWeights(params: {
   let denseWeight: number;
   let lexicalWeight: number;
 
-  if (weights && (weights.semantic !== undefined || weights.dense !== undefined || weights.lexical !== undefined || weights.sparse !== undefined)) {
+  if (
+    weights &&
+    (weights.semantic !== undefined ||
+      weights.dense !== undefined ||
+      weights.lexical !== undefined ||
+      weights.sparse !== undefined)
+  ) {
     const rawDense = weights.semantic ?? weights.dense;
     const rawLexical = weights.lexical ?? weights.sparse;
     if (rawDense !== undefined && rawLexical !== undefined) {
@@ -278,6 +399,61 @@ export function computeWeightedRrfBreakdown(params: {
   const fusedScore = lexicalContribution + denseContribution;
 
   return {
+    mode: 'rrf',
+    k: safeK,
+    lexicalRank,
+    denseRank,
+    lexicalWeight: Number(lexicalWeight.toFixed(6)),
+    denseWeight: Number(denseWeight.toFixed(6)),
+    lexicalContribution: Number(lexicalContribution.toFixed(8)),
+    denseContribution: Number(denseContribution.toFixed(8)),
+    fusedScore: Number(fusedScore.toFixed(8)),
+  };
+}
+
+/**
+ * Computes Linear Fusion score and honest X-Ray breakdown for a single candidate document
+ * using min-max normalized scores over the candidate pool:
+ *   fused(d) = w_lexical * norm(lexScore(d)) + w_dense * norm(denseScore(d))
+ */
+export function computeLinearFusionBreakdown(params: {
+  k?: number;
+  lexicalRank: number | null;
+  denseRank: number | null;
+  lexicalNormalized?: number;
+  denseNormalized?: number;
+  normalizedLexicalScore?: number;
+  normalizedDenseScore?: number;
+  lexicalWeight: number;
+  denseWeight: number;
+}): FusionBreakdown {
+  const {
+    k = DEFAULT_RANK_CONSTANT,
+    lexicalRank,
+    denseRank,
+    lexicalNormalized,
+    denseNormalized,
+    normalizedLexicalScore,
+    normalizedDenseScore,
+    lexicalWeight,
+    denseWeight,
+  } = params;
+  const safeK = k > 0 ? k : DEFAULT_RANK_CONSTANT;
+  const lexNorm = lexicalNormalized ?? normalizedLexicalScore ?? 0;
+  const denseNorm = denseNormalized ?? normalizedDenseScore ?? 0;
+
+  const lexicalContribution =
+    lexicalRank !== null && lexicalWeight > 0
+      ? lexicalWeight * Math.max(0, Math.min(1, lexNorm))
+      : 0;
+  const denseContribution =
+    denseRank !== null && denseWeight > 0
+      ? denseWeight * Math.max(0, Math.min(1, denseNorm))
+      : 0;
+  const fusedScore = lexicalContribution + denseContribution;
+
+  return {
+    mode: 'linear',
     k: safeK,
     lexicalRank,
     denseRank,
@@ -426,14 +602,15 @@ export function matchesStructuredFilters(
       const titleLower = (item.title || '').toLowerCase();
       if (!itemBrand) {
         if (filterStrictMissing) {
-          // Check if brand is explicitly present as a distinct token in title when item.brand wasn't populated separately
           const inTitle = allowedBrands.some((b) => titleLower.split(/[\s,()/-]+/).includes(b));
           if (!inTitle) return false;
         } else {
           return true;
         }
       } else {
-        const matched = allowedBrands.some((b) => itemBrand === b);
+        const matched = allowedBrands.some(
+          (b) => itemBrand === b || itemBrand.split(/[\s/]+/).includes(b)
+        );
         if (!matched) return false;
       }
     }
@@ -468,7 +645,7 @@ export function matchesStructuredFilters(
 /**
  * Computes multi-field BM25 score and per-field contributions for a document.
  * Evaluates each field (`sku`, `title`, `brand`, `category`, `description`) independently
- * and multiplies its BM25 score by the corresponding field boost.
+ * and multiplies its BM25 score by the corresponding field boost / importance.
  */
 export function scoreMultiFieldLexicalDocument(params: {
   query: string;
@@ -483,7 +660,6 @@ export function scoreMultiFieldLexicalDocument(params: {
   const { query, item, fieldBoosts, idfLookup } = params;
   const rawQueryTokens = BM25Index.tokenize(query);
 
-  // Also preserve hyphenated SKU/code tokens (e.g., "sku-123", "5w-40") from raw query
   const rawCodeTokens = query
     .toLowerCase()
     .split(/[\s,;()[\]"«»]+/)
@@ -554,7 +730,6 @@ export function scoreMultiFieldLexicalDocument(params: {
       tfMap.set(ft, (tfMap.get(ft) || 0) + 1);
     }
 
-    // For SKU and brand fields, also index the full normalized code string (e.g. "sku-123")
     if (f.field === 'sku' || f.field === 'brand' || f.field === 'title') {
       const codeParts = fieldLower.split(/[\s,;()[\]"«»]+/).filter(Boolean);
       for (const cp of codeParts) {
@@ -571,7 +746,6 @@ export function scoreMultiFieldLexicalDocument(params: {
     for (const qTok of queryTokens) {
       let tf = tfMap.get(qTok) || 0;
 
-      // Support morphological stem prefix match (>= 4 chars) in title/category/description
       if (tf === 0 && qTok.length >= 4 && f.field !== 'sku') {
         const stem = qTok.slice(0, Math.max(4, qTok.length - 2));
         for (const [docTok, count] of tfMap.entries()) {
@@ -587,7 +761,6 @@ export function scoreMultiFieldLexicalDocument(params: {
       const tokenBm25 = idf * ((tf * k1Plus1) / (tf + baseNorm));
       rawFieldScore += tokenBm25;
 
-      // Exact full-SKU match bonus in the SKU field
       if (f.field === 'sku' && fieldLower === qTok) {
         rawFieldScore += idf * 1.5;
       }
@@ -600,6 +773,7 @@ export function scoreMultiFieldLexicalDocument(params: {
       contributions.push({
         field: f.field,
         boost: f.boost,
+        importance: f.boost,
         contribution: roundedContribution,
       });
       if (weighted > maxContribution) {
@@ -614,4 +788,370 @@ export function scoreMultiFieldLexicalDocument(params: {
     contributions,
     dominantField,
   };
+}
+
+const ALLOWED_CONSTRAINT_KEYS = new Set([
+  'category',
+  'brand',
+  'priceMin',
+  'priceMax',
+  'inStock',
+  'ids',
+  'excludeIds',
+  'min_price',
+  'max_price',
+]);
+
+/**
+ * Validates and normalizes `constraints` (and/or legacy `filters` + `filterCategory`).
+ * Returns INVALID_CONSTRAINTS if `constraints` is malformed, contains negative/NaN prices,
+ * or has `priceMin > priceMax`.
+ */
+export function validateAndNormalizeConstraints(
+  rawConstraints?: unknown,
+  rawFiltersOrCategory?: SearchFilters | string,
+  topLevelCategory?: string
+): RetrievalValidationResult<CatalogConstraints | null> {
+  const rawFilters =
+    typeof rawFiltersOrCategory === 'object' && rawFiltersOrCategory !== null
+      ? rawFiltersOrCategory
+      : undefined;
+  const resolvedCategory =
+    typeof rawFiltersOrCategory === 'string' ? rawFiltersOrCategory : topLevelCategory;
+
+  if (rawConstraints !== undefined && rawConstraints !== null) {
+    if (typeof rawConstraints !== 'object' || Array.isArray(rawConstraints)) {
+      return {
+        valid: false,
+        value: null,
+        code: 'INVALID_CONSTRAINTS',
+        message: 'constraints: must be an object',
+      };
+    }
+    const cObj = rawConstraints as Record<string, unknown>;
+    for (const k of Object.keys(cObj)) {
+      if (!ALLOWED_CONSTRAINT_KEYS.has(k)) {
+        return {
+          valid: false,
+          value: null,
+          code: 'INVALID_CONSTRAINTS',
+          message: `constraints.${k}: unknown constraint key`,
+        };
+      }
+    }
+    if (
+      cObj.priceMin !== undefined &&
+      (typeof cObj.priceMin !== 'number' || !Number.isFinite(cObj.priceMin) || cObj.priceMin < 0)
+    ) {
+      return {
+        valid: false,
+        value: null,
+        code: 'INVALID_CONSTRAINTS',
+        message: 'constraints.priceMin: must be a non-negative number',
+      };
+    }
+    if (
+      cObj.priceMax !== undefined &&
+      (typeof cObj.priceMax !== 'number' || !Number.isFinite(cObj.priceMax) || cObj.priceMax < 0)
+    ) {
+      return {
+        valid: false,
+        value: null,
+        code: 'INVALID_CONSTRAINTS',
+        message: 'constraints.priceMax: must be a non-negative number',
+      };
+    }
+    if (
+      typeof cObj.priceMin === 'number' &&
+      typeof cObj.priceMax === 'number' &&
+      cObj.priceMin > cObj.priceMax
+    ) {
+      return {
+        valid: false,
+        value: null,
+        code: 'INVALID_CONSTRAINTS',
+        message: 'constraints.priceMin cannot be greater than constraints.priceMax',
+      };
+    }
+    if (cObj.inStock !== undefined && typeof cObj.inStock !== 'boolean') {
+      return {
+        valid: false,
+        value: null,
+        code: 'INVALID_CONSTRAINTS',
+        message: 'constraints.inStock: must be a boolean',
+      };
+    }
+  }
+
+  const merged: SearchFilters = {
+    ...(rawFilters || {}),
+    ...((rawConstraints as SearchFilters) || {}),
+  };
+  return {
+    valid: true,
+    value: normalizeSearchFilters(merged, resolvedCategory),
+  };
+}
+
+export const QUERY_SHAPE_BIAS_MULTIPLIERS: Readonly<
+  Record<QueryShape, { lexical: number; semantic: number }>
+> = Object.freeze({
+  sku_like: { lexical: 1.25, semantic: 0.85 },
+  short: { lexical: 1.1, semantic: 0.92 },
+  natural: { lexical: 0.95, semantic: 1.05 },
+});
+
+/**
+ * Deterministic rule-based classifier for query shape:
+ * - `sku_like`: 1–2 tokens with digits/hyphens/codes resembling a SKU, part number, or viscosity/model code (e.g. "BOS-1001", "5W-40", "SKU-0012")
+ * - `short`: 1–2 natural language tokens after normalization
+ * - `natural`: >= 3 tokens (multi-word phrase / natural language intent)
+ */
+export function classifyQueryShape(normalizedQuery: string, rawQuery?: string): QueryShape {
+  const source = (rawQuery || normalizedQuery || '').trim();
+  const norm = (normalizedQuery || source).trim();
+  const rawTokens = source
+    .split(/[\s,;()[\]"«»]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const normTokens = norm
+    .split(/[\s,;()[\]"«»]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  if (normTokens.length === 0) {
+    return 'short';
+  }
+
+  if (rawTokens.length <= 2 && normTokens.length <= 2) {
+    const looksLikeSku = rawTokens.some((tok) => {
+      const hasDigit = /\d/.test(tok);
+      const hasLetter = /[a-zа-яё]/i.test(tok);
+      const hasCodeSeparator = /[-_/]/.test(tok);
+      const isPureDigitsCode = /^\d{3,}$/.test(tok);
+      return (hasDigit && (hasLetter || hasCodeSeparator)) || isPureDigitsCode;
+    });
+    if (looksLikeSku) {
+      return 'sku_like';
+    }
+    return 'short';
+  }
+
+  return 'natural';
+}
+
+/**
+ * Applies deterministic query-shape bias to channel weights before fusion.
+ * Multiplies (w_lexical, w_dense) by QUERY_SHAPE_BIAS_MULTIPLIERS[queryShape],
+ * renormalizes to sum=1, and clamps into [0.15, 0.85] (unless a channel weight is explicitly 0).
+ */
+export function applyQueryShapeBias(
+  paramsOrWeights: {
+    lexical?: number;
+    semantic?: number;
+    lexicalWeight?: number;
+    denseWeight?: number;
+    queryShape?: QueryShape;
+    enabled?: boolean;
+  },
+  queryShapeArg?: QueryShape
+): {
+  lexical: number;
+  semantic: number;
+  lexicalWeight: number;
+  denseWeight: number;
+  effectiveAlpha: number;
+  weightsEffective: { lexical: number; semantic: number };
+} {
+  const lexicalWeight = paramsOrWeights.lexicalWeight ?? paramsOrWeights.lexical ?? 0.5;
+  const denseWeight = paramsOrWeights.denseWeight ?? paramsOrWeights.semantic ?? 0.5;
+  const queryShape: QueryShape =
+    queryShapeArg ?? paramsOrWeights.queryShape ?? 'short';
+  const enabled = paramsOrWeights.enabled ?? true;
+
+  if (lexicalWeight <= 0 || denseWeight <= 0) {
+    const isLexOnly = lexicalWeight > 0 && denseWeight <= 0;
+    const isDenseOnly = denseWeight > 0 && lexicalWeight <= 0;
+    const lexEff = isLexOnly ? 1 : isDenseOnly ? 0 : 0.5;
+    const semEff = isDenseOnly ? 1 : isLexOnly ? 0 : 0.5;
+    return {
+      lexical: lexEff,
+      semantic: semEff,
+      lexicalWeight,
+      denseWeight,
+      effectiveAlpha: semEff,
+      weightsEffective: { lexical: lexEff, semantic: semEff },
+    };
+  }
+
+  const mult = QUERY_SHAPE_BIAS_MULTIPLIERS[queryShape] || QUERY_SHAPE_BIAS_MULTIPLIERS.short;
+  const biasedLex = lexicalWeight * mult.lexical;
+  const biasedSem = denseWeight * mult.semantic;
+  const sum = biasedLex + biasedSem;
+  let normLex = sum > 0 ? biasedLex / sum : 0.5;
+  normLex = Math.min(0.85, Math.max(0.15, normLex));
+  const normSem = Number((1 - normLex).toFixed(4));
+  const roundedLex = Number(normLex.toFixed(4));
+
+  const weightsEffective = {
+    lexical: roundedLex,
+    semantic: normSem,
+  };
+
+  if (!enabled) {
+    const baseSum = lexicalWeight + denseWeight;
+    const baseSem = baseSum > 0 ? Number((denseWeight / baseSum).toFixed(4)) : 0.5;
+    const baseLex = Number((1 - baseSem).toFixed(4));
+    return {
+      lexical: baseLex,
+      semantic: baseSem,
+      lexicalWeight,
+      denseWeight,
+      effectiveAlpha: baseSem,
+      weightsEffective: { lexical: baseLex, semantic: baseSem },
+    };
+  }
+
+  return {
+    lexical: roundedLex,
+    semantic: normSem,
+    lexicalWeight: roundedLex,
+    denseWeight: normSem,
+    effectiveAlpha: normSem,
+    weightsEffective,
+  };
+}
+
+function escapeHtmlSafe(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Generates XSS-safe HTML highlights (`<em>...</em>`) for `title` and `sku`
+ * using only matched terms/stems from the normalized query.
+ */
+export function buildHitHighlights(params: {
+  normalizedQuery: string;
+  rawQuery?: string;
+  title?: string;
+  sku?: string;
+}): HitHighlights {
+  const { normalizedQuery, rawQuery, title, sku } = params;
+  const baseTokens = BM25Index.tokenize(normalizedQuery || '');
+  const rawCodeTokens = `${normalizedQuery || ''} ${rawQuery || ''}`
+    .toLowerCase()
+    .split(/[\s,;()[\]"«»]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2 && /[a-zа-яё0-9]+-[a-zа-яё0-9]+/i.test(t));
+
+  const candidatePatterns = new Set<string>();
+  for (const tok of [...rawCodeTokens, ...baseTokens]) {
+    const clean = tok.trim().toLowerCase();
+    if (clean.length < 2) continue;
+    candidatePatterns.add(clean);
+    if (clean.length >= 5 && !/\d/.test(clean)) {
+      candidatePatterns.add(clean.slice(0, clean.length - 1));
+      candidatePatterns.add(clean.slice(0, clean.length - 2));
+    }
+  }
+
+  const sortedTerms = Array.from(candidatePatterns).sort((a, b) => b.length - a.length);
+  if (sortedTerms.length === 0) {
+    return {
+      ...(title ? { title: escapeHtmlSafe(title) } : {}),
+      ...(sku ? { sku: escapeHtmlSafe(sku) } : {}),
+    };
+  }
+
+  const highlightField = (rawText: string | undefined): string | undefined => {
+    if (!rawText) return undefined;
+    const escaped = escapeHtmlSafe(rawText);
+    const regexParts = sortedTerms.map(
+      (term) => `${escapeRegExp(escapeHtmlSafe(term))}[a-zA-Zа-яА-ЯёЁ0-9-]*`
+    );
+    const re = new RegExp(`(${regexParts.join('|')})`, 'giu');
+    return escaped.replace(re, '<em>$1</em>');
+  };
+
+  return {
+    ...(title ? { title: highlightField(title) } : {}),
+    ...(sku ? { sku: highlightField(sku) } : {}),
+  };
+}
+
+const VALID_FACET_FIELDS: ReadonlyArray<FacetField> = ['brand', 'category'];
+
+/**
+ * Validates optional `facets` array in search request (`Array<"brand" | "category">`, max 3).
+ */
+export function validateFacetsRequest(
+  rawFacets: unknown
+): RetrievalValidationResult<FacetField[] | null> {
+  if (rawFacets === undefined || rawFacets === null) {
+    return { valid: true, value: null };
+  }
+  if (!Array.isArray(rawFacets) || rawFacets.length > 3) {
+    return {
+      valid: false,
+      value: null,
+      code: 'INVALID_FACETS',
+      message: 'facets: must be an array of up to 3 facet fields ("brand", "category")',
+    };
+  }
+  const fields: FacetField[] = [];
+  for (const item of rawFacets) {
+    if (typeof item !== 'string' || !VALID_FACET_FIELDS.includes(item as FacetField)) {
+      return {
+        valid: false,
+        value: null,
+        code: 'INVALID_FACETS',
+        message: `facets: unsupported facet field "${String(item)}" (allowed: brand, category)`,
+      };
+    }
+    if (!fields.includes(item as FacetField)) {
+      fields.push(item as FacetField);
+    }
+  }
+  return { valid: true, value: fields.length > 0 ? fields : null };
+}
+
+/**
+ * Computes facet bucket counts over the eligible candidate set (after constraints + category gate, before final limit).
+ */
+export function computeFacetCounts(
+  items: FilterableCatalogItem[],
+  facetFields: FacetField[] | null | undefined,
+  topN: number = 25
+): FacetCounts | undefined {
+  if (!facetFields || facetFields.length === 0) return undefined;
+
+  const result: FacetCounts = {};
+  for (const field of facetFields) {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      const rawVal = field === 'brand' ? item.brand : item.category;
+      const val = rawVal ? String(rawVal).trim() : '';
+      if (!val) continue;
+      counts.set(val, (counts.get(val) || 0) + 1);
+    }
+    const buckets: FacetBucket[] = Array.from(counts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.value.localeCompare(b.value);
+      })
+      .slice(0, topN);
+    result[field] = buckets;
+  }
+
+  return result;
 }

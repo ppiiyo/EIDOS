@@ -147,10 +147,15 @@ export async function demoRoutes(
       ...summary,
       rankingDefaults: {
         fieldBoosts: defaults.fieldBoosts,
+        fieldImportance: defaults.fieldImportance,
         rankWindow: defaults.rankWindow,
+        channelWindows: defaults.channelWindows,
         rankConstant: defaults.rankConstant,
         weights: defaults.weights,
+        queryShapeBias: defaults.queryShapeBias,
+        fusionMode: defaults.fusionMode,
         filterStrictMissing: defaults.filterStrictMissing,
+        constraintStrictMissing: defaults.constraintStrictMissing,
         simpleCategoryGate: defaults.simpleCategoryGate,
       },
     };

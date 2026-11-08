@@ -7,6 +7,7 @@ import {
   DEFAULT_RANK_CONSTANT,
   DEFAULT_RANK_WINDOW,
   computeWeightedRrfBreakdown,
+  buildHitHighlights,
 } from '@eidos/core';
 
 describe('EIDOS Engine P1 — High-ROI Retrieval Controls (PR1–PR5 & Golden G1–G6 + F1/F2/R1)', () => {
@@ -644,4 +645,249 @@ describe('EIDOS Engine P1 — High-ROI Retrieval Controls (PR1–PR5 & Golden G1
       expect(res2.json().count).toBe(0);
     });
   });
+
+  describe('Retrieval Product Layer v1 — C1, C2, F1, Q1, H1, K1, Linear Fusion & Facets', () => {
+    it('C1 & C2: supports constraints with INVALID_CONSTRAINTS validation and candidatesBeforeConstraints/AfterConstraints', async () => {
+      const validRes = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: {
+          query: 'наушники',
+          constraints: { priceMax: 5000, inStock: true },
+          limit: 10,
+        },
+      });
+      expect(validRes.statusCode).toBe(200);
+      const validBody = validRes.json();
+      expect(validBody.results.length).toBeGreaterThan(0);
+      expect(validBody.meta.constraintsApplied).toEqual({ priceMax: 5000, inStock: true });
+      expect(validBody.meta.candidatesBeforeConstraints).toBeGreaterThan(
+        validBody.meta.candidatesAfterConstraints
+      );
+
+      // Invalid constraints: priceMin > priceMax -> 400 INVALID_CONSTRAINTS
+      const invalidRes = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: {
+          query: 'наушники',
+          constraints: { priceMin: 9000, priceMax: 2000 },
+        },
+      });
+      expect(invalidRes.statusCode).toBe(400);
+      expect(invalidRes.json().code).toBe('INVALID_CONSTRAINTS');
+    });
+
+    it('validates fieldImportance (INVALID_FIELD_IMPORTANCE) and channelWindows (INVALID_CHANNEL_WINDOWS)', async () => {
+      const badFi = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: {
+          query: 'наушники',
+          fieldImportance: { sku: -1 },
+        },
+      });
+      expect(badFi.statusCode).toBe(400);
+      expect(badFi.json().code).toBe('INVALID_FIELD_IMPORTANCE');
+
+      const badCw = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: {
+          query: 'наушники',
+          channelWindows: { lexical: 0, dense: 50 },
+        },
+      });
+      expect(badCw.statusCode).toBe(400);
+      expect(badCw.json().code).toBe('INVALID_CHANNEL_WINDOWS');
+    });
+
+    it('F1: supports fusionMode "rrf" and "linear" and exposes hit.fusion breakdown', async () => {
+      const rrfRes = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: {
+          query: 'наушники',
+          fusionMode: 'rrf',
+          weights: { lexical: 0.65, dense: 0.35 },
+          rankConstant: 60,
+          limit: 5,
+        },
+      });
+      expect(rrfRes.statusCode).toBe(200);
+      const rrfBody = rrfRes.json();
+      expect(rrfBody.meta.fusionMode).toBe('rrf');
+      for (const hit of rrfBody.results) {
+        expect(hit.fusion).toBeDefined();
+        expect(hit.fusion.mode).toBe('rrf');
+        const expected =
+          (hit.fusion.lexicalRank !== null ? 0.65 / (60 + hit.fusion.lexicalRank) : 0) +
+          (hit.fusion.denseRank !== null ? 0.35 / (60 + hit.fusion.denseRank) : 0);
+        expect(Math.abs(hit.fusion.fusedScore - expected)).toBeLessThan(1e-5);
+      }
+
+      const linearRes = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: {
+          query: 'наушники',
+          fusionMode: 'linear',
+          weights: { lexical: 0.6, dense: 0.4 },
+          limit: 5,
+        },
+      });
+      expect(linearRes.statusCode).toBe(200);
+      const linearBody = linearRes.json();
+      expect(linearBody.meta.fusionMode).toBe('linear');
+      expect(linearBody.results.length).toBeGreaterThan(0);
+      for (const hit of linearBody.results) {
+        expect(hit.fusion.mode).toBe('linear');
+        expect(hit.fusion.k).toBe(60);
+        expect(
+          Math.abs(
+            hit.fusion.fusedScore -
+              (hit.fusion.lexicalContribution + hit.fusion.denseContribution)
+          )
+        ).toBeLessThan(1e-6);
+      }
+    });
+
+    it('Q1: classifies queryShape ("sku_like" vs "natural") and biases weightsEffective', async () => {
+      const skuRes = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: { query: '5W-40', limit: 3 },
+      });
+      expect(skuRes.statusCode).toBe(200);
+      const skuMeta = skuRes.json().meta;
+      expect(skuMeta.queryShape).toBe('sku_like');
+      expect(skuMeta.weightsEffective.lexical).toBeGreaterThan(skuMeta.weightsEffective.semantic);
+
+      const natRes = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: { query: 'недорогие наушники для бега', limit: 3 },
+      });
+      expect(natRes.statusCode).toBe(200);
+      const natMeta = natRes.json().meta;
+      expect(natMeta.queryShape).toBe('natural');
+      expect(natMeta.weightsEffective.semantic).toBeGreaterThan(natMeta.weightsEffective.lexical);
+    });
+
+    it('H1 & Facets: builds XSS-safe <em> highlights in title/sku and returns side-channel facet counts', async () => {
+      // 1. Direct unit check of buildHitHighlights HTML escaping
+      const directHl = buildHitHighlights({
+        normalizedQuery: '5w-40',
+        rawQuery: '5W-40',
+        title: 'Моторное масло 5W-40 <img src=x onerror=alert(1)>',
+        sku: 'SKU-5W-40-<script>',
+      });
+      expect(directHl.title).toContain('<em>5W-40</em>');
+      expect(directHl.title).not.toContain('<img');
+      expect(directHl.title).toContain('&lt;img');
+      expect(directHl.sku).toContain('<em>');
+      expect(directHl.sku).toContain('5W-40');
+      expect(directHl.sku).not.toContain('<script>');
+      expect(directHl.sku).toContain('&lt;script&gt;');
+
+      // 2. End-to-end API check with upsert sanitization + highlights + facets
+      await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': ADMIN_KEY },
+        payload: {
+          items: [
+            {
+              id: 'xss-item-1',
+              sku: 'SKU-5W-40-<script>',
+              brand: 'Motul',
+              title: 'Моторное масло 5W-40 <img src=x onerror=alert(1)>',
+              category: 'Автотовары и масла',
+              price: 3900,
+              inStock: true,
+            },
+          ],
+        },
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: {
+          query: '5W-40',
+          facets: ['brand', 'category'],
+          limit: 10,
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.results.length).toBeGreaterThan(0);
+      expect(body.results[0].highlights.title).toContain('<em>');
+      const xssHit = body.results.find((r: any) => r.id === 'xss-item-1');
+      if (xssHit) {
+        expect(xssHit.highlights.title).toContain('<em>5W-40</em>');
+        expect(xssHit.highlights.title).not.toContain('<img');
+        expect(xssHit.highlights.sku).not.toContain('<script>');
+      }
+      expect(body.facets).toBeDefined();
+      expect(Array.isArray(body.facets.brand)).toBe(true);
+      expect(Array.isArray(body.facets.category)).toBe(true);
+      expect(body.facets.category.length).toBeGreaterThan(0);
+    });
+
+    it('K1: caches identical query (cacheHit: true) and invalidates cache on catalog upsert (catalogVersion++)', async () => {
+      const qPayload = { query: 'беговые кроссовки', limit: 5 };
+      const first = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: qPayload,
+      });
+      expect(first.statusCode).toBe(200);
+      const firstJson = first.json();
+      expect(firstJson.meta.cacheHit).toBe(false);
+
+      const second = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: qPayload,
+      });
+      expect(second.statusCode).toBe(200);
+      const secondJson = second.json();
+      expect(secondJson.meta.cacheHit).toBe(true);
+      expect(secondJson.meta.catalogVersion).toBe(firstJson.meta.catalogVersion);
+
+      // Mutate catalog via upsert
+      await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': ADMIN_KEY },
+        payload: {
+          items: [
+            {
+              id: 'cache-bust-shoe-1',
+              sku: 'SHOE-CB-1',
+              brand: 'Asics',
+              title: 'Беговые кроссовки Asics CloudSpeed',
+              category: 'Обувь и кроссовки',
+              price: 7990,
+              inStock: true,
+            },
+          ],
+        },
+      });
+
+      const third = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/search',
+        payload: qPayload,
+      });
+      expect(third.statusCode).toBe(200);
+      const thirdJson = third.json();
+      expect(thirdJson.meta.cacheHit).toBe(false);
+      expect(thirdJson.meta.catalogVersion).toBeGreaterThan(firstJson.meta.catalogVersion);
+      expect(Array.isArray(thirdJson.meta.pipelineStages)).toBe(true);
+      expect(thirdJson.meta.pipelineStages.length).toBe(13);
+    });
+  });
 });
+

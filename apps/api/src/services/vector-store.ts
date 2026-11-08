@@ -24,7 +24,12 @@ import {
   DEFAULT_RANK_WINDOW,
   DEFAULT_RANK_CONSTANT,
   RrfBreakdown,
+  FusionMode,
   computeWeightedRrfBreakdown,
+  computeLinearFusionBreakdown,
+  FacetField,
+  FacetCounts,
+  computeFacetCounts,
 } from '@eidos/core';
 import { StoredItem } from '../types';
 import { CatalogItem } from '../demo/demo-catalog';
@@ -67,6 +72,7 @@ export class VectorStore {
   private wal: WriteAheadLog;
   private options?: VectorStoreOptions;
   private explicitlyCleared = false;
+  private catalogVersion = 1;
 
   constructor(options?: VectorStoreOptions) {
     this.options = options;
@@ -86,6 +92,10 @@ export class VectorStore {
     return this.explicitlyCleared && this.items.size === 0;
   }
 
+  public getCatalogVersion(): number {
+    return this.catalogVersion;
+  }
+
   private snapshotTimer: NodeJS.Timeout | null = null;
 
   /**
@@ -96,6 +106,7 @@ export class VectorStore {
     embedder: ServerEmbedder = ServerEmbedder.getInstance()
   ): Promise<void> {
     this.explicitlyCleared = false;
+    this.catalogVersion += 1;
     const BATCH_SIZE = 100;
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
@@ -146,6 +157,7 @@ export class VectorStore {
   public async clear(): Promise<void> {
     this.items.clear();
     this.explicitlyCleared = true;
+    this.catalogVersion += 1;
     this.hnsw = new HNSWIndex({
       M: this.options?.M ?? 16,
       M0: (this.options?.M ?? 16) * 2,
@@ -170,6 +182,7 @@ export class VectorStore {
 
   public upsert(item: StoredItem, options?: { fastLeaf?: boolean }): void {
     this.explicitlyCleared = false;
+    this.catalogVersion += 1;
     const id = String(item.id);
     const sku = item.sku && String(item.sku).trim() !== '' ? String(item.sku).trim() : id;
     const url = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : `/product/${encodeURIComponent(id)}`;
@@ -206,12 +219,18 @@ export class VectorStore {
       nodeId: id,
       vector: normalized,
     });
+
+    if (!options?.fastLeaf) {
+      ApiQueryCache.invalidateAll();
+      getSemanticCache().clear();
+    }
   }
 
   /**
    * Bulk-seeds 5,000+ catalog items in <35ms using multi-anchor HNSW graph construction + BM25 indexing.
    */
   public bulkSeed(items: StoredItem[]): void {
+    this.catalogVersion += 1;
     const categoryAnchors = new Map<string, string>();
     const fullHnswLimit = 20;
 
@@ -250,18 +269,23 @@ export class VectorStore {
       const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
       this.bm25.addDocument(id, docText);
     }
+    ApiQueryCache.invalidateAll();
+    getSemanticCache().clear();
   }
 
   public delete(id: string): boolean {
     const strId = String(id);
     const existed = this.items.delete(strId);
     if (existed) {
+      this.catalogVersion += 1;
       this.hnsw.delete(strId);
       this.bm25.removeDocument(strId);
       this.wal.append({
         type: 'DELETE_NODE',
         nodeId: strId,
       });
+      ApiQueryCache.invalidateAll();
+      getSemanticCache().clear();
     }
     return existed;
   }
@@ -636,6 +660,9 @@ export class VectorStore {
       filterStrictMissing?: boolean;
       rankWindow?: Required<RankWindow>;
       rankConstant?: number;
+      fusionMode?: FusionMode;
+      facets?: FacetField[] | null;
+      facetsOut?: { facets?: FacetCounts };
       preserveExactRrfOrder?: boolean;
       filterStatsOut?: { candidatesBeforeFilter: number; candidatesAfterFilter: number };
     }
@@ -657,6 +684,9 @@ export class VectorStore {
         options.filterStatsOut.candidatesBeforeFilter = 0;
         options.filterStatsOut.candidatesAfterFilter = 0;
       }
+      if (options?.facets && options.facets.length > 0 && options.facetsOut) {
+        options.facetsOut.facets = computeFacetCounts([], options.facets);
+      }
       return [];
     }
 
@@ -665,9 +695,10 @@ export class VectorStore {
     const resolvedFieldBoosts = options?.fieldBoosts ?? DEFAULT_FIELD_BOOSTS;
     const resolvedRankWindow = options?.rankWindow ?? DEFAULT_RANK_WINDOW;
     const k = options?.rankConstant ?? DEFAULT_RANK_CONSTANT;
+    const fusionMode: FusionMode = options?.fusionMode ?? 'rrf';
     const strictMissing = options?.filterStrictMissing ?? true;
 
-    // 1. Structured filters (Feature B): boolean predicate before RRF fusion, never adds score
+    // 1. Catalog constraints / structured filters: boolean predicate before fusion, never adds score
     const effectiveFilters: SearchFilters | null = options?.filters
       ? { ...options.filters }
       : filterCategory
@@ -686,6 +717,9 @@ export class VectorStore {
       options.filterStatsOut.candidatesAfterFilter = candidatesAfterFilter;
     }
     if (filteredItems.length === 0) {
+      if (options?.facets && options.facets.length > 0 && options.facetsOut) {
+        options.facetsOut.facets = computeFacetCounts([], options.facets);
+      }
       return [];
     }
 
@@ -698,7 +732,7 @@ export class VectorStore {
       new Set([...queryInfo.coreStems, ...headIntent.familyStems])
     ).filter((s) => s.length >= 3);
 
-    // 2. Lexical channel (Feature A — Multi-Field BM25 with fieldBoosts + Feature C — rankWindow.lexical)
+    // 2. Lexical channel (Multi-Field BM25 with fieldImportance/fieldBoosts + channelWindows.lexical)
     const lexicalScoredById = new Map<
       string,
       {
@@ -767,8 +801,7 @@ export class VectorStore {
       lexicalRankMap.set(lexicalWindowed[i].item.id, i + 1);
     }
 
-    // 3. Dense channel (HNSW + Exact Cosine + Feature C — rankWindow.dense)
-    // Exercise HNSW graph walk for index telemetry, then rank filtered items by exact cosine similarity
+    // 3. Dense channel (HNSW + Exact Cosine + channelWindows.dense)
     this.hnsw.search(qVec, Math.min(Math.max(resolvedRankWindow.dense, 32), 200));
 
     const denseScoredById = new Map<string, number>();
@@ -795,7 +828,21 @@ export class VectorStore {
       denseRankMap.set(denseWindowed[i].item.id, i + 1);
     }
 
-    // 4. Candidate union entering Weighted RRF (Feature D)
+    // Min-Max normalization bounds for linear fusion mode
+    let minLexWindow = 0;
+    let maxLexWindow = 0;
+    if (fusionMode === 'linear' && lexicalWindowed.length > 0) {
+      maxLexWindow = lexicalWindowed[0].lexicalScore;
+      minLexWindow = lexicalWindowed[lexicalWindowed.length - 1].lexicalScore;
+    }
+    let minDenseWindow = 0;
+    let maxDenseWindow = 0;
+    if (fusionMode === 'linear' && denseWindowed.length > 0) {
+      maxDenseWindow = denseWindowed[0].exactDense;
+      minDenseWindow = denseWindowed[denseWindowed.length - 1].exactDense;
+    }
+
+    // 4. Candidate union entering Weighted Fusion (RRF or Linear)
     const candidateItemMap = new Map<string, StoredItem>();
     if (sparseWeight > 0 || denseWeight === 0) {
       for (const entry of lexicalWindowed) {
@@ -849,13 +896,41 @@ export class VectorStore {
       const lexicalRank = lexicalRankMap.get(stored.id) ?? null;
       const denseRank = denseRankMap.get(stored.id) ?? null;
 
-      const rrf = computeWeightedRrfBreakdown({
-        k,
-        lexicalRank,
-        denseRank,
-        lexicalWeight: sparseWeight,
-        denseWeight,
-      });
+      let rrf: RrfBreakdown;
+      if (fusionMode === 'linear') {
+        const normLex =
+          lexicalRank !== null
+            ? maxLexWindow > minLexWindow
+              ? (sparseScore - minLexWindow) / (maxLexWindow - minLexWindow)
+              : sparseScore > 0
+              ? 1
+              : 0
+            : 0;
+        const normDense =
+          denseRank !== null
+            ? maxDenseWindow > minDenseWindow
+              ? (exactDense - minDenseWindow) / (maxDenseWindow - minDenseWindow)
+              : exactDense > 0
+              ? 1
+              : 0
+            : 0;
+        rrf = computeLinearFusionBreakdown({
+          lexicalRank,
+          denseRank,
+          normalizedLexicalScore: normLex,
+          normalizedDenseScore: normDense,
+          lexicalWeight: sparseWeight,
+          denseWeight,
+        });
+      } else {
+        rrf = computeWeightedRrfBreakdown({
+          k,
+          lexicalRank,
+          denseRank,
+          lexicalWeight: sparseWeight,
+          denseWeight,
+        });
+      }
 
       const rrfScore = rrf.fusedScore;
       const source =
@@ -945,6 +1020,9 @@ export class VectorStore {
     // Strict zero-results guardrail: never bypass passesGate when no candidates qualify
     let finalPool = scoredCandidates.filter((c) => c.passesGate);
     if (finalPool.length === 0) {
+      if (options?.facets && options.facets.length > 0 && options.facetsOut) {
+        options.facetsOut.facets = computeFacetCounts([], options.facets);
+      }
       return [];
     }
 
@@ -966,7 +1044,18 @@ export class VectorStore {
     }
 
     if (finalPool.length === 0) {
+      if (options?.facets && options.facets.length > 0 && options.facetsOut) {
+        options.facetsOut.facets = computeFacetCounts([], options.facets);
+      }
       return [];
+    }
+
+    // Side-channel Facet Counts computed over candidate pool after constraints + gate (before limit)
+    if (options?.facets && options.facets.length > 0 && options.facetsOut) {
+      options.facetsOut.facets = computeFacetCounts(
+        finalPool.map((c) => c.item),
+        options.facets
+      );
     }
 
     finalPool.sort((a, b) => {
