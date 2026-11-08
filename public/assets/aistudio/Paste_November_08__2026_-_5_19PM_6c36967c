@@ -1,0 +1,339 @@
+2026-11-08T13:54:17.7974979Z ##[group]Run pnpm test
+2026-11-08T13:54:17.7975165Z [36;1mpnpm test[0m
+2026-11-08T13:54:17.7991766Z shell: /usr/bin/bash -e {0}
+2026-11-08T13:54:17.7991917Z env:
+2026-11-08T13:54:17.7992064Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-11-08T13:54:17.7992250Z ##[endgroup]
+2026-11-08T13:54:18.0591535Z 
+2026-11-08T13:54:18.0592556Z > eidos@3.4.0 test /home/runner/work/EIDOS/EIDOS
+2026-11-08T13:54:18.0592971Z > vitest run
+2026-11-08T13:54:18.0593128Z 
+2026-11-08T13:54:18.2942260Z [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+2026-11-08T13:54:18.3168643Z 
+2026-11-08T13:54:18.3170336Z [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/EIDOS/EIDOS[39m
+2026-11-08T13:54:18.3170903Z 
+2026-11-08T13:54:19.7111961Z  [32m✓[39m tests/unit/woocommerce-parity-and-pilot-golden-path.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 205[2mms[22m[39m
+2026-11-08T13:54:21.8161809Z  [32m✓[39m tests/unit/admin-console-and-public-demo.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 1451[2mms[22m[39m
+2026-11-08T13:54:21.8163515Z    [33m[2m✓[22m[39m EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)[2m > [22m9. POST /v1/demo/load indexes 1000+ SKU, serves GET /v1/demo/analytics without auth, and passes 10 WOW Golden Queries with model diversity & human explanations [33m601[2mms[22m[39m
+2026-11-08T13:54:21.8225773Z    [33m[2m✓[22m[39m EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)[2m > [22m12. Cold-start /v1/demo/search auto-seeds 1000+ SKU without manual click and passes 15-query Pilot Golden Matrix (>=80% top-3 OK, garbage -> 0) [33m542[2mms[22m[39m
+2026-11-08T13:54:22.9965082Z  [32m✓[39m tests/unit/p0-p1-master-spec.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1805[2mms[22m[39m
+2026-11-08T13:54:22.9966991Z    [33m[2m✓[22m[39m EIDOS Master Spec (P0 + P1) Automated Acceptance Suite[2m > [22m9. merch.rules & fallback.contract: pin rule moves product to position #1 and empty index returns 503 INDEX_EMPTY [33m481[2mms[22m[39m
+2026-11-08T13:54:24.5641172Z  [32m✓[39m tests/unit/v34-zero-bug-acceptance.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1259[2mms[22m[39m
+2026-11-08T13:54:24.5642569Z    [33m[2m✓[22m[39m EIDOS v3.4.0 Zero-Bug Acceptance Suite (Server + Client + 1C-Bitrix)[2m > [22m2. 520-SKU catalog on server /v1/search: "недорогие наушники для бега" -> top-3 category = Наушники (never Кроссовки) [33m358[2mms[22m[39m
+2026-11-08T13:54:24.5643657Z    [33m[2m✓[22m[39m EIDOS v3.4.0 Zero-Bug Acceptance Suite (Server + Client + 1C-Bitrix)[2m > [22m3. Client 1,000+ SKU scaled catalog: "недорогие наушники для бега" -> top-3 category = Наушники [33m678[2mms[22m[39m
+2026-11-08T13:54:24.6338308Z {"level":30,"time":1794146064632,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.6461945Z {"level":30,"time":1794146064645,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":11.554843999998411,"msg":"request completed"}
+2026-11-08T13:54:24.6462808Z {"level":30,"time":1794146064645,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.6484789Z {"level":30,"time":1794146064646,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":403},"responseTime":1.4777909999975236,"msg":"request completed"}
+2026-11-08T13:54:24.6485749Z {"level":30,"time":1794146064647,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.6486744Z {"level":30,"time":1794146064647,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":403},"responseTime":0.47523999999975786,"msg":"request completed"}
+2026-11-08T13:54:24.6488222Z {"level":30,"time":1794146064648,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"POST","url":"/v1/keys/generate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.6538088Z {"level":30,"time":1794146064648,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":403},"responseTime":0.8231159999995725,"msg":"request completed"}
+2026-11-08T13:54:24.6839080Z {"level":30,"time":1794146064681,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.6917015Z {"level":30,"time":1794146064685,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":3.8445900000006077,"msg":"request completed"}
+2026-11-08T13:54:24.6918550Z {"level":30,"time":1794146064685,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"GET","url":"/v1/catalog/export?format=json","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.6919901Z {"level":30,"time":1794146064686,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.5055070000016713,"msg":"request completed"}
+2026-11-08T13:54:24.7047976Z {"level":30,"time":1794146064704,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/admin/keys","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7066168Z {"level":30,"time":1794146064705,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":201},"responseTime":1.3843219999980647,"msg":"request completed"}
+2026-11-08T13:54:24.7067241Z {"level":30,"time":1794146064706,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/keys/rotate","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7085883Z {"level":30,"time":1794146064707,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.8828680000005988,"msg":"request completed"}
+2026-11-08T13:54:24.7087388Z {"level":30,"time":1794146064708,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7109354Z {"level":30,"time":1794146064710,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":2.0743409999995492,"msg":"request completed"}
+2026-11-08T13:54:24.7110816Z {"level":30,"time":1794146064710,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7178346Z {"level":30,"time":1794146064711,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":200},"responseTime":1.288979000004474,"msg":"request completed"}
+2026-11-08T13:54:24.7340076Z {"level":30,"time":1794146064733,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"GET","url":"/v1/health","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7363739Z {"level":30,"time":1794146064736,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":2.3574359999984154,"msg":"request completed"}
+2026-11-08T13:54:24.7377974Z {"level":30,"time":1794146064736,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"GET","url":"/v1/ready","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7443996Z {"level":30,"time":1794146064737,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.9899189999996452,"msg":"request completed"}
+2026-11-08T13:54:24.7541330Z {"level":30,"time":1794146064753,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7625027Z {"level":30,"time":1794146064757,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":3.248092000001634,"msg":"request completed"}
+2026-11-08T13:54:24.7626206Z {"level":30,"time":1794146064757,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"GET","url":"/metrics","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7627497Z {"level":30,"time":1794146064758,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":1.0273349999988568,"msg":"request completed"}
+2026-11-08T13:54:24.7767235Z {"level":30,"time":1794146064776,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7777133Z {"level":40,"time":1794146064776,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","event":"auth_failed","reason":"invalid_key","requestId":"req_3f199b8a725e","keyId":"invali...00 (id:83fe5847)","ip":"127.0.0.1","path":"/v1/catalog/upsert"}
+2026-11-08T13:54:24.7778246Z {"level":30,"time":1794146064777,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":401},"responseTime":0.795006000000285,"msg":"request completed"}
+2026-11-08T13:54:24.7779380Z {"level":30,"time":1794146064777,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/search","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7845617Z {"level":30,"time":1794146064778,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":1.4900410000045667,"msg":"request completed"}
+2026-11-08T13:54:24.7846441Z {"level":30,"time":1794146064779,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"GET","url":"/v1/admin/logs?limit=20","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7847301Z {"level":30,"time":1794146064779,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":0.3940329999968526,"msg":"request completed"}
+2026-11-08T13:54:24.7925507Z {"level":30,"time":1794146064792,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"POST","url":"/v1/catalog/upsert","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7942870Z {"level":30,"time":1794146064793,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":1.3989350000047125,"msg":"request completed"}
+2026-11-08T13:54:24.7943787Z {"level":30,"time":1794146064793,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.7988511Z {"level":30,"time":1794146064798,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":201},"responseTime":4.631843000002846,"msg":"request completed"}
+2026-11-08T13:54:24.8013389Z {"level":30,"time":1794146064798,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"GET","url":"/v1/snapshots","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8014583Z {"level":30,"time":1794146064799,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":0.35812900000019,"msg":"request completed"}
+2026-11-08T13:54:24.8015371Z {"level":30,"time":1794146064799,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"GET","url":"/v1/catalog/export?format=csv","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8016423Z {"level":30,"time":1794146064799,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":200},"responseTime":0.32933500000217464,"msg":"request completed"}
+2026-11-08T13:54:24.8017321Z {"level":30,"time":1794146064799,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-5","req":{"method":"DELETE","url":"/v1/catalog/items/snap-item-1","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8018051Z {"level":30,"time":1794146064800,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-5","res":{"statusCode":200},"responseTime":0.5979389999993145,"msg":"request completed"}
+2026-11-08T13:54:24.8018788Z {"level":30,"time":1794146064800,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-6","req":{"method":"POST","url":"/v1/snapshots/restore","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8019766Z {"level":30,"time":1794146064801,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-6","res":{"statusCode":200},"responseTime":1.0514509999993606,"msg":"request completed"}
+2026-11-08T13:54:24.8147559Z {"level":30,"time":1794146064814,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","req":{"method":"GET","url":"/v1/admin/stats","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8166241Z {"level":30,"time":1794146064816,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-1","res":{"statusCode":200},"responseTime":1.8681799999976647,"msg":"request completed"}
+2026-11-08T13:54:24.8182288Z {"level":30,"time":1794146064816,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","req":{"method":"POST","url":"/v1/admin/optimize","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8183594Z {"level":30,"time":1794146064817,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-2","res":{"statusCode":200},"responseTime":0.9608050000024377,"msg":"request completed"}
+2026-11-08T13:54:24.8184854Z {"level":30,"time":1794146064817,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","req":{"method":"POST","url":"/v1/admin/reindex","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8204051Z {"level":30,"time":1794146064818,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-3","res":{"statusCode":200},"responseTime":0.5924710000035702,"msg":"request completed"}
+2026-11-08T13:54:24.8205285Z {"level":30,"time":1794146064818,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","req":{"method":"GET","url":"/v1/analytics/queries","hostname":"localhost:80","remoteAddress":"127.0.0.1"},"msg":"incoming request"}
+2026-11-08T13:54:24.8206034Z {"level":30,"time":1794146064819,"pid":2492,"hostname":"runnervm7aw5e","reqId":"req-4","res":{"statusCode":200},"responseTime":0.5174179999958142,"msg":"request completed"}
+2026-11-08T13:54:24.8207289Z  [32m✓[39m apps/api/tests/v35-production-gate.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 348[2mms[22m[39m
+2026-11-08T13:54:26.6007779Z  [32m✓[39m tests/unit/one-command-pilot-and-widget.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 448[2mms[22m[39m
+2026-11-08T13:54:26.6009762Z    [33m[2m✓[22m[39m EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite[2m > [22mPart D.2 & C.1 — Fastify API Empty Catalog 200 OK, Calibrated scorePercent, and GET /widget.js[2m > [22mreturns 200 OK with empty results on 0 SKU catalog, serves /widget.js, and returns scorePercent after upsert [33m423[2mms[22m[39m
+2026-11-08T13:54:27.3385304Z  [32m✓[39m apps/api/tests/phase1-api-hardening.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1230[2mms[22m[39m
+2026-11-08T13:54:27.3387056Z    [33m[2m✓[22m[39m PHASE 1: Critical API Fixes & Security Hardening[2m > [22mTASK 1.2: Security Stack (CORS, Helmet CSP, Rate Limiting)[2m > [22menforces rate limiting with 429 Too Many Requests when threshold is exceeded [33m438[2mms[22m[39m
+2026-11-08T13:54:28.3365670Z  [32m✓[39m apps/api/tests/phase4-horizontal-scaling-e2e.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 208[2mms[22m[39m
+2026-11-08T13:54:28.6151540Z  [32m✓[39m tests/integration/phase2-ui-completion.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 173[2mms[22m[39m
+2026-11-08T13:54:29.1007394Z  [32m✓[39m tests/unit/post-v34-hardening.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 210[2mms[22m[39m
+2026-11-08T13:54:29.6678729Z  [32m✓[39m tests/unit/multilingual-crosslingual.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 101[2mms[22m[39m
+2026-11-08T13:54:30.1950298Z  [32m✓[39m tests/unit/roadmap-optimizations-and-ux.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 183[2mms[22m[39m
+2026-11-08T13:54:30.2694121Z  [32m✓[39m tests/connectors/bitrix-and-all-in-one-docker.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 118[2mms[22m[39m
+2026-11-08T13:54:31.3997648Z  [32m✓[39m packages/core/src/tests/strict-validation.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+2026-11-08T13:54:32.0850690Z  [32m✓[39m tests/benchmarks/search-sla.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 651[2mms[22m[39m
+2026-11-08T13:54:32.3091661Z  [32m✓[39m packages/core/src/tests/cognitive-vectors.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-08T13:54:32.7808590Z  [32m✓[39m apps/api/tests/redis-cache.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 875[2mms[22m[39m
+2026-11-08T13:54:33.5838989Z  [32m✓[39m tests/integration/prometheus-metrics.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 801[2mms[22m[39m
+2026-11-08T13:54:33.5840538Z    [33m[2m✓[22m[39m PHASE 3: Prometheus Metrics & Observability Integration Suite[2m > [22m1. Records non-zero HTTP request counters, request duration histograms, and search latencies on /metrics [33m645[2mms[22m[39m
+2026-11-08T13:54:34.0291043Z  [32m✓[39m packages/core/src/tests/hnsw-quantization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 63[2mms[22m[39m
+2026-11-08T13:54:34.7698793Z  [32m✓[39m apps/api/tests/ten-bugs-fixes.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 190[2mms[22m[39m
+2026-11-08T13:54:35.1939168Z  [32m✓[39m tests/unit/services/intent-dictionary.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 821[2mms[22m[39m
+2026-11-08T13:54:36.0241226Z  [32m✓[39m packages/core/src/tests/v3-enterprise.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+2026-11-08T13:54:37.1127769Z  [32m✓[39m tests/integration/critical-routes.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 809[2mms[22m[39m
+2026-11-08T13:54:37.5787155Z  [32m✓[39m apps/api/tests/phase2-product-improvements.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1045[2mms[22m[39m
+2026-11-08T13:54:37.5788252Z    [33m[2m✓[22m[39m PHASE 2: Product Improvements (5,000+ Seed Dataset, OpenAPI 3.0.3, Sentry Error Tracker, Observability & SLA)[2m > [22mTASK 3 / Checkpoint 3 & 5: Catalog starts empty (0 items), loads demo items on demand, memory <512MB, /v1/search <30ms, /v1/recommend <50ms [33m644[2mms[22m[39m
+2026-11-08T13:54:38.7390294Z  [32m✓[39m tests/integration/split-brain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 128[2mms[22m[39m
+2026-11-08T13:54:38.7573318Z  [32m✓[39m tests/integration/modernization-phases-verification.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 144[2mms[22m[39m
+2026-11-08T13:54:40.6918122Z  [32m✓[39m tests/unit/phase3-deterministic-seeding-metrics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 429[2mms[22m[39m
+2026-11-08T13:54:40.6919185Z    [33m[2m✓[22m[39m PHASE 3: Deterministic Seeding (mulberry32) & Real Search Latency Metrics[2m > [22mGET /v1/metrics and GET /v1/catalog/stats reflect real search and recommend latencies [33m408[2mms[22m[39m
+2026-11-08T13:54:40.9563950Z  [32m✓[39m tests/unit/services/search-funnel.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 691[2mms[22m[39m
+2026-11-08T13:54:40.9564852Z    [33m[2m✓[22m[39m Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regression[2m > [22m5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel [33m580[2mms[22m[39m
+2026-11-08T13:54:41.9038672Z  [32m✓[39m tests/unit/phase2-rate-limit-lru.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 41[2mms[22m[39m
+2026-11-08T13:54:42.1119011Z  [32m✓[39m packages/core/src/tests/adaptive/explainability-steering.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:42.7090192Z  [32m✓[39m apps/api/tests/phase3-competitive-edge.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 152[2mms[22m[39m
+2026-11-08T13:54:43.6062114Z  [32m✓[39m apps/api/tests/cache-hardening.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1355[2mms[22m[39m
+2026-11-08T13:54:43.6062754Z    [33m[2m✓[22m[39m Cache Hardening Tests[2m > [22mInMemoryCache[2m > [22mshould expire keys correctly [33m1101[2mms[22m[39m
+2026-11-08T13:54:43.9530046Z  [32m✓[39m packages/core/src/tests/adaptive/multi-interest-tower.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:44.1560379Z  [32m✓[39m packages/core/src/tests/csv-parser.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-08T13:54:44.3514015Z  [31m❯[39m tests/unit/architecture-constraints.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 28[2mms[22m[39m
+2026-11-08T13:54:44.3526708Z [31m   [31m×[31m Phase 5: Architectural Constraints & Quality Invariants[2m > [22menforces <= 300 lines limit across App.tsx and all components in apps/workspace/src/components[90m 11[2mms[22m[31m[39m
+2026-11-08T13:54:44.3528696Z [31m     → expected [ { …(2) } ] to deeply equal [][39m
+2026-11-08T13:54:44.3570140Z  [32m✓[39m tests/multi-tenancy/tenant-isolation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 79[2mms[22m[39m
+2026-11-08T13:54:44.5198636Z  [32m✓[39m packages/core/src/tests/audit-regressions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-08T13:54:44.5329334Z  [32m✓[39m packages/core/tests/multilingual-bm25.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-08T13:54:44.7177064Z  [32m✓[39m packages/sdk/tests/sdk-client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-08T13:54:44.9568555Z  [32m✓[39m tests/unit/store-registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+2026-11-08T13:54:45.1129546Z  [32m✓[39m tests/integration/shopify-webhook.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-11-08T13:54:45.1408906Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-explorer.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-08T13:54:45.3809370Z  [32m✓[39m tests/unit/indexeddb-storage.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+2026-11-08T13:54:45.5289590Z  [32m✓[39m tests/connectors/postgres-cdc.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+2026-11-08T13:54:45.5688663Z  [32m✓[39m packages/core/src/tests/priority2-v2.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-08T13:54:45.7038181Z  [32m✓[39m packages/core/src/tests/persistence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-08T13:54:45.9558828Z  [32m✓[39m tests/unit/honest-embeddings-and-determinism.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+2026-11-08T13:54:45.9874769Z  [32m✓[39m tests/integration/postgres-cdc.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 8[2mms[22m[39m
+2026-11-08T13:54:46.2528643Z  [32m✓[39m tests/unit/components/query-inspector.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+2026-11-08T13:54:46.4731888Z  [32m✓[39m tests/sharding/lsh-router.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+2026-11-08T13:54:46.6236657Z  [32m✓[39m tests/integration/cluster.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 408[2mms[22m[39m
+2026-11-08T13:54:46.6240890Z    [33m[2m✓[22m[39m PHASE 1 - Task 1.1: Multi-Node Cluster Integration Test (3 Shards + Coordinator)[2m > [22mspins up a 3-node HNSW cluster, indexes 300 items, executes 1,000 search queries, and verifies all 3 shards respond with balanced load [33m406[2mms[22m[39m
+2026-11-08T13:54:46.7690218Z  [32m✓[39m apps/api/tests/cache-invalidation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-11-08T13:54:46.7955626Z  [32m✓[39m packages/core/src/tests/adaptive/cross-encoder.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:46.9365015Z  [32m✓[39m packages/core/src/tests/comprehensive-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-08T13:54:47.1943351Z  [32m✓[39m tests/integration/mongodb-changestream.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 10[2mms[22m[39m
+2026-11-08T13:54:47.3019088Z  [32m✓[39m tests/unit/phase2-modern-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+2026-11-08T13:54:47.4697085Z  [32m✓[39m tests/unit/pipeline-sync-and-agent.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+2026-11-08T13:54:47.7579395Z  [32m✓[39m tests/cache/semantic-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:48.0122171Z  [32m✓[39m apps/api/tests/hnsw-store-security.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 180[2mms[22m[39m
+2026-11-08T13:54:48.2823876Z  [32m✓[39m tests/integration/phase3-docs-and-deploy.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 96[2mms[22m[39m
+2026-11-08T13:54:49.1828422Z  [32m✓[39m packages/core/src/tests/adaptive/feature-scaler.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-08T13:54:49.3687660Z  [32m✓[39m packages/core/src/tests/security-guardrails.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+2026-11-08T13:54:49.6864721Z  [32m✓[39m tests/integration/failover.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 114[2mms[22m[39m
+2026-11-08T13:54:50.4559703Z  [32m✓[39m apps/api/tests/v31-release-features.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 933[2mms[22m[39m
+2026-11-08T13:54:50.4560588Z    [33m[2m✓[22m[39m EIDOS v3.1 Release Features & Production Hardening[2m > [22m2. /v1/catalog/stats is public and returns indexed categories after loading demo catalog [33m685[2mms[22m[39m
+2026-11-08T13:54:50.4858281Z  [32m✓[39m tests/unit/phase1-type-safety-csp.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 329[2mms[22m[39m
+2026-11-08T13:54:51.6468114Z  [32m✓[39m packages/core/src/tests/adaptive/bandit-cholesky.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+2026-11-08T13:54:51.7066351Z  [32m✓[39m tests/reranker/cross-encoder.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 23[2mms[22m[39m
+2026-11-08T13:54:51.8199471Z  [32m✓[39m packages/core/src/tests/adaptive/user-tower.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:51.9796264Z  [32m✓[39m packages/core/src/tests/adaptive/ranker.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+2026-11-08T13:54:52.1342727Z  [32m✓[39m packages/core/src/tests/adaptive/candidate-fusion.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:54:52.9633116Z  [32m✓[39m apps/api/tests/recommend-adaptive.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 737[2mms[22m[39m
+2026-11-08T13:54:52.9828235Z  [32m✓[39m tests/unit/api-key-manager.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 391[2mms[22m[39m
+2026-11-08T13:54:54.1249026Z    [33m[2m✓[22m[39m ApiKeyManager & /v1/keys/revoke Rotation[2m > [22mPOST /v1/keys/revoke revokes key and middleware rejects subsequent requests with 401 [33m388[2mms[22m[39m
+2026-11-08T13:54:54.1250267Z  [32m✓[39m packages/core/src/tests/adaptive/feedback-loop.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:54:54.1307059Z  [32m✓[39m packages/core/src/tests/adaptive/metadata-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-08T13:54:54.2733390Z  [32m✓[39m packages/core/src/tests/adaptive/kg-enricher.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-08T13:54:54.4348644Z  [32m✓[39m packages/core/src/tests/clip-embedder.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-08T13:54:55.2850275Z  [32m✓[39m apps/api/tests/feedback.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 394[2mms[22m[39m
+2026-11-08T13:54:55.3150424Z  [32m✓[39m apps/api/tests/recommend-user.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 708[2mms[22m[39m
+2026-11-08T13:54:56.6798964Z  [32m✓[39m tests/unit/vector-store.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:57.5468705Z  [32m✓[39m apps/api/tests/production-hardening.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 401[2mms[22m[39m
+2026-11-08T13:54:57.5477922Z    [33m[2m✓[22m[39m Production Hardening API Integration Tests[2m > [22mTASK 2.1: OpenAPI /docs Swagger specification endpoints [33m399[2mms[22m[39m
+2026-11-08T13:54:57.5558006Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould register /v1/search route
+2026-11-08T13:54:57.5558794Z [22m[39mRegistered routes:
+2026-11-08T13:54:57.5559121Z  ├── /v1/telemetry (GET, HEAD)
+2026-11-08T13:54:57.5559428Z ├── /v1/tenants (GET, HEAD)
+2026-11-08T13:54:57.5559702Z ├── /v1/metrics (GET, HEAD)
+2026-11-08T13:54:57.5560000Z │   └── /prometheus (GET, HEAD)
+2026-11-08T13:54:57.5560847Z ├── /v1/merchandising/rules (POST)
+2026-11-08T13:54:57.5561172Z ├── /v1/diagnostics/errors (GET, HEAD)
+2026-11-08T13:54:57.5561467Z ├── /v1/demo/search (POST)
+2026-11-08T13:54:57.5561729Z ├── /v1/demo/suggest (POST)
+2026-11-08T13:54:57.5562037Z ├── /v1/demo/optimize/pareto (POST)
+2026-11-08T13:54:57.5562335Z ├── /v1/demo/recommend (POST)
+2026-11-08T13:54:57.5562611Z ├── /v1/demo/reset (POST)
+2026-11-08T13:54:57.5562872Z ├── /v1/demo/load (POST)
+2026-11-08T13:54:57.5563156Z ├── /v1/demo/analytics (GET, HEAD)
+2026-11-08T13:54:57.5563489Z ├── /v1/demo/queries (GET, HEAD)
+2026-11-08T13:54:57.5563799Z ├── /v1/openapi.json (GET, HEAD)
+2026-11-08T13:54:57.5564149Z ├── /v1/optimize/pareto (POST)
+2026-11-08T13:54:57.5564428Z ├── /v1/health (GET, HEAD)
+2026-11-08T13:54:57.5564700Z │   ├── /ready (GET, HEAD)
+2026-11-08T13:54:57.5564951Z │   └── /live (GET, HEAD)
+2026-11-08T13:54:57.5565207Z ├── /v1/ready (GET, HEAD)
+2026-11-08T13:54:57.5565460Z ├── /v1/recommend (POST)
+2026-11-08T13:54:57.5565762Z │   ├── /user (POST)
+2026-11-08T13:54:57.5566013Z │   └── /adaptive (POST)
+2026-11-08T13:54:57.5566273Z ├── /v1/routes (GET, HEAD)
+2026-11-08T13:54:57.5566570Z ├── /v1/cluster/status (GET, HEAD)
+2026-11-08T13:54:57.5567073Z ├── /v1/cluster/shards/:shardId/health (POST)
+2026-11-08T13:54:57.5567401Z ├── /v1/cluster/drain (POST)
+2026-11-08T13:54:57.5567672Z ├── /v1/catalog (POST)
+2026-11-08T13:54:57.5567924Z │   ├── /stats (GET, HEAD)
+2026-11-08T13:54:57.5568179Z │   ├── /upsert (POST)
+2026-11-08T13:54:57.5568416Z │   ├── /items (POST)
+2026-11-08T13:54:57.5568674Z │   │   └── /:id (DELETE)
+2026-11-08T13:54:57.5568934Z │   ├── /import-yml (POST)
+2026-11-08T13:54:57.5569206Z │   ├── /clear (DELETE, POST)
+2026-11-08T13:54:57.5569475Z │   └── /export (GET, HEAD)
+2026-11-08T13:54:57.5569777Z ├── /v1/benchmark/compare-url (POST)
+2026-11-08T13:54:57.5570065Z ├── /v1/search (POST)
+2026-11-08T13:54:57.5570339Z ├── /v1/settings (GET, HEAD, PUT)
+2026-11-08T13:54:57.5570613Z │   └── /webhooks (POST)
+2026-11-08T13:54:57.5570867Z │       └── /:id (DELETE)
+2026-11-08T13:54:57.5571097Z ├── /v1/suggest (POST)
+2026-11-08T13:54:57.5571376Z ├── /v1/snapshots (POST, GET, HEAD)
+2026-11-08T13:54:57.5571653Z │   └── /restore (POST)
+2026-11-08T13:54:57.5571901Z ├── /v1/feedback (POST)
+2026-11-08T13:54:57.5572181Z ├── /v1/audit/logs (GET, HEAD)
+2026-11-08T13:54:57.5572455Z ├── /v1/analytics (GET, HEAD)
+2026-11-08T13:54:57.5572710Z │   ├── /seo (GET, HEAD)
+2026-11-08T13:54:57.5572937Z │   ├── /synonym (POST)
+2026-11-08T13:54:57.5573186Z │   ├── /queries (GET, HEAD)
+2026-11-08T13:54:57.5573899Z │   ├── /metrics (GET, HEAD)
+2026-11-08T13:54:57.5574143Z │   ├── /boost (POST)
+2026-11-08T13:54:57.5574388Z │   └── /funnel (GET, HEAD)
+2026-11-08T13:54:57.5574645Z │       └── /event (POST)
+2026-11-08T13:54:57.5574921Z ├── /v1/admin/stats (GET, HEAD)
+2026-11-08T13:54:57.5575159Z ├── /v1/admin/keys (GET, HEAD, POST)
+2026-11-08T13:54:57.5575332Z │   ├── /rotate (POST)
+2026-11-08T13:54:57.5575489Z │   └── /:keyHash (DELETE)
+2026-11-08T13:54:57.5575665Z ├── /v1/admin/reindex (POST)
+2026-11-08T13:54:57.5575874Z ├── /v1/admin/ranking-defaults (GET, HEAD, PUT)
+2026-11-08T13:54:57.5576075Z ├── /v1/admin/optimize (POST)
+2026-11-08T13:54:57.5576258Z ├── /v1/admin/overview (GET, HEAD)
+2026-11-08T13:54:57.5576525Z ├── /v1/admin/logs (GET, HEAD)
+2026-11-08T13:54:57.5576740Z ├── /v1/admin/queries (GET, HEAD)
+2026-11-08T13:54:57.5577123Z │   └── /log (POST)
+2026-11-08T13:54:57.5577308Z ├── /v1/admin/analytics/summary (GET, HEAD)
+2026-11-08T13:54:57.5577521Z ├── /v1/admin/analytics/queries (GET, HEAD)
+2026-11-08T13:54:57.5577751Z ├── /v1/admin/analytics/export.csv (GET, HEAD)
+2026-11-08T13:54:57.5577972Z ├── /v1/admin/dictionaries (GET, HEAD, PUT)
+2026-11-08T13:54:57.5578173Z │   └── /synonyms (GET, HEAD, POST)
+2026-11-08T13:54:57.5578343Z │       ├── /test (POST)
+2026-11-08T13:54:57.5578521Z │       └── /:id (PATCH, DELETE)
+2026-11-08T13:54:57.5578716Z ├── /v1/admin/merch/rules (GET, HEAD, POST)
+2026-11-08T13:54:57.5578900Z │   └── /:id (PATCH, DELETE)
+2026-11-08T13:54:57.5579262Z ├── /v1/admin/catalog/summary (GET, HEAD)
+2026-11-08T13:54:57.5579438Z ├── /v1/keys (GET, HEAD)
+2026-11-08T13:54:57.5579591Z │   ├── /revoke (POST)
+2026-11-08T13:54:57.5579750Z │   ├── /rotate (POST)
+2026-11-08T13:54:57.5579903Z │   └── /generate (POST)
+2026-11-08T13:54:57.5580076Z ├── /v1/indexes (GET, HEAD, POST)
+2026-11-08T13:54:57.5580246Z │   └── /:name (DELETE)
+2026-11-08T13:54:57.5580409Z │       └── /documents (POST)
+2026-11-08T13:54:57.5580568Z ├── /v1/events (POST)
+2026-11-08T13:54:57.5580715Z ├── /docs (GET, HEAD)
+2026-11-08T13:54:57.5580902Z │   ├── /static/index.html (GET, HEAD)
+2026-11-08T13:54:57.5581126Z │   ├── /static/swagger-initializer.js (GET, HEAD)
+2026-11-08T13:54:57.5581317Z │   ├── * (HEAD, GET)
+2026-11-08T13:54:57.5581466Z │   ├── /json (GET, HEAD)
+2026-11-08T13:54:57.5581623Z │   └── /yaml (GET, HEAD)
+2026-11-08T13:54:57.5581776Z ├── /metrics (GET, HEAD)
+2026-11-08T13:54:57.5581951Z ├── /health (GET, HEAD)
+2026-11-08T13:54:57.5582108Z ├── /api/health (GET, HEAD)
+2026-11-08T13:54:57.5582280Z ├── /ready (GET, HEAD)
+2026-11-08T13:54:57.5582427Z ├── /live (GET, HEAD)
+2026-11-08T13:54:57.5582576Z ├── /widget.js (GET, HEAD)
+2026-11-08T13:54:57.5582726Z └── * (OPTIONS)
+2026-11-08T13:54:57.5582797Z 
+2026-11-08T13:54:57.5582803Z 
+2026-11-08T13:54:57.5583272Z [90mstdout[2m | tests/integration/route-registration.test.ts[2m > [22m[2mRoute Registration Diagnostics[2m > [22m[2mshould respond to POST /v1/demo/search with valid payload
+2026-11-08T13:54:57.5583714Z [22m[39mResponse status: [33m200[39m
+2026-11-08T13:54:57.5603391Z Response body: {"query":"wireless headphones","normalizedQuery":"wireless headphones","originalQuery":"wireless headphones","rewritten":false,"rewriteApplied":false,"mode":"hybrid","alpha":0.5,"weights":{"semantic":0.5,"lexical":0.5,"denseWeight":1,"sparseWeight":1},"simpleCategoryGate":"hard","headCategoryIntent":"headphones","results":[{"id":"sku-ecom-02160","sku":"SKU-ECOM-02160","title":"Внутриканальные TWS-наушники Sennheiser Accentum True Wireless (Тёмный деним)","description":"Sennheiser Accentum True Wireless, комплектация: Тёмный деним. Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":16250,"url":"/product/sku-ecom-02160","imageUrl":"/assets/demo/product-sku-ecom-02160.svg","score":0.2119,"scorePercent":90,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (90%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (90%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.5696,"sparseBm25Component":5.6211,"rrfScore":0.0304,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.5696,"sparseBm25Component":5.6211,"rrfScore":0.0304,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-01380","sku":"SKU-ECOM-01380","title":"Внутриканальные TWS-наушники Sennheiser Sport True Wireless (Графит (Graphite))","description":"Sennheiser Sport True Wireless, комплектация: Графит (Graphite). Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":15550,"url":"/product/sku-ecom-01380","imageUrl":"/assets/demo/product-sku-ecom-01380.svg","score":0.2109,"scorePercent":86,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (86%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (86%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.557,"sparseBm25Component":5.6211,"rrfScore":0.0307,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.557,"sparseBm25Component":5.6211,"rrfScore":0.0307,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-01146","sku":"SKU-ECOM-01146","title":"Внутриканальные TWS-наушники Sennheiser Momentum True Wireless 4 (Графит (Graphite))","description":"Sennheiser Momentum True Wireless 4, комплектация: Графит (Graphite). Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":16050,"url":"/product/sku-ecom-01146","imageUrl":"/assets/demo/product-sku-ecom-01146.svg","score":0.2078,"scorePercent":82,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (82%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (82%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.5379,"sparseBm25Component":5.5616,"rrfScore":0.0302,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.5379,"sparseBm25Component":5.5616,"rrfScore":0.0302,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-00366","sku":"SKU-ECOM-00366","title":"Внутриканальные TWS-наушники Sennheiser CX Plus True Wireless (Чёрная медь (Black Copper))","description":"Sennheiser CX Plus True Wireless, комплектация: Чёрная медь (Black Copper). Характеристики: беспроводная зарядка Qi, режим прозрачности Anti-Wind, персональный профиль звука. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":12650,"url":"/product/sku-ecom-00366","imageUrl":"/assets/demo/product-sku-ecom-00366.svg","score":0.2063,"scorePercent":79,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (79%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (79%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.539,"sparseBm25Component":5.4466,"rrfScore":0.0294,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.539,"sparseBm25Component":5.4466,"rrfScore":0.0294,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}},{"id":"sku-ecom-01458","sku":"SKU-ECOM-01458","title":"Беспроводные наушники Hi-Fi класса Sennheiser Accentum Plus Wireless (Графит (Graphite))","description":"Sennheiser Accentum Plus Wireless, комплектация: Графит (Graphite). Характеристики: фирменные излучатели TrueResponse 7 мм, поддержка aptX Adaptive, адаптивный шумодав. Официальная гарантия 12 мес., товар в наличии на складе.","category":"Наушники и аудио","tags":["наушники","tws","аудио","sennheiser","звук","бег","wireless","headphones"],"price":12850,"url":"/product/sku-ecom-01458","imageUrl":"/assets/demo/product-sku-ecom-01458.svg","score":0.2053,"scorePercent":75,"humanExplanation":{"ru":"Совпадение по смыслу и словам («wireless + headphones»), категория «Наушники и аудио» (75%)","en":"Matched meaning & words (\"wireless + headphones\"), category \"Наушники и аудио\" (75%)"},"source":"hybrid","isSerendipityDiscovery":false,"explanation":{"denseComponent":0.5201,"sparseBm25Component":5.5616,"rrfScore":0.0297,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0},"xray":{"denseComponent":0.5201,"sparseBm25Component":5.5616,"rrfScore":0.0297,"mmrPenalty":0,"businessBoost":1,"serendipityScore":0,"kineticBonus":0}}],"count":5,"total":5,"latencyMs":23.07,"cacheHit":false,"meta":{"latencyMs":23.07,"queryRaw":"wireless headphones","normalizedQuery":"wireless headphones","rewrites":[],"headCategoryIntent":"headphones"},"cognitiveDiagnostics":{"routeDecision":{"route":"HYBRID_SEMANTIC_PATH","routeLabelRu":"Сбалансированный гибридный контур (BM25 + HNSW RRF)","complexityScore":0.57,"efSearch":56,"recommendedAlpha":0.6,"enableCrossEncoder":true,"enableSerendipity":true,"estimatedComputeSavingsPct":38,"rationale":"Стандартный гибридный запрос (2 токена) — оптимальный баланс RRF (efSearch=56, экономия 38% вычислительного бюджета)."},"kineticProfile":{"archetype":"decisive_sniper","archetypeLabelRu":"Целевой снайпер (Точный фокус)","archetypeLabelEn":"Decisive Sniper Focus","confidence":0.74,"biometricVector":[0.0475,0,0,0,0,0,0,0.0891,0,0,0.0475,0,0,0.7086,0,0.6967],"alphaAdjustment":0,"recommendedMmrLambda":0.2,"priceElasticityBoost":1,"serendipityBoost":0.15,"comparedItemIds":[],"diagnosticSummary":"Стабильный целевой паттерн внимания; сохраняется максимальная точность ранжирования без избыточной диверсификации."},"chronoProfile":{"mode":"dopamine_discovery","modeLabelRu":"Дофаминовый режим открытий","modeLabelEn":"Dopamine Discovery Mode","explorationTemperature":0.74,"choiceFatigueIndex":0,"recommendedSerendipityWeight":0.32,"recommendedMmrLambda":0.49,"recommendedAlphaShift":0.12,"rationale":"Локальное время 13:00 (дневной рабочий цикл), температура исследования 74% → усилен вектор неожиданных открытий (Serendipity)."},"serendipityDiscoveriesCount":0}}
+2026-11-08T13:54:57.5615760Z 
+2026-11-08T13:54:57.5616071Z  [32m✓[39m tests/integration/route-registration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 760[2mms[22m[39m
+2026-11-08T13:54:57.5616635Z    [33m[2m✓[22m[39m Route Registration Diagnostics[2m > [22mshould respond to POST /v1/demo/search with valid payload [33m633[2mms[22m[39m
+2026-11-08T13:54:58.7183039Z  [32m✓[39m packages/core/src/tests/adaptive/context-signals.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-08T13:54:58.7183972Z  [32m✓[39m packages/core/src/tests/adaptive/smmr.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:58.8798684Z  [32m✓[39m packages/core/src/tests/graph.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:54:59.1967167Z  [32m✓[39m apps/api/tests/singleflight.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 153[2mms[22m[39m
+2026-11-08T13:54:59.4107898Z  [32m✓[39m apps/api/tests/similarity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:54:59.5847507Z  [32m✓[39m tests/unit/xai-explainer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:59.7372431Z  [32m✓[39m tests/unit/splade-lite.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:54:59.8888551Z  [32m✓[39m packages/core/src/tests/cosine.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-08T13:55:00.0318697Z  [32m✓[39m tests/unit/sequential-recommender.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:55:00.1107441Z  [32m✓[39m apps/api/tests/recommend.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 871[2mms[22m[39m
+2026-11-08T13:55:00.1843271Z  [32m✓[39m tests/unit/query-understanding.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:55:00.3392661Z  [32m✓[39m packages/core/src/tests/entropy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+2026-11-08T13:55:00.3599100Z  [32m✓[39m tests/unit/prometheus.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:55:00.5028990Z  [32m✓[39m tests/unit/tracing.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 4[2mms[22m[39m
+2026-11-08T13:55:00.5181800Z  [32m✓[39m tests/unit/webhook-dispatcher.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:55:00.6934374Z  [32m✓[39m tests/unit/benchmark.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 2[2mms[22m[39m
+2026-11-08T13:55:01.1257814Z 
+2026-11-08T13:55:01.1265679Z [31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-11-08T13:55:01.1265877Z 
+2026-11-08T13:55:01.1267295Z [31m[1m[7m FAIL [27m[22m[39m tests/unit/architecture-constraints.test.ts[2m > [22mPhase 5: Architectural Constraints & Quality Invariants[2m > [22menforces <= 300 lines limit across App.tsx and all components in apps/workspace/src/components
+2026-11-08T13:55:01.1279642Z [31m[1mAssertionError[22m: expected [ { …(2) } ] to deeply equal [][39m
+2026-11-08T13:55:01.1279923Z 
+2026-11-08T13:55:01.1280043Z [32m- Expected[39m
+2026-11-08T13:55:01.1280279Z [31m+ Received[39m
+2026-11-08T13:55:01.1280399Z 
+2026-11-08T13:55:01.1280510Z [32m- Array [][39m
+2026-11-08T13:55:01.1280858Z [31m+ Array [[39m
+2026-11-08T13:55:01.1281107Z [31m+   Object {[39m
+2026-11-08T13:55:01.1281508Z [31m+     "file": "apps/workspace/src/components/Sidebar.tsx",[39m
+2026-11-08T13:55:01.1281873Z [31m+     "lines": 315,[39m
+2026-11-08T13:55:01.1282107Z [31m+   },[39m
+2026-11-08T13:55:01.1282310Z [31m+ ][39m
+2026-11-08T13:55:01.1282410Z 
+2026-11-08T13:55:01.1282765Z [36m [2m❯[22m tests/unit/architecture-constraints.test.ts:[2m55:24[22m[39m
+2026-11-08T13:55:01.1390517Z     [90m 53| [39m      }
+2026-11-08T13:55:01.1390778Z     [90m 54| [39m    }
+2026-11-08T13:55:01.1391215Z     [90m 55| [39m    [34mexpect[39m(violations)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+2026-11-08T13:55:01.1391670Z     [90m   | [39m                       [31m^[39m
+2026-11-08T13:55:01.1391982Z     [90m 56| [39m  })[33m;[39m
+2026-11-08T13:55:01.1392226Z     [90m 57| [39m
+2026-11-08T13:55:01.1392344Z 
+2026-11-08T13:55:01.1392562Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-11-08T13:55:01.1392757Z 
+2026-11-08T13:55:01.1395878Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m96 passed[39m[22m[90m (97)[39m
+2026-11-08T13:55:01.1397196Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m435 passed[39m[22m[90m (436)[39m
+2026-11-08T13:55:01.1397760Z [2m   Start at [22m 13:54:18
+2026-11-08T13:55:01.1399867Z [2m   Duration [22m 42.81s[2m (transform 1.88s, setup 0ms, collect 19.08s, tests 22.97s, environment 16ms, prepare 4.73s)[22m
+2026-11-08T13:55:01.1400560Z 
+2026-11-08T13:55:01.1411559Z 
+2026-11-08T13:55:01.1432506Z ##[error]AssertionError: expected [ { …(2) } ] to deeply equal []
+
+- Expected
++ Received
+
+- Array []
++ Array [
++   Object {
++     "file": "apps/workspace/src/components/Sidebar.tsx",
++     "lines": 315,
++   },
++ ]
+
+ ❯ tests/unit/architecture-constraints.test.ts:55:24
+
+
+2026-11-08T13:55:01.1761005Z  ELIFECYCLE  Test failed. See above for more details.
+2026-11-08T13:55:01.1957135Z ##[error]Process completed with exit code 1.

@@ -1,44 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
-  LayoutDashboard,
-  Package,
-  Search,
-  Lightbulb,
-  Split,
-  MessageSquare,
-  BarChart3,
-  Boxes,
-  Sliders,
-  Terminal,
-  Scale,
-  Database,
-  Settings,
-  Network,
-  HelpCircle,
-  Sparkles,
+  LayoutDashboard, Package, Search, Lightbulb, Split, MessageSquare,
+  BarChart3, Boxes, Sliders, Terminal, Scale, Database, Settings,
+  Network, HelpCircle, Sparkles,
 } from 'lucide-react';
 import { UiLanguage, UI_TRANSLATIONS } from '../i18n/uiTranslations';
 
 export type ViewId =
-  | 'admin'
-  | 'public-demo'
-  | 'dashboard'
-  | 'onboarding'
-  | 'demo'
-  | 'seo'
-  | 'vectorspace'
-  | 'adaptive'
-  | 'search'
-  | 'ranking'
-  | 'recommendations'
-  | 'catalog'
-  | 'indexes'
-  | 'cluster'
-  | 'analytics'
-  | 'abtest'
-  | 'conversational'
-  | 'settings'
-  | 'faq';
+  | 'admin' | 'public-demo' | 'dashboard' | 'onboarding' | 'demo' | 'seo'
+  | 'vectorspace' | 'adaptive' | 'search' | 'ranking' | 'recommendations'
+  | 'catalog' | 'indexes' | 'cluster' | 'analytics' | 'abtest'
+  | 'conversational' | 'settings' | 'faq';
 
 export interface SidebarProps {
   active: ViewId;
@@ -61,7 +33,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   uiLang = 'ru',
 }) => {
   const t = UI_TRANSLATIONS[uiLang];
-
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('eidos_sidebar_collapsed') === 'true';
@@ -87,50 +58,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const labels =
     uiLang === 'ru'
       ? {
-          g1: 'Ядро движка',
-          g2: 'Лаборатория и тесты',
-          g3: 'Аналитика и эксплуатация',
-          onboarding: 'Мастер пилота (No-Code)',
-          demo: 'Mini-fixture IDE (48 SKU)',
-          indexes: 'Менеджер индексов HNSW',
-          ranking: 'Песочница ранжирования',
-          cluster: 'Кластер и отказоустойчивость',
-          seo: 'SEO и мерчандайзинг',
-          settings: 'Настройки и API-ключи',
-          faq: 'FAQ и Гид по функциям',
-          modeSimple: 'Простой режим',
-          modeExpert: 'Эксперт (16 вкладок)',
+          g1: 'Ядро движка', g2: 'Лаборатория и тесты', g3: 'Аналитика и эксплуатация',
+          onboarding: 'Мастер пилота (No-Code)', demo: 'Mini-fixture IDE (48 SKU)',
+          indexes: 'Менеджер индексов HNSW', ranking: 'Песочница ранжирования',
+          cluster: 'Кластер и отказоустойчивость', seo: 'SEO и мерчандайзинг',
+          settings: 'Настройки и API-ключи', faq: 'FAQ и Гид по функциям',
+          modeSimple: 'Простой режим', modeExpert: 'Эксперт (16 вкладок)',
         }
       : uiLang === 'ja'
       ? {
-          g1: 'コアエンジン',
-          g2: 'プレイグラウンド & ラボ',
-          g3: '分析 & オペレーション',
-          onboarding: 'パイロット導入ウィザード',
-          demo: 'デモカタログ (48 SKU)',
-          indexes: 'インデックス管理',
-          ranking: 'ランキング調整ラボ',
-          cluster: 'クラスタ & フェイルオーバー',
-          seo: 'SEO & マーチャンダイジング',
-          settings: '設定 & APIキー',
-          faq: 'FAQ & 使い方ガイド',
-          modeSimple: 'シンプル表示',
-          modeExpert: 'エキスパート表示',
+          g1: 'コアエンジン', g2: 'プレイグラウンド & ラボ', g3: '分析 & オペレーション',
+          onboarding: 'パイロット導入ウィザード', demo: 'デモカタログ (48 SKU)',
+          indexes: 'インデックス管理', ranking: 'ランキング調整ラボ',
+          cluster: 'クラスタ & フェイルオーバー', seo: 'SEO & マーチャンダイジング',
+          settings: '設定 & APIキー', faq: 'FAQ & 使い方ガイド',
+          modeSimple: 'シンプル表示', modeExpert: 'エキスパート表示',
         }
       : {
-          g1: 'Core Engine',
-          g2: 'Playground & Labs',
-          g3: 'Analytics & Ops',
-          onboarding: 'Pilot Wizard (No-Code)',
-          demo: 'Demo Catalog (48 SKU)',
-          indexes: 'Index Manager',
-          ranking: 'Ranking Playground',
-          cluster: 'Cluster & Failover',
-          seo: 'SEO Insights',
-          settings: 'Settings & Keys',
-          faq: 'FAQ & Feature Guide',
-          modeSimple: 'Simple Mode',
-          modeExpert: 'Expert (All Labs)',
+          g1: 'Core Engine', g2: 'Playground & Labs', g3: 'Analytics & Ops',
+          onboarding: 'Pilot Wizard (No-Code)', demo: 'Demo Catalog (48 SKU)',
+          indexes: 'Index Manager', ranking: 'Ranking Playground',
+          cluster: 'Cluster & Failover', seo: 'SEO Insights',
+          settings: 'Settings & Keys', faq: 'FAQ & Feature Guide',
+          modeSimple: 'Simple Mode', modeExpert: 'Expert (All Labs)',
         };
 
   const navGroups: Array<{ title: string; items: NavGroupItem[] }> = [
