@@ -239,4 +239,16 @@ export class BM25Index {
   public size(): number {
     return this.documents.size;
   }
+
+  /**
+   * Returns Robertson-Sparck Jones IDF for a token against the current corpus.
+   */
+  public getIdf(token: string): number {
+    const N = this.documents.size;
+    if (N === 0) return 1.5;
+    const df = this.documentFrequency.get(token.toLowerCase()) || 0;
+    if (df === 0) return Math.log((N + 0.5) / 0.5 + 1.0);
+    return Math.log((N - df + 0.5) / (df + 0.5) + 1.0);
+  }
 }
+

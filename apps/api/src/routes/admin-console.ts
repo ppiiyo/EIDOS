@@ -110,6 +110,29 @@ const updateRankingDefaultsSchema = z.object({
   defaultAlpha: z.number().min(0).max(1).optional(),
   minScore: z.number().min(0).max(1).optional(),
   minSimilarity: z.number().min(0).max(1).optional(),
+  fieldBoosts: z
+    .object({
+      title: z.number().min(0).optional(),
+      sku: z.number().min(0).optional(),
+      brand: z.number().min(0).optional(),
+      category: z.number().min(0).optional(),
+      description: z.number().min(0).optional(),
+    })
+    .optional(),
+  rankWindow: z
+    .object({
+      lexical: z.number().int().min(1).max(200).optional(),
+      dense: z.number().int().min(1).max(200).optional(),
+    })
+    .optional(),
+  rankConstant: z.number().positive().max(10000).optional(),
+  weights: z
+    .object({
+      semantic: z.number().min(0).max(10).optional(),
+      lexical: z.number().min(0).max(10).optional(),
+    })
+    .optional(),
+  filterStrictMissing: z.boolean().optional(),
 });
 
 const logQueryBodySchema = z.object({

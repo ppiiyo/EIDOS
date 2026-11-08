@@ -21,8 +21,9 @@ export const upsertItemSchema = z.object({
   sku: z.string().max(100).optional().nullable(),
   brand: z.string().max(100).optional(),
   tags: z.array(z.string()).max(20).optional().default([]),
-  price: z.number().nonnegative().optional().default(0),
-  inStock: z.boolean().optional().default(true),
+  price: z.number().nonnegative().optional(),
+  inStock: z.boolean().optional(),
+  stock: z.number().int().min(0).optional(),
   url: z.string().max(2000).optional(),
   imageUrl: z.string().max(2000).optional().nullable(),
   embedding: z.array(z.number()).length(384).optional(),
@@ -38,8 +39,9 @@ const catalogItemSchema = z.object({
   sku: z.string().max(100).optional().nullable(),
   brand: z.string().max(100).optional(),
   tags: z.array(z.string()).default([]),
-  price: z.number().nonnegative().optional().default(0),
-  inStock: z.boolean().optional().default(true),
+  price: z.number().nonnegative().optional(),
+  inStock: z.boolean().optional(),
+  stock: z.number().int().min(0).optional(),
   url: z.string().max(2000).optional(),
   imageUrl: z.string().max(2000).optional().nullable(),
   embedding: z.array(z.number()).optional(),
@@ -221,6 +223,12 @@ export async function catalogRoutes(
             {
               ...item,
               sku: item.sku || String(item.id),
+              inStock:
+                item.inStock !== undefined
+                  ? item.inStock
+                  : item.stock !== undefined
+                  ? item.stock > 0
+                  : true,
               imageUrl: item.imageUrl ?? null,
               title: cleanTitle,
               description: cleanDesc,
@@ -300,6 +308,12 @@ export async function catalogRoutes(
       store.upsert({
         ...validated,
         sku: validated.sku || String(validated.id),
+        inStock:
+          validated.inStock !== undefined
+            ? validated.inStock
+            : validated.stock !== undefined
+            ? validated.stock > 0
+            : true,
         imageUrl: validated.imageUrl ?? null,
         title: cleanTitle,
         description: cleanDesc,

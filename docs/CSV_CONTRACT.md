@@ -9,14 +9,17 @@ This specification defines the file format and REST API schema for importing pro
 | Field | Requirement | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | **Required** | `string` | `1..100` chars | Unique product/document identifier |
-| `title` | **Required** | `string` | `1..500` chars | Primary product title indexed in both HNSW (384-d) and BM25 |
-| `description` | Recommended | `string` | `0..2000` chars | Full text description, specifications, and use-cases |
-| `price` | Recommended | `number` | `>= 0` | Numeric price (currency symbols in CSV are stripped automatically) |
-| `category` | Recommended | `string` | `1..100` chars | Category name used for faceting, MMR diversity, and intent matching |
-| `sku` | Recommended | `string` | `1..100` chars | Vendor SKU or part number for exact lexical lookup |
-| `brand` | Recommended | `string` | `1..100` chars | Brand / manufacturer name |
+| `title` | **Required** | `string` | `1..500` chars | Primary product title indexed in HNSW (384-d) and multi-field BM25 (`fieldBoosts.title`, default `3`) |
+| `description` | Recommended | `string` | `0..2000` chars | Full text description and specifications (`fieldBoosts.description`, default `1`) |
+| `price` | Recommended | `number` | `>= 0` | Numeric price used by structured filters (`filters.priceMin`, `filters.priceMax`) |
+| `category` | Recommended | `string` | `1..100` chars | Category name used for `filters.category`, `simpleCategoryGate`, and `fieldBoosts.category` (default `1.5`) |
+| `sku` | Recommended | `string` | `1..100` chars | Vendor SKU or part number for exact lexical lookup (`fieldBoosts.sku`, default `5`; falls back to `id` if omitted) |
+| `brand` | Recommended | `string` | `1..100` chars | Brand / manufacturer name used in `filters.brand` and `fieldBoosts.brand` (default `2`) |
+| `inStock` | Optional | `boolean` | `true` / `false` | Inventory availability flag used by `filters.inStock` (defaults to `true` or `stock > 0`) |
+| `stock` | Optional | `number` | `>= 0` (int) | Numeric inventory quantity (`inStock` is true when `inStock === true` or `stock > 0`) |
+| `url` | Optional | `string` | `1..500` chars | Product card URL (falls back to `/product/<id>` if omitted) |
+| `imageUrl` | Optional | `string \| null` | `1..1000` chars | Product thumbnail URL (`null` if omitted) |
 | `tags` | Optional | `string[]` | Up to 20 tags | Semicolon (`;`) or pipe (`\|`) separated tags in CSV; string array in JSON |
-| `inStock` | Optional | `boolean` | `true` / `false` | Inventory availability flag (defaults to `true`) |
 
 ---
 

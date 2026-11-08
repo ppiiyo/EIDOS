@@ -1345,6 +1345,9 @@ export function buildDemoCatalog1000(targetTotal: number = 1048): CatalogItem[] 
     const url = `/product/${encodeURIComponent(id)}`;
     const imageUrl = `/assets/demo/product-${encodeURIComponent(id)}.svg`;
 
+    const isAvailable = prng() > 0.04;
+    const stock = isAvailable ? Math.floor(prng() * 45) + 3 : 0;
+
     items.push({
       id,
       sku,
@@ -1353,7 +1356,8 @@ export function buildDemoCatalog1000(targetTotal: number = 1048): CatalogItem[] 
       description,
       category: series.category,
       price,
-      inStock: prng() > 0.04,
+      inStock: isAvailable,
+      stock,
       tags: [...series.tags],
       url,
       imageUrl,

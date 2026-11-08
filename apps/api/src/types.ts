@@ -18,6 +18,7 @@ export interface StoredItem {
   tags: string[];
   price?: number;
   inStock?: boolean;
+  stock?: number;
   url?: string;
   imageUrl?: string | null;
   metadata?: Record<string, string | number | boolean | string[] | undefined>;

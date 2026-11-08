@@ -923,6 +923,7 @@ export function buildHumanExplanation(params: {
   alpha?: number;
   rewrittenFrom?: string;
   rewrittenTo?: string;
+  dominantLexicalField?: 'title' | 'sku' | 'brand' | 'category' | 'description' | null;
 }): { ru: string; en: string } {
   const {
     category,
@@ -936,6 +937,7 @@ export function buildHumanExplanation(params: {
     alpha = 0.5,
     rewrittenFrom,
     rewrittenTo,
+    dominantLexicalField,
   } = params;
   const catRu = category ? `категория «${category}»` : '';
   const catEn = category ? `category "${category}"` : '';
@@ -948,15 +950,21 @@ export function buildHumanExplanation(params: {
     rewrittenFrom.trim().toLowerCase() !== rewrittenTo.trim().toLowerCase();
   const rwPrefixRu = hasRewrite ? `Запрос исправлен: ${rewrittenFrom} → ${rewrittenTo}. ` : '';
   const rwPrefixEn = hasRewrite ? `Query rewritten: ${rewrittenFrom} → ${rewrittenTo}. ` : '';
+  const isSkuOrTitleDominant =
+    dominantLexicalField === 'sku' || dominantLexicalField === 'title';
+  const fieldDominantSuffixRu = isSkuOrTitleDominant
+    ? ' · Сильное совпадение по артикулу/названию'
+    : '';
+  const fieldDominantSuffixEn = isSkuOrTitleDominant ? ' · Strong SKU/title match' : '';
 
   if (alpha <= 0.01 || (sparseScore > 0 && denseScore <= 0.01)) {
     const tokDetailRu = tokensPlus ? ` («${tokensPlus}»)` : '';
     const tokDetailEn = tokensPlus ? ` ("${tokensPlus}")` : '';
     return {
-      ru: `${rwPrefixRu}Точное совпадение слов${tokDetailRu}${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+      ru: `${rwPrefixRu}Точное совпадение слов${tokDetailRu}${catRu ? `, ${catRu}` : ''}${pctSuffix}${fieldDominantSuffixRu}`
         .replace(/\s+/g, ' ')
         .trim(),
-      en: `${rwPrefixEn}Exact keyword match${tokDetailEn}${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      en: `${rwPrefixEn}Exact keyword match${tokDetailEn}${catEn ? `, ${catEn}` : ''}${pctSuffix}${fieldDominantSuffixEn}`
         .replace(/\s+/g, ' ')
         .trim(),
     };
@@ -973,27 +981,27 @@ export function buildHumanExplanation(params: {
   }
   if ((matchesHeadCategory || titleMatchCount > 0 || categoryOrTagMatchCount > 0) && uniqueTokens.length > 0) {
     return {
-      ru: `${rwPrefixRu}Совпадение по смыслу и словам («${tokensPlus}»)${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+      ru: `${rwPrefixRu}Совпадение по смыслу и словам («${tokensPlus}»)${catRu ? `, ${catRu}` : ''}${pctSuffix}${fieldDominantSuffixRu}`
         .replace(/\s+/g, ' ')
         .trim(),
-      en: `${rwPrefixEn}Matched meaning & words ("${tokensPlus}")${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      en: `${rwPrefixEn}Matched meaning & words ("${tokensPlus}")${catEn ? `, ${catEn}` : ''}${pctSuffix}${fieldDominantSuffixEn}`
         .replace(/\s+/g, ' ')
         .trim(),
     };
   }
   if (denseScore > 0 && (sparseScore > 0 || titleMatchCount > 0)) {
     return {
-      ru: `${rwPrefixRu}Совпадение по смыслу и характеристикам товара${catRu ? `, ${catRu}` : ''}${pctSuffix}`
+      ru: `${rwPrefixRu}Совпадение по смыслу и характеристикам товара${catRu ? `, ${catRu}` : ''}${pctSuffix}${fieldDominantSuffixRu}`
         .replace(/\s+/g, ' ')
         .trim(),
-      en: `${rwPrefixEn}Semantic and product attribute match${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+      en: `${rwPrefixEn}Semantic and product attribute match${catEn ? `, ${catEn}` : ''}${pctSuffix}${fieldDominantSuffixEn}`
         .replace(/\s+/g, ' ')
         .trim(),
     };
   }
   return {
-    ru: `${rwPrefixRu}Релевантность по смыслу${catRu ? `, ${catRu}` : ''}${pctSuffix}`.replace(/\s+/g, ' ').trim(),
-    en: `${rwPrefixEn}Semantic and category relevance${catEn ? `, ${catEn}` : ''}${pctSuffix}`
+    ru: `${rwPrefixRu}Релевантность по смыслу${catRu ? `, ${catRu}` : ''}${pctSuffix}${fieldDominantSuffixRu}`.replace(/\s+/g, ' ').trim(),
+    en: `${rwPrefixEn}Semantic and category relevance${catEn ? `, ${catEn}` : ''}${pctSuffix}${fieldDominantSuffixEn}`
       .replace(/\s+/g, ' ')
       .trim(),
   };

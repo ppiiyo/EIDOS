@@ -13,6 +13,18 @@ import {
   extractHeadCategoryIntent,
   evaluateCandidateCategoryGate,
   SimpleCategoryGateMode,
+  FieldBoosts,
+  FieldBoostField,
+  LexicalFieldContribution,
+  DEFAULT_FIELD_BOOSTS,
+  scoreMultiFieldLexicalDocument,
+  SearchFilters,
+  matchesStructuredFilters,
+  RankWindow,
+  DEFAULT_RANK_WINDOW,
+  DEFAULT_RANK_CONSTANT,
+  RrfBreakdown,
+  computeWeightedRrfBreakdown,
 } from '@eidos/core';
 import { StoredItem } from '../types';
 import { CatalogItem } from '../demo/demo-catalog';
@@ -29,6 +41,7 @@ export interface SnapshotCatalogItem {
   category: string;
   price: number;
   inStock: boolean;
+  stock?: number;
   tags: string[];
   url: string;
   imageUrl?: string | null;
@@ -104,6 +117,7 @@ export class VectorStore {
             category: it.category || 'General',
             price: typeof it.price === 'number' ? it.price : 0,
             inStock: typeof it.inStock === 'boolean' ? it.inStock : true,
+            stock: typeof it.stock === 'number' ? it.stock : it.inStock === false ? 0 : 10,
             tags: Array.isArray(it.tags) ? it.tags : [],
             url: it.url || `/product/${encodeURIComponent(idStr)}`,
             imageUrl: it.imageUrl || `/assets/demo/product-${encodeURIComponent(idStr)}.svg`,
@@ -603,20 +617,27 @@ export class VectorStore {
   }
 
   /**
-   * Executes unified Hybrid Search combining Dense (HNSW) and Sparse (BM25)
-   * using Reciprocal Rank Fusion (RRF) with exact cosine verification, head-category gate,
-   * and strict zero-results guardrail.
+   * Executes unified Hybrid Search combining Dense (HNSW) and Sparse (Multi-Field BM25)
+   * with structured pre-RRF filtering, per-channel rankWindow truncation, Weighted RRF,
+   * head-category gate intersection, and strict zero-results guardrail.
    */
   public hybridSearch(
     queryText: string,
     queryVector: Float32Array | number[],
     limit = 10,
-    denseWeight = 1.0,
-    sparseWeight = 1.0,
+    denseWeight = 0.5,
+    sparseWeight = 0.5,
     filterCategory?: string,
     options?: {
       simpleCategoryGate?: SimpleCategoryGateMode;
       minScore?: number;
+      fieldBoosts?: Required<FieldBoosts>;
+      filters?: SearchFilters | null;
+      filterStrictMissing?: boolean;
+      rankWindow?: Required<RankWindow>;
+      rankConstant?: number;
+      preserveExactRrfOrder?: boolean;
+      filterStatsOut?: { candidatesBeforeFilter: number; candidatesAfterFilter: number };
     }
   ): {
     item: StoredItem;
@@ -625,62 +646,184 @@ export class VectorStore {
     exactDense: number;
     sparseScore: number;
     source?: string;
+    rrf: RrfBreakdown;
+    lexicalFieldContributions: LexicalFieldContribution[];
+    dominantLexicalField: FieldBoostField | null;
   }[] {
-    if (this.items.size === 0) {
+    const allItems = Array.from(this.items.values());
+    const candidatesBeforeFilter = allItems.length;
+    if (candidatesBeforeFilter === 0) {
+      if (options?.filterStatsOut) {
+        options.filterStatsOut.candidatesBeforeFilter = 0;
+        options.filterStatsOut.candidatesAfterFilter = 0;
+      }
       return [];
     }
+
     const gateMode: SimpleCategoryGateMode = options?.simpleCategoryGate ?? 'hard';
     const minScoreThreshold = options?.minScore ?? 0;
+    const resolvedFieldBoosts = options?.fieldBoosts ?? DEFAULT_FIELD_BOOSTS;
+    const resolvedRankWindow = options?.rankWindow ?? DEFAULT_RANK_WINDOW;
+    const k = options?.rankConstant ?? DEFAULT_RANK_CONSTANT;
+    const strictMissing = options?.filterStrictMissing ?? true;
+
+    // 1. Structured filters (Feature B): boolean predicate before RRF fusion, never adds score
+    const effectiveFilters: SearchFilters | null = options?.filters
+      ? { ...options.filters }
+      : filterCategory
+      ? { category: filterCategory }
+      : null;
+    if (filterCategory && effectiveFilters && effectiveFilters.category === undefined) {
+      effectiveFilters.category = filterCategory;
+    }
+
+    const filteredItems = effectiveFilters
+      ? allItems.filter((item) => matchesStructuredFilters(item, effectiveFilters, strictMissing))
+      : allItems;
+    const candidatesAfterFilter = filteredItems.length;
+    if (options?.filterStatsOut) {
+      options.filterStatsOut.candidatesBeforeFilter = candidatesBeforeFilter;
+      options.filterStatsOut.candidatesAfterFilter = candidatesAfterFilter;
+    }
+    if (filteredItems.length === 0) {
+      return [];
+    }
 
     const queryInfo = normalizeQueryWithLayoutRecovery(queryText);
     const headIntent = extractHeadCategoryIntent(queryText);
     const effectiveQuery = queryInfo.normalizedQuery || queryText;
     const qVec = queryVector instanceof Float32Array ? queryVector : new Float32Array(queryVector);
-    const fused = this.hybrid.search(effectiveQuery, qVec, {
-      limit: Math.max(limit * 4, 40),
-      denseWeight,
-      sparseWeight,
-    });
 
-    // Also include direct title/category/head-intent stem matches from the store that might have been missed by approximate walk
-    const seenCandidateIds = new Set<string>(fused.map((r) => r.id));
     const lookupStems = Array.from(
       new Set([...queryInfo.coreStems, ...headIntent.familyStems])
     ).filter((s) => s.length >= 3);
 
-    if (lookupStems.length > 0 && this.items.size <= 5000) {
-      for (const stored of this.items.values()) {
-        if (seenCandidateIds.has(stored.id)) continue;
-        if (filterCategory && stored.category !== filterCategory) continue;
-        const textLower = `${stored.title} ${stored.category} ${(stored.tags || []).join(' ')}`.toLowerCase();
-        if (lookupStems.some((stem) => textLower.includes(stem))) {
-          const baseRrf = sparseWeight > 0 ? sparseWeight * (1 / (60 + 2)) : denseWeight * (1 / (60 + 10));
-          fused.push({
-            id: stored.id,
-            score: baseRrf,
-            sparseScore: sparseWeight > 0 ? 1.0 : 0,
-            source: sparseWeight > 0 && denseWeight > 0 ? 'hybrid' : sparseWeight > 0 ? 'sparse' : 'dense',
-          });
-          seenCandidateIds.add(stored.id);
+    // 2. Lexical channel (Feature A — Multi-Field BM25 with fieldBoosts + Feature C — rankWindow.lexical)
+    const lexicalScoredById = new Map<
+      string,
+      {
+        score: number;
+        contributions: LexicalFieldContribution[];
+        dominantField: FieldBoostField | null;
+      }
+    >();
+    const lexicalCandidates: Array<{ item: StoredItem; lexicalScore: number }> = [];
+
+    for (const stored of filteredItems) {
+      const multiField = scoreMultiFieldLexicalDocument({
+        query: effectiveQuery,
+        item: stored,
+        fieldBoosts: resolvedFieldBoosts,
+        idfLookup: (tok) => this.bm25.getIdf(tok),
+      });
+
+      let lexicalScore = multiField.totalScore;
+      let contributions = multiField.contributions;
+      let dominantField = multiField.dominantField;
+
+      // Fallback stem check if multiField score is 0 but morphological stem matched
+      if (lexicalScore === 0 && lookupStems.length > 0) {
+        const titleLower = (stored.title || '').toLowerCase();
+        const catLower = `${stored.category || ''} ${(stored.tags || []).join(' ')}`.toLowerCase();
+        if (lookupStems.some((s) => titleLower.includes(s)) && resolvedFieldBoosts.title > 0) {
+          lexicalScore = Math.round(resolvedFieldBoosts.title * 0.4 * 10000) / 10000;
+          contributions = contributions.map((c) =>
+            c.field === 'title' ? { ...c, contribution: lexicalScore } : c
+          );
+          dominantField = 'title';
+        } else if (
+          lookupStems.some((s) => catLower.includes(s)) &&
+          resolvedFieldBoosts.category > 0
+        ) {
+          lexicalScore = Math.round(resolvedFieldBoosts.category * 0.3 * 10000) / 10000;
+          contributions = contributions.map((c) =>
+            c.field === 'category' ? { ...c, contribution: lexicalScore } : c
+          );
+          dominantField = 'category';
         }
+      }
+
+      lexicalScoredById.set(stored.id, {
+        score: lexicalScore,
+        contributions,
+        dominantField,
+      });
+
+      if (lexicalScore > 0) {
+        lexicalCandidates.push({ item: stored, lexicalScore });
       }
     }
 
-    let catalogHasLexicalMatches = false;
-    for (const res of fused) {
-      const stored = this.items.get(res.id);
-      if (!stored) continue;
-      if (filterCategory && stored.category !== filterCategory) continue;
-      const g = evaluateCandidateGuardrail(queryInfo, stored, 0.5, res.sparseScore ?? 0, false);
-      if (g.titleMatchCount > 0 || g.categoryOrTagMatchCount > 0 || (res.sparseScore ?? 0) > 0) {
-        catalogHasLexicalMatches = true;
-        break;
+    lexicalCandidates.sort((a, b) => {
+      if (Math.abs(b.lexicalScore - a.lexicalScore) > 1e-9) {
+        return b.lexicalScore - a.lexicalScore;
+      }
+      return String(a.item.id).localeCompare(String(b.item.id));
+    });
+
+    const lexicalWindowed = lexicalCandidates.slice(0, resolvedRankWindow.lexical);
+    const lexicalRankMap = new Map<string, number>();
+    for (let i = 0; i < lexicalWindowed.length; i++) {
+      lexicalRankMap.set(lexicalWindowed[i].item.id, i + 1);
+    }
+
+    // 3. Dense channel (HNSW + Exact Cosine + Feature C — rankWindow.dense)
+    // Exercise HNSW graph walk for index telemetry, then rank filtered items by exact cosine similarity
+    this.hnsw.search(qVec, Math.min(Math.max(resolvedRankWindow.dense, 32), 200));
+
+    const denseScoredById = new Map<string, number>();
+    const denseCandidates: Array<{ item: StoredItem; exactDense: number }> = [];
+    for (const stored of filteredItems) {
+      const vec = stored.normalizedVector || stored.embedding;
+      const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
+      denseScoredById.set(stored.id, exactDense);
+      if (exactDense > 0) {
+        denseCandidates.push({ item: stored, exactDense });
+      }
+    }
+
+    denseCandidates.sort((a, b) => {
+      if (Math.abs(b.exactDense - a.exactDense) > 1e-9) {
+        return b.exactDense - a.exactDense;
+      }
+      return String(a.item.id).localeCompare(String(b.item.id));
+    });
+
+    const denseWindowed = denseCandidates.slice(0, resolvedRankWindow.dense);
+    const denseRankMap = new Map<string, number>();
+    for (let i = 0; i < denseWindowed.length; i++) {
+      denseRankMap.set(denseWindowed[i].item.id, i + 1);
+    }
+
+    // 4. Candidate union entering Weighted RRF (Feature D)
+    const candidateItemMap = new Map<string, StoredItem>();
+    if (sparseWeight > 0 || denseWeight === 0) {
+      for (const entry of lexicalWindowed) {
+        candidateItemMap.set(entry.item.id, entry.item);
+      }
+    }
+    if (denseWeight > 0 || sparseWeight === 0) {
+      for (const entry of denseWindowed) {
+        candidateItemMap.set(entry.item.id, entry.item);
+      }
+    }
+
+    let catalogHasLexicalMatches = lexicalWindowed.length > 0;
+    if (!catalogHasLexicalMatches) {
+      for (const stored of candidateItemMap.values()) {
+        const g = evaluateCandidateGuardrail(queryInfo, stored, 0.5, 0, false);
+        if (g.titleMatchCount > 0 || g.categoryOrTagMatchCount > 0) {
+          catalogHasLexicalMatches = true;
+          break;
+        }
       }
     }
 
     const totalWeight = Math.max(1e-6, denseWeight + sparseWeight);
     const normDenseShare = denseWeight / totalWeight;
     const normSparseShare = sparseWeight / totalWeight;
+    const isSingleChannelOrPureRrf =
+      denseWeight === 0 || sparseWeight === 0 || Boolean(options?.preserveExactRrfOrder);
 
     const scoredCandidates: {
       item: StoredItem;
@@ -694,18 +837,33 @@ export class VectorStore {
       conflictsWithHeadCategory: boolean;
       passesCategoryHardGate: boolean;
       source?: string;
+      rrf: RrfBreakdown;
+      lexicalFieldContributions: LexicalFieldContribution[];
+      dominantLexicalField: FieldBoostField | null;
     }[] = [];
 
-    for (const res of fused) {
-      const stored = this.items.get(res.id);
-      if (!stored) continue;
-      if (filterCategory && stored.category !== filterCategory) continue;
+    for (const stored of candidateItemMap.values()) {
+      const exactDense = denseScoredById.get(stored.id) ?? 0;
+      const lexEntry = lexicalScoredById.get(stored.id);
+      const sparseScore = lexEntry?.score ?? 0;
+      const lexicalRank = lexicalRankMap.get(stored.id) ?? null;
+      const denseRank = denseRankMap.get(stored.id) ?? null;
 
-      const vec = stored.normalizedVector || stored.embedding;
-      const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
-      const sparseScore = res.sparseScore ?? 0;
-      let rrfScore = res.score;
-      let source = res.source;
+      const rrf = computeWeightedRrfBreakdown({
+        k,
+        lexicalRank,
+        denseRank,
+        lexicalWeight: sparseWeight,
+        denseWeight,
+      });
+
+      const rrfScore = rrf.fusedScore;
+      const source =
+        lexicalRank !== null && denseRank !== null && sparseWeight > 0 && denseWeight > 0
+          ? 'hybrid'
+          : lexicalRank !== null && sparseWeight > 0
+          ? 'sparse'
+          : 'dense';
 
       const guardrail = evaluateCandidateGuardrail(
         queryInfo,
@@ -715,48 +873,46 @@ export class VectorStore {
         catalogHasLexicalMatches && normSparseShare >= 0.15
       );
 
-      // If item matched via BM25 or stem overlap and HNSW approximate walk missed it,
-      // add its verified dense RRF contribution when exact cosine similarity is strong.
-      if (res.denseScore === undefined && denseWeight > 0 && exactDense >= 0.35) {
-        rrfScore += denseWeight * (1 / (60 + 10));
-        if (sparseWeight > 0 && (sparseScore > 0 || guardrail.totalLexicalMatchCount > 0)) {
-          source = 'hybrid';
-        }
-      }
-
-      // Compute weighted score respecting alpha / (denseWeight, sparseWeight)
-      let rawScore = rrfScore;
-      if (normSparseShare > 0) {
-        rawScore +=
-          normSparseShare *
-          (guardrail.consistencyBoost * 0.08 + Math.min(0.06, sparseScore * 0.008));
-      }
-      if (normDenseShare > 0) {
-        rawScore += normDenseShare * (exactDense * 0.16);
-      }
-
-      // Evaluate head category gate (strict head-noun priority over modifiers like "для бега")
       const catGate = evaluateCandidateCategoryGate(headIntent, stored, gateMode);
-      if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
-        rawScore = rawScore * catGate.categoryScoreMultiplier + catGate.categoryBonus;
 
-        // Secondary modifier & budget boost ONLY within non-conflicting / head-matching items
-        if (!catGate.conflictsWithHeadCategory) {
-          const itemTextLower = `${stored.title} ${stored.category} ${(stored.tags || []).join(' ')} ${stored.description || ''}`.toLowerCase();
-          let modMatches = 0;
-          for (const mod of headIntent.modifierTokens) {
-            const stem = mod.length >= 4 ? mod.slice(0, Math.min(mod.length, 5)) : mod;
-            if (stem.length >= 3 && itemTextLower.includes(stem)) {
-              modMatches++;
+      let rawScore = rrfScore;
+      if (!isSingleChannelOrPureRrf) {
+        if (normSparseShare > 0) {
+          rawScore +=
+            normSparseShare *
+            (guardrail.consistencyBoost * 0.08 + Math.min(0.06, sparseScore * 0.008));
+        }
+        if (normDenseShare > 0) {
+          rawScore += normDenseShare * (exactDense * 0.16);
+        }
+
+        if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
+          rawScore = rawScore * catGate.categoryScoreMultiplier + catGate.categoryBonus;
+
+          if (!catGate.conflictsWithHeadCategory) {
+            const itemTextLower = `${stored.title} ${stored.category} ${(stored.tags || []).join(' ')} ${stored.description || ''}`.toLowerCase();
+            let modMatches = 0;
+            for (const mod of headIntent.modifierTokens) {
+              const stem = mod.length >= 4 ? mod.slice(0, Math.min(mod.length, 5)) : mod;
+              if (stem.length >= 3 && itemTextLower.includes(stem)) {
+                modMatches++;
+              }
+            }
+            if (modMatches > 0) {
+              rawScore += modMatches * 0.025;
+            }
+            const budgetCap = headIntent.maxPrice ?? (queryInfo.isBudgetIntent ? 12000 : undefined);
+            if (budgetCap !== undefined && typeof stored.price === 'number' && stored.price > 0) {
+              if (stored.price <= budgetCap) {
+                rawScore += 0.02;
+              } else if (headIntent.maxPrice !== undefined) {
+                rawScore *= 0.65;
+              }
             }
           }
-          if (modMatches > 0) {
-            rawScore += modMatches * 0.025;
-          }
-          if (queryInfo.isBudgetIntent && typeof stored.price === 'number' && stored.price > 0 && stored.price <= 12000) {
-            rawScore += 0.015;
-          }
         }
+      } else if (gateMode === 'soft' && headIntent.hasHeadCategoryIntent) {
+        rawScore = rawScore * catGate.categoryScoreMultiplier + catGate.categoryBonus;
       }
 
       let passesGate =
@@ -780,6 +936,9 @@ export class VectorStore {
         conflictsWithHeadCategory: catGate.conflictsWithHeadCategory,
         passesCategoryHardGate: catGate.passesHardGate,
         source,
+        rrf,
+        lexicalFieldContributions: lexEntry?.contributions ?? [],
+        dominantLexicalField: lexEntry?.dominantField ?? null,
       });
     }
 
@@ -789,71 +948,70 @@ export class VectorStore {
       return [];
     }
 
-    // Head-category gate enforcement
+    // Head-category gate enforcement (strict intersection with structured filters)
     if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
       const headMatchedPool = finalPool.filter((c) => c.matchesHeadCategory);
-      if (headMatchedPool.length > 0) {
-        if (gateMode === 'hard') {
+      if (gateMode === 'hard') {
+        if (headMatchedPool.length > 0 || effectiveFilters?.category !== undefined) {
           finalPool = headMatchedPool;
         } else {
-          // 'soft' mode keeps all non-conflicting items or demotes conflicting ones via rawScore
-          const nonConflicting = finalPool.filter((c) => c.passesCategoryHardGate);
-          if (nonConflicting.length > 0) {
-            finalPool = nonConflicting;
-          }
+          finalPool = finalPool.filter((c) => !c.conflictsWithHeadCategory);
         }
-      } else if (gateMode === 'hard') {
-        const nonConflicting = finalPool.filter((c) => !c.conflictsWithHeadCategory);
+      } else {
+        const nonConflicting = finalPool.filter((c) => c.passesCategoryHardGate);
         if (nonConflicting.length > 0) {
           finalPool = nonConflicting;
         }
       }
     }
 
+    if (finalPool.length === 0) {
+      return [];
+    }
+
     finalPool.sort((a, b) => {
-      if (Math.abs(b.rawScore - a.rawScore) > 1e-6) {
+      if (Math.abs(b.rawScore - a.rawScore) > 1e-9) {
         return b.rawScore - a.rawScore;
       }
-      if (normSparseShare >= normDenseShare) {
-        if (Math.abs(b.sparseScore - a.sparseScore) > 1e-6) {
-          return b.sparseScore - a.sparseScore;
-        }
-        return b.exactDense - a.exactDense;
+      if (Math.abs(b.rrfScore - a.rrfScore) > 1e-9) {
+        return b.rrfScore - a.rrfScore;
       }
-      if (Math.abs(b.exactDense - a.exactDense) > 1e-6) {
-        return b.exactDense - a.exactDense;
-      }
-      return b.sparseScore - a.sparseScore;
+      return String(a.item.id).localeCompare(String(b.item.id));
     });
 
-    // Diversify near-identical color/size variants of the same product model so top results
-    // show distinct models first rather than multiple color/size clones of a single model.
-    const seenModels = new Set<string>();
-    const primaryModels: typeof finalPool = [];
-    const overflowVariants: typeof finalPool = [];
-    for (const candidate of finalPool) {
-      const descMatch = candidate.item.description?.match(/^([^,]+),\s*комплектация:/i);
-      const modelKey = descMatch
-        ? descMatch[1].trim().toLowerCase()
-        : /\([^)]+\)\s*$/.test(candidate.item.title)
-        ? candidate.item.title.replace(/\s*\([^)]+\)\s*$/, '').trim().toLowerCase()
-        : `id:${candidate.item.id}`;
-      if (!seenModels.has(modelKey)) {
-        seenModels.add(modelKey);
-        primaryModels.push(candidate);
-      } else {
-        overflowVariants.push(candidate);
+    // Diversify near-identical color/size variants of the same product model in general storefront hybrid search
+    let orderedPool = finalPool;
+    if (!isSingleChannelOrPureRrf) {
+      const seenModels = new Set<string>();
+      const primaryModels: typeof finalPool = [];
+      const overflowVariants: typeof finalPool = [];
+      for (const candidate of finalPool) {
+        const descMatch = candidate.item.description?.match(/^([^,]+),\s*комплектация:/i);
+        const modelKey = descMatch
+          ? descMatch[1].trim().toLowerCase()
+          : /\([^)]+\)\s*$/.test(candidate.item.title)
+          ? candidate.item.title.replace(/\s*\([^)]+\)\s*$/, '').trim().toLowerCase()
+          : `id:${candidate.item.id}`;
+        if (!seenModels.has(modelKey)) {
+          seenModels.add(modelKey);
+          primaryModels.push(candidate);
+        } else {
+          overflowVariants.push(candidate);
+        }
       }
+      orderedPool = [...primaryModels, ...overflowVariants];
     }
-    const diversifiedPool = [...primaryModels, ...overflowVariants];
 
-    return diversifiedPool.slice(0, limit).map((c) => ({
+    return orderedPool.slice(0, limit).map((c) => ({
       item: c.item,
-      score: Math.round(c.rawScore * 10000) / 10000,
-      rrfScore: Math.round(c.rrfScore * 10000) / 10000,
+      score: Math.round(c.rawScore * 1000000) / 1000000,
+      rrfScore: c.rrf.fusedScore,
       exactDense: Math.round(c.exactDense * 10000) / 10000,
       sparseScore: Math.round(c.sparseScore * 10000) / 10000,
       source: c.source,
+      rrf: c.rrf,
+      lexicalFieldContributions: c.lexicalFieldContributions,
+      dominantLexicalField: c.dominantLexicalField,
     }));
   }
 

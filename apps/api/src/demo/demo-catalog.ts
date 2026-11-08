@@ -7,6 +7,7 @@ export interface CatalogItem {
   category: string;
   price: number;
   inStock: boolean;
+  stock?: number;
   tags: string[];
   url?: string;
   imageUrl?: string;

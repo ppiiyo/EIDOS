@@ -1,4 +1,11 @@
 import * as crypto from 'crypto';
+import {
+  DEFAULT_FIELD_BOOSTS,
+  DEFAULT_RANK_CONSTANT,
+  DEFAULT_RANK_WINDOW,
+  FieldBoosts,
+  RankWindow,
+} from '@eidos/core';
 
 export interface QueryLogTopHit {
   id: string;
@@ -85,6 +92,11 @@ export interface TenantRankingDefaults {
   defaultAlpha: number;
   minScore: number;
   minSimilarity: number;
+  fieldBoosts: Required<FieldBoosts>;
+  rankWindow: Required<RankWindow>;
+  rankConstant: number;
+  weights: { semantic: number; lexical: number };
+  filterStrictMissing: boolean;
   updatedAt: string;
 }
 
@@ -509,6 +521,11 @@ export class AdminConsoleStore {
       defaultAlpha: 0.5,
       minScore: 0.09,
       minSimilarity: 0.25,
+      fieldBoosts: { ...DEFAULT_FIELD_BOOSTS },
+      rankWindow: { ...DEFAULT_RANK_WINDOW },
+      rankConstant: DEFAULT_RANK_CONSTANT,
+      weights: { semantic: 0.5, lexical: 0.5 },
+      filterStrictMissing: true,
       updatedAt: new Date().toISOString(),
     };
     this.rankingDefaultsByTenant.set(tenantId, defaults);
@@ -517,15 +534,41 @@ export class AdminConsoleStore {
 
   public updateRankingDefaults(
     tenantId = 'default',
-    patch: Partial<Omit<TenantRankingDefaults, 'updatedAt'>>
+    patch: Partial<Omit<TenantRankingDefaults, 'updatedAt' | 'fieldBoosts' | 'rankWindow' | 'weights'>> & {
+      fieldBoosts?: Partial<FieldBoosts>;
+      rankWindow?: Partial<RankWindow>;
+      weights?: Partial<{ semantic: number; lexical: number }>;
+    }
   ): TenantRankingDefaults {
     const current = this.getRankingDefaults(tenantId);
+    const nextAlpha =
+      typeof patch.defaultAlpha === 'number'
+        ? Math.min(1, Math.max(0, Number(patch.defaultAlpha.toFixed(4))))
+        : typeof patch.weights?.semantic === 'number'
+        ? Math.min(1, Math.max(0, Number(patch.weights.semantic.toFixed(4))))
+        : current.defaultAlpha;
+
+    const nextWeights = patch.weights
+      ? {
+          semantic:
+            typeof patch.weights.semantic === 'number'
+              ? Math.max(0, Number(patch.weights.semantic.toFixed(4)))
+              : current.weights.semantic,
+          lexical:
+            typeof patch.weights.lexical === 'number'
+              ? Math.max(0, Number(patch.weights.lexical.toFixed(4)))
+              : current.weights.lexical,
+        }
+      : typeof patch.defaultAlpha === 'number'
+      ? {
+          semantic: nextAlpha,
+          lexical: Number((1 - nextAlpha).toFixed(4)),
+        }
+      : { ...current.weights };
+
     const updated: TenantRankingDefaults = {
       simpleCategoryGate: patch.simpleCategoryGate ?? current.simpleCategoryGate,
-      defaultAlpha:
-        typeof patch.defaultAlpha === 'number'
-          ? Math.min(1, Math.max(0, Number(patch.defaultAlpha.toFixed(4))))
-          : current.defaultAlpha,
+      defaultAlpha: nextAlpha,
       minScore:
         typeof patch.minScore === 'number'
           ? Math.min(1, Math.max(0, Number(patch.minScore.toFixed(4))))
@@ -534,6 +577,47 @@ export class AdminConsoleStore {
         typeof patch.minSimilarity === 'number'
           ? Math.min(1, Math.max(0, Number(patch.minSimilarity.toFixed(4))))
           : current.minSimilarity,
+      fieldBoosts: {
+        title:
+          typeof patch.fieldBoosts?.title === 'number' && patch.fieldBoosts.title >= 0
+            ? patch.fieldBoosts.title
+            : current.fieldBoosts.title,
+        sku:
+          typeof patch.fieldBoosts?.sku === 'number' && patch.fieldBoosts.sku >= 0
+            ? patch.fieldBoosts.sku
+            : current.fieldBoosts.sku,
+        brand:
+          typeof patch.fieldBoosts?.brand === 'number' && patch.fieldBoosts.brand >= 0
+            ? patch.fieldBoosts.brand
+            : current.fieldBoosts.brand,
+        category:
+          typeof patch.fieldBoosts?.category === 'number' && patch.fieldBoosts.category >= 0
+            ? patch.fieldBoosts.category
+            : current.fieldBoosts.category,
+        description:
+          typeof patch.fieldBoosts?.description === 'number' && patch.fieldBoosts.description >= 0
+            ? patch.fieldBoosts.description
+            : current.fieldBoosts.description,
+      },
+      rankWindow: {
+        lexical:
+          typeof patch.rankWindow?.lexical === 'number'
+            ? Math.min(200, Math.max(1, Math.round(patch.rankWindow.lexical)))
+            : current.rankWindow.lexical,
+        dense:
+          typeof patch.rankWindow?.dense === 'number'
+            ? Math.min(200, Math.max(1, Math.round(patch.rankWindow.dense)))
+            : current.rankWindow.dense,
+      },
+      rankConstant:
+        typeof patch.rankConstant === 'number' && patch.rankConstant > 0
+          ? patch.rankConstant
+          : current.rankConstant,
+      weights: nextWeights,
+      filterStrictMissing:
+        typeof patch.filterStrictMissing === 'boolean'
+          ? patch.filterStrictMissing
+          : current.filterStrictMissing,
       updatedAt: new Date().toISOString(),
     };
     this.rankingDefaultsByTenant.set(tenantId, updated);

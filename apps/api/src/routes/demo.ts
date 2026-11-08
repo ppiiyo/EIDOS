@@ -141,7 +141,19 @@ export async function demoRoutes(
     const period = query.period || '7d';
     const adminStore = getAdminConsoleStore();
     seedDemoAnalyticsIfEmpty(adminStore);
-    return adminStore.getAnalyticsSummary({ tenantId: 'default', period });
+    const summary = adminStore.getAnalyticsSummary({ tenantId: 'default', period });
+    const defaults = adminStore.getRankingDefaults('default');
+    return {
+      ...summary,
+      rankingDefaults: {
+        fieldBoosts: defaults.fieldBoosts,
+        rankWindow: defaults.rankWindow,
+        rankConstant: defaults.rankConstant,
+        weights: defaults.weights,
+        filterStrictMissing: defaults.filterStrictMissing,
+        simpleCategoryGate: defaults.simpleCategoryGate,
+      },
+    };
   });
 
   /**

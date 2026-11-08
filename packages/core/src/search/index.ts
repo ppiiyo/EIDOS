@@ -3,4 +3,6 @@ export * from './hybrid-search';
 export * from './splade-lite';
 export * from './query-understanding';
 export * from './ranking-guardrails';
+export * from './retrieval-p1';
+
 
