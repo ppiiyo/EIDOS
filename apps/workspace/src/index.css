@@ -381,15 +381,20 @@ textarea.input {
 .mobile-menu-toggle {
   display: none;
   position: fixed;
-  top: 10px;
+  top: 9px;
   left: 12px;
+  width: 36px;
+  height: 36px;
   z-index: 101;
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 18px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
@@ -662,7 +667,7 @@ textarea.input {
 
 @media (max-width: 768px) {
   .mobile-menu-toggle {
-    display: block;
+    display: inline-flex;
   }
   .sidebar {
     position: fixed;
@@ -676,6 +681,7 @@ textarea.input {
   }
   .studio-topbar {
     padding-left: 56px;
+    padding-right: 12px;
   }
 }
 

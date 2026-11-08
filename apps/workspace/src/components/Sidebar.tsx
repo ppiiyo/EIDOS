@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           g2: 'Лаборатория и тесты',
           g3: 'Аналитика и эксплуатация',
           onboarding: 'Мастер пилота (No-Code)',
-          demo: 'Демо-каталог (48 SKU)',
+          demo: 'Mini-fixture IDE (48 SKU)',
           indexes: 'Менеджер индексов HNSW',
           ranking: 'Песочница ранжирования',
           cluster: 'Кластер и отказоустойчивость',
@@ -199,14 +199,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         aria-label="Primary Navigation"
         data-testid="studio-sidebar"
       >
-        <div className="sidebar-header sidebar-brand">
+        <div className="sidebar-header sidebar-brand pl-14 md:pl-4">
           <div className="sidebar-logo flex items-center gap-2.5">
             <span className="logo-icon">⚡</span>
             {!isCollapsed && <span className="logo-text">EIDOS Engine</span>}
           </div>
           <button
             type="button"
-            className="sidebar-toggle"
+            className="sidebar-toggle hidden md:inline-block"
             onClick={() => setIsCollapsed(!isCollapsed)}
             title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
             aria-label="Toggle Sidebar"
@@ -217,15 +217,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {!isCollapsed && (
-          <div className="px-3 pt-2 pb-1">
+          <div className="px-3 pt-2 pb-1 space-y-1.5">
+            <div className="grid grid-cols-2 gap-1.5 md:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelect('public-demo');
+                  setIsMobileOpen(false);
+                }}
+                className="btn btn-primary btn-sm w-full text-xs justify-center"
+              >
+                {uiLang === 'ru' ? 'Витрина' : 'Storefront'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onSelect('admin');
+                  setIsMobileOpen(false);
+                }}
+                className="btn btn-secondary btn-sm w-full text-xs justify-center"
+              >
+                {uiLang === 'ru' ? 'Кабинет' : 'Cabinet'}
+              </button>
+            </div>
             <button
               type="button"
               data-testid="sidebar-mode-toggle"
               onClick={() => setNavMode(effectiveExpert ? 'simple' : 'expert')}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-slate-800/70 hover:bg-slate-800 text-slate-300 border border-slate-700/60 transition-colors"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs bg-[var(--bg-alt)] hover:bg-[var(--surface-hover)] text-[var(--text-sec)] border border-[var(--border)] transition-colors cursor-pointer"
             >
               <span>{effectiveExpert ? labels.modeExpert : labels.modeSimple}</span>
-              <span className="text-[10px] text-emerald-400 font-mono">
+              <span className="text-[10px] text-[var(--success)] font-mono font-semibold">
                 {effectiveExpert ? 'Simple' : 'Expert →'}
               </span>
             </button>

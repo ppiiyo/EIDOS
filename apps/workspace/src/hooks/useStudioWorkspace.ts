@@ -158,7 +158,7 @@ export function useStudioWorkspace() {
     (targetCount = 1200) => {
       if (catalog.length === 0) {
         showToast(
-          'Сначала загрузите свой каталог (CSV/JSON) или перейдите во вкладку «Демо-каталог (48 SKU)»',
+          'Сначала загрузите свой каталог (CSV/JSON) или выберите встроенный mini-fixture (48 SKU) для отладки IDE',
           'info'
         );
         return;

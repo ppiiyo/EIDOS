@@ -334,7 +334,7 @@ export const DemoMode: React.FC<DemoModeProps> = ({
           data-testid="demo-mode-loading"
           className="card p-8 text-center text-sm text-[var(--text-sec)]"
         >
-          Загрузка полного демо-каталога EIDOS (48 SKU) и инициализация HNSW + BM25...
+          Загрузка встроенного mini-fixture (48 SKU) для отладки IDE и инициализация HNSW + BM25...
         </div>
       </div>
     );
@@ -352,29 +352,29 @@ export const DemoMode: React.FC<DemoModeProps> = ({
           </div>
         )}
 
-        {/* Главная панель управления демо-каталогом и живой телеметрии движка */}
+        {/* Главная панель управления встроенным mini-fixture и живой телеметрии движка */}
         <div className="card p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-[var(--border)]">
             <div>
               <div className="flex items-center gap-2">
                 <span className="badge badge-accent mono">
                   <Cpu size={12} />
-                  <span>DEMO SHOWCASE · 48 SKU</span>
+                  <span>IDE MINI-FIXTURE · 48 SKU</span>
                 </span>
                 <span className="text-xs text-[var(--text-sec)]">
                   {uiLang === 'ja'
-                    ? 'フルデモコーパス上の全機能・メトリクス・384次元ベクトル'
+                    ? 'IDEデバッグ用内蔵ミニフィクスチャ (48 SKU) · 公開デモは /public-demo (1000+ SKU)'
                     : uiLang === 'en'
-                    ? 'All features, live metrics & vectors on the full demo corpus'
-                    : 'Все функции, метрики и векторы на полном демо-корпусе'}
+                    ? 'Built-in mini-fixture (48 SKU) for IDE debugging · Storefront demo is on /public-demo (1000+ items)'
+                    : 'Встроенный mini-fixture (48 SKU) для отладки IDE · Клиентское демо — на витрине (/public-demo, 1000+ товаров)'}
                 </span>
               </div>
               <h2 className="text-base font-bold text-[var(--text)] mt-1">
                 {uiLang === 'ja'
-                  ? `EIDOS デモカタログ (${engineTelemetry.totalSku.toLocaleString()} SKU · 384-d HNSW)`
+                  ? `IDE ミニフィクスチャ (${engineTelemetry.totalSku.toLocaleString()} SKU · 384-d HNSW)`
                   : uiLang === 'en'
-                  ? `EIDOS Full Demo Catalog (${engineTelemetry.totalSku.toLocaleString()} SKUs in active 384-d HNSW index)`
-                  : `Полный демонстрационный каталог EIDOS (${engineTelemetry.totalSku.toLocaleString()} SKU в активном 384-d HNSW индексе)`}
+                  ? `Built-in IDE Mini-Fixture (${engineTelemetry.totalSku.toLocaleString()} SKUs in active 384-d HNSW index)`
+                  : `Встроенный mini-fixture (48 SKU) для отладки IDE (${engineTelemetry.totalSku.toLocaleString()} SKU в активном 384-d HNSW индексе)`}
               </h2>
             </div>
 

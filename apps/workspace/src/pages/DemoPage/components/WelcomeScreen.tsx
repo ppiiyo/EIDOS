@@ -19,14 +19,26 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 }) => {
   const handleUpload = onUpload || onOpenUpload || (() => {});
   const handleTryDemo = onTryDemo || onSelectDemo || (() => {});
+  const handleOpenPublicDemo = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/public-demo');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
 
   return (
     <div className="page" data-testid="demo-welcome-screen">
-      <div className="card p-8 md:p-12 border border-[var(--border)] bg-[var(--surface)]">
+      <div className="card p-5 sm:p-8 md:p-12 border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
         <div className="max-w-2xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 badge badge-accent mono mb-4">
-            <Sparkles size={13} />
-            <span>EIDOS v3.4.0 · Hybrid Search & Explainable Ranking Studio</span>
+          <div className="inline-flex items-center justify-center gap-1.5 badge badge-accent mono mb-4 max-w-full whitespace-normal text-center leading-snug py-1 px-3">
+            <Sparkles size={13} className="shrink-0" />
+            <span>
+              {uiLang === 'ja'
+                ? 'エンジニアリングスタジオ · 公開ストアフロントデモ (/public-demo)'
+                : uiLang === 'en'
+                ? 'Engineering Studio · client storefront demo is on /public-demo'
+                : 'Инженерная студия · клиентское демо — на витрине'}
+            </span>
           </div>
 
           <h1 className="page-title text-2xl md:text-4xl font-extrabold tracking-tight mb-3">
@@ -56,22 +68,25 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             )}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-8">
-            <button
-              type="button"
-              onClick={handleTryDemo}
-              data-testid="welcome-demo-btn"
-              className="btn btn-primary px-7 py-3.5 text-sm font-bold w-full sm:w-auto shadow-sm"
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-4">
+            <a
+              href="/public-demo"
+              onClick={(e) => {
+                e.preventDefault();
+                handleOpenPublicDemo();
+              }}
+              data-testid="welcome-open-vitrine-btn"
+              className="btn btn-primary px-7 py-3.5 text-sm font-bold w-full sm:w-auto shadow-sm no-underline"
             >
               <Sparkles size={16} />
               <span>
                 {uiLang === 'ja'
-                  ? 'デモカタログで試す (48商品)'
+                  ? 'ストアフロントを開く (1000+ 商品)'
                   : uiLang === 'en'
-                  ? 'Try on Demo Catalog (48 items)'
-                  : 'Попробовать на демо-каталоге (48 товаров)'}
+                  ? 'Open Storefront (1000+ items)'
+                  : 'Открыть витрину (1000+ товаров)'}
               </span>
-            </button>
+            </a>
 
             <button
               type="button"
@@ -87,6 +102,21 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   ? 'Upload Own CSV / JSON'
                   : 'Загрузить свой CSV / JSON'}
               </span>
+            </button>
+          </div>
+
+          <div className="mb-8">
+            <button
+              type="button"
+              onClick={handleTryDemo}
+              data-testid="welcome-demo-btn"
+              className="text-xs text-[var(--text-sec)] hover:text-[var(--text)] underline cursor-pointer bg-transparent border-0"
+            >
+              {uiLang === 'ja'
+                ? 'IDEデバッグ用内蔵ミニフィクスチャ (48 SKU)'
+                : uiLang === 'en'
+                ? 'Built-in mini-fixture (48 SKU) for IDE debugging'
+                : 'Встроенный mini-fixture (48 SKU) для отладки IDE'}
             </button>
           </div>
         </div>

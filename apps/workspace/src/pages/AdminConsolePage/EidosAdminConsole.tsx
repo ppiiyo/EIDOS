@@ -524,7 +524,10 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         <div className="flex items-center gap-2.5 shrink-0">
           {isPublicDemo ? (
             <Button variant="primary" size="sm" onClick={() => setActiveTab('docs')}>
-              {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV' : 'Connect Store'}
+              <span className="sm:hidden">{lang === 'ru' ? 'Подключить' : 'Connect'}</span>
+              <span className="hidden sm:inline">
+                {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV' : 'Connect Store'}
+              </span>
             </Button>
           ) : (
             <div className="flex items-center gap-2">
@@ -900,8 +903,8 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               className="text-slate-600 hover:text-slate-900 underline cursor-pointer"
             >
               {lang === 'ru'
-                ? 'Кабинет (нужен ключ) · Режим оператора (/admin)'
-                : 'Cabinet (/admin)'}
+                ? 'Кабинет (нужен ключ)'
+                : 'Admin (key required)'}
             </button>
             <a
               href="/"

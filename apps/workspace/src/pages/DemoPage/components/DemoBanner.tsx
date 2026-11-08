@@ -56,10 +56,10 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
             <span className="font-bold text-[var(--text)]" data-testid="indexed-items-count">
               {isDemo
                 ? uiLang === 'ja'
-                  ? `デモモード実行中 (${demoItemsCount} SKU インデックス済)・データは分離されています`
+                  ? `IDEデバッグ用内蔵ミニフィクスチャ (${demoItemsCount} SKU)・データは分離されています`
                   : uiLang === 'en'
-                  ? `Demo Mode Active (${demoItemsCount} SKUs indexed). Sandbox is isolated.`
-                  : `Вы сейчас в демо-режиме (${demoItemsCount} SKU проиндексировано). Данные изолированы.`
+                  ? `Built-in mini-fixture (${demoItemsCount} SKU) for IDE debugging. Sandbox is isolated.`
+                  : `Встроенный mini-fixture (${demoItemsCount} SKU) для отладки IDE. Данные изолированы.`
                 : uiLang === 'ja'
                 ? `${ownItemsCount} 商品インデックス済 · マイカタログモード`
                 : uiLang === 'en'

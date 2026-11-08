@@ -137,7 +137,7 @@ export const ADMIN_COPY = {
     switchToStudio: 'Студия (/)',
     tabs: {
       dashboard: 'Обзор',
-      'live-search': 'Живой поиск · Проверка поиска',
+      'live-search': 'Живой поиск',
       'query-log': 'Журнал запросов',
       analytics: 'Аналитика',
       catalog: 'Каталог',

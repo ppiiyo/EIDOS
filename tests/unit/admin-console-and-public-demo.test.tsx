@@ -294,7 +294,8 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     const adminHtml = renderToStaticMarkup(<EidosAdminConsole mode="admin" uiLang="ru" />);
     expect(adminHtml).toContain('data-testid="eidos-admin-console"');
     expect(adminHtml).toContain('Журнал запросов');
-    expect(adminHtml).toContain('Проверка поиска');
+    expect(adminHtml).toContain('Живой поиск');
+    expect(adminHtml).not.toContain('Живой поиск · Проверка поиска');
     expect(adminHtml).toContain('Словари и синонимы');
     expect(adminHtml).toContain('Настройки ранжирования');
     expect(adminHtml).toContain('Проверка системы');
@@ -314,7 +315,8 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(publicDemoHtml).toContain('Подключить магазин');
     expect(publicDemoHtml).toContain('data-testid="public-demo-footer"');
     expect(publicDemoHtml).toContain('Для специалистов:');
-    expect(publicDemoHtml).toContain('Режим оператора (/admin)');
+    expect(publicDemoHtml).toContain('Кабинет (нужен ключ)');
+    expect(publicDemoHtml).not.toContain('Режим оператора (/admin)');
     expect(publicDemoHtml).toContain('Студия (/)');
     // Write tabs must not appear in public-demo surface
     expect(publicDemoHtml).not.toContain('data-testid="admin-tab-dictionaries"');
@@ -354,6 +356,10 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
       expect(studioRouteHtml).toContain('data-testid="header-open-public-demo-btn"');
       expect(studioRouteHtml).toContain('data-testid="header-open-admin-btn"');
       expect(studioRouteHtml).toContain('Открыть клиентское демо');
+      expect(studioRouteHtml).toContain('Инженерная студия · клиентское демо — на витрине');
+      expect(studioRouteHtml).toContain('Открыть витрину (1000+ товаров)');
+      expect(studioRouteHtml).toContain('Встроенный mini-fixture (48 SKU) для отладки IDE');
+      expect(studioRouteHtml).not.toContain('Попробовать на демо-каталоге (48 товаров)');
     } finally {
       (globalThis as any).window = prevWindow;
     }
@@ -523,7 +529,9 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(publicDemoHtml).toContain('Для специалиста');
     expect(publicDemoHtml).toContain('Подключить к Bitrix / Woo / CSV');
     expect(publicDemoHtml).toContain('data-testid="public-demo-connect-store-cta"');
-    expect(publicDemoHtml).toContain('Ничего не найдено — так и должно быть для бессмысленного запроса');
+    expect(publicDemoHtml).toContain('Ничего не нашли — для бессмысленного запроса так и должно быть.');
+    expect(publicDemoHtml).not.toContain('(Ничего не найдено');
+    expect(publicDemoHtml).toContain('Поиск не подсовывает случайные товары, если в каталоге нет подходящего ответа.');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-недорогие наушники для бега"');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-детский смартфон до 15000"');
     expect(publicDemoHtml).toContain('data-testid="admin-live-sample-5W-40"');

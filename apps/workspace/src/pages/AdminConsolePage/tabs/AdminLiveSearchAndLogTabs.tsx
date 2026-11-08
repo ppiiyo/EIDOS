@@ -534,8 +534,8 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                 title={
                   isPublicDemo
                     ? lang === 'ru'
-                      ? 'Ничего не нашли — для бессмысленного запроса так и должно быть (Ничего не найдено — так и должно быть для бессмысленного запроса)'
-                      : 'Nothing found — as expected for a nonsensical query'
+                      ? 'Ничего не нашли — для бессмысленного запроса так и должно быть.'
+                      : "No results — that's expected for a nonsense query."
                     : lang === 'ru'
                     ? 'По запросу ничего не найдено (count: 0)'
                     : 'Zero results returned (count: 0)'
@@ -543,8 +543,8 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                 description={
                   isPublicDemo
                     ? lang === 'ru'
-                      ? 'Поиск EIDOS не подсовывает случайные товары, если в каталоге нет подходящего ответа.'
-                      : 'EIDOS never pollutes the storefront with random items when no relevant match exists.'
+                      ? 'Поиск не подсовывает случайные товары, если в каталоге нет подходящего ответа.'
+                      : 'Search does not return random items when no relevant match exists in the catalog.'
                     : lang === 'ru'
                     ? 'Запрос отсечён порогом уверенности или фильтром категории. Если покупатели ищут так существующий товар — добавьте синоним.'
                     : 'Filtered by confidence floor or Category Gate. Add a synonym rule if shoppers use this phrase.'
@@ -555,7 +555,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                       variant="secondary"
                       size="sm"
                       data-testid="empty-try-another-btn"
-                      onClick={() => setQuery('недорогие наушники для бега')}
+                      onClick={() => setQuery('наушники')}
                     >
                       {lang === 'ru' ? 'Попробовать другой пример' : 'Try another example'}
                     </Button>

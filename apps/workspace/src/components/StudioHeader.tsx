@@ -70,11 +70,11 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
   })();
 
   return (
-    <header className="h-[52px] border-b border-[var(--border)] bg-[var(--surface)] px-6 flex items-center justify-between gap-3 sticky top-0 z-10">
-      <div className="flex items-center gap-2.5 min-w-0">
+    <header className="studio-topbar h-[54px] border-b border-[var(--border)] bg-[var(--surface)] pl-14 pr-3 md:px-6 flex items-center justify-between gap-2 sticky top-0 z-20 overflow-hidden">
+      <div className="flex items-center gap-2 min-w-0">
         <span
           data-testid="studio-engineering-badge"
-          className="mono text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-900 text-white whitespace-nowrap"
+          className="mono text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-900 text-white whitespace-nowrap shrink-0"
         >
           Studio · engineering
         </span>
@@ -84,11 +84,10 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
             type="button"
             data-testid="header-open-public-demo-btn"
             onClick={onOpenPublicDemo}
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary btn-sm hidden md:inline-flex"
             title="Открыть клиентское демо (/public-demo)"
           >
-            <span>{uiLang === 'ru' ? 'Открыть витрину' : 'Open Storefront'}</span>
-            <span className="sr-only">Открыть клиентское демо</span>
+            <span>{uiLang === 'ru' ? 'Открыть витрину (1000+ товаров)' : 'Open Storefront (1000+ items)'}</span>
           </button>
         )}
 
@@ -97,20 +96,22 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
             type="button"
             data-testid="header-open-admin-btn"
             onClick={onOpenAdminConsole}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm hidden lg:inline-flex"
             title="Открыть кабинет оператора (/admin)"
           >
             <span>{uiLang === 'ru' ? 'Открыть кабинет' : 'Open Cabinet'}</span>
           </button>
         )}
 
-        <span className="mono text-xs px-2 py-0.5 rounded bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text-sec)] whitespace-nowrap hidden lg:inline-block">
-          {catalogCount.toLocaleString()} SKU · 384-d
+        <span className="mono text-xs px-2 py-0.5 rounded bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text-sec)] whitespace-nowrap hidden xl:inline-block">
+          {catalogCount === 0
+            ? 'IDE: 0 SKU · 384-d'
+            : `${catalogCount.toLocaleString()} SKU · 384-d`}
         </span>
 
         <span
           data-testid="embedding-engine-status"
-          className={`mono text-[11px] px-2 py-0.5 rounded border hidden xl:flex items-center gap-1.5 whitespace-nowrap ${statusBadge.color}`}
+          className={`mono text-[11px] px-2 py-0.5 rounded border hidden 2xl:flex items-center gap-1.5 whitespace-nowrap ${statusBadge.color}`}
         >
           <Cpu size={12} />
           <span>{statusBadge.label}</span>
@@ -126,12 +127,12 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
         )}
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <button
           type="button"
           onClick={toggleTheme}
           data-testid="theme-toggle-btn"
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary btn-sm px-2.5"
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
@@ -165,7 +166,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
         <button
           type="button"
           onClick={onOpenDbConnector}
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary btn-sm hidden xl:inline-flex"
           title="Switch platform database or import custom JSON"
         >
           <Globe size={13} />
@@ -176,7 +177,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <button
             type="button"
             onClick={onRestoreCatalog}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm hidden xl:inline-flex"
             title={tTop.restoreCurated}
           >
             <RotateCcw size={13} />
@@ -186,7 +187,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <button
             type="button"
             onClick={onScaleCatalog}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm hidden xl:inline-flex"
             title="Scale corpus to 1,200+ synthetic items with HNSW"
           >
             <Database size={13} />
@@ -194,12 +195,20 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           </button>
         )}
 
-        <button type="button" onClick={onOpenCsvModal} className="btn btn-secondary btn-sm">
+        <button
+          type="button"
+          onClick={onOpenCsvModal}
+          className="btn btn-secondary btn-sm hidden sm:inline-flex"
+        >
           <FileSpreadsheet size={13} />
           <span>{tTop.csvModal}</span>
         </button>
 
-        <button type="button" onClick={onOpenApiModal} className="btn btn-secondary btn-sm">
+        <button
+          type="button"
+          onClick={onOpenApiModal}
+          className="btn btn-secondary btn-sm hidden lg:inline-flex"
+        >
           <Terminal size={13} />
           <span>{tTop.apiSdk}</span>
         </button>
