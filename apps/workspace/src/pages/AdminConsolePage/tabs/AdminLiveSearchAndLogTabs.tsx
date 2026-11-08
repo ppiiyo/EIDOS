@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LiveSearchHitDto, QueryLogItem } from '../types';
+import { LiveSearchHitDto, QueryLogItem, VitrinePhase } from '../types';
 import {
   Banner,
   Button,
@@ -20,6 +20,8 @@ export interface AdminLiveSearchTabProps {
   isPublicDemo?: boolean;
   isDemoReady?: boolean;
   searchReady?: boolean;
+  vitrinePhase?: VitrinePhase;
+  onPhaseChange?: (phase: VitrinePhase) => void;
   initialQuery?: string;
   defaultAlpha: number;
   defaultGate: 'hard' | 'soft' | 'off';
@@ -35,8 +37,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   lang,
   apiKey,
   isPublicDemo = false,
-  isDemoReady = true,
   searchReady = true,
+  vitrinePhase = 'ready',
+  onPhaseChange,
   initialQuery = 'недорогие наушники для бега',
   defaultAlpha,
   defaultGate,
@@ -51,6 +54,9 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   const [mode, setMode] = useState<'hybrid' | 'dense' | 'sparse'>('hybrid');
   const [alpha, setAlpha] = useState<number>(defaultAlpha);
   const [gate, setGate] = useState<'hard' | 'soft' | 'off'>(defaultGate);
+  const [phase, setPhase] = useState<VitrinePhase>(() =>
+    isIndexingDemo && !(searchReady && totalSkuCount > 0) ? 'loading_catalog' : vitrinePhase
+  );
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<{ message: string; code?: string } | null>(null);
   const [results, setResults] = useState<LiveSearchHitDto[]>([]);
@@ -65,26 +71,53 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
     rewrites: Array<{ type: string; from: string; to: string }>;
   } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const hasSearchResponseRef = useRef<boolean>(false);
 
   const [searchTrigger, setSearchTrigger] = useState(0);
+
+  const updatePhase = (next: VitrinePhase) => {
+    setPhase(next);
+    onPhaseChange?.(next);
+  };
 
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
 
+  // Sync catalog boot transitions without ever reverting to loading_catalog once ready/results exist
   useEffect(() => {
-    if (isIndexingDemo || (isPublicDemo && !isDemoReady)) {
+    if (hasSearchResponseRef.current) {
+      if (phase === 'boot' || phase === 'loading_catalog') {
+        updatePhase('results');
+      }
       return;
     }
+    if (isIndexingDemo && !(searchReady && totalSkuCount > 0)) {
+      if (phase !== 'loading_catalog') {
+        updatePhase('loading_catalog');
+      }
+    } else if (phase === 'boot' || phase === 'loading_catalog') {
+      updatePhase('ready');
+    }
+  }, [isIndexingDemo, searchReady, totalSkuCount, phase]);
+
+  useEffect(() => {
+    // Wait for initial catalog load only if we haven't completed any search yet
+    if (isIndexingDemo && !hasSearchResponseRef.current && !(searchReady && totalSkuCount > 0)) {
+      return;
+    }
+
     const trimmed = query.trim();
     if (!trimmed) {
       setResults([]);
       setSelectedHit(null);
       setMeta(null);
       setApiError(null);
+      updatePhase('ready');
       return;
     }
 
+    let cancelled = false;
     const timer = setTimeout(async () => {
       if (abortRef.current) {
         abortRef.current.abort();
@@ -93,6 +126,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
       abortRef.current = controller;
       setLoading(true);
       setApiError(null);
+      updatePhase('searching');
 
       try {
         const endpoint = isPublicDemo ? '/v1/demo/search' : '/v1/search';
@@ -112,10 +146,10 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
             limit: 12,
           }),
         });
+        if (cancelled || controller.signal.aborted) return;
+
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
-          setResults([]);
-          setSelectedHit(null);
           setApiError({
             message:
               errBody?.message ||
@@ -128,10 +162,16 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                 : 'Search request failed.'),
             code: errBody?.code || `HTTP_${res.status}`,
           });
+          // Stay in error/ready — NEVER revert to loading_catalog on search error (§2)
+          updatePhase('error');
           return;
         }
+
         const data = await res.json();
+        if (cancelled || controller.signal.aborted) return;
+
         const hits: LiveSearchHitDto[] = Array.isArray(data.results) ? data.results : [];
+        hasSearchResponseRef.current = true;
         setResults(hits);
         setSelectedHit(hits[0] || null);
         setMeta({
@@ -145,18 +185,31 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
             : [],
           rewrites: Array.isArray(data.meta?.rewrites) ? data.meta.rewrites : [],
         });
+        updatePhase('results');
         onSearchExecuted?.();
       } catch (err: any) {
-        if (err?.name !== 'AbortError') {
-          setResults([]);
+        if (err?.name !== 'AbortError' && !cancelled) {
+          setApiError({
+            message:
+              lang === 'ru'
+                ? 'Ошибка сети при обращении к поиску.'
+                : 'Network error while executing search.',
+            code: 'NETWORK_ERROR',
+          });
+          updatePhase('error');
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }, 220);
 
-    return () => clearTimeout(timer);
-  }, [query, mode, alpha, gate, apiKey, isPublicDemo, isDemoReady, isIndexingDemo, searchTrigger]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, mode, alpha, gate, apiKey, isPublicDemo, isIndexingDemo, searchReady, totalSkuCount, searchTrigger]);
 
   const handleRecordClick = async (hit: LiveSearchHitDto) => {
     setSelectedHit(hit);
@@ -198,10 +251,28 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   const topCategoryLabel =
     results[0]?.category || meta?.headCategoryIntent || (lang === 'ru' ? 'Все категории' : 'All');
 
-  const isColdStart = isIndexingDemo || (isPublicDemo && !searchReady);
+  // §3.1 Boot overlay rule:
+  // Show ONLY if (phase === 'boot' || phase === 'loading_catalog')
+  // AND hide immediately if:
+  // - searchReady === true && itemsIndexed > 0
+  // - phase === 'ready' | 'searching' | 'results'
+  // - state already has a successful search response (meta !== null || results.length > 0)
+  const hasSearchResponse = hasSearchResponseRef.current || meta !== null || results.length > 0;
+  const showBootOverlay =
+    (phase === 'boot' || phase === 'loading_catalog') &&
+    !hasSearchResponse &&
+    !(searchReady === true && totalSkuCount > 0);
+
+  // §3.3 Controls disabled ONLY in boot | loading_catalog | searching
+  const isSearching = phase === 'searching' || loading;
+  const controlsDisabled = showBootOverlay || isSearching;
 
   return (
-    <div className="space-y-4" data-testid="admin-live-search">
+    <div
+      className="space-y-4"
+      data-testid="admin-live-search"
+      data-vitrine-phase={phase}
+    >
       {apiError && (
         <Banner
           tone={apiError.code === 'INDEX_EMPTY' ? 'warning' : 'danger'}
@@ -233,42 +304,35 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
 
       {/* Search Controls Card — strict linear order per §3.2 */}
       <Card elevated className="p-5 space-y-4">
-        {/* 1. Title & Subtitle on Storefront */}
+        {/* 1. Title & Subtitle on Storefront (§5: single non-duplicated subtitle, no duplicate 1048 badge) */}
         {isPublicDemo && (
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h1
-                className="text-xl font-semibold text-slate-900 tracking-tight text-balance"
-                data-testid="public-demo-story-title"
-              >
-                {lang === 'ru'
-                  ? 'Поиск, который понимает покупателя'
-                  : 'Search that understands the shopper'}
-              </h1>
-              <p
-                className="text-xs text-slate-600 mt-1"
-                data-testid="public-demo-story-subtitle"
-              >
-                {lang === 'ru'
-                  ? 'Каталог демо · без внешнего AI-ключа · видно, почему товар в топе (1000+ товаров · без OpenAI · видно почему в топе)'
-                  : 'Demo catalog · no external AI key · see why products rank on top (1000+ products · zero OpenAI)'}
-              </p>
-            </div>
-            <div className="text-xs text-slate-500 tabular-nums">
+          <div>
+            <h1
+              className="text-xl font-semibold text-slate-900 tracking-tight text-balance"
+              data-testid="public-demo-story-title"
+            >
               {lang === 'ru'
-                ? `Каталог демо: ${totalSkuCount || 1048} товаров`
-                : `Demo catalog: ${totalSkuCount || 1048} products`}
-            </div>
+                ? 'Поиск, который понимает покупателя'
+                : 'Search that understands the shopper'}
+            </h1>
+            <p
+              className="text-xs text-slate-600 mt-1"
+              data-testid="public-demo-story-subtitle"
+            >
+              {lang === 'ru'
+                ? 'Каталог демо · без внешнего AI-ключа · видно, почему товар в топе'
+                : 'Demo catalog · no external AI key · see why products rank on top'}
+            </p>
           </div>
         )}
 
-        {/* 2. SearchField + Submit Button */}
+        {/* 2. SearchField + Submit Button (§3.3: disabled ONLY in boot | loading_catalog | searching) */}
         <SearchField
           value={query}
           onChange={setQuery}
           onSubmit={() => setSearchTrigger((n) => n + 1)}
-          disabled={isColdStart}
-          loading={loading}
+          disabled={controlsDisabled}
+          loading={isSearching}
           placeholder={
             lang === 'ru'
               ? 'Например: наушники для бега'
@@ -286,7 +350,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           {samplePresets.map((preset) => (
             <Chip
               key={preset.query}
-              disabled={isColdStart}
+              disabled={controlsDisabled}
               active={query === preset.query}
               data-testid={`admin-live-sample-${preset.query}`}
               onClick={() => setQuery(preset.query)}
@@ -299,8 +363,8 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
               type="button"
               data-testid="reload-demo-catalog-btn"
               onClick={onReloadDemoCatalog}
-              disabled={isColdStart}
-              title={lang === 'ru' ? 'Перезагрузить витрину (1048 товаров)' : 'Reload 1048 items'}
+              disabled={controlsDisabled}
+              title={lang === 'ru' ? 'Перезагрузить витрину' : 'Reload demo'}
               className="ml-auto px-2 py-1 text-xs text-slate-500 hover:text-slate-900 underline cursor-pointer disabled:opacity-50"
             >
               {lang === 'ru' ? '↻ Обновить демо' : '↻ Reload demo'}
@@ -308,7 +372,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           )}
         </div>
 
-        {/* 4. Quiet Meta Line (after response) */}
+        {/* 4. Quiet Meta Line (after response — lives outside boot-card per §3.4) */}
         {meta && (
           <div
             className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 tabular-nums"
@@ -361,7 +425,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           </div>
         )}
 
-        {/* 6. «Для специалиста» — 1 collapse at bottom of meta zone (§3.2.6) */}
+        {/* 6. «Для специалиста» — 1 collapse at bottom of meta zone */}
         <details
           open={!isPublicDemo}
           className="pt-2 border-t border-slate-100 group"
@@ -428,8 +492,8 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
         </details>
       </Card>
 
-      {/* 9. Cold Start Screen State (§3.2.9) */}
-      {isColdStart ? (
+      {/* §3.1 Boot overlay: shown ONLY when showBootOverlay === true */}
+      {showBootOverlay ? (
         <Card
           testId="admin-catalog-indexing-banner"
           className="p-10 text-center space-y-3"
@@ -439,22 +503,32 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           </div>
           <p className="text-xs text-slate-600 max-w-md mx-auto">
             {lang === 'ru'
-              ? 'Подготавливаем демо-каталог 1048 товаров и индекс быстрого поиска.'
-              : 'Preparing the 1048-product demo catalog and search index.'}
+              ? 'Подготавливаем демо-каталог и индекс быстрого поиска.'
+              : 'Preparing the demo catalog and search index.'}
           </p>
           <div className="w-56 h-1.5 bg-slate-100 rounded-full overflow-hidden mx-auto">
             <div className="h-full w-2/3 bg-slate-900 rounded-full animate-pulse" />
           </div>
         </Card>
       ) : (
-        /* 5. Two-Column Results (Desktop 60–65% Left / 35–40% Right, Mobile 1 Column) */
+        /* §3.2 Results block: Two-Column Results (Desktop 60–65% Left / 35–40% Right, Mobile 1 Column) */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           <Card className="lg:col-span-7 overflow-hidden">
-            {loading ? (
-              /* 8. Skeleton Table Rows on Loading (§3.2.8) */
-              <Skeleton rows={6} />
+            {isSearching ? (
+              /* §3.2 searching -> Skeleton 5 rows */
+              <Skeleton rows={5} />
+            ) : !query.trim() && !hasSearchResponse ? (
+              /* §3.2 ready, not searched yet -> Empty hint */
+              <div
+                data-testid="search-ready-hint"
+                className="py-12 px-6 text-center text-xs text-slate-500"
+              >
+                {lang === 'ru'
+                  ? 'Введите запрос или выберите пример'
+                  : 'Enter a query or pick an example above'}
+              </div>
             ) : results.length === 0 ? (
-              /* 7. Empty State (§3.2.7) */
+              /* §3.2 results, count=0 -> EmptyState zero-results (not boot!) */
               <EmptyState
                 testId="admin-live-empty-state"
                 title={
@@ -558,7 +632,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                   </Table>
                 </div>
 
-                {/* Mobile Cards (title, category, price, match) per §3.2.5 & §6.7 */}
+                {/* Mobile Cards (title, category, price, match) */}
                 <div
                   className="sm:hidden divide-y divide-slate-100"
                   data-testid="mobile-search-result-cards"
@@ -599,7 +673,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
             )}
           </Card>
 
-          {/* Right Panel: «Почему в топе» (§3.2.5) */}
+          {/* Right Panel: «Почему в топе» (§3.2: right column skeleton when searching) */}
           <Card
             testId="admin-xray-panel"
             className="lg:col-span-5 p-4 flex flex-col justify-between gap-4"
@@ -608,7 +682,17 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
               <div className="text-xs font-semibold text-slate-600 mb-2">
                 {lang === 'ru' ? 'Почему в топе' : 'Why it ranked on top'}
               </div>
-              {!selectedHit ? (
+              {isSearching ? (
+                <div
+                  data-testid="xray-loading-skeleton"
+                  className="space-y-3 py-2 animate-pulse"
+                  aria-busy="true"
+                >
+                  <div className="h-4 bg-slate-200 rounded w-3/4" />
+                  <div className="h-3 bg-slate-100 rounded w-1/2" />
+                  <div className="h-16 bg-slate-100 rounded-lg w-full" />
+                </div>
+              ) : !selectedHit ? (
                 <div className="text-xs text-slate-500 py-8 text-center">
                   {lang === 'ru'
                     ? 'Выберите товар в списке слева, чтобы увидеть объяснение.'
@@ -643,7 +727,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                     </div>
                   </div>
 
-                  {/* X-Ray Details — collapsed by default on Storefront (§3.2.5 & §10) */}
+                  {/* X-Ray Details — collapsed by default on Storefront */}
                   <details
                     open={!isPublicDemo}
                     className="pt-1 group"

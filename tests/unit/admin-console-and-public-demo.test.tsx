@@ -514,7 +514,10 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
       <EidosAdminConsole mode="public-demo" uiLang="ru" />
     );
     expect(publicDemoHtml).toContain('Поиск, который понимает покупателя');
-    expect(publicDemoHtml).toContain('1000+ товаров · без OpenAI · видно почему в топе');
+    expect(publicDemoHtml).toContain(
+      'Каталог демо · без внешнего AI-ключа · видно, почему товар в топе'
+    );
+    expect(publicDemoHtml).not.toContain('1000+ товаров · без OpenAI');
     expect(publicDemoHtml).toContain('Каталог демо: 1048 товаров');
     expect(publicDemoHtml).toContain('Почему в топе');
     expect(publicDemoHtml).toContain('Для специалиста');
@@ -655,5 +658,19 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     } finally {
       (globalThis as any).window = prevWindow;
     }
+  });
+
+  it('14. Hotfix VitrinePhase state machine: when searchReady is true (itemsIndexed > 0), "Загружаем витрину" is not in document, submit button is enabled, and subtitle has no duplicates', () => {
+    const html = renderToStaticMarkup(<EidosAdminConsole mode="public-demo" uiLang="ru" />);
+    // Boot overlay must NOT be rendered when searchReady is true
+    expect(html).not.toContain('Загружаем витрину');
+    expect(html).not.toContain('data-testid="admin-catalog-indexing-banner"');
+    // Phase attribute is 'ready'
+    expect(html).toContain('data-vitrine-phase="ready"');
+    // Submit button «Найти» and search input are enabled (not disabled)
+    expect(html).not.toMatch(/data-testid="admin-live-search-submit"[^>]*disabled/);
+    // Subtitle has no duplicated parenthetical
+    expect(html).toContain('Каталог демо · без внешнего AI-ключа · видно, почему товар в топе');
+    expect(html).not.toContain('1000+ товаров · без OpenAI');
   });
 });

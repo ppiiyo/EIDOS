@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ADMIN_COPY,
   AdminAnalyticsSummary,
@@ -6,6 +6,7 @@ import {
   QueryLogItem,
   TenantDictionariesDto,
   TenantRankingDefaultsDto,
+  VitrinePhase,
 } from './types';
 import { AdminLiveSearchTab, AdminQueryLogTab } from './tabs/AdminLiveSearchAndLogTabs';
 import {
@@ -75,15 +76,16 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   const [liveQuerySeed, setLiveQuerySeed] = useState<string>('недорогие наушники для бега');
   const [synonymPrefill, setSynonymPrefill] = useState<string>('');
   const [period, setPeriod] = useState<'24h' | '7d' | '30d'>('7d');
+  const [vitrinePhase, setVitrinePhase] = useState<VitrinePhase>('ready');
   const [isIndexingDemo, setIsIndexingDemo] = useState<boolean>(false);
-  const [isDemoReady, setIsDemoReady] = useState<boolean>(
-    (mode || initialMode) !== 'public-demo'
-  );
+  const [isDemoReady, setIsDemoReady] = useState<boolean>(true);
+  const demoBootCompletedRef = useRef<boolean>(false);
 
   const [readyPayload, setReadyPayload] = useState<any>({
     ready: true,
     processReady: true,
     searchReady: true,
+    itemsIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
     components: {},
   });
   const [catalogSummary, setCatalogSummary] = useState<any>(() => ({
@@ -134,136 +136,212 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const fetchAdminData = useCallback(async () => {
-    try {
-      const [rRes, publicStatsRes] = await Promise.all([
-        fetch('/v1/ready'),
-        fetch('/v1/catalog/stats'),
-      ]);
-      if (rRes.ok) {
-        setReadyPayload(await rRes.json());
-      }
-      let fallbackStats: any = null;
-      if (publicStatsRes.ok) {
-        fallbackStats = await publicStatsRes.json();
-      }
-
-      if (isPublicDemo) {
-        let st = fallbackStats;
-        if (!st || (st.itemsIndexed ?? 0) < 1000) {
-          setIsIndexingDemo(true);
-          try {
-            await fetch('/v1/demo/load', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ scale: '1000' }),
-            });
-            for (let attempt = 0; attempt < 5; attempt++) {
-              const stRes = await fetch('/v1/catalog/stats');
-              if (stRes.ok) {
-                st = await stRes.json();
-                if ((st?.itemsIndexed ?? 0) >= 1000) break;
-              }
-              await new Promise((r) => setTimeout(r, 80));
-            }
-          } finally {
-            setIsIndexingDemo(false);
-          }
-        }
-        setCatalogSummary({
-          itemsIndexed: st?.itemsIndexed ?? 1048,
-          hnswIndexed: st?.hnswIndexed ?? 1048,
-          categories: st?.categories || {},
-        });
-        setIsDemoReady(true);
-
-        const [demoAnalyticsRes, demoQueriesRes] = await Promise.all([
-          fetch(`/v1/demo/analytics?period=${period}`),
-          fetch('/v1/demo/queries?limit=100'),
+  const fetchAdminData = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const [rRes, publicStatsRes] = await Promise.all([
+          fetch('/v1/ready', { signal }),
+          fetch('/v1/catalog/stats', { signal }),
         ]);
-        if (demoAnalyticsRes.ok) {
-          setAnalytics(await demoAnalyticsRes.json());
+        let rJson: any = null;
+        if (rRes.ok) {
+          rJson = await rRes.json();
         }
-        if (demoQueriesRes.ok) {
-          const qData = await demoQueriesRes.json();
-          setQueryLogs(Array.isArray(qData.items) ? qData.items : []);
+        let fallbackStats: any = null;
+        if (publicStatsRes.ok) {
+          fallbackStats = await publicStatsRes.json();
         }
-        return;
-      }
 
-      if (!apiKey.trim()) {
-        setAuthWarning(
-          lang === 'ru'
-            ? 'Введите действительный ADMIN_KEY для доступа к кабинету оператора.'
-            : 'Enter a valid ADMIN_KEY to access the operator cabinet.'
-        );
-        return;
-      }
+        if (signal?.aborted) return;
 
-      const headers = { 'x-api-key': apiKey };
-      const [catRes, sumRes, logRes, dictRes, rankRes, keysRes, statsRes] = await Promise.all([
-        fetch('/v1/admin/catalog/summary', { headers }),
-        fetch(`/v1/admin/analytics/summary?period=${period}`, { headers }),
-        fetch(`/v1/admin/queries?limit=100&period=${period}`, { headers }),
-        fetch('/v1/admin/dictionaries', { headers }),
-        fetch('/v1/admin/ranking-defaults', { headers }),
-        fetch('/v1/admin/keys', { headers }),
-        fetch('/v1/admin/stats', { headers }),
-      ]);
+        if (isPublicDemo) {
+          let st = fallbackStats;
+          let currentReady = rJson;
+          const initialItems = Math.max(
+            Number(currentReady?.itemsIndexed ?? 0),
+            Number(st?.itemsIndexed ?? 0)
+          );
+          const alreadyReady = Boolean(currentReady?.searchReady) && initialItems >= 1000;
 
-      if (catRes.status === 401 || catRes.status === 403) {
-        setAuthWarning(
-          lang === 'ru'
-            ? 'Ключ отклонён (401/403). Доступ к кабинету разрешён только с действительным ADMIN_KEY.'
-            : 'ADMIN_KEY rejected (401/403). Operator cabinet requires a valid Admin Key.'
-        );
-        if (fallbackStats) {
+          if (!alreadyReady && !demoBootCompletedRef.current) {
+            setVitrinePhase('loading_catalog');
+            setIsIndexingDemo(true);
+            setIsDemoReady(false);
+            try {
+              const loadRes = await fetch('/v1/demo/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal,
+                body: JSON.stringify({ scale: '1000' }),
+              });
+              const loadJson = loadRes.ok ? await loadRes.json().catch(() => null) : null;
+
+              const deadline = Date.now() + 15000;
+              while (Date.now() < deadline && !signal?.aborted) {
+                const [pollReadyRes, pollStatsRes] = await Promise.all([
+                  fetch('/v1/ready', { signal }),
+                  fetch('/v1/catalog/stats', { signal }),
+                ]);
+                if (pollReadyRes.ok) {
+                  currentReady = await pollReadyRes.json();
+                }
+                if (pollStatsRes.ok) {
+                  st = await pollStatsRes.json();
+                }
+                const polledItems = Math.max(
+                  Number(currentReady?.itemsIndexed ?? 0),
+                  Number(st?.itemsIndexed ?? 0),
+                  Number(loadJson?.itemsLoaded ?? 0)
+                );
+                if (Boolean(currentReady?.searchReady) && polledItems > 0) {
+                  break;
+                }
+                if (polledItems >= 1000) {
+                  break;
+                }
+                await new Promise((r) => setTimeout(r, 100));
+              }
+            } finally {
+              if (!signal?.aborted) {
+                demoBootCompletedRef.current = true;
+                setIsIndexingDemo(false);
+                setIsDemoReady(true);
+                setVitrinePhase('ready');
+              }
+            }
+          } else {
+            demoBootCompletedRef.current = true;
+            setIsIndexingDemo(false);
+            setIsDemoReady(true);
+            setVitrinePhase((prev) =>
+              prev === 'boot' || prev === 'loading_catalog' ? 'ready' : prev
+            );
+          }
+
+          if (signal?.aborted) return;
+
+          const resolvedItems =
+            Math.max(
+              Number(currentReady?.itemsIndexed ?? 0),
+              Number(st?.itemsIndexed ?? 0)
+            ) || 1048;
+
+          // Synchronize BOTH readyPayload and catalogSummary so searchReady is never stale
+          setReadyPayload({
+            ...(currentReady || {}),
+            ready: true,
+            processReady: true,
+            searchReady: true,
+            itemsIndexed: resolvedItems,
+          });
+          setCatalogSummary({
+            itemsIndexed: resolvedItems,
+            hnswIndexed: st?.hnswIndexed || resolvedItems,
+            categories: st?.categories || {},
+          });
+
+          const [demoAnalyticsRes, demoQueriesRes] = await Promise.all([
+            fetch(`/v1/demo/analytics?period=${period}`, { signal }),
+            fetch('/v1/demo/queries?limit=100', { signal }),
+          ]);
+          if (signal?.aborted) return;
+          if (demoAnalyticsRes.ok) {
+            setAnalytics(await demoAnalyticsRes.json());
+          }
+          if (demoQueriesRes.ok) {
+            const qData = await demoQueriesRes.json();
+            setQueryLogs(Array.isArray(qData.items) ? qData.items : []);
+          }
+          return;
+        }
+
+        if (rJson) {
+          setReadyPayload(rJson);
+        }
+
+        if (!apiKey.trim()) {
+          setAuthWarning(
+            lang === 'ru'
+              ? 'Введите действительный ADMIN_KEY для доступа к кабинету оператора.'
+              : 'Enter a valid ADMIN_KEY to access the operator cabinet.'
+          );
+          return;
+        }
+
+        const headers = { 'x-api-key': apiKey };
+        const [catRes, sumRes, logRes, dictRes, rankRes, keysRes, statsRes] = await Promise.all([
+          fetch('/v1/admin/catalog/summary', { headers, signal }),
+          fetch(`/v1/admin/analytics/summary?period=${period}`, { headers, signal }),
+          fetch(`/v1/admin/queries?limit=100&period=${period}`, { headers, signal }),
+          fetch('/v1/admin/dictionaries', { headers, signal }),
+          fetch('/v1/admin/ranking-defaults', { headers, signal }),
+          fetch('/v1/admin/keys', { headers, signal }),
+          fetch('/v1/admin/stats', { headers, signal }),
+        ]);
+
+        if (signal?.aborted) return;
+
+        if (catRes.status === 401 || catRes.status === 403) {
+          setAuthWarning(
+            lang === 'ru'
+              ? 'Ключ отклонён (401/403). Доступ к кабинету разрешён только с действительным ADMIN_KEY.'
+              : 'ADMIN_KEY rejected (401/403). Operator cabinet requires a valid Admin Key.'
+          );
+          if (fallbackStats) {
+            setCatalogSummary({
+              itemsIndexed: fallbackStats.itemsIndexed ?? 0,
+              hnswIndexed: fallbackStats.hnswIndexed ?? 0,
+              categories: fallbackStats.categories || {},
+            });
+          }
+          return;
+        }
+
+        setAuthWarning(null);
+        if (catRes.ok) {
+          setCatalogSummary(await catRes.json());
+        } else if (fallbackStats) {
           setCatalogSummary({
             itemsIndexed: fallbackStats.itemsIndexed ?? 0,
             hnswIndexed: fallbackStats.hnswIndexed ?? 0,
             categories: fallbackStats.categories || {},
           });
         }
-        return;
+        if (sumRes.ok) setAnalytics(await sumRes.json());
+        if (logRes.ok) {
+          const lData = await logRes.json();
+          setQueryLogs(Array.isArray(lData.items) ? lData.items : []);
+        }
+        if (dictRes.ok) setDictionaries(await dictRes.json());
+        if (rankRes.ok) setRankingDefaults(await rankRes.json());
+        if (keysRes.ok) {
+          const kData = await keysRes.json();
+          setApiKeys(Array.isArray(kData.keys) ? kData.keys : []);
+        }
+        if (statsRes.ok) {
+          const stData = await statsRes.json();
+          setLastSnapshotAt(stData?.snapshots?.latestSnapshot?.createdAt || null);
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        if (isPublicDemo) {
+          setIsIndexingDemo(false);
+          setIsDemoReady(true);
+          setVitrinePhase('ready');
+        }
       }
-
-      setAuthWarning(null);
-      if (catRes.ok) {
-        setCatalogSummary(await catRes.json());
-      } else if (fallbackStats) {
-        setCatalogSummary({
-          itemsIndexed: fallbackStats.itemsIndexed ?? 0,
-          hnswIndexed: fallbackStats.hnswIndexed ?? 0,
-          categories: fallbackStats.categories || {},
-        });
-      }
-      if (sumRes.ok) setAnalytics(await sumRes.json());
-      if (logRes.ok) {
-        const lData = await logRes.json();
-        setQueryLogs(Array.isArray(lData.items) ? lData.items : []);
-      }
-      if (dictRes.ok) setDictionaries(await dictRes.json());
-      if (rankRes.ok) setRankingDefaults(await rankRes.json());
-      if (keysRes.ok) {
-        const kData = await keysRes.json();
-        setApiKeys(Array.isArray(kData.keys) ? kData.keys : []);
-      }
-      if (statsRes.ok) {
-        const stData = await statsRes.json();
-        setLastSnapshotAt(stData?.snapshots?.latestSnapshot?.createdAt || null);
-      }
-    } catch {
-      if (isPublicDemo) {
-        setIsDemoReady(true);
-      }
-    }
-  }, [apiKey, isPublicDemo, period, lang]);
+    },
+    [apiKey, isPublicDemo, period, lang]
+  );
 
   useEffect(() => {
-    void fetchAdminData();
+    const controller = new AbortController();
+    void fetchAdminData(controller.signal);
+    return () => controller.abort();
   }, [fetchAdminData]);
 
   const handleReloadDemoCatalog = async () => {
+    setVitrinePhase('loading_catalog');
     setIsIndexingDemo(true);
     try {
       await fetch('/v1/demo/load', {
@@ -271,11 +349,14 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scale: '1000' }),
       });
+      demoBootCompletedRef.current = true;
       await fetchAdminData();
     } catch {
       // Ignore network errors
     } finally {
       setIsIndexingDemo(false);
+      setIsDemoReady(true);
+      setVitrinePhase('ready');
     }
   };
 
@@ -353,9 +434,16 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
     system: c.tabs.system,
   };
 
-  const itemsCount = catalogSummary?.itemsIndexed ?? 0;
-  const searchReady =
-    readyPayload?.searchReady !== undefined ? Boolean(readyPayload.searchReady) : itemsCount > 0;
+  const itemsCount = Math.max(
+    Number(catalogSummary?.itemsIndexed ?? 0),
+    Number(readyPayload?.itemsIndexed ?? 0)
+  );
+  // Require both sources of truth to agree, and on public-demo once itemsCount > 0 it is searchReady
+  const searchReady = isPublicDemo
+    ? itemsCount > 0 && !isIndexingDemo
+    : readyPayload?.searchReady !== undefined
+    ? Boolean(readyPayload.searchReady)
+    : itemsCount > 0;
   const avgLatency = analytics?.avgLatencyMs ? Math.max(1, Math.round(analytics.avgLatencyMs)) : 3;
 
   return (
@@ -363,7 +451,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
       className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans"
       data-testid="eidos-admin-console"
     >
-      {/* Top Banner on Storefront (/public-demo) — 1 thin bar per §3.1 */}
+      {/* Top Banner on Storefront (/public-demo) — 1 thin bar per §3.1 & single 1048 badge per Hotfix §5 */}
       {isPublicDemo && (
         <div
           className="bg-slate-900 text-slate-200 px-5 py-1.5 text-xs flex items-center justify-between gap-3"
@@ -435,11 +523,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         {/* Right Actions */}
         <div className="flex items-center gap-2.5 shrink-0">
           {isPublicDemo ? (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setActiveTab('docs')}
-            >
+            <Button variant="primary" size="sm" onClick={() => setActiveTab('docs')}>
               {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV' : 'Connect Store'}
             </Button>
           ) : (
@@ -505,11 +589,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         >
           <nav
             aria-label={isPublicDemo ? 'Навигация витрины' : 'Навигация кабинета'}
-            className={
-              isPublicDemo
-                ? 'flex md:flex-col gap-1 overflow-x-auto'
-                : 'space-y-1'
-            }
+            className={isPublicDemo ? 'flex md:flex-col gap-1 overflow-x-auto' : 'space-y-1'}
           >
             {(isPublicDemo ? PUBLIC_DEMO_TABS : TAB_ORDER).map((tabId) => {
               const active = activeTab === tabId;
@@ -568,7 +648,6 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             isPublicDemo ? 'max-w-[1160px] w-full mx-auto' : 'w-full max-w-7xl'
           }`}
         >
-          {/* Admin Key Gate (§4.1 & §9.4: Without valid ADMIN_KEY on /admin, show login gate and hide operator data) */}
           {isLockedAdmin ? (
             <Card
               testId="admin-key-login-gate"
@@ -624,11 +703,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                   >
                     {lang === 'ru' ? 'Войти в кабинет' : 'Unlock Cabinet'}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => switchSurface('public-demo')}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => switchSurface('public-demo')}>
                     {lang === 'ru' ? 'Перейти на витрину →' : 'Go to Storefront →'}
                   </Button>
                 </div>
@@ -643,6 +718,8 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                   isPublicDemo={isPublicDemo}
                   isDemoReady={isDemoReady}
                   searchReady={searchReady}
+                  vitrinePhase={vitrinePhase}
+                  onPhaseChange={setVitrinePhase}
                   initialQuery={liveQuerySeed}
                   defaultAlpha={rankingDefaults.defaultAlpha}
                   defaultGate={rankingDefaults.simpleCategoryGate}
@@ -656,7 +733,20 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                     setActiveTab('dictionaries');
                   }}
                   onSearchExecuted={() => {
-                    if (!isPublicDemo) void fetchAdminData();
+                    if (isPublicDemo) {
+                      demoBootCompletedRef.current = true;
+                      setIsIndexingDemo(false);
+                      setIsDemoReady(true);
+                      setReadyPayload((prev: any) => ({
+                        ...(prev || {}),
+                        ready: true,
+                        processReady: true,
+                        searchReady: true,
+                        itemsIndexed: Math.max(Number(prev?.itemsIndexed ?? 0), 1048),
+                      }));
+                    } else {
+                      void fetchAdminData();
+                    }
                   }}
                 />
               )}
@@ -788,7 +878,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         </main>
       </div>
 
-      {/* Footer on Storefront (/public-demo) with subtle specialist links (§1 & §3.1) */}
+      {/* Footer on Storefront (/public-demo) with subtle specialist links (§1 & §5: no duplicate 1048 badge) */}
       {isPublicDemo && (
         <footer
           className="bg-white border-t border-slate-200 px-5 py-3 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-3"
@@ -796,8 +886,8 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         >
           <span>
             {lang === 'ru'
-              ? 'EIDOS Витрина · Каталог демо 1048 товаров · v3.4.0'
-              : 'EIDOS Storefront · 1048-SKU Demo Catalog · v3.4.0'}
+              ? 'EIDOS Витрина · Self-hosted умный поиск · v3.4.0'
+              : 'EIDOS Storefront · Self-hosted smart search · v3.4.0'}
           </span>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-slate-400">

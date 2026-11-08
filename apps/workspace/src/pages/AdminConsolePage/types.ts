@@ -1,3 +1,11 @@
+export type VitrinePhase =
+  | 'boot'            // first mount, readiness not yet confirmed
+  | 'loading_catalog' // searchReady=false -> POST /v1/demo/load + poll /v1/ready
+  | 'ready'           // searchReady=true, itemsIndexed>0
+  | 'searching'       // search request in-flight
+  | 'results'         // search response received (count>=0)
+  | 'error';          // network/5xx error during boot or search
+
 export type AdminTabId =
   | 'dashboard'
   | 'live-search'
