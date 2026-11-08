@@ -18,6 +18,7 @@ import {
   AdminDashboardTab,
   AdminSystemAndDocsTabs,
 } from './tabs/AdminDashboardAndSystemTabs';
+import { Banner, Button, Card, Input, StatusDot } from '../../design-system/ui-kit';
 
 export interface EidosAdminConsoleProps {
   mode?: 'admin' | 'public-demo';
@@ -56,13 +57,20 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
   const [activeTab, setActiveTab] = useState<AdminTabId>(
     (mode || initialMode) === 'public-demo' ? 'live-search' : 'dashboard'
   );
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   const [apiKey, setApiKey] = useState<string>(() => {
     try {
-      return sessionStorage.getItem('eidos_admin_key') || 'eidos_dev_key';
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location?.search || '');
+        if (params.get('loggedOut') === '1') return '';
+      }
+      return sessionStorage.getItem('eidos_admin_key') ?? 'eidos_dev_key';
     } catch {
       return 'eidos_dev_key';
     }
   });
+  const [loginKeyDraft, setLoginKeyDraft] = useState<string>(apiKey);
   const [authWarning, setAuthWarning] = useState<string | null>(null);
   const [liveQuerySeed, setLiveQuerySeed] = useState<string>('недорогие наушники для бега');
   const [synonymPrefill, setSynonymPrefill] = useState<string>('');
@@ -72,7 +80,12 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
     (mode || initialMode) !== 'public-demo'
   );
 
-  const [readyPayload, setReadyPayload] = useState<any>({ ready: true, components: {} });
+  const [readyPayload, setReadyPayload] = useState<any>({
+    ready: true,
+    processReady: true,
+    searchReady: true,
+    components: {},
+  });
   const [catalogSummary, setCatalogSummary] = useState<any>(() => ({
     itemsIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
     hnswIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
@@ -99,14 +112,27 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
 
   const c = ADMIN_COPY[lang];
   const isPublicDemo = surfaceMode === 'public-demo';
+  const isLockedAdmin = !isPublicDemo && (!apiKey.trim() || Boolean(authWarning));
 
   const switchSurface = (target: 'admin' | 'public-demo') => {
     setSurfaceMode(target);
+    setMobileNavOpen(false);
     if (target === 'public-demo' && !PUBLIC_DEMO_TABS.includes(activeTab)) {
       setActiveTab('live-search');
     }
     onSwitchMode?.(target);
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileNavOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const fetchAdminData = useCallback(async () => {
     try {
@@ -151,7 +177,6 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         });
         setIsDemoReady(true);
 
-        // Non-auth public analytics and queries for demo stand
         const [demoAnalyticsRes, demoQueriesRes] = await Promise.all([
           fetch(`/v1/demo/analytics?period=${period}`),
           fetch('/v1/demo/queries?limit=100'),
@@ -163,6 +188,15 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
           const qData = await demoQueriesRes.json();
           setQueryLogs(Array.isArray(qData.items) ? qData.items : []);
         }
+        return;
+      }
+
+      if (!apiKey.trim()) {
+        setAuthWarning(
+          lang === 'ru'
+            ? 'Введите действительный ADMIN_KEY для доступа к кабинету оператора.'
+            : 'Enter a valid ADMIN_KEY to access the operator cabinet.'
+        );
         return;
       }
 
@@ -180,8 +214,8 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
       if (catRes.status === 401 || catRes.status === 403) {
         setAuthWarning(
           lang === 'ru'
-            ? 'Указанный ADMIN_KEY не прошёл проверку для /v1/admin/*. Укажите действительный административный ключ в верхнем поле.'
-            : 'ADMIN_KEY rejected (401/403) for /v1/admin/*. Enter a valid Admin Key in the top bar.'
+            ? 'Ключ отклонён (401/403). Доступ к кабинету разрешён только с действительным ADMIN_KEY.'
+            : 'ADMIN_KEY rejected (401/403). Operator cabinet requires a valid Admin Key.'
         );
         if (fallbackStats) {
           setCatalogSummary({
@@ -319,92 +353,103 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
     system: c.tabs.system,
   };
 
+  const itemsCount = catalogSummary?.itemsIndexed ?? 0;
+  const searchReady =
+    readyPayload?.searchReady !== undefined ? Boolean(readyPayload.searchReady) : itemsCount > 0;
+  const avgLatency = analytics?.avgLatencyMs ? Math.max(1, Math.round(analytics.avgLatencyMs)) : 3;
+
   return (
     <div
-      className="min-h-screen bg-slate-50 text-slate-900 flex flex-col"
+      className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans"
       data-testid="eidos-admin-console"
     >
+      {/* Top Banner on Storefront (/public-demo) — 1 thin bar per §3.1 */}
       {isPublicDemo && (
         <div
-          className="bg-slate-900 text-white px-5 py-2 text-xs flex flex-wrap items-center justify-between gap-2"
+          className="bg-slate-900 text-slate-200 px-5 py-1.5 text-xs flex items-center justify-between gap-3"
           data-testid="public-demo-banner"
         >
           <span>
             {lang === 'ru'
-              ? 'Демо-каталог · read-only · ваш магазин = self-hosted пилот (Демо-контур · Только чтение · Для пилота на вашем каталоге — self-hosted EIDOS)'
+              ? 'Демо-каталог · read-only · ваш магазин = self-hosted пилот'
               : c.demoBanner}
           </span>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setActiveTab('docs')}
-              className="underline font-medium text-emerald-300 hover:text-white whitespace-nowrap"
-            >
-              {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV →' : c.demoCta}
-            </button>
-          </div>
+          <span
+            className="hidden sm:inline text-slate-400 tabular-nums"
+            data-testid="public-demo-catalog-badge"
+          >
+            {lang === 'ru'
+              ? `Каталог демо: ${itemsCount || 1048} товаров`
+              : `Demo catalog: ${itemsCount || 1048} products`}
+          </span>
         </div>
       )}
 
-      <header className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-semibold text-slate-900 tracking-tight whitespace-nowrap">
-                {isPublicDemo ? 'EIDOS Витрина' : c.brandTitle}
-              </span>
-              {!isPublicDemo && (
-                <span className="px-1.5 py-0.5 text-[11px] font-mono bg-slate-100 border border-slate-200 rounded text-slate-700">
-                  v3.4.0
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-slate-500">
-              {isPublicDemo
-                ? lang === 'ru'
-                  ? 'Демонстрация умного поиска для владельца интернет-магазина'
-                  : 'Smart E-Commerce Search Storefront Demo'
-                : c.brandSubtitle}
-            </div>
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 tabular-nums">
-            {isPublicDemo ? (
-              <span
-                className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-900 font-medium"
-                data-testid="public-demo-catalog-badge"
-              >
-                {lang === 'ru'
-                  ? `Каталог демо: ${catalogSummary?.itemsIndexed || 1048} товаров`
-                  : `Demo catalog: ${catalogSummary?.itemsIndexed || 1048} products`}
-              </span>
-            ) : (
-              <>
-                <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800 font-mono">
-                  SKU: {catalogSummary?.itemsIndexed ?? 0}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded font-semibold font-mono ${
-                    readyPayload?.ready
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-amber-50 text-amber-800 border border-amber-200'
-                  }`}
-                >
-                  Ready: {readyPayload?.ready ? 'OK' : 'WARN'}
-                </span>
-              </>
-            )}
+      {/* Header — strictly separated between Storefront (§3.5) and Cabinet (§4.1) */}
+      <header className="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          {!isPublicDemo && (
+            <button
+              type="button"
+              data-testid="admin-mobile-menu-btn"
+              aria-label={lang === 'ru' ? 'Меню навигации' : 'Toggle navigation'}
+              onClick={() => setMobileNavOpen((v) => !v)}
+              className="md:hidden px-2.5 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 rounded-md text-slate-800 cursor-pointer"
+            >
+              ☰
+            </button>
+          )}
+          <div className="flex items-baseline gap-2.5">
+            <span className="text-base font-bold text-slate-900 tracking-tight whitespace-nowrap">
+              {isPublicDemo ? 'EIDOS Витрина' : c.brandTitle}
+            </span>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              {isPublicDemo ? (lang === 'ru' ? 'Демо' : 'Demo') : c.brandSubtitle}
+            </span>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {!isPublicDemo ? (
-            <>
+        {/* Center Status Telemetry on Admin Cabinet (§4.1: searchReady · itemsIndexed · latency) */}
+        {!isPublicDemo && (
+          <div
+            className="hidden lg:flex items-center gap-5 text-xs text-slate-600 tabular-nums"
+            data-testid="admin-top-status-bar"
+          >
+            <StatusDot
+              status={searchReady ? 'ok' : 'warn'}
+              label={`searchReady: ${searchReady ? 'true' : 'false (INDEX_EMPTY)'}`}
+            />
+            <span className="text-slate-300" aria-hidden="true">
+              ·
+            </span>
+            <span className="font-mono text-slate-800">
+              itemsIndexed: <strong>{itemsCount.toLocaleString()}</strong>
+            </span>
+            <span className="text-slate-300" aria-hidden="true">
+              ·
+            </span>
+            <span className="font-mono text-slate-700">latency: ~{avgLatency} ms</span>
+          </div>
+        )}
+
+        {/* Right Actions */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {isPublicDemo ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setActiveTab('docs')}
+            >
+              {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV' : 'Connect Store'}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => {
                   setApiKey(e.target.value);
+                  setLoginKeyDraft(e.target.value);
                   try {
                     sessionStorage.setItem('eidos_admin_key', e.target.value);
                   } catch {
@@ -413,246 +458,337 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                 }}
                 aria-label="Admin API Key"
                 placeholder="ADMIN_KEY"
-                className="w-36 px-2.5 py-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded text-slate-800"
+                className="w-36 px-2.5 py-1.5 text-xs font-mono bg-slate-50 border border-slate-300 rounded-[6px] text-slate-800 focus:outline-none focus:border-slate-900"
               />
-              <button
-                type="button"
-                onClick={() => switchSurface('public-demo')}
-                className="px-2.5 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 rounded whitespace-nowrap"
-              >
-                {lang === 'ru' ? 'Открыть клиентское демо →' : 'Open Client Demo →'}
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setActiveTab('docs')}
-              className="px-3 py-1.5 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md whitespace-nowrap"
-            >
-              {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV' : 'Connect Bitrix / Woo / CSV'}
-            </button>
+              {apiKey && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="admin-logout-key-btn"
+                  onClick={() => {
+                    setApiKey('');
+                    setLoginKeyDraft('');
+                    try {
+                      sessionStorage.removeItem('eidos_admin_key');
+                    } catch {
+                      // Ignore
+                    }
+                  }}
+                >
+                  {lang === 'ru' ? 'Выйти' : 'Lock'}
+                </Button>
+              )}
+            </div>
           )}
 
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}
-            className="px-2.5 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 rounded"
+            aria-label={lang === 'ru' ? 'Switch language to English' : 'Переключить язык на русский'}
           >
             {lang.toUpperCase()}
-          </button>
+          </Button>
         </div>
       </header>
 
-      {authWarning && !isPublicDemo && (
-        <div className="bg-amber-50 border-b border-amber-200 px-5 py-2 text-xs text-amber-900">
-          {authWarning}
-        </div>
-      )}
-
       <div className="flex-1 flex flex-col md:flex-row">
-        <aside className="w-full md:w-60 bg-white border-r border-slate-200 p-3 flex flex-col justify-between shrink-0">
-          <div className="space-y-1">
-            {(isPublicDemo ? PUBLIC_DEMO_TABS : TAB_ORDER).map((tabId) => (
-              <button
-                key={tabId}
-                type="button"
-                data-testid={`admin-tab-${tabId}`}
-                onClick={() => setActiveTab(tabId)}
-                className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-                  activeTab === tabId
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                {isPublicDemo ? publicDemoTabLabels[tabId] : c.tabs[tabId]}
-              </button>
-            ))}
-          </div>
+        {/* Left Navigation Sidebar */}
+        <aside
+          className={`${
+            isPublicDemo
+              ? 'w-full md:w-52 bg-white border-b md:border-b-0 md:border-r border-slate-200 p-3'
+              : `${
+                  mobileNavOpen ? 'block' : 'hidden'
+                } md:flex w-full md:w-[240px] bg-white border-b md:border-b-0 md:border-r border-slate-200 p-3 flex-col justify-between`
+          } shrink-0`}
+        >
+          <nav
+            aria-label={isPublicDemo ? 'Навигация витрины' : 'Навигация кабинета'}
+            className={
+              isPublicDemo
+                ? 'flex md:flex-col gap-1 overflow-x-auto'
+                : 'space-y-1'
+            }
+          >
+            {(isPublicDemo ? PUBLIC_DEMO_TABS : TAB_ORDER).map((tabId) => {
+              const active = activeTab === tabId;
+              return (
+                <button
+                  key={tabId}
+                  type="button"
+                  data-testid={`admin-tab-${tabId}`}
+                  onClick={() => {
+                    setActiveTab(tabId);
+                    setMobileNavOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 whitespace-nowrap cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 ${
+                    active
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  {isPublicDemo ? publicDemoTabLabels[tabId] : c.tabs[tabId]}
+                </button>
+              );
+            })}
+          </nav>
 
           {!isPublicDemo && (
-            <div className="pt-4 mt-4 border-t border-slate-100 space-y-1.5 text-[11px] text-slate-500">
-              <div className="font-medium text-slate-400 px-2">
-                {lang === 'ru' ? 'Для специалистов' : 'For Specialists'}
+            <div className="pt-4 mt-6 border-t border-slate-100 space-y-1 text-xs text-slate-500">
+              <div className="px-2 pb-1 text-[11px] font-medium text-slate-400">
+                {lang === 'ru' ? 'Переход между контурами' : 'Surfaces'}
               </div>
-              <button
-                type="button"
-                data-testid="switch-surface-admin"
-                onClick={() => switchSurface('admin')}
-                className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 transition-colors font-semibold text-slate-900"
-              >
-                {lang === 'ru' ? 'Режим оператора (/admin)' : 'Operator Console (/admin)'}
-              </button>
               <button
                 type="button"
                 data-testid="switch-surface-demo"
                 onClick={() => switchSurface('public-demo')}
-                className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 transition-colors text-slate-600"
+                className="w-full text-left px-2 py-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
               >
-                {lang === 'ru' ? 'Клиентское демо (/public-demo)' : 'Public Demo (/public-demo)'}
+                {lang === 'ru' ? 'Витрина (/public-demo)' : 'Storefront (/public-demo)'}
               </button>
               {onReturnToStudio && (
                 <button
                   type="button"
                   data-testid="admin-return-to-studio"
                   onClick={onReturnToStudio}
-                  className="w-full text-left px-2 py-1 rounded text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                  className="w-full text-left px-2 py-1.5 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
                 >
-                  {lang === 'ru' ? 'Инженерная студия (/)' : 'Engineering Studio (/)'}
+                  {lang === 'ru' ? 'Студия (/)' : 'Studio (/)'}
                 </button>
               )}
+              <div className="px-2 pt-2 text-[11px] font-mono text-slate-400">EIDOS v3.4.0</div>
             </div>
           )}
         </aside>
 
-        <main className="flex-1 p-5 max-w-6xl">
-          {activeTab === 'live-search' && (
-            <AdminLiveSearchTab
-              lang={lang}
-              apiKey={isPublicDemo ? '' : apiKey}
-              isPublicDemo={isPublicDemo}
-              isDemoReady={isDemoReady}
-              initialQuery={liveQuerySeed}
-              defaultAlpha={rankingDefaults.defaultAlpha}
-              defaultGate={rankingDefaults.simpleCategoryGate}
-              isIndexingDemo={isIndexingDemo}
-              totalSkuCount={catalogSummary?.itemsIndexed ?? 0}
-              onReloadDemoCatalog={handleReloadDemoCatalog}
-              onConnectStore={() => setActiveTab('docs')}
-              onAddSynonymForQuery={(q) => {
-                if (isPublicDemo) return;
-                setSynonymPrefill(q);
-                setActiveTab('dictionaries');
-              }}
-              onSearchExecuted={() => {
-                if (!isPublicDemo) void fetchAdminData();
-              }}
-            />
-          )}
+        {/* Main Viewport */}
+        <main
+          className={`flex-1 p-4 sm:p-6 ${
+            isPublicDemo ? 'max-w-[1160px] w-full mx-auto' : 'w-full max-w-7xl'
+          }`}
+        >
+          {/* Admin Key Gate (§4.1 & §9.4: Without valid ADMIN_KEY on /admin, show login gate and hide operator data) */}
+          {isLockedAdmin ? (
+            <Card
+              testId="admin-key-login-gate"
+              elevated
+              className="max-w-md mx-auto my-10 p-6 space-y-4"
+            >
+              <div className="space-y-1">
+                <h1 className="text-base font-semibold text-slate-900">
+                  {lang === 'ru' ? 'Вход в Кабинет EIDOS' : 'Sign in to EIDOS Cabinet'}
+                </h1>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {lang === 'ru'
+                    ? 'Кабинет предназначен для оператора магазина: здесь доступны журнал поисковых запросов, словари синонимов, управление индексом и ключи доступа.'
+                    : 'The operator cabinet provides access to search query logs, synonym dictionaries, catalog index state, and API keys.'}
+                </p>
+              </div>
 
-          {activeTab === 'dashboard' && (
-            <AdminDashboardTab
-              lang={lang}
-              itemsIndexed={catalogSummary?.itemsIndexed ?? 0}
-              hnswIndexed={catalogSummary?.hnswIndexed ?? 0}
-              readyStatus={Boolean(readyPayload?.ready)}
-              lastSnapshotAt={lastSnapshotAt}
-              analytics={analytics}
-              queryLogs={queryLogs}
-              isPublicDemo={isPublicDemo}
-              onNavigateTab={setActiveTab}
-              onReplayQuery={(q) => {
-                setLiveQuerySeed(q);
-                setActiveTab('live-search');
-              }}
-              onAddSynonymForQuery={(q) => {
-                if (isPublicDemo) return;
-                setSynonymPrefill(q);
-                setActiveTab('dictionaries');
-              }}
-              onSeedPilotCatalog={handleSeedPilotCatalog}
-            />
-          )}
+              {authWarning && (
+                <Banner tone="danger" code="401_UNAUTHORIZED">
+                  {authWarning}
+                </Banner>
+              )}
 
-          {!isPublicDemo && activeTab === 'query-log' && (
-            <AdminQueryLogTab
-              lang={lang}
-              logs={queryLogs}
-              onRefresh={handleRefreshLogs}
-              onReplay={(q) => {
-                setLiveQuerySeed(q);
-                setActiveTab('live-search');
-              }}
-              onAddSynonym={(q) => {
-                setSynonymPrefill(q);
-                setActiveTab('dictionaries');
-              }}
-            />
-          )}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const next = loginKeyDraft.trim();
+                  if (!next) return;
+                  setAuthWarning(null);
+                  setApiKey(next);
+                  try {
+                    sessionStorage.setItem('eidos_admin_key', next);
+                  } catch {
+                    // Ignore
+                  }
+                }}
+                className="space-y-3"
+              >
+                <Input
+                  type="password"
+                  label={lang === 'ru' ? 'Ключ администратора (ADMIN_KEY)' : 'Admin Key (ADMIN_KEY)'}
+                  value={loginKeyDraft}
+                  onChange={(e) => setLoginKeyDraft(e.target.value)}
+                  placeholder={lang === 'ru' ? 'Введите ADMIN_KEY...' : 'Enter ADMIN_KEY...'}
+                  data-testid="admin-login-key-input"
+                />
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    data-testid="admin-login-submit-btn"
+                  >
+                    {lang === 'ru' ? 'Войти в кабинет' : 'Unlock Cabinet'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => switchSurface('public-demo')}
+                  >
+                    {lang === 'ru' ? 'Перейти на витрину →' : 'Go to Storefront →'}
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          ) : (
+            <>
+              {activeTab === 'live-search' && (
+                <AdminLiveSearchTab
+                  lang={lang}
+                  apiKey={isPublicDemo ? '' : apiKey}
+                  isPublicDemo={isPublicDemo}
+                  isDemoReady={isDemoReady}
+                  searchReady={searchReady}
+                  initialQuery={liveQuerySeed}
+                  defaultAlpha={rankingDefaults.defaultAlpha}
+                  defaultGate={rankingDefaults.simpleCategoryGate}
+                  isIndexingDemo={isIndexingDemo}
+                  totalSkuCount={itemsCount}
+                  onReloadDemoCatalog={handleReloadDemoCatalog}
+                  onConnectStore={() => setActiveTab('docs')}
+                  onAddSynonymForQuery={(q) => {
+                    if (isPublicDemo) return;
+                    setSynonymPrefill(q);
+                    setActiveTab('dictionaries');
+                  }}
+                  onSearchExecuted={() => {
+                    if (!isPublicDemo) void fetchAdminData();
+                  }}
+                />
+              )}
 
-          {!isPublicDemo && activeTab === 'analytics' && (
-            <AdminAnalyticsTab
-              lang={lang}
-              summary={analytics}
-              period={period}
-              onChangePeriod={setPeriod}
-              onAddSynonymForQuery={(q) => {
-                setSynonymPrefill(q);
-                setActiveTab('dictionaries');
-              }}
-            />
-          )}
+              {activeTab === 'dashboard' && (
+                <AdminDashboardTab
+                  lang={lang}
+                  itemsIndexed={itemsCount}
+                  hnswIndexed={catalogSummary?.hnswIndexed ?? 0}
+                  readyStatus={Boolean(readyPayload?.ready)}
+                  searchReady={searchReady}
+                  lastSnapshotAt={lastSnapshotAt}
+                  analytics={analytics}
+                  queryLogs={queryLogs}
+                  isPublicDemo={isPublicDemo}
+                  onNavigateTab={setActiveTab}
+                  onReplayQuery={(q) => {
+                    setLiveQuerySeed(q);
+                    setActiveTab('live-search');
+                  }}
+                  onAddSynonymForQuery={(q) => {
+                    if (isPublicDemo) return;
+                    setSynonymPrefill(q);
+                    setActiveTab('dictionaries');
+                  }}
+                  onSeedPilotCatalog={handleSeedPilotCatalog}
+                />
+              )}
 
-          {!isPublicDemo && activeTab === 'dictionaries' && (
-            <AdminDictionariesTab
-              lang={lang}
-              dictionaries={dictionaries}
-              prefillPhrase={synonymPrefill}
-              onSaveDictionaries={handleSaveDictionaries}
-              onTestInLiveSearch={(q) => {
-                setLiveQuerySeed(q);
-                setActiveTab('live-search');
-              }}
-            />
-          )}
+              {!isPublicDemo && activeTab === 'query-log' && (
+                <AdminQueryLogTab
+                  lang={lang}
+                  logs={queryLogs}
+                  onRefresh={handleRefreshLogs}
+                  onReplay={(q) => {
+                    setLiveQuerySeed(q);
+                    setActiveTab('live-search');
+                  }}
+                  onAddSynonym={(q) => {
+                    setSynonymPrefill(q);
+                    setActiveTab('dictionaries');
+                  }}
+                />
+              )}
 
-          {!isPublicDemo && activeTab === 'ranking' && (
-            <AdminRankingTab
-              lang={lang}
-              defaults={rankingDefaults}
-              onSaveDefaults={handleSaveRankingDefaults}
-            />
-          )}
+              {!isPublicDemo && activeTab === 'analytics' && (
+                <AdminAnalyticsTab
+                  lang={lang}
+                  summary={analytics}
+                  period={period}
+                  onChangePeriod={setPeriod}
+                  onAddSynonymForQuery={(q) => {
+                    setSynonymPrefill(q);
+                    setActiveTab('dictionaries');
+                  }}
+                />
+              )}
 
-          {!isPublicDemo && (activeTab === 'catalog' || activeTab === 'api-keys') && (
-            <AdminCatalogAndKeysTabs
-              mode={activeTab}
-              lang={lang}
-              catalogSummary={catalogSummary}
-              apiKeys={apiKeys}
-              onSeedPilotCatalog={handleSeedPilotCatalog}
-              onCreateKey={async (role, description) => {
-                const res = await fetch('/v1/admin/keys', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-                  body: JSON.stringify({ role, description }),
-                });
-                if (!res.ok) return null;
-                const d = await res.json();
-                await fetchAdminData();
-                return d.key || null;
-              }}
-              onRotateKey={async (keyHash) => {
-                await fetch('/v1/admin/keys/rotate', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-                  body: JSON.stringify({ key_hash: keyHash, grace_period_seconds: 300 }),
-                });
-                await fetchAdminData();
-              }}
-            />
-          )}
+              {!isPublicDemo && activeTab === 'dictionaries' && (
+                <AdminDictionariesTab
+                  lang={lang}
+                  dictionaries={dictionaries}
+                  prefillPhrase={synonymPrefill}
+                  onSaveDictionaries={handleSaveDictionaries}
+                  onTestInLiveSearch={(q) => {
+                    setLiveQuerySeed(q);
+                    setActiveTab('live-search');
+                  }}
+                />
+              )}
 
-          {(activeTab === 'system' || activeTab === 'docs') && (
-            <AdminSystemAndDocsTabs
-              mode={isPublicDemo ? 'docs' : activeTab}
-              lang={lang}
-              readyPayload={readyPayload}
-              itemsIndexed={catalogSummary?.itemsIndexed ?? 0}
-              lastSnapshotAt={lastSnapshotAt}
-              onCreateSnapshot={async () => {
-                if (isPublicDemo) return;
-                await fetch('/v1/snapshots', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-                  body: JSON.stringify({}),
-                });
-                await fetchAdminData();
-              }}
-            />
+              {!isPublicDemo && activeTab === 'ranking' && (
+                <AdminRankingTab
+                  lang={lang}
+                  defaults={rankingDefaults}
+                  onSaveDefaults={handleSaveRankingDefaults}
+                />
+              )}
+
+              {!isPublicDemo && (activeTab === 'catalog' || activeTab === 'api-keys') && (
+                <AdminCatalogAndKeysTabs
+                  mode={activeTab}
+                  lang={lang}
+                  catalogSummary={catalogSummary}
+                  apiKeys={apiKeys}
+                  onSeedPilotCatalog={handleSeedPilotCatalog}
+                  onCreateKey={async (role, description) => {
+                    const res = await fetch('/v1/admin/keys', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                      body: JSON.stringify({ role, description }),
+                    });
+                    if (!res.ok) return null;
+                    const d = await res.json();
+                    await fetchAdminData();
+                    return d.key || null;
+                  }}
+                  onRotateKey={async (keyHash) => {
+                    await fetch('/v1/admin/keys/rotate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                      body: JSON.stringify({ key_hash: keyHash, grace_period_seconds: 300 }),
+                    });
+                    await fetchAdminData();
+                  }}
+                />
+              )}
+
+              {(activeTab === 'system' || activeTab === 'docs') && (
+                <AdminSystemAndDocsTabs
+                  mode={isPublicDemo ? 'docs' : activeTab}
+                  lang={lang}
+                  readyPayload={readyPayload}
+                  itemsIndexed={itemsCount}
+                  lastSnapshotAt={lastSnapshotAt}
+                  onCreateSnapshot={async () => {
+                    if (isPublicDemo) return;
+                    await fetch('/v1/snapshots', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                      body: JSON.stringify({}),
+                    });
+                    await fetchAdminData();
+                  }}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
 
+      {/* Footer on Storefront (/public-demo) with subtle specialist links (§1 & §3.1) */}
       {isPublicDemo && (
         <footer
           className="bg-white border-t border-slate-200 px-5 py-3 text-xs text-slate-500 flex flex-wrap items-center justify-between gap-3"
@@ -660,8 +796,8 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         >
           <span>
             {lang === 'ru'
-              ? 'EIDOS Витрина · Демо-каталог 1048 товаров · Self-hosted умный поиск для интернет-магазина'
-              : 'EIDOS Storefront · 1048-SKU Demo Catalog · Self-hosted smart search for e-commerce'}
+              ? 'EIDOS Витрина · Каталог демо 1048 товаров · v3.4.0'
+              : 'EIDOS Storefront · 1048-SKU Demo Catalog · v3.4.0'}
           </span>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-slate-400">
@@ -671,9 +807,11 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
               type="button"
               data-testid="switch-surface-admin"
               onClick={() => switchSurface('admin')}
-              className="text-slate-600 hover:text-slate-900 underline"
+              className="text-slate-600 hover:text-slate-900 underline cursor-pointer"
             >
-              {lang === 'ru' ? 'Режим оператора (/admin)' : 'Operator Mode (/admin)'}
+              {lang === 'ru'
+                ? 'Кабинет (нужен ключ) · Режим оператора (/admin)'
+                : 'Cabinet (/admin)'}
             </button>
             <a
               href="/"

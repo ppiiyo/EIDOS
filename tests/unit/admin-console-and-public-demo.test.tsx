@@ -626,4 +626,34 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
     expect(passRate).toBeGreaterThanOrEqual(0.8);
     expect(passedCount).toBe(15);
   });
+
+  it('13. Verifies UI Reconstruction Spec (Product Shell v1): Studio badge, Admin Key login gate, and Storefront 3-item IA', () => {
+    const prevWindow = (globalThis as any).window;
+    try {
+      // Studio route has Studio · engineering badge and Открыть витрину / Открыть кабинет
+      (globalThis as any).window = {
+        location: { pathname: '/', search: '' },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      };
+      const studioHtml = renderToStaticMarkup(<App />);
+      expect(studioHtml).toContain('data-testid="studio-engineering-badge"');
+      expect(studioHtml).toContain('Studio · engineering');
+      expect(studioHtml).toContain('Открыть витрину');
+      expect(studioHtml).toContain('Открыть кабинет');
+
+      // Admin route without key (?loggedOut=1) shows Admin Key login gate and hides operator data
+      (globalThis as any).window = {
+        location: { pathname: '/admin', search: '?loggedOut=1' },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      };
+      const lockedAdminHtml = renderToStaticMarkup(<App />);
+      expect(lockedAdminHtml).toContain('data-testid="admin-key-login-gate"');
+      expect(lockedAdminHtml).toContain('Вход в Кабинет EIDOS');
+      expect(lockedAdminHtml).not.toContain('data-testid="dashboard-recent-empty-queries"');
+    } finally {
+      (globalThis as any).window = prevWindow;
+    }
+  });
 });

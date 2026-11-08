@@ -71,21 +71,53 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
 
   return (
     <header className="h-[52px] border-b border-[var(--border)] bg-[var(--surface)] px-6 flex items-center justify-between gap-3 sticky top-0 z-10">
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="mono text-xs px-2 py-0.5 rounded bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text-sec)] whitespace-nowrap">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span
+          data-testid="studio-engineering-badge"
+          className="mono text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-900 text-white whitespace-nowrap"
+        >
+          Studio · engineering
+        </span>
+
+        {onOpenPublicDemo && (
+          <button
+            type="button"
+            data-testid="header-open-public-demo-btn"
+            onClick={onOpenPublicDemo}
+            className="btn btn-primary btn-sm"
+            title="Открыть клиентское демо (/public-demo)"
+          >
+            <span>{uiLang === 'ru' ? 'Открыть витрину' : 'Open Storefront'}</span>
+            <span className="sr-only">Открыть клиентское демо</span>
+          </button>
+        )}
+
+        {onOpenAdminConsole && (
+          <button
+            type="button"
+            data-testid="header-open-admin-btn"
+            onClick={onOpenAdminConsole}
+            className="btn btn-secondary btn-sm"
+            title="Открыть кабинет оператора (/admin)"
+          >
+            <span>{uiLang === 'ru' ? 'Открыть кабинет' : 'Open Cabinet'}</span>
+          </button>
+        )}
+
+        <span className="mono text-xs px-2 py-0.5 rounded bg-[var(--bg-alt)] border border-[var(--border)] text-[var(--text-sec)] whitespace-nowrap hidden lg:inline-block">
           {catalogCount.toLocaleString()} SKU · 384-d
         </span>
 
         <span
           data-testid="embedding-engine-status"
-          className={`mono text-[11px] px-2 py-0.5 rounded border flex items-center gap-1.5 whitespace-nowrap ${statusBadge.color}`}
+          className={`mono text-[11px] px-2 py-0.5 rounded border hidden xl:flex items-center gap-1.5 whitespace-nowrap ${statusBadge.color}`}
         >
           <Cpu size={12} />
           <span>{statusBadge.label}</span>
         </span>
 
         {selectedItem && (
-          <div className="text-[0.8125rem] text-[var(--text-sec)] whitespace-nowrap overflow-hidden text-ellipsis">
+          <div className="text-[0.8125rem] text-[var(--text-sec)] whitespace-nowrap overflow-hidden text-ellipsis hidden 2xl:block">
             {tTop.activeSeed}{' '}
             <strong className="text-[var(--text)]">
               {selectedItem.icon} {selectedItem.title}
@@ -167,31 +199,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
           <span>{tTop.csvModal}</span>
         </button>
 
-        {onOpenPublicDemo && (
-          <button
-            type="button"
-            data-testid="header-open-public-demo-btn"
-            onClick={onOpenPublicDemo}
-            className="btn btn-secondary btn-sm"
-            title="Открыть клиентское демо (/public-demo)"
-          >
-            <span>{uiLang === 'ru' ? 'Открыть клиентское демо' : 'Client Demo'}</span>
-          </button>
-        )}
-
-        {onOpenAdminConsole && (
-          <button
-            type="button"
-            data-testid="header-open-admin-btn"
-            onClick={onOpenAdminConsole}
-            className="btn btn-secondary btn-sm"
-            title="Открыть админку оператора (/admin)"
-          >
-            <span>{uiLang === 'ru' ? 'Админка' : 'EIDOS Admin'}</span>
-          </button>
-        )}
-
-        <button type="button" onClick={onOpenApiModal} className="btn btn-primary btn-sm">
+        <button type="button" onClick={onOpenApiModal} className="btn btn-secondary btn-sm">
           <Terminal size={13} />
           <span>{tTop.apiSdk}</span>
         </button>

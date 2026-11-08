@@ -98,6 +98,9 @@ export interface TenantRankingDefaultsDto {
 
 export interface LiveSearchHitDto {
   id: string;
+  sku?: string;
+  url?: string;
+  imageUrl?: string;
   title: string;
   description?: string;
   category: string;
@@ -117,28 +120,28 @@ export interface LiveSearchHitDto {
 
 export const ADMIN_COPY = {
   ru: {
-    brandTitle: 'EIDOS Admin',
-    brandSubtitle: 'Операторская панель поиска и каталога',
-    demoBanner: 'Демо-контур · Только чтение · Для пилота на вашем каталоге — self-hosted EIDOS',
-    demoCta: 'Запросить пилот / Self-Hosted',
-    switchToDemo: 'Public Demo (Витрина)',
-    switchToAdmin: 'EIDOS Admin',
-    switchToStudio: 'Инженерная студия',
+    brandTitle: 'EIDOS Кабинет',
+    brandSubtitle: 'Управление поиском, индексацией и словарями магазина',
+    demoBanner: 'Демо-каталог · read-only · ваш магазин = self-hosted пилот',
+    demoCta: 'Подключить магазин',
+    switchToDemo: 'Витрина (/public-demo)',
+    switchToAdmin: 'Кабинет (/admin)',
+    switchToStudio: 'Студия (/)',
     tabs: {
-      dashboard: 'Обзор (Пульс)',
-      'live-search': 'Проверка поиска (Live)',
+      dashboard: 'Обзор',
+      'live-search': 'Живой поиск · Проверка поиска',
       'query-log': 'Журнал запросов',
-      analytics: 'Аналитика и воронка',
-      catalog: 'Каталог и синхронизация',
+      analytics: 'Аналитика',
+      catalog: 'Каталог',
       dictionaries: 'Словари и синонимы',
       ranking: 'Настройки ранжирования',
-      'api-keys': 'API-ключи доступа',
+      'api-keys': 'Ключи',
       system: 'Проверка системы',
-      docs: 'Документация и гайды',
+      docs: 'Документация',
     },
     kpi: {
       itemsIndexed: 'Товаров в индексе',
-      avgLatency: 'Средняя задержка (p50 / p95)',
+      avgLatency: 'Задержка (p50 / p95)',
       zeroRate: 'Доля пустых выдач',
       gateBlocks: 'Отсечено Category Gate',
       lastSnapshot: 'Последний снапшот',
@@ -146,24 +149,24 @@ export const ADMIN_COPY = {
     },
   },
   en: {
-    brandTitle: 'EIDOS Admin',
-    brandSubtitle: 'Storefront Search & Catalog Operator Console',
-    demoBanner: 'Demo Sandbox · Read-Only · For a store pilot on your own catalog — deploy self-hosted EIDOS',
-    demoCta: 'Request Pilot / Self-Hosted',
-    switchToDemo: 'Public Demo Stand',
-    switchToAdmin: 'EIDOS Admin',
-    switchToStudio: 'Engineering Studio',
+    brandTitle: 'EIDOS Cabinet',
+    brandSubtitle: 'Storefront Search, Index & Dictionary Management',
+    demoBanner: 'Demo catalog · read-only · your store = self-hosted pilot',
+    demoCta: 'Connect Store',
+    switchToDemo: 'Storefront (/public-demo)',
+    switchToAdmin: 'Cabinet (/admin)',
+    switchToStudio: 'Studio (/)',
     tabs: {
-      dashboard: 'Dashboard',
-      'live-search': 'Live Search & X-Ray',
+      dashboard: 'Overview',
+      'live-search': 'Live Search',
       'query-log': 'Query Log',
-      analytics: 'Analytics & Funnel',
-      catalog: 'Catalog & Sync',
+      analytics: 'Analytics',
+      catalog: 'Catalog',
       dictionaries: 'Dictionaries',
-      ranking: 'Ranking Defaults',
-      'api-keys': 'API Keys',
-      system: 'System Check',
-      docs: 'Docs & Runbooks',
+      ranking: 'Ranking',
+      'api-keys': 'Keys',
+      system: 'System',
+      docs: 'Documentation',
     },
     kpi: {
       itemsIndexed: 'Items Indexed',

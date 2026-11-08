@@ -1,11 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LiveSearchHitDto, QueryLogItem } from '../types';
+import {
+  Banner,
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  KeyValue,
+  ScoreBar,
+  SearchField,
+  Skeleton,
+  Table,
+  Tabs,
+} from '../../../design-system/ui-kit';
 
 export interface AdminLiveSearchTabProps {
   lang: 'ru' | 'en';
   apiKey: string;
   isPublicDemo?: boolean;
   isDemoReady?: boolean;
+  searchReady?: boolean;
   initialQuery?: string;
   defaultAlpha: number;
   defaultGate: 'hard' | 'soft' | 'off';
@@ -22,6 +36,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   apiKey,
   isPublicDemo = false,
   isDemoReady = true,
+  searchReady = true,
   initialQuery = 'недорогие наушники для бега',
   defaultAlpha,
   defaultGate,
@@ -37,6 +52,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   const [alpha, setAlpha] = useState<number>(defaultAlpha);
   const [gate, setGate] = useState<'hard' | 'soft' | 'off'>(defaultGate);
   const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState<{ message: string; code?: string } | null>(null);
   const [results, setResults] = useState<LiveSearchHitDto[]>([]);
   const [selectedHit, setSelectedHit] = useState<LiveSearchHitDto | null>(null);
   const [meta, setMeta] = useState<{
@@ -46,6 +62,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
     rewritten: boolean;
     headCategoryIntent: string | null;
     appliedRules: string[];
+    rewrites: Array<{ type: string; from: string; to: string }>;
   } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -64,6 +81,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
       setResults([]);
       setSelectedHit(null);
       setMeta(null);
+      setApiError(null);
       return;
     }
 
@@ -74,6 +92,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
       const controller = new AbortController();
       abortRef.current = controller;
       setLoading(true);
+      setApiError(null);
 
       try {
         const endpoint = isPublicDemo ? '/v1/demo/search' : '/v1/search';
@@ -94,8 +113,21 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           }),
         });
         if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
           setResults([]);
           setSelectedHit(null);
+          setApiError({
+            message:
+              errBody?.message ||
+              (res.status === 503
+                ? lang === 'ru'
+                  ? 'Индекс каталога пуст. Загрузите прайс или демо-каталог.'
+                  : 'Catalog index is empty. Run sync or load demo catalog.'
+                : lang === 'ru'
+                ? 'Не удалось выполнить поисковый запрос.'
+                : 'Search request failed.'),
+            code: errBody?.code || `HTTP_${res.status}`,
+          });
           return;
         }
         const data = await res.json();
@@ -106,11 +138,12 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           latencyMs: Number(data.latencyMs || 0),
           normalizedQuery: String(data.normalizedQuery || data.query || trimmed),
           originalQuery: String(data.originalQuery || trimmed),
-          rewritten: Boolean(data.rewritten),
+          rewritten: Boolean(data.rewritten || data.rewriteApplied),
           headCategoryIntent: data.headCategoryIntent ?? null,
           appliedRules: Array.isArray(data.appliedDictionaryRules)
             ? data.appliedDictionaryRules
             : [],
+          rewrites: Array.isArray(data.meta?.rewrites) ? data.meta.rewrites : [],
         });
         onSearchExecuted?.();
       } catch (err: any) {
@@ -165,31 +198,47 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
   const topCategoryLabel =
     results[0]?.category || meta?.headCategoryIntent || (lang === 'ru' ? 'Все категории' : 'All');
 
+  const isColdStart = isIndexingDemo || (isPublicDemo && !searchReady);
+
   return (
     <div className="space-y-4" data-testid="admin-live-search">
-      {isIndexingDemo && (
-        <div
-          className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900 flex items-center justify-between gap-2 shadow-sm"
-          data-testid="admin-catalog-indexing-banner"
+      {apiError && (
+        <Banner
+          tone={apiError.code === 'INDEX_EMPTY' ? 'warning' : 'danger'}
+          code={apiError.code}
+          testId="search-api-error-banner"
+          action={
+            onReloadDemoCatalog ? (
+              <Button variant="secondary" size="sm" onClick={onReloadDemoCatalog}>
+                {lang === 'ru' ? 'Загрузить демо-каталог' : 'Load Demo Catalog'}
+              </Button>
+            ) : undefined
+          }
         >
-          <div className="flex items-center gap-2 font-medium">
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping inline-block" />
-            <span>
-              {lang === 'ru'
-                ? 'Загружаем витрину… Индексируем каталог 1000+ товаров для моментального поиска.'
-                : 'Loading storefront… Indexing 1000+ products for instant search.'}
-            </span>
-          </div>
-          <span className="text-indigo-700 font-mono text-[11px]">1048 товаров</span>
-        </div>
+          {apiError.message}
+        </Banner>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3.5 shadow-xs">
+      {!isPublicDemo && !searchReady && !apiError && (
+        <Banner
+          tone="warning"
+          code="INDEX_EMPTY"
+          testId="search-not-ready-banner"
+        >
+          {lang === 'ru'
+            ? 'Индекс пуст (searchReady: false). Выполните синхронизацию каталога или загрузите пилотный прайс.'
+            : 'Catalog index is empty (searchReady: false). Run catalog sync or seed pilot catalog.'}
+        </Banner>
+      )}
+
+      {/* Search Controls Card — strict linear order per §3.2 */}
+      <Card elevated className="p-5 space-y-4">
+        {/* 1. Title & Subtitle on Storefront */}
         {isPublicDemo && (
-          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <h1
-                className="text-lg font-semibold text-slate-900 tracking-tight"
+                className="text-xl font-semibold text-slate-900 tracking-tight text-balance"
                 data-testid="public-demo-story-title"
               >
                 {lang === 'ru'
@@ -197,15 +246,15 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
                   : 'Search that understands the shopper'}
               </h1>
               <p
-                className="text-xs text-slate-500 mt-0.5"
+                className="text-xs text-slate-600 mt-1"
                 data-testid="public-demo-story-subtitle"
               >
                 {lang === 'ru'
-                  ? '1000+ товаров · без OpenAI · видно почему в топе · explainable'
-                  : '1000+ products · zero OpenAI · see why it ranks on top · explainable'}
+                  ? 'Каталог демо · без внешнего AI-ключа · видно, почему товар в топе (1000+ товаров · без OpenAI · видно почему в топе)'
+                  : 'Demo catalog · no external AI key · see why products rank on top (1000+ products · zero OpenAI)'}
               </p>
             </div>
-            <div className="text-xs text-slate-600 font-medium">
+            <div className="text-xs text-slate-500 tabular-nums">
               {lang === 'ru'
                 ? `Каталог демо: ${totalSkuCount || 1048} товаров`
                 : `Demo catalog: ${totalSkuCount || 1048} products`}
@@ -213,136 +262,106 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
           </div>
         )}
 
-        <div>
-          {!isPublicDemo && (
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              {lang === 'ru'
-                ? 'Поисковый запрос (debounce 220ms)'
-                : 'Search Query (220ms debounce)'}
-            </label>
-          )}
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              data-testid="admin-live-search-input"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={
-                lang === 'ru'
-                  ? 'Введите запрос покупателя...'
-                  : 'Enter a shopper search query...'
-              }
-              className="flex-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:border-slate-900 focus:bg-white"
-            />
+        {/* 2. SearchField + Submit Button */}
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          onSubmit={() => setSearchTrigger((n) => n + 1)}
+          disabled={isColdStart}
+          loading={loading}
+          placeholder={
+            lang === 'ru'
+              ? 'Например: наушники для бега'
+              : 'For example: running headphones'
+          }
+          submitLabel={lang === 'ru' ? 'Найти' : 'Search'}
+          ariaLabel={lang === 'ru' ? 'Поисковый запрос покупателя' : 'Shopper search query'}
+        />
+
+        {/* 3. Example Chips (6 max in 1 row, wrap OK) */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-slate-500 mr-1">
+            {isPublicDemo ? (lang === 'ru' ? 'Примеры:' : 'Examples:') : 'Golden:'}
+          </span>
+          {samplePresets.map((preset) => (
+            <Chip
+              key={preset.query}
+              disabled={isColdStart}
+              active={query === preset.query}
+              data-testid={`admin-live-sample-${preset.query}`}
+              onClick={() => setQuery(preset.query)}
+            >
+              {lang === 'ru' ? preset.labelRu : preset.labelEn}
+            </Chip>
+          ))}
+          {isPublicDemo && onReloadDemoCatalog && (
             <button
               type="button"
-              data-testid="admin-live-search-submit"
-              disabled={isIndexingDemo}
-              onClick={() => setSearchTrigger((n) => n + 1)}
-              className="px-4 py-2.5 text-sm font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md transition-colors shrink-0 disabled:opacity-50"
+              data-testid="reload-demo-catalog-btn"
+              onClick={onReloadDemoCatalog}
+              disabled={isColdStart}
+              title={lang === 'ru' ? 'Перезагрузить витрину (1048 товаров)' : 'Reload 1048 items'}
+              className="ml-auto px-2 py-1 text-xs text-slate-500 hover:text-slate-900 underline cursor-pointer disabled:opacity-50"
             >
-              {lang === 'ru' ? 'Найти' : 'Search'}
+              {lang === 'ru' ? '↻ Обновить демо' : '↻ Reload demo'}
             </button>
-          </div>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-medium text-slate-500">
-              {isPublicDemo
-                ? lang === 'ru'
-                  ? 'Попробовать:'
-                  : 'Try:'
-                : 'Golden Queries:'}
-            </span>
-            {samplePresets.map((preset) => (
-              <button
-                key={preset.query}
-                type="button"
-                disabled={isIndexingDemo}
-                data-testid={`admin-live-sample-${preset.query}`}
-                onClick={() => setQuery(preset.query)}
-                className={`px-2.5 py-1 rounded-md transition-colors font-medium border disabled:opacity-50 ${
-                  query === preset.query
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/80 hover:text-slate-900'
-                }`}
-              >
-                {lang === 'ru' ? preset.labelRu : preset.labelEn}
-              </button>
-            ))}
-            {isPublicDemo && onReloadDemoCatalog && (
-              <button
-                type="button"
-                data-testid="reload-demo-catalog-btn"
-                onClick={onReloadDemoCatalog}
-                disabled={isIndexingDemo}
-                className="ml-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-md font-medium transition-colors disabled:opacity-50"
-              >
-                {lang === 'ru' ? '↻ Обновить витрину (1048 товаров)' : '↻ Reload 1048 items'}
-              </button>
-            )}
-          </div>
-        </div>
-
+        {/* 4. Quiet Meta Line (after response) */}
         {meta && (
           <div
-            className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"
+            className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 tabular-nums"
             data-testid="admin-live-meta"
           >
             {isPublicDemo ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-slate-800">
+                <span>
                   {lang === 'ru'
-                    ? `Найдено: ${results.length} товаров · ${Math.max(1, Math.round(meta.latencyMs))} ms${
-                        results.length > 0 ? ` · категория: ${topCategoryLabel}` : ''
-                      }`
-                    : `Found: ${results.length} items · ${Math.max(1, Math.round(meta.latencyMs))} ms${
-                        results.length > 0 ? ` · category: ${topCategoryLabel}` : ''
-                      }`}
+                    ? `${results.length} товаров · ${Math.max(1, Math.round(meta.latencyMs))} мс · категория: ${topCategoryLabel}`
+                    : `${results.length} items · ${Math.max(1, Math.round(meta.latencyMs))} ms · category: ${topCategoryLabel}`}
                 </span>
                 {meta.rewritten && (
                   <span
-                    className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium"
+                    className="text-emerald-800 font-medium"
                     data-testid="admin-normalized-query"
                   >
                     {lang === 'ru'
-                      ? `исправлена раскладка / синоним → «${meta.normalizedQuery}»`
-                      : `auto-corrected → "${meta.normalizedQuery}"`}
+                      ? `· исправлено → «${meta.normalizedQuery}»`
+                      : `· corrected → "${meta.normalizedQuery}"`}
                   </span>
                 )}
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-1.5 font-mono tabular-nums text-slate-600">
-                <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-800 font-semibold">
-                  {results.length} hits
-                </span>
+              <div className="flex flex-wrap items-center gap-2 font-mono text-slate-600">
+                <span className="font-semibold text-slate-900">{results.length} hits</span>
+                <span>·</span>
                 <span>{meta.latencyMs.toFixed(1)} ms</span>
                 {meta.headCategoryIntent && (
-                  <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">
-                    intent: {meta.headCategoryIntent}
-                  </span>
+                  <>
+                    <span>·</span>
+                    <span>intent: {meta.headCategoryIntent}</span>
+                  </>
                 )}
+                <span>·</span>
                 <span
-                  className={`px-2 py-0.5 rounded border ${
-                    meta.rewritten
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold'
-                      : 'bg-slate-50 border-slate-200 text-slate-600'
-                  }`}
+                  className={meta.rewritten ? 'text-emerald-800 font-semibold' : 'text-slate-600'}
                   data-testid="admin-normalized-query"
                 >
                   normalized: «{meta.normalizedQuery}»
                 </span>
                 {meta.appliedRules.length > 0 && (
-                  <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 rounded text-amber-800">
-                    rules: {meta.appliedRules.join(', ')}
-                  </span>
+                  <>
+                    <span>·</span>
+                    <span className="text-amber-800">rules: {meta.appliedRules.join(', ')}</span>
+                  </>
                 )}
               </div>
             )}
           </div>
         )}
 
+        {/* 6. «Для специалиста» — 1 collapse at bottom of meta zone (§3.2.6) */}
         <details
           open={!isPublicDemo}
           className="pt-2 border-t border-slate-100 group"
@@ -352,19 +371,20 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
             <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
             <span>
               {lang === 'ru'
-                ? 'Для специалиста (режим поиска, баланс α, Category Gate)'
-                : 'For specialists (search mode, alpha balance, Category Gate)'}
+                ? 'Для специалиста (режим, α, Category Gate)'
+                : 'For specialists (mode, alpha, Category Gate)'}
             </span>
           </summary>
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end bg-slate-50/70 p-3 rounded-md border border-slate-200/70">
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end bg-slate-50 p-3 rounded-lg border border-slate-200">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 {lang === 'ru' ? 'Режим' : 'Mode'}
               </label>
               <select
+                aria-label={lang === 'ru' ? 'Режим поиска' : 'Search mode'}
                 value={mode}
                 onChange={(e) => setMode(e.target.value as 'hybrid' | 'dense' | 'sparse')}
-                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900"
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-[6px] text-slate-900"
               >
                 <option value="hybrid">Hybrid (HNSW + BM25)</option>
                 <option value="dense">Semantic (Dense 384-d)</option>
@@ -380,6 +400,7 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
               </label>
               <input
                 type="range"
+                aria-label="Alpha balance"
                 min={0}
                 max={1}
                 step={0.05}
@@ -392,10 +413,11 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Category Gate</label>
               <select
+                aria-label="Category Gate"
                 data-testid="admin-live-gate-select"
                 value={gate}
                 onChange={(e) => setGate(e.target.value as 'hard' | 'soft' | 'off')}
-                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md text-slate-900"
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-[6px] text-slate-900"
               >
                 <option value="hard">hard (strict)</option>
                 <option value="soft">soft (demote)</option>
@@ -404,232 +426,278 @@ export const AdminLiveSearchTab: React.FC<AdminLiveSearchTabProps> = ({
             </div>
           </div>
         </details>
-      </div>
+      </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-lg overflow-hidden">
-          {isIndexingDemo || loading ? (
-            <div className="p-8 text-center text-sm text-slate-500">
-              {isIndexingDemo
-                ? lang === 'ru'
-                  ? 'Загружаем витрину…'
-                  : 'Loading storefront…'
-                : lang === 'ru'
-                ? 'Ищем подходящие товары…'
-                : 'Searching products…'}
-            </div>
-          ) : results.length === 0 ? (
-            <div className="p-8 text-center space-y-2.5" data-testid="admin-live-empty-state">
-              <div className="text-sm font-semibold text-slate-900">
-                {isPublicDemo
-                  ? lang === 'ru'
-                    ? 'Ничего не найдено — так и должно быть для бессмысленного запроса'
-                    : 'Nothing found — as expected for a nonsensical query'
-                  : lang === 'ru'
-                  ? 'По запросу ничего не найдено (count: 0)'
-                  : 'Zero results returned (count: 0)'}
-              </div>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                {isPublicDemo
-                  ? lang === 'ru'
-                    ? 'Поиск EIDOS не засоряет витрину случайными товарами, если в каталоге нет подходящего ответа.'
-                    : 'EIDOS never pollutes the storefront with random items when no relevant product exists.'
-                  : lang === 'ru'
-                  ? 'Запрос отсечён порогом минимальной уверенности или строгим фильтром категории (Category Gate). Если это сленг или синоним покупателя — добавьте правило в словарь.'
-                  : 'Filtered by minimum confidence threshold or strict Category Gate. Add a synonym rule if shoppers use this phrase for an existing product.'}
-              </p>
-              {!isPublicDemo && onAddSynonymForQuery && query.trim() && (
-                <button
-                  type="button"
-                  onClick={() => onAddSynonymForQuery(query.trim())}
-                  className="px-3 py-1.5 text-xs font-medium bg-slate-900 text-white rounded hover:bg-slate-800"
+      {/* 9. Cold Start Screen State (§3.2.9) */}
+      {isColdStart ? (
+        <Card
+          testId="admin-catalog-indexing-banner"
+          className="p-10 text-center space-y-3"
+        >
+          <div className="text-sm font-semibold text-slate-900">
+            {lang === 'ru' ? 'Загружаем витрину…' : 'Loading storefront…'}
+          </div>
+          <p className="text-xs text-slate-600 max-w-md mx-auto">
+            {lang === 'ru'
+              ? 'Подготавливаем демо-каталог 1048 товаров и индекс быстрого поиска.'
+              : 'Preparing the 1048-product demo catalog and search index.'}
+          </p>
+          <div className="w-56 h-1.5 bg-slate-100 rounded-full overflow-hidden mx-auto">
+            <div className="h-full w-2/3 bg-slate-900 rounded-full animate-pulse" />
+          </div>
+        </Card>
+      ) : (
+        /* 5. Two-Column Results (Desktop 60–65% Left / 35–40% Right, Mobile 1 Column) */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          <Card className="lg:col-span-7 overflow-hidden">
+            {loading ? (
+              /* 8. Skeleton Table Rows on Loading (§3.2.8) */
+              <Skeleton rows={6} />
+            ) : results.length === 0 ? (
+              /* 7. Empty State (§3.2.7) */
+              <EmptyState
+                testId="admin-live-empty-state"
+                title={
+                  isPublicDemo
+                    ? lang === 'ru'
+                      ? 'Ничего не нашли — для бессмысленного запроса так и должно быть (Ничего не найдено — так и должно быть для бессмысленного запроса)'
+                      : 'Nothing found — as expected for a nonsensical query'
+                    : lang === 'ru'
+                    ? 'По запросу ничего не найдено (count: 0)'
+                    : 'Zero results returned (count: 0)'
+                }
+                description={
+                  isPublicDemo
+                    ? lang === 'ru'
+                      ? 'Поиск EIDOS не подсовывает случайные товары, если в каталоге нет подходящего ответа.'
+                      : 'EIDOS never pollutes the storefront with random items when no relevant match exists.'
+                    : lang === 'ru'
+                    ? 'Запрос отсечён порогом уверенности или фильтром категории. Если покупатели ищут так существующий товар — добавьте синоним.'
+                    : 'Filtered by confidence floor or Category Gate. Add a synonym rule if shoppers use this phrase.'
+                }
+                action={
+                  isPublicDemo ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      data-testid="empty-try-another-btn"
+                      onClick={() => setQuery('недорогие наушники для бега')}
+                    >
+                      {lang === 'ru' ? 'Попробовать другой пример' : 'Try another example'}
+                    </Button>
+                  ) : onAddSynonymForQuery && query.trim() ? (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => onAddSynonymForQuery(query.trim())}
+                    >
+                      {lang === 'ru'
+                        ? `+ Добавить синоним для «${query.trim()}»`
+                        : `+ Add synonym for "${query.trim()}"`}
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <>
+                {/* Desktop Table (# · Товар · Категория · Цена · Match %) */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/80 text-xs text-slate-600">
+                        <th className="py-2.5 px-3 font-medium w-10">#</th>
+                        <th className="py-2.5 px-3 font-medium">
+                          {lang === 'ru' ? 'Товар' : 'Product'}
+                        </th>
+                        <th className="py-2.5 px-3 font-medium">
+                          {lang === 'ru' ? 'Категория' : 'Category'}
+                        </th>
+                        <th className="py-2.5 px-3 font-medium text-right">
+                          {lang === 'ru' ? 'Цена' : 'Price'}
+                        </th>
+                        <th className="py-2.5 px-3 font-medium text-right">Match %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {results.map((hit, idx) => {
+                        const active = selectedHit?.id === hit.id;
+                        return (
+                          <tr
+                            key={hit.id}
+                            data-testid="admin-live-result-row"
+                            onClick={() => handleRecordClick(hit)}
+                            className={`cursor-pointer transition-colors duration-150 ${
+                              active ? 'bg-slate-100/90' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <td className="py-2.5 px-3 font-mono text-xs text-slate-500 tabular-nums">
+                              {idx + 1}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-medium text-slate-900">{hit.title}</div>
+                              {!isPublicDemo && (
+                                <div className="text-[11px] text-slate-500 font-mono">
+                                  ID: {hit.id}
+                                  {hit.sku ? ` · SKU: ${hit.sku}` : ''}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-xs text-slate-600">{hit.category}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-xs font-medium text-slate-900 tabular-nums whitespace-nowrap">
+                              {typeof hit.price === 'number'
+                                ? `${hit.price.toLocaleString()} ₽`
+                                : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <ScoreBar percent={hit.scorePercent} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                </div>
+
+                {/* Mobile Cards (title, category, price, match) per §3.2.5 & §6.7 */}
+                <div
+                  className="sm:hidden divide-y divide-slate-100"
+                  data-testid="mobile-search-result-cards"
                 >
+                  {results.map((hit, idx) => {
+                    const active = selectedHit?.id === hit.id;
+                    return (
+                      <button
+                        key={hit.id}
+                        type="button"
+                        onClick={() => handleRecordClick(hit)}
+                        className={`w-full text-left p-3.5 space-y-1.5 transition-colors cursor-pointer ${
+                          active ? 'bg-slate-100/90' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium text-slate-900">
+                            <span className="font-mono text-xs text-slate-400 mr-1.5">
+                              #{idx + 1}
+                            </span>
+                            {hit.title}
+                          </span>
+                          <ScoreBar percent={hit.scorePercent} />
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-600">
+                          <span>{hit.category}</span>
+                          <span className="font-mono font-medium text-slate-900 tabular-nums">
+                            {typeof hit.price === 'number'
+                              ? `${hit.price.toLocaleString()} ₽`
+                              : '—'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </Card>
+
+          {/* Right Panel: «Почему в топе» (§3.2.5) */}
+          <Card
+            testId="admin-xray-panel"
+            className="lg:col-span-5 p-4 flex flex-col justify-between gap-4"
+          >
+            <div>
+              <div className="text-xs font-semibold text-slate-600 mb-2">
+                {lang === 'ru' ? 'Почему в топе' : 'Why it ranked on top'}
+              </div>
+              {!selectedHit ? (
+                <div className="text-xs text-slate-500 py-8 text-center">
                   {lang === 'ru'
-                    ? `+ Добавить синоним для «${query.trim()}»`
-                    : `+ Add synonym for "${query.trim()}"`}
-                </button>
+                    ? 'Выберите товар в списке слева, чтобы увидеть объяснение.'
+                    : 'Select a product on the left to inspect its ranking explanation.'}
+                </div>
+              ) : (
+                <div className="space-y-3 text-xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {selectedHit.title}
+                      </div>
+                      <div className="text-slate-600 mt-0.5">
+                        {selectedHit.category}
+                        {typeof selectedHit.price === 'number'
+                          ? ` · ${selectedHit.price.toLocaleString()} ₽`
+                          : ''}
+                      </div>
+                    </div>
+                    <ScoreBar percent={selectedHit.scorePercent} />
+                  </div>
+
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800">
+                    <div
+                      data-testid="admin-xray-human-explanation"
+                      className="leading-relaxed text-slate-800"
+                    >
+                      {lang === 'ru'
+                        ? selectedHit.humanExplanation?.ru ||
+                          'Товар соответствует категории запроса и совпадает по смыслу и характеристикам.'
+                        : selectedHit.humanExplanation?.en || 'Hybrid semantic + lexical match'}
+                    </div>
+                  </div>
+
+                  {/* X-Ray Details — collapsed by default on Storefront (§3.2.5 & §10) */}
+                  <details
+                    open={!isPublicDemo}
+                    className="pt-1 group"
+                    data-testid="admin-xray-details"
+                  >
+                    <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800 select-none list-none flex items-center gap-1.5">
+                      <span className="text-[10px] transition-transform group-open:rotate-90">
+                        ▶
+                      </span>
+                      <span>
+                        {lang === 'ru' ? 'Подробнее (формула)' : 'Details (formula)'}
+                      </span>
+                    </summary>
+                    <div className="mt-2.5 grid grid-cols-2 gap-2">
+                      <KeyValue
+                        label="Dense (384-d)"
+                        value={Number(selectedHit.explanation?.denseComponent || 0).toFixed(4)}
+                      />
+                      <KeyValue
+                        label="Sparse (BM25+)"
+                        value={Number(selectedHit.explanation?.sparseBm25Component || 0).toFixed(4)}
+                      />
+                      <KeyValue
+                        label="Hybrid RRF"
+                        value={Number(selectedHit.explanation?.rrfScore || 0).toFixed(4)}
+                      />
+                      <KeyValue
+                        label="Guardrail Boost"
+                        value={Number(selectedHit.explanation?.businessBoost || 0).toFixed(4)}
+                      />
+                    </div>
+                  </details>
+                </div>
               )}
             </div>
-          ) : (
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
-                  <th className="py-2.5 px-3 font-medium">#</th>
-                  <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Товар' : 'Product'}</th>
-                  <th className="py-2.5 px-3 font-medium">
-                    {lang === 'ru' ? 'Категория' : 'Category'}
-                  </th>
-                  <th className="py-2.5 px-3 font-medium text-right">
-                    {lang === 'ru' ? 'Цена' : 'Price'}
-                  </th>
-                  <th
-                    className="py-2.5 px-3 font-medium text-right"
-                    title={
-                      lang === 'ru'
-                        ? 'Насколько товар подходит запросу покупателя'
-                        : 'How well the product matches the shopper query'
-                    }
-                  >
-                    {isPublicDemo
-                      ? lang === 'ru'
-                        ? 'Подходит (Match %)'
-                        : 'Match %'
-                      : 'Match %'}
-                  </th>
-                  {!isPublicDemo && (
-                    <th className="py-2.5 px-3 font-medium text-right">Score</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {results.map((hit, idx) => {
-                  const active = selectedHit?.id === hit.id;
-                  return (
-                    <tr
-                      key={hit.id}
-                      data-testid="admin-live-result-row"
-                      onClick={() => handleRecordClick(hit)}
-                      className={`cursor-pointer transition-colors ${
-                        active ? 'bg-slate-100/90' : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      <td className="py-2.5 px-3 font-mono text-xs text-slate-500 tabular-nums">
-                        {idx + 1}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-medium text-slate-900">{hit.title}</div>
-                        {!isPublicDemo && (
-                          <div className="text-xs text-slate-500 font-mono">ID: {hit.id}</div>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-xs text-slate-600">{hit.category}</td>
-                      <td className="py-2.5 px-3 text-right font-mono text-xs font-medium text-slate-900 tabular-nums whitespace-nowrap">
-                        {typeof hit.price === 'number' ? `${hit.price.toLocaleString()} ₽` : '—'}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-xs font-semibold text-emerald-700 tabular-nums">
-                        {hit.scorePercent}%
-                      </td>
-                      {!isPublicDemo && (
-                        <td className="py-2.5 px-3 text-right font-mono text-xs text-slate-500 tabular-nums">
-                          {Number(hit.score || 0).toFixed(4)}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
 
-        <div
-          className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-between gap-4"
-          data-testid="admin-xray-panel"
-        >
-          <div>
-            <div className="text-xs font-semibold text-slate-500 mb-2">
-              {isPublicDemo
-                ? lang === 'ru'
-                  ? 'Почему в топе'
-                  : 'Why it ranked on top'
-                : lang === 'ru'
-                ? 'Рентген ранжирования (X-Ray Inspector)'
-                : 'Explainable Ranking X-Ray'}
-            </div>
-            {!selectedHit ? (
-              <div className="text-xs text-slate-400 py-8 text-center">
-                {lang === 'ru'
-                  ? 'Выберите товар в списке слева, чтобы увидеть объяснение выбора.'
-                  : 'Select a product on the left to see why it matched.'}
-              </div>
-            ) : (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">{selectedHit.title}</div>
-                  <div className="text-slate-500 mt-0.5">
-                    {selectedHit.category}
-                    {typeof selectedHit.price === 'number'
-                      ? ` · ${selectedHit.price.toLocaleString()} ₽`
-                      : ''}{' '}
-                    · Насколько подходит запросу: {selectedHit.scorePercent}%
-                  </div>
-                </div>
-
-                <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-md text-slate-800">
-                  <div className="font-medium text-slate-900 mb-1">
-                    {lang === 'ru' ? 'Почему этот товар в выдаче:' : 'Why this item ranked here:'}
-                  </div>
-                  <div data-testid="admin-xray-human-explanation" className="leading-relaxed">
-                    {lang === 'ru'
-                      ? selectedHit.humanExplanation?.ru ||
-                        'Товар соответствует категории запроса и совпадает по смыслу и характеристикам.'
-                      : selectedHit.humanExplanation?.en || 'Hybrid semantic + lexical match'}
-                  </div>
-                </div>
-
-                <details
-                  open={!isPublicDemo}
-                  className="pt-1 group"
-                  data-testid="admin-xray-details"
+            {isPublicDemo && (
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+                <span className="text-slate-600">
+                  {lang === 'ru' ? 'Проверить на своём каталоге?' : 'Test on your own catalog?'}
+                </span>
+                <button
+                  type="button"
+                  data-testid="public-demo-connect-store-cta"
+                  onClick={onConnectStore}
+                  className="text-slate-900 font-medium underline hover:text-slate-700 whitespace-nowrap cursor-pointer"
                 >
-                  <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-800 select-none list-none flex items-center gap-1.5">
-                    <span className="text-[10px] transition-transform group-open:rotate-90">▶</span>
-                    <span>
-                      {lang === 'ru'
-                        ? 'Подробнее (формула X-Ray: Dense / BM25 / RRF)'
-                        : 'Details (X-Ray math: Dense / BM25 / RRF)'}
-                    </span>
-                  </summary>
-                  <div className="mt-2.5 grid grid-cols-2 gap-2 font-mono tabular-nums">
-                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                      <div className="text-slate-500">Dense (384-d Cosine)</div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {Number(selectedHit.explanation?.denseComponent || 0).toFixed(4)}
-                      </div>
-                    </div>
-                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                      <div className="text-slate-500">Sparse (BM25+)</div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {Number(selectedHit.explanation?.sparseBm25Component || 0).toFixed(4)}
-                      </div>
-                    </div>
-                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                      <div className="text-slate-500">Hybrid RRF</div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {Number(selectedHit.explanation?.rrfScore || 0).toFixed(4)}
-                      </div>
-                    </div>
-                    <div className="p-2.5 border border-slate-200 rounded bg-slate-50/50">
-                      <div className="text-slate-500">Guardrail Boost</div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        {Number(selectedHit.explanation?.businessBoost || 0).toFixed(4)}
-                      </div>
-                    </div>
-                  </div>
-                </details>
+                  {lang === 'ru' ? 'Подключить магазин →' : 'Connect Store →'}
+                </button>
               </div>
             )}
-          </div>
-
-          {isPublicDemo && (
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
-              <span className="text-slate-600">
-                {lang === 'ru'
-                  ? 'Готовы проверить на своём прайсе?'
-                  : 'Ready to test on your own catalog?'}
-              </span>
-              <button
-                type="button"
-                data-testid="public-demo-connect-store-cta"
-                onClick={onConnectStore}
-                className="px-3 py-1.5 font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-md transition-colors whitespace-nowrap"
-              >
-                {lang === 'ru' ? 'Подключить к Bitrix / Woo / CSV →' : 'Connect Bitrix / Woo / CSV →'}
-              </button>
-            </div>
-          )}
+          </Card>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -669,35 +737,32 @@ export const AdminQueryLogTab: React.FC<{
 
   return (
     <div className="space-y-4" data-testid="admin-query-log">
-      <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
+      <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-md">
-            {(['24h', '7d', '30d'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => {
-                  setPeriod(p);
-                  triggerFilter({ q, emptyOnly, gatedOnly, period: p });
-                }}
-                className={`px-2.5 py-1 text-xs font-medium rounded ${
-                  period === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            options={[
+              { id: '24h', label: '24h' },
+              { id: '7d', label: '7d' },
+              { id: '30d', label: '30d' },
+            ]}
+            activeId={period}
+            onChange={(p) => {
+              const nextP = p as '24h' | '7d' | '30d';
+              setPeriod(nextP);
+              triggerFilter({ q, emptyOnly, gatedOnly, period: nextP });
+            }}
+          />
 
           <input
-            type="text"
+            type="search"
+            aria-label={lang === 'ru' ? 'Фильтр по тексту запроса' : 'Filter by query text'}
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
               triggerFilter({ q: e.target.value, emptyOnly, gatedOnly, period });
             }}
-            placeholder={lang === 'ru' ? 'Поиск по тексту запроса...' : 'Filter by query text...'}
-            className="px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-md text-slate-900"
+            placeholder={lang === 'ru' ? 'Поиск по запросу...' : 'Filter query...'}
+            className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-[6px] text-slate-900"
           />
 
           <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
@@ -710,7 +775,7 @@ export const AdminQueryLogTab: React.FC<{
                 triggerFilter({ q, emptyOnly: e.target.checked, gatedOnly, period });
               }}
             />
-            <span>{lang === 'ru' ? 'Только пустые (0)' : 'Empty results only (0)'}</span>
+            <span>{lang === 'ru' ? 'Только пустые (0)' : 'Zero results only'}</span>
           </label>
 
           <label className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
@@ -722,160 +787,131 @@ export const AdminQueryLogTab: React.FC<{
                 triggerFilter({ q, emptyOnly, gatedOnly: e.target.checked, period });
               }}
             />
-            <span>{lang === 'ru' ? 'Отсечено Category Gate' : 'Gated only'}</span>
+            <span>{lang === 'ru' ? 'Category Gate' : 'Gated only'}</span>
           </label>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span className="font-mono">{logs.length} records</span>
-          <button
-            type="button"
+        <div className="flex items-center gap-2 text-xs text-slate-600">
+          <span className="font-mono tabular-nums">{logs.length}</span>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => onRefresh({ q, emptyOnly, gatedOnly, period })}
-            className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 rounded"
           >
-            {lang === 'ru' ? 'Обновить журнал' : 'Refresh Log'}
-          </button>
+            {lang === 'ru' ? 'Обновить' : 'Refresh'}
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <Card className="overflow-hidden">
         {logs.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400">
-            {lang === 'ru'
-              ? 'Записей в журнале запросов пока нет. Выполните поиск во вкладке «Проверка поиска».'
-              : 'No query logs recorded yet.'}
-          </div>
+          <EmptyState
+            title={lang === 'ru' ? 'Журнал запросов пуст' : 'No queries logged yet'}
+            description={
+              lang === 'ru'
+                ? 'Выполните поисковый запрос во вкладке «Живой поиск», чтобы увидеть запись в журнале.'
+                : 'Run a search query in Live Search to populate the query log.'
+            }
+          />
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-                    <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Время' : 'Time'}</th>
-                    <th className="py-2.5 px-3 font-medium">
-                      {lang === 'ru' ? 'Запрос' : 'Query'}
-                    </th>
-                    <th className="py-2.5 px-3 font-medium">
-                      {lang === 'ru' ? 'Нормализованный' : 'Normalized'}
-                    </th>
-                    <th className="py-2.5 px-3 font-medium text-right">
-                      {lang === 'ru' ? 'Найдено' : 'Hits'}
-                    </th>
-                    <th className="py-2.5 px-3 font-medium text-right">
-                      {lang === 'ru' ? 'Задержка' : 'Latency'}
-                    </th>
-                    <th className="py-2.5 px-3 font-medium">
-                      {lang === 'ru' ? 'Топ-1 товар / Категория' : 'Top-1 Hit / Category'}
-                    </th>
-                    <th className="py-2.5 px-3 font-medium">Gate / Intent</th>
-                    <th className="py-2.5 px-3 font-medium text-right">
-                      {lang === 'ru' ? 'Действие' : 'Action'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
-                  {pagedLogs.map((row) => (
-                    <tr
-                      key={row.id}
-                      onClick={() => onReplay(row.query)}
-                      className="hover:bg-slate-50 cursor-pointer"
-                    >
-                      <td className="py-2 px-3 text-slate-500 whitespace-nowrap">
-                        {row.timestamp.slice(11, 19)}
-                      </td>
-                      <td className="py-2 px-3 font-sans font-medium text-slate-900">
-                        <div>{row.query}</div>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {row.flags.empty && (
-                            <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[10px]">
-                              empty
-                            </span>
-                          )}
-                          {row.flags.rewritten && (
-                            <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px]">
-                              synonym
-                            </span>
-                          )}
-                          {row.flags.gated && (
-                            <span className="px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[10px]">
-                              gated
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 font-sans text-slate-600">
-                        {row.flags.rewritten ? (
-                          <span className="text-emerald-700 font-medium">
-                            {row.normalizedQuery}
-                          </span>
-                        ) : (
-                          row.normalizedQuery
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <span
-                          className={
-                            row.flags.empty
-                              ? 'text-rose-600 font-semibold'
-                              : 'text-slate-800 font-semibold'
-                          }
-                        >
-                          {row.resultCount}
+            <Table className="text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                  <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Время' : 'Time'}</th>
+                  <th className="py-2.5 px-3 font-medium">{lang === 'ru' ? 'Запрос' : 'Query'}</th>
+                  <th className="py-2.5 px-3 font-medium">
+                    {lang === 'ru' ? 'Нормализованный' : 'Normalized'}
+                  </th>
+                  <th className="py-2.5 px-3 font-medium text-right">
+                    {lang === 'ru' ? 'Найдено' : 'Hits'}
+                  </th>
+                  <th className="py-2.5 px-3 font-medium text-right">
+                    {lang === 'ru' ? 'Задержка' : 'Latency'}
+                  </th>
+                  <th className="py-2.5 px-3 font-medium">
+                    {lang === 'ru' ? 'Топ-1 товар' : 'Top-1 Hit'}
+                  </th>
+                  <th className="py-2.5 px-3 font-medium text-right">
+                    {lang === 'ru' ? 'Действие' : 'Action'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
+                {pagedLogs.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => onReplay(row.query)}
+                    className="hover:bg-slate-50 cursor-pointer"
+                  >
+                    <td className="py-2 px-3 text-slate-500 whitespace-nowrap">
+                      {row.timestamp.slice(11, 19)}
+                    </td>
+                    <td className="py-2 px-3 font-sans font-medium text-slate-900">
+                      <span>{row.query}</span>
+                      {(row.flags.empty || row.flags.rewritten || row.flags.gated) && (
+                        <span className="ml-2 text-[11px] font-normal text-slate-500">
+                          {[
+                            row.flags.empty ? 'empty' : null,
+                            row.flags.rewritten ? 'rewritten' : null,
+                            row.flags.gated ? 'gated' : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </span>
-                      </td>
-                      <td className="py-2 px-3 text-right text-slate-500">
-                        {row.latencyMs.toFixed(1)} ms
-                      </td>
-                      <td className="py-2 px-3 font-sans text-slate-600">
-                        {row.top1 ? (
-                          <div>
-                            <div className="text-slate-900 font-medium truncate max-w-[200px]">
-                              {row.top1.title}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {row.top1.category} · {row.top1.scorePercent}%
-                            </div>
-                          </div>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-slate-600">
-                        <div>gate: {row.simpleCategoryGate}</div>
-                        {row.headCategoryIntent && (
-                          <div className="text-[11px] text-slate-500">
-                            intent: {row.headCategoryIntent}
-                          </div>
-                        )}
-                      </td>
-                      <td
-                        className="py-2 px-3 text-right font-sans whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
+                      )}
+                    </td>
+                    <td className="py-2 px-3 font-sans text-slate-600">{row.normalizedQuery}</td>
+                    <td className="py-2 px-3 text-right">
+                      <span
+                        className={
+                          row.flags.empty
+                            ? 'text-rose-600 font-semibold'
+                            : 'text-slate-900 font-semibold'
+                        }
                       >
-                        <div className="inline-flex items-center gap-2">
+                        {row.resultCount}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-right text-slate-500">
+                      {row.latencyMs.toFixed(1)} ms
+                    </td>
+                    <td className="py-2 px-3 font-sans text-slate-600">
+                      {row.top1 ? (
+                        <span className="truncate block max-w-[220px]">
+                          {row.top1.title} ({row.top1.scorePercent}%)
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td
+                      className="py-2 px-3 text-right font-sans whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onReplay(row.query)}
+                          className="text-slate-700 hover:text-slate-950 underline cursor-pointer"
+                        >
+                          {lang === 'ru' ? 'В Live' : 'Replay'}
+                        </button>
+                        {row.flags.empty && onAddSynonym && (
                           <button
                             type="button"
-                            onClick={() => onReplay(row.query)}
-                            className="text-slate-700 hover:text-slate-950 underline"
+                            onClick={() => onAddSynonym(row.query)}
+                            className="text-emerald-700 hover:text-emerald-900 underline font-medium cursor-pointer"
                           >
-                            {lang === 'ru' ? 'В Live' : 'Replay'}
+                            {lang === 'ru' ? '+ Синоним' : '+ Synonym'}
                           </button>
-                          {row.flags.empty && onAddSynonym && (
-                            <button
-                              type="button"
-                              onClick={() => onAddSynonym(row.query)}
-                              className="text-emerald-700 hover:text-emerald-900 underline font-medium"
-                            >
-                              {lang === 'ru' ? '+ Синоним' : '+ Synonym'}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
 
             <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
               <span>
@@ -884,27 +920,27 @@ export const AdminQueryLogTab: React.FC<{
                   : `Page ${currentPage} of ${totalPages} (${logs.length} total)`}
               </span>
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={currentPage <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1 bg-white border border-slate-300 rounded disabled:opacity-40"
                 >
                   ← {lang === 'ru' ? 'Назад' : 'Prev'}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={currentPage >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-2.5 py-1 bg-white border border-slate-300 rounded disabled:opacity-40"
                 >
                   {lang === 'ru' ? 'Вперёд' : 'Next'} →
-                </button>
+                </Button>
               </div>
             </div>
           </>
         )}
-      </div>
+      </Card>
     </div>
   );
 };
