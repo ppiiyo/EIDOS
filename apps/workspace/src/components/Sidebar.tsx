@@ -42,9 +42,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   });
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
   const simpleIds: ViewId[] = ['search', 'onboarding', 'demo', 'catalog', 'analytics', 'settings', 'faq'];
-  const [navMode, setNavMode] = useState<'simple' | 'expert'>(() =>
-    simpleIds.includes(active) ? 'simple' : 'expert'
-  );
+  const researchLabsEnv =
+    typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_ENABLE_RESEARCH_LABS;
+  const [navMode, setNavMode] = useState<'simple' | 'expert'>(() => {
+    if (researchLabsEnv === 'true') return 'expert';
+    if (researchLabsEnv === 'false') return 'simple';
+    return simpleIds.includes(active) ? 'simple' : 'expert';
+  });
   const effectiveExpert = navMode === 'expert' || !simpleIds.includes(active);
 
   useEffect(() => {

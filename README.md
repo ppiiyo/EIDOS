@@ -16,19 +16,27 @@
 
 ---
 
-## 🚀 15-Minute Store Pilot Path (Self-Hosted + 1C-Bitrix / WooCommerce / CSV)
+## 🚀 15-Minute Store Pilot Path (Self-Hosted + 1-Click `widget.js` / 1C-Bitrix / WooCommerce / CSV / YML)
 
 1. **Step 1 — Spin up self-hosted EIDOS in 1 command** (generates `EIDOS_MASTER_KEY`, `EIDOS_ADMIN_KEY`, and `EIDOS_SEARCH_KEY`, launches `eidos-api` + `redis`, and verifies `GET /v1/ready == 200`):
    ```bash
    ./deploy/pilot/install.sh
    ```
-2. **Step 2 — Connect your catalog (WooCommerce, 1C-Bitrix, or CSV/YML)**:
+2. **Step 2 — Connect your catalog (WooCommerce, 1C-Bitrix, CSV, or Scheduled YML Auto-Sync)**:
    - **WooCommerce**: Run `pnpm pack:woo` (`bash connectors/woocommerce/pack.sh`), upload & activate `dist/eidos-woocommerce-plugin.zip` in WordPress Admin, enter `ADMIN_KEY` + `SEARCH_KEY` under **WooCommerce → EIDOS Search**, click **Check Connection** and **Synchronize** ([`connectors/woocommerce/eidos-search`](./connectors/woocommerce/eidos-search)).
    - **1C-Bitrix**: Run `pnpm pack:bitrix` (`bash connectors/bitrix/pack.sh`) or copy `connectors/bitrix/eidos.search` (`id = ELEMENT_ID`, `sku = PROPERTY_CML2_ARTICLE || XML_ID || ID`) with `ADMIN_KEY` for sync and `SEARCH_KEY` for storefront `/v1/search` & `/v1/suggest` with automatic fallback ([`connectors/bitrix/eidos.search`](./connectors/bitrix/eidos.search)).
-   - **CSV / JSON / YML**: Upload via `POST /v1/catalog/upsert` ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)) or via `/onboarding` in the Studio UI.
-3. **Step 3 — Server-Side Storefront Replacement (or Optional `<script src="/widget.js">`)**:
-   - For **WooCommerce** (`pre_get_posts`) and **1C-Bitrix** (`SearchReplacer`), search results are injected server-side into your native store theme with automatic zero-downtime fallback to native CMS search if EIDOS is unreachable.
-   - For custom/headless storefronts without a backend plugin, an optional drop-in widget (`/widget.js`) is available (see [**`docs/PILOT_NO_CODE.md`**](./docs/PILOT_NO_CODE.md) and [**`docs/PRODUCTION.md`**](./docs/PRODUCTION.md)).
+   - **CSV / JSON / Scheduled YML**: Upload via `POST /v1/catalog/upsert` ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)), import Yandex.Market YML / 1C CommerceML via `POST /v1/catalog/import-yml`, or configure **Cron URL Sync (`1h / 6h / 24h`)** in `/admin` → **Catalog** (`PUT /v1/admin/yml-sync`).
+3. **Step 3 — 1-Click Client Storefront Integration (`widget.js`) or Server-Side CMS Replacement**:
+   - **1-Click Zero-Backend Embed (`/widget.js`)**: Open `/admin` → **Connect Store**, choose your CMS preset (**1C-Bitrix**, **WooCommerce**, or **Universal Auto-Detect**), and copy the single `<script src="https://search.yourstore.ru/widget.js" defer data-api="..." data-key="eidos_sk_..."></script>` tag before `</body>`. The widget automatically attaches to your search input, renders instant suggestions with `<em>` match highlighting, and displays SKU/brand/price.
+   - **Server-Side Native CMS Injection**: For **WooCommerce** (`pre_get_posts`) and **1C-Bitrix** (`SearchReplacer`), search results are injected server-side into your native store theme with automatic zero-downtime fallback to native CMS search if EIDOS is unreachable (see [**`docs/PILOT_NO_CODE.md`**](./docs/PILOT_NO_CODE.md) and [**`docs/PRODUCTION.md`**](./docs/PRODUCTION.md)).
+
+### 🧭 Three Dedicated Product Surfaces (UI Shell v3.4.0)
+
+| Route | Product Surface | Target Role & Key Capabilities |
+| :--- | :--- | :--- |
+| **`/public-demo`** | **EIDOS Storefront (Витрина)** | Clean buyer-facing storefront demo on **1,048 SKUs across 11 categories**. Features instant search, layout-mistype recovery (`yfeiybrb` → `наушники`), strict `simpleCategoryGate: 'hard'`, honest zero-results, and collapsible **«Почему в топе»** X-Ray drawer. |
+| **`/admin`** | **Operator Cabinet (Кабинет оператора)** | Protected by `ADMIN_KEY`. 10 operational tabs: **Overview** (4 KPIs + recent zero-result queries), **Live Search**, **Query Log**, **Analytics** (CSV export), **Catalog & YML Cron Sync**, **Dictionaries** (bidirectional `SynonymGroup` + `MerchRule` Pin/Boost/Bury), **Ranking Defaults**, **API Keys**, **System Check**, and **1-Click Storefront Connect**. |
+| **`/`** | **Engineering Studio (Инженерная студия)** | Deep R&D and hybrid vector workbench (`Simple` 7-tab mode by default; full 16-tab `Expert` mode enabled via toggle or `VITE_ENABLE_RESEARCH_LABS=true`). |
 
 ---
 
@@ -57,7 +65,12 @@
 Traditional search engines (like Elasticsearch or Meilisearch) fail when users search by meaning or intent, while pure vector databases (like Pinecone or Qdrant) lack lexical precision, business merchandising rules, MMR diversification, and visual tooling for product managers. Enterprise SaaS platforms (like Algolia or Constructor.io) charge steep per-request and per-record fees while operating as opaque black boxes.
 
 **EIDOS v3.4.0 solves all three problems in a single unified runtime:**
-- **Production Core (Out-of-the-Box)**: `384-d HNSW + BM25+ + RRF` hybrid retrieval, 7-component Explainable X-Ray + human-readable ranking summary, JSON/CSV catalog upsert with row-level validation ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)), Clean Start (`0 SKU`) + Isolated Demo Sandbox (`48 SKU`), and role-based API keys + atomic snapshots ([`docs/PRODUCTION.md`](./docs/PRODUCTION.md)).
+- **Production Core (Out-of-the-Box)**: `384-d HNSW + Multi-Field BM25+ + Weighted RRF / Linear Fusion` hybrid retrieval, **Retrieval Product Layer v1** (`constraints`, `fieldImportance`, `channelWindows`, `fusionMode`, `queryShapeBias`, `highlights`, `facets`, L1 query cache with `catalogVersion` invalidation), 7-component Explainable X-Ray + human-readable ranking summary, JSON/CSV/YML catalog upsert with SSRF protection and row-level validation ([`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)), Clean Start (`0 SKU`) + Storefront Demo (`1,048 SKU` / `48 SKU` mini-fixture), and role-based API keys + paired atomic JSON & binary HNSW snapshots (`catalog.snapshot.json` + `catalog.snapshot.json.hnsw.bin`) ([`docs/PRODUCTION.md`](./docs/PRODUCTION.md)).
+- **Retrieval Product Layer v1 (E-Commerce Controls)**:
+  - **Boolean Pre-Fusion Constraints (`constraints`)**: Filter by `category`, `brand`, `inStock`, `priceMin`, `priceMax`, and `tagsAny` strictly before scoring (`filter ≠ score`), intersecting cleanly with `simpleCategoryGate: 'hard'`.
+  - **Per-Field Lexical Importance (`fieldImportance`)**: Independent weights `[0..10]` for `title`, `sku`, `brand`, `category`, `tags`, and `description` with `WeakMap` per-document token caching (`<3ms` CPU latency).
+  - **Candidate Windows & Dual Fusion (`channelWindows`, `fusionMode`)**: Configurable `{ lexical, dense }` candidate windows (`[5..200]`) fused via **Weighted RRF (`'rrf'`)** or **Min-Max Linear Combination (`'linear'`)**, plus deterministic **Query-Shape Bias (`queryShapeBias`)** for `sku_like`, `short_head`, and `long_natural` queries.
+  - **Hit Highlighting & Side-Channel Facets**: Safe `<em>...</em>` match highlighting in `highlights.title` / `highlights.sku` and real-time facet counts (`facets.category`, `facets.brand`, `facets.inStock`).
 - **Experimental / Lab Modules**: Kinetic Attention micro-biometrics, Gram-Schmidt Serendipity Ray, Chrono-Cognitive session tempo, and 3D Pareto Weight Optimizer (available in Studio Expert / Lab mode).
 - **True Hybrid Retrieval (`HNSW + BM25+ + RRF`)**: Combines 384-dimensional L2-normalized semantic vectors (`HNSWGraph` with optional `INT8` scalar quantization for 4× RAM savings) with exact lexical `BM25+` matching and Reciprocal Rank Fusion.
 - **3 Next-Gen Cognitive Ranking Vectors + 2D Intent Synthesizer Radar**:
@@ -687,8 +700,10 @@ We build EIDOS in the open. Here's our development plan for the next 12 months:
 - [x] **Readiness Probes & Production Prometheus Metrics (P0)**
   - [x] Liveness (`GET /v1/health`) and deep readiness (`GET /v1/ready` verifying `vectorStore`, `WAL/database`, `embeddingModel`, and `redis`)
   - [x] Standard Prometheus metrics on `/metrics`: `search_latency_seconds`, `search_requests_total`, `index_size_items`, `cache_hit_ratio`, `embedding_time_seconds`, `process_resident_memory_bytes`
-- [x] **Atomic Disk Snapshots, Backups & Operational Admin API (P0/P1)**
-  - [x] Scheduled & on-demand atomic snapshots (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) + full catalog export (`GET /v1/catalog/export?format=csv|json`)
+- [x] **Atomic Disk Snapshots, Binary HNSW Persistence & Operational Admin API (P0/P1)**
+  - [x] Paired atomic JSON + Binary HNSW graph snapshots (`catalog.snapshot.json` + `catalog.snapshot.json.hnsw.bin`) for `<150ms` cold-start recovery without re-embedding (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) + full catalog export (`GET /v1/catalog/export?format=csv|json`)
+  - [x] Scheduled YML / CommerceML feed synchronization (`GET /v1/admin/yml-sync`, `PUT /v1/admin/yml-sync`, `POST /v1/admin/yml-sync/run`) with SSRF protection against private/loopback network ranges
+  - [x] Retrieval Product Layer v1 (`constraints`, `fieldImportance`, `channelWindows`, `fusionMode`, `queryShapeBias`, `highlights`, `facets`, bidirectional `SynonymGroup` & `MerchRule` Pin/Boost/Bury) and Golden Retrieval Evaluation (`npx tsx scripts/eval_golden.ts` — 12 golden queries)
   - [x] Lightweight operational endpoints (`GET /v1/admin/stats`, `POST /v1/admin/reindex`, `POST /v1/admin/optimize`, `GET /v1/analytics/queries`)
   - [x] Production deployment stack (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`, [`docs/PRODUCTION.md`](./docs/PRODUCTION.md))
 
@@ -721,7 +736,7 @@ We build EIDOS in the open. Here's our development plan for the next 12 months:
 - [ ] **1. Configure API Key Hierarchy**: Set strong `EIDOS_MASTER_KEY` and `EIDOS_ADMIN_KEY` (`>= 12` chars) in `.env`. Issue scoped `Search Keys` (`POST /v1/admin/keys` with `"role": "search"`) for browser/mobile clients.
 - [ ] **2. Enable Strict Production Boot**: Run with `NODE_ENV=production` and `EIDOS_STRICT_PROD_BOOT=true` (enabled by default in `docker-compose.prod.yml`).
 - [ ] **3. Mount Persistent Volumes**: Mount `/data/db` (`EIDOS_DATA_DIR`) and `/data/snapshots` (`EIDOS_SNAPSHOT_PATH`) on persistent SSD/NVMe storage.
-- [ ] **4. Configure Automated Snapshots & Backups**: Set `EIDOS_SNAPSHOT_INTERVAL_MS=3600000` (hourly snapshots) and archive `/data/snapshots/*.json` or `GET /v1/catalog/export?format=csv` to S3/GCS.
+- [ ] **4. Configure Automated Snapshots & Backups**: Set `EIDOS_SNAPSHOT_INTERVAL_MS=3600000` (hourly snapshots) and archive `/data/snapshots/*.json` + `*.hnsw.bin` or `GET /v1/catalog/export?format=csv` to S3/GCS.
 - [ ] **5. Place Behind HTTPS Reverse Proxy**: Use `deploy/Caddyfile` or `deploy/nginx.conf` to enforce TLS 1.3, HSTS, and restrict `/metrics` to internal monitoring IPs.
 - [ ] **6. Configure Monitoring & Alerts**: Point Prometheus at `eidos-api:8080/metrics` and alert on:
   - `histogram_quantile(0.95, sum(rate(search_latency_seconds_bucket[5m])) by (le)) > 0.15` (P95 latency > 150ms)
@@ -747,7 +762,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## 12. 💰 Support EIDOS Development
 
-**EIDOS v3.0 is 100% open-source (MIT License)** and built with passion by an independent engineering team. Unlike venture-backed SaaS giants that lock features behind $2,000/month enterprise paywalls, we believe every developer and business deserves transparent, explainable, high-performance search and recommendations without per-request tax.
+**EIDOS v3.4.0 is 100% open-source (MIT License)** and built with passion by an independent engineering team. Unlike venture-backed SaaS giants that lock features behind $2,000/month enterprise paywalls, we believe every developer and business deserves transparent, explainable, high-performance search and recommendations without per-request tax.
 
 If EIDOS saves your company money on Algolia/Pinecone bills or accelerates your product roadmap, please consider supporting our work!
 
@@ -835,7 +850,7 @@ If you can't contribute financially right now, the single best way to support EI
 # 🇷🇺 Документация на русском языке
 
 ## Содержание (RU)
-1. [О продукте EIDOS v3.0 и его супервозможностях](#1-о-продукте-eidos-v30-и-его-супервозможностях)
+1. [О продукте EIDOS v3.4.0 и его возможностях](#1-о-продукте-eidos-v340-и-его-возможностях)
 2. [Для кого создан продукт и какие бизнес-задачи он решает](#2-для-кого-создан-продукт-и-какие-бизнес-задачи-он-решает)
 3. [Сравнение с конкурентами (Algolia, Pinecone, Meilisearch, Constructor.io)](#3-сравнение-с-конкурентами)
 4. [Быстрый запуск за 60 секунд и Production-деплой (Docker / Cloud Run)](#4-быстрый-запуск-за-60-секунд-и-production-деплой)
@@ -856,13 +871,18 @@ If you can't contribute financially right now, the single best way to support EI
 
 Классические поисковики (Elasticsearch, Meilisearch) требуют внешней инфраструктуры для семантики, чистые векторные БД (Pinecone, Qdrant) не имеют встроенного коммерческого мерчандайзинга, а облачные SaaS-решения (Algolia, Constructor.io) работают по по-запросной тарификации.
 
+**Три продуктовые поверхности EIDOS v3.4.0:**
+- **`/public-demo` (EIDOS Витрина)** — чистая клиентская демо-витрина на **1 048 SKU в 11 категориях** с мгновенным поиском, автоисправлением раскладки (`yfeiybrb` → `наушники`), защитой категорий (`simpleCategoryGate: 'hard'`), честным нулём на мусорные запросы и шторкой **«Почему в топе»**.
+- **`/admin` (Кабинет оператора)** — защищённый `ADMIN_KEY` рабочий кабинет мерчандайзера и инженера (10 вкладок: Обзор, Живой поиск, Журнал запросов, Аналитика с CSV-экспортом, Каталог + **Авто-импорт YML по расписанию**, Словари двусторонних синонимов и правил мерчандайзинга Pin/Boost/Bury, Ранжирование, Ключи доступа, Проверка системы и **Внедрение виджета `widget.js` в 1 нажатие**).
+- **`/` (Инженерная студия)** — R&D-среда гибридного поиска (по умолчанию открывается в лаконичном режиме 7 вкладок; полный режим 16 вкладок включается переключателем «Эксперт» или через `VITE_ENABLE_RESEARCH_LABS=true`).
+
 **Что входит в EIDOS v3.4.0 (Базовое ядро vs. Лабораторные модули):**
 - **Базовое production-ядро (работает из коробки)**:
-  - Гибридный поиск `384-d HNSW + BM25+ + RRF` с настраиваемым балансом $\alpha \in [0, 1]$.
-  - 7-компонентный рентген ранжирования (`QueryInspector X-Ray`) + человекочитаемое объяснение на русском/английском языке для первого результата.
-  - Пакетная загрузка каталога через CSV/JSON (`POST /v1/catalog/upsert`) с построчной валидацией и образцом [`examples/sample-catalog.csv`](./examples/sample-catalog.csv) (см. [`docs/CSV_CONTRACT.md`](./docs/CSV_CONTRACT.md)).
-  - Архитектура чистого старта (`0 SKU`) и изолированный Демо-режим (`48 SKU` по кнопке `/v1/demo/load`, полный сброс по `/v1/demo/reset`).
-  - Чек-лист и конфигурация для продакшена: ролевые ключи (`MASTER` / `ADMIN` / `SEARCH`), `/v1/health` + `/v1/ready`, снапшоты на диск с SHA-256 (см. [`docs/PRODUCTION.md`](./docs/PRODUCTION.md)).
+  - Гибридный поиск `384-d HNSW + Multi-Field BM25+ + Weighted RRF / Linear Fusion` с настраиваемым балансом $\alpha \in [0, 1]$.
+  - **Retrieval Product Layer v1**: булевы пре-фильтры каталога (`constraints`: `category`, `brand`, `inStock`, `priceMin`, `priceMax`, `tagsAny`, где `filter ≠ score`), веса важности полей (`fieldImportance`: `title`, `sku`, `brand`, `category`, `tags`, `description` с `WeakMap`-кэшем токенов документа), окна кандидатов (`channelWindows`), режимы слияния (`fusionMode: 'rrf' | 'linear'`), авто-адаптация весов под тип запроса (`queryShapeBias`: `sku_like`, `short_head`, `long_natural`), безопасная подсветка совпадений `<em>...</em>` (`highlights`) и фасетные счётчики (`facets`).
+  - **Внедрение на сайт в 1 нажатие (`/widget.js`)**: готовый сниппет для 1С-Битрикс, WooCommerce и любой CMS с автоопределением поля поиска и подсветкой совпадений.
+  - Пакетная загрузка каталога через CSV/JSON (`POST /v1/catalog/upsert`), импорт фидов Яндекс.Маркет YML / 1C CommerceML (`POST /v1/catalog/import-yml`) с защитой от SSRF и **Авто-импорт YML по расписанию (`PUT /v1/admin/yml-sync`)**.
+  - Парные атомарные снапшоты JSON + бинарный граф HNSW (`catalog.snapshot.json` + `catalog.snapshot.json.hnsw.bin`) для холодного старта за `< 150 мс` без пересчёта эмбеддингов и эталонный стенд проверки качества `npx tsx scripts/eval_golden.ts` (`12/12` золотых запросов).
 - **Экспериментальные / Лабораторные модули (режим «Эксперт» в Studio UI)**:
   1. **Вектор 1 — Кинетическая физика внимания (`KineticAttentionEngine`)**: кодирование скорости скролла и наведений курсора в 16-мерный вектор.
   2. **Вектор 2 — Ортогональная серендипность (`SerendipityOrthogonalEngine`)**: проекция Грама-Шмидта ($\vec{v}_\perp = \vec{q} - \text{proj}_{\vec{u}}(\vec{q})$) для кросс-категорийных открытий.
@@ -1454,8 +1474,11 @@ CACHE_TTL_SECONDS=300
 - [x] **Readiness-пробы и метрики Prometheus (P0)**
   - [x] Проверка живучести (`GET /v1/health`) и полной готовности компонентов (`GET /v1/ready`: проверка `vectorStore`, `WAL/database`, `embeddingModel`, `redis`)
   - [x] Стандартные метрики на `/metrics`: `search_latency_seconds`, `search_requests_total`, `index_size_items`, `cache_hit_ratio`, `embedding_time_seconds`, `process_resident_memory_bytes`
-- [x] **Атомарные снапшоты на диск, бэкапы и операционный Admin API (P0/P1)**
-  - [x] Автоматические и ручные снапшоты (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) и выгрузка каталога (`GET /v1/catalog/export?format=csv|json`)
+- [x] **Атомарные снапшоты на диск, бинарный HNSW и операционный Admin API (P0/P1)**
+  - [x] Парные атомарные снапшоты JSON + бинарный граф HNSW (`catalog.snapshot.json` + `catalog.snapshot.json.hnsw.bin`) для мгновенного старта (`<150 мс`) без пересчёта эмбеддингов (`POST /v1/snapshots`, `GET /v1/snapshots`, `POST /v1/snapshots/restore`) и выгрузка каталога (`GET /v1/catalog/export?format=csv|json`)
+  - [x] Авто-импорт YML / CommerceML по расписанию (`GET /v1/admin/yml-sync`, `PUT /v1/admin/yml-sync`, `POST /v1/admin/yml-sync/run`) со встроенной защитой от SSRF
+  - [x] Слой Retrieval Product Layer v1 (`constraints`, `fieldImportance`, `channelWindows`, `fusionMode`, `queryShapeBias`, `highlights`, `facets`, двусторонние `SynonymGroup` и `MerchRule` Pin/Boost/Bury) + эталонный прогон `npx tsx scripts/eval_golden.ts` (`12/12` золотых запросов)
+  - [x] Внедрение на сайт клиента в 1 нажатие через `/widget.js` (пресеты для 1С-Битрикс, WooCommerce и универсального авто-поиска поля)
   - [x] Операционные эндпоинты без лишнего UI-шума (`GET /v1/admin/stats`, `POST /v1/admin/reindex`, `POST /v1/admin/optimize`, `GET /v1/analytics/queries`)
   - [x] Готовый продакшен-стек (`docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/nginx.conf`, [`docs/PRODUCTION.md`](./docs/PRODUCTION.md))
 
@@ -1477,7 +1500,7 @@ CACHE_TTL_SECONDS=300
 - [ ] **1. Разделите ключи доступа**: Задайте сложные `EIDOS_MASTER_KEY` и `EIDOS_ADMIN_KEY` (от 12 символов) на сервере. Для фронтенда и мобильных приложений выпустите `Search Key` через `POST /v1/admin/keys` (`"role": "search"`).
 - [ ] **2. Включите строгий режим старта**: Используйте `NODE_ENV=production` и `EIDOS_STRICT_PROD_BOOT=true` (включено по умолчанию в `docker-compose.prod.yml`).
 - [ ] **3. Подключите постоянные тома (Volumes)**: Смонтируйте `/data/db` (`EIDOS_DATA_DIR`) и `/data/snapshots` (`EIDOS_SNAPSHOT_PATH`) на быстрый SSD/NVMe-диск.
-- [ ] **4. Настройте регулярные снапшоты и бэкапы**: Укажите `EIDOS_SNAPSHOT_INTERVAL_MS=3600000` (снапшот каждый час) и копируйте файлы из `/data/snapshots` или выгрузку `GET /v1/catalog/export?format=csv` в объектное хранилище S3.
+- [ ] **4. Настройте регулярные снапшоты и бэкапы**: Укажите `EIDOS_SNAPSHOT_INTERVAL_MS=3600000` (снапшот каждый час) и копируйте файлы из `/data/snapshots` (`.json` + `.hnsw.bin`) или выгрузку `GET /v1/catalog/export?format=csv` в объектное хранилище S3.
 - [ ] **5. Закройте сервис за HTTPS Reverse Proxy**: Используйте готовые конфигурации `deploy/Caddyfile` или `deploy/nginx.conf` (TLS 1.3, HSTS, ограничение доступа к `/metrics` только для внутренней сети).
 - [ ] **6. Подключите алерты Prometheus/Grafana**: Настройте уведомления при `P95 search_latency_seconds > 150ms`, заполнении памяти `> 85%` или ответе `503` от `/v1/ready`.
 
@@ -1500,7 +1523,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## 12. 💰 Поддержка разработки EIDOS
 
-**EIDOS v3.0 — это 100% открытый проект (лицензия MIT)**, созданный независимой командой инженеров. В отличие от закрытых SaaS-платформ, которые требуют от $2,000 в месяц за базовые функции мерчандайзинга и векторного поиска, мы убеждены, что прозрачный, объяснимый и быстрый поиск должен быть доступен каждому бизнесу и разработчику без налога на каждый запрос.
+**EIDOS v3.4.0 — это 100% открытый проект (лицензия MIT)**, созданный независимой командой инженеров. В отличие от закрытых SaaS-платформ, которые требуют от $2,000 в месяц за базовые функции мерчандайзинга и векторного поиска, мы убеждены, что прозрачный, объяснимый и быстрый поиск должен быть доступен каждому бизнесу и разработчику без налога на каждый запрос.
 
 Если EIDOS помогает вашей компании экономить бюджет на Algolia/Pinecone или ускоряет запуск продукта, вы можете поддержать развитие проекта!
 

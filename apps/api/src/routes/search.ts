@@ -1501,14 +1501,81 @@ export async function searchRoutes(
     }
   };
 
-  fastify.post('/v1/search', { preHandler: authenticate }, (req, reply) =>
-    handleSearch(req, reply, { isSuggest: false })
+  const searchOpenApiSchema = {
+    tags: ['Search & Retrieval v1'],
+    summary: 'Execute EIDOS Hybrid Search (384-d HNSW + Multi-Field BM25 + Weighted RRF/Linear Fusion)',
+    body: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        query: { type: 'string', description: 'User search query' },
+        limit: { type: 'integer', minimum: 1, maximum: 100 },
+        mode: { type: 'string', enum: ['hybrid', 'dense', 'sparse', 'semantic'] },
+        simpleCategoryGate: { type: 'string', enum: ['hard', 'soft', 'off'] },
+        constraints: {
+          type: 'object',
+          additionalProperties: true,
+          description: 'Canonical boolean pre-fusion catalog constraints (category, brand, inStock, priceMin, priceMax, tagsAny)',
+        },
+        fieldImportance: {
+          type: 'object',
+          additionalProperties: true,
+          description: 'Canonical per-field lexical importance weights (title, sku, brand, category, tags, description)',
+        },
+        channelWindows: {
+          type: 'object',
+          additionalProperties: true,
+          description: 'Canonical candidate window sizes before fusion ({ lexical, dense }, [5..200])',
+        },
+        fusionMode: {
+          type: 'string',
+          enum: ['rrf', 'linear'],
+          description: 'Rank fusion algorithm: Reciprocal Rank Fusion (rrf) or Min-Max Linear Combination (linear)',
+        },
+        queryShapeBias: {
+          type: 'object',
+          additionalProperties: true,
+          description: 'Deterministic query-shape weight adaptation ({ enabled: boolean })',
+        },
+        facets: {
+          type: 'array',
+          items: { type: 'string', enum: ['category', 'brand', 'inStock'] },
+          description: 'Requested side-channel facet counts computed over matched candidate pool',
+        },
+        filters: {
+          type: 'object',
+          additionalProperties: true,
+          deprecated: true,
+          description: '@deprecated Legacy alias for `constraints`. Supported for backward compatibility.',
+        },
+        fieldBoosts: {
+          type: 'object',
+          additionalProperties: true,
+          deprecated: true,
+          description: '@deprecated Legacy alias for `fieldImportance`. Supported for backward compatibility.',
+        },
+        rankWindow: {
+          type: 'object',
+          additionalProperties: true,
+          deprecated: true,
+          description: '@deprecated Legacy alias for `channelWindows`. Supported for backward compatibility.',
+        },
+      },
+    },
+  };
+
+  fastify.post(
+    '/v1/search',
+    { preHandler: authenticate, schema: searchOpenApiSchema },
+    (req, reply) => handleSearch(req, reply, { isSuggest: false })
   );
   fastify.post('/v1/suggest', { preHandler: authenticate }, (req, reply) =>
     handleSearch(req, reply, { isSuggest: true })
   );
-  fastify.post('/v1/demo/search', { preHandler: demoSearchPreHandler }, (req, reply) =>
-    handleSearch(req, reply, { isSuggest: false })
+  fastify.post(
+    '/v1/demo/search',
+    { preHandler: demoSearchPreHandler, schema: searchOpenApiSchema },
+    (req, reply) => handleSearch(req, reply, { isSuggest: false })
   );
   fastify.post('/v1/demo/suggest', { preHandler: demoSearchPreHandler }, (req, reply) =>
     handleSearch(req, reply, { isSuggest: true })

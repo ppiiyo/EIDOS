@@ -751,6 +751,7 @@ export async function adminConsoleRoutes(
         walPending: store.getWAL().size(),
         categories,
         lastUpsert: adminStore.getLastCatalogUpsert(tenantId),
+        ymlSync: adminStore.getYmlSyncConfig(tenantId),
         syncGuides: {
           bitrix: 'connectors/bitrix/eidos.search',
           woocommerce: 'connectors/woocommerce/eidos-search',
@@ -760,6 +761,109 @@ export async function adminConsoleRoutes(
       };
     }
   );
+
+  /**
+   * GET /v1/admin/yml-sync
+   * Returns current scheduled YML/CommerceML feed auto-sync configuration for the tenant.
+   */
+  fastify.get('/v1/admin/yml-sync', { preHandler: authenticate }, async (request, reply) => {
+    if (!requireAdminRole(request, reply)) return reply;
+    const tenantId = resolveTenantId(request);
+    return adminStore.getYmlSyncConfig(tenantId);
+  });
+
+  /**
+   * PUT /v1/admin/yml-sync
+   * Configures scheduled YML/CommerceML feed auto-sync (url, intervalHours: 0 | 1 | 6 | 24, enabled).
+   */
+  fastify.put('/v1/admin/yml-sync', { preHandler: authenticate }, async (request, reply) => {
+    if (!requireAdminRole(request, reply)) return reply;
+    const body = (request.body || {}) as {
+      url?: string;
+      intervalHours?: number;
+      enabled?: boolean;
+    };
+    const tenantId = resolveTenantId(request);
+    const intervalRaw = Number(body.intervalHours ?? 0);
+    const intervalHours: 0 | 1 | 6 | 24 =
+      intervalRaw === 1 || intervalRaw === 6 || intervalRaw === 24 ? intervalRaw : 0;
+    const updated = adminStore.updateYmlSyncConfig(tenantId, {
+      url: typeof body.url === 'string' ? body.url.trim() : undefined,
+      intervalHours,
+      enabled:
+        typeof body.enabled === 'boolean'
+          ? body.enabled
+          : intervalHours > 0 && Boolean(body.url && String(body.url).trim()),
+    });
+    return updated;
+  });
+
+  /**
+   * POST /v1/admin/yml-sync/run
+   * Immediately executes a YML/CommerceML feed sync using the configured or provided URL/XML.
+   */
+  fastify.post('/v1/admin/yml-sync/run', { preHandler: authenticate }, async (request, reply) => {
+    if (!requireAdminRole(request, reply)) return reply;
+    const tenantId = resolveTenantId(request);
+    const body = (request.body || {}) as { url?: string; xml?: string };
+    const currentCfg = adminStore.getYmlSyncConfig(tenantId);
+    const targetUrl = (body.url !== undefined ? String(body.url) : currentCfg.url).trim();
+    const xml = typeof body.xml === 'string' ? body.xml.trim() : '';
+
+    if (!targetUrl && !xml) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'Provide a YML/CommerceML feed URL or XML payload to run synchronization.',
+      });
+    }
+
+    const injectRes = await fastify.inject({
+      method: 'POST',
+      url: '/v1/catalog/import-yml',
+      headers: {
+        'content-type': 'application/json',
+        ...(request.headers['x-api-key']
+          ? { 'x-api-key': String(request.headers['x-api-key']) }
+          : {}),
+        ...(request.headers.authorization
+          ? { authorization: String(request.headers.authorization) }
+          : {}),
+      },
+      payload: {
+        url: targetUrl || undefined,
+        xml: xml || undefined,
+        autoIndex: true,
+      },
+    });
+
+    const parsedRes = injectRes.json();
+    if (injectRes.statusCode >= 400) {
+      adminStore.updateYmlSyncConfig(tenantId, {
+        url: targetUrl || currentCfg.url,
+        lastSyncAt: new Date().toISOString(),
+        lastSyncStatus: 'error',
+        lastError: parsedRes?.error || `HTTP ${injectRes.statusCode}`,
+      });
+      return reply.status(injectRes.statusCode).send(parsedRes);
+    }
+
+    const importedCount = Number(parsedRes?.importedCount ?? 0);
+    const syncConfig = adminStore.updateYmlSyncConfig(tenantId, {
+      url: targetUrl || currentCfg.url,
+      lastSyncAt: new Date().toISOString(),
+      lastSyncCount: importedCount,
+      lastSyncStatus: 'ok',
+      lastError: null,
+    });
+    await flushSearchCaches();
+
+    return {
+      success: true,
+      importedCount,
+      ymlSync: syncConfig,
+    };
+  });
 
   /**
    * POST /v1/catalog/clear

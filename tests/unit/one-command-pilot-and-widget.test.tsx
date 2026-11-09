@@ -280,7 +280,7 @@ describe('EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite
       ).toContain('<em class="eidos-w-em">Наушники</em> Sony &lt;script&gt;');
     });
 
-    it('blocks SSRF internal/loopback URLs in /v1/catalog/import-yml with 400 SSRF_BLOCKED', async () => {
+    it('blocks SSRF internal/loopback URLs in /v1/catalog/import-yml with 400 SSRF_BLOCKED and supports /v1/admin/yml-sync', async () => {
       const app = await buildServer();
       try {
         const res = await app.inject({
@@ -291,6 +291,38 @@ describe('EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite
         });
         expect(res.statusCode).toBe(400);
         expect(res.json().code).toBe('SSRF_BLOCKED');
+
+        // Configure Scheduled YML Cron Sync
+        const cfgRes = await app.inject({
+          method: 'PUT',
+          url: '/v1/admin/yml-sync',
+          headers: { 'x-api-key': 'eidos_dev_key' },
+          payload: {
+            url: 'https://yourstore.ru/bitrix/catalog_export/yandex.php',
+            intervalHours: 6,
+            enabled: true,
+          },
+        });
+        expect(cfgRes.statusCode).toBe(200);
+        const cfgJson = cfgRes.json();
+        expect(cfgJson.intervalHours).toBe(6);
+        expect(cfgJson.enabled).toBe(true);
+
+        // Run YML Sync immediately with sample XML payload
+        const runRes = await app.inject({
+          method: 'POST',
+          url: '/v1/admin/yml-sync/run',
+          headers: { 'x-api-key': 'eidos_dev_key' },
+          payload: {
+            xml: `<yml_catalog><shop><categories><category id="1">Наушники и аудио</category></categories><offers><offer id="yml-101"><name>Sony WH-1000XM5</name><vendor>Sony</vendor><vendorCode>WH1000XM5</vendorCode><categoryId>1</categoryId><price>34990</price><description>Беспроводные наушники с ANC</description></offer></offers></shop></yml_catalog>`,
+          },
+        });
+        expect(runRes.statusCode).toBe(200);
+        const runJson = runRes.json();
+        expect(runJson.success).toBe(true);
+        expect(runJson.importedCount).toBe(1);
+        expect(runJson.ymlSync.lastSyncStatus).toBe('ok');
+        expect(runJson.ymlSync.lastSyncCount).toBe(1);
       } finally {
         await app.close();
       }

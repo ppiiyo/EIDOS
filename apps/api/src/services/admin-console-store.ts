@@ -124,6 +124,17 @@ export interface CatalogUpsertSummary {
   sampleRowErrors: Array<{ row: number; field: string; message: string }>;
 }
 
+export interface YmlSyncConfig {
+  url: string;
+  intervalHours: 0 | 1 | 6 | 24;
+  enabled: boolean;
+  lastSyncAt: string | null;
+  lastSyncCount: number;
+  lastSyncStatus: 'idle' | 'ok' | 'error';
+  lastError?: string | null;
+  updatedAt: string;
+}
+
 export interface QueryRewriteItem {
   type: 'layout' | 'synonym' | 'rewrite' | 'stopwords';
   from: string;
@@ -152,6 +163,7 @@ export class AdminConsoleStore {
   private merchRulesByTenant = new Map<string, MerchRule[]>();
   private rankingDefaultsByTenant = new Map<string, TenantRankingDefaults>();
   private lastUpsertByTenant = new Map<string, CatalogUpsertSummary>();
+  private ymlSyncByTenant = new Map<string, YmlSyncConfig>();
   private error5xxCountByTenant = new Map<string, number>();
 
   public static getInstance(): AdminConsoleStore {
@@ -995,6 +1007,47 @@ export class AdminConsoleStore {
     return `\uFEFF${[header, ...rows].join('\n')}\n`;
   }
 
+  public getYmlSyncConfig(tenantId = 'default'): YmlSyncConfig {
+    const existing = this.ymlSyncByTenant.get(tenantId);
+    if (existing) return existing;
+    const def: YmlSyncConfig = {
+      url: '',
+      intervalHours: 0,
+      enabled: false,
+      lastSyncAt: null,
+      lastSyncCount: 0,
+      lastSyncStatus: 'idle',
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+    };
+    this.ymlSyncByTenant.set(tenantId, def);
+    return def;
+  }
+
+  public updateYmlSyncConfig(
+    tenantId = 'default',
+    patch: Partial<Omit<YmlSyncConfig, 'updatedAt'>>
+  ): YmlSyncConfig {
+    const current = this.getYmlSyncConfig(tenantId);
+    const intervalRaw =
+      patch.intervalHours !== undefined ? Number(patch.intervalHours) : current.intervalHours;
+    const intervalHours: 0 | 1 | 6 | 24 =
+      intervalRaw === 1 || intervalRaw === 6 || intervalRaw === 24 ? intervalRaw : 0;
+    const url = patch.url !== undefined ? String(patch.url).trim() : current.url;
+    const enabled =
+      patch.enabled !== undefined ? Boolean(patch.enabled) : intervalHours > 0 && url.length > 0;
+    const next: YmlSyncConfig = {
+      ...current,
+      ...patch,
+      url,
+      intervalHours,
+      enabled,
+      updatedAt: new Date().toISOString(),
+    };
+    this.ymlSyncByTenant.set(tenantId, next);
+    return next;
+  }
+
   public resetForTests(): void {
     this.queryLogs = [];
     this.events = [];
@@ -1003,6 +1056,7 @@ export class AdminConsoleStore {
     this.merchRulesByTenant.clear();
     this.rankingDefaultsByTenant.clear();
     this.lastUpsertByTenant.clear();
+    this.ymlSyncByTenant.clear();
     this.error5xxCountByTenant.clear();
   }
 

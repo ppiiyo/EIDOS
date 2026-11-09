@@ -836,6 +836,22 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                   catalogSummary={catalogSummary}
                   apiKeys={apiKeys}
                   onSeedPilotCatalog={handleSeedPilotCatalog}
+                  onSaveYmlSync={async (cfg) => {
+                    await fetch('/v1/admin/yml-sync', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                      body: JSON.stringify(cfg),
+                    });
+                    await fetchAdminData();
+                  }}
+                  onRunYmlSync={async (url) => {
+                    await fetch('/v1/admin/yml-sync/run', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+                      body: JSON.stringify({ url }),
+                    });
+                    await fetchAdminData();
+                  }}
                   onCreateKey={async (role, description) => {
                     const res = await fetch('/v1/admin/keys', {
                       method: 'POST',

@@ -359,6 +359,10 @@ export class VectorStore {
     );
   }
 
+  public getBinarySnapshotPath(customPath?: string): string {
+    return `${this.getSnapshotPath(customPath)}.hnsw.bin`;
+  }
+
   public toSnapshotArray(): SnapshotCatalogItem[] {
     const out: SnapshotCatalogItem[] = [];
     for (const item of this.items.values()) {
@@ -380,9 +384,41 @@ export class VectorStore {
     return out;
   }
 
+  private async writeSnapshotFilesAsync(targetPath: string): Promise<void> {
+    const dir = path.dirname(targetPath);
+    await fs.promises.mkdir(dir, { recursive: true });
+    const nowTag = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const tempPath = `${targetPath}.tmp-${nowTag}`;
+    const payload = JSON.stringify(this.toSnapshotArray());
+    await fs.promises.writeFile(tempPath, payload, 'utf8');
+    await fs.promises.rename(tempPath, targetPath);
+
+    const binPath = `${targetPath}.hnsw.bin`;
+    const tempBinPath = `${binPath}.tmp-${nowTag}`;
+    const binPayload = Buffer.from(this.exportBinarySnapshot());
+    await fs.promises.writeFile(tempBinPath, binPayload);
+    await fs.promises.rename(tempBinPath, binPath);
+  }
+
+  private writeSnapshotFilesSync(targetPath: string): void {
+    const dir = path.dirname(targetPath);
+    fs.mkdirSync(dir, { recursive: true });
+    const nowTag = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const tempPath = `${targetPath}.tmp-${nowTag}`;
+    const payload = JSON.stringify(this.toSnapshotArray());
+    fs.writeFileSync(tempPath, payload, 'utf8');
+    fs.renameSync(tempPath, targetPath);
+
+    const binPath = `${targetPath}.hnsw.bin`;
+    const tempBinPath = `${binPath}.tmp-${nowTag}`;
+    const binPayload = Buffer.from(this.exportBinarySnapshot());
+    fs.writeFileSync(tempBinPath, binPayload);
+    fs.renameSync(tempBinPath, binPath);
+  }
+
   /**
    * Non-blocking debounced asynchronous catalog snapshot write triggered on POST /v1/catalog/upsert.
-   * Uses atomic write (write to .tmp file, then rename) to prevent snapshot corruption on concurrent shutdown.
+   * Uses atomic write (write to .tmp file, then rename) for both JSON metadata and binary HNSW graph.
    */
   public async saveSnapshotAsync(customPath?: string): Promise<void> {
     if (
@@ -396,12 +432,7 @@ export class VectorStore {
     if (customPath) {
       try {
         const targetPath = this.getSnapshotPath(customPath);
-        const dir = path.dirname(targetPath);
-        await fs.promises.mkdir(dir, { recursive: true });
-        const tempPath = `${targetPath}.tmp-${Date.now()}`;
-        const payload = JSON.stringify(this.toSnapshotArray());
-        await fs.promises.writeFile(tempPath, payload, 'utf8');
-        await fs.promises.rename(tempPath, targetPath);
+        await this.writeSnapshotFilesAsync(targetPath);
       } catch (err) {
         console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
       }
@@ -416,12 +447,7 @@ export class VectorStore {
       this.snapshotTimer = null;
       try {
         const targetPath = this.getSnapshotPath();
-        const dir = path.dirname(targetPath);
-        await fs.promises.mkdir(dir, { recursive: true });
-        const tempPath = `${targetPath}.tmp-${Date.now()}`;
-        const payload = JSON.stringify(this.toSnapshotArray());
-        await fs.promises.writeFile(tempPath, payload, 'utf8');
-        await fs.promises.rename(tempPath, targetPath);
+        await this.writeSnapshotFilesAsync(targetPath);
       } catch (err) {
         console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
       }
@@ -450,12 +476,7 @@ export class VectorStore {
     }
     try {
       const targetPath = this.getSnapshotPath(customPath);
-      const dir = path.dirname(targetPath);
-      fs.mkdirSync(dir, { recursive: true });
-      const tempPath = `${targetPath}.tmp-${Date.now()}`;
-      const payload = JSON.stringify(this.toSnapshotArray());
-      fs.writeFileSync(tempPath, payload, 'utf8');
-      fs.renameSync(tempPath, targetPath);
+      this.writeSnapshotFilesSync(targetPath);
     } catch (err) {
       console.error('[EIDOS] Failed to save catalog snapshot synchronously:', err);
     }
@@ -463,6 +484,7 @@ export class VectorStore {
 
   /**
    * Loads persisted catalog snapshot from disk into VectorStore before HTTP server starts.
+   * Restores binary HNSW graph (.hnsw.bin) directly when available to avoid cold-start re-embedding.
    */
   public async loadSnapshotFromDisk(
     embedder: {
@@ -490,7 +512,26 @@ export class VectorStore {
         return 0;
       }
 
+      // Check for paired binary HNSW snapshot (.hnsw.bin) for zero-recompute cold start
+      const binPath = `${targetPath}.hnsw.bin`;
+      const binaryVectors = new Map<string, Float32Array>();
+      let restoredHnsw: HNSWIndex | null = null;
+      if (fs.existsSync(binPath)) {
+        try {
+          const binBuf = await fs.promises.readFile(binPath);
+          const binUint8 = new Uint8Array(binBuf.buffer, binBuf.byteOffset, binBuf.byteLength);
+          restoredHnsw = HNSWIndexSerializer.deserialize(binUint8);
+          for (const node of restoredHnsw.getAllNodes()) {
+            binaryVectors.set(String(node.id), node.vector);
+          }
+        } catch {
+          restoredHnsw = null;
+          binaryVectors.clear();
+        }
+      }
+
       const toEmbed: Array<{ item: SnapshotCatalogItem; text: string }> = [];
+      const validSnapItems: SnapshotCatalogItem[] = [];
       const snapshotIds = new Set<string>();
       let loadedCount = 0;
 
@@ -513,7 +554,55 @@ export class VectorStore {
           url: typeof entry.url === 'string' ? entry.url : '',
           imageUrl: typeof entry.imageUrl === 'string' ? entry.imageUrl : null,
         };
+        validSnapItems.push(snapItem);
+      }
 
+      // Fast path: if store is empty and binary HNSW graph contains all snapshot IDs, restore without re-embedding
+      const canUseFullBinaryRestore =
+        this.items.size === 0 &&
+        restoredHnsw !== null &&
+        validSnapItems.length > 0 &&
+        validSnapItems.every((it) => binaryVectors.has(it.id));
+
+      if (canUseFullBinaryRestore && restoredHnsw) {
+        this.hnsw = restoredHnsw;
+        this.bm25 = new BM25Index();
+        this.hybrid = new HybridSearch(this.hnsw, this.bm25);
+        this.catalogVersion += 1;
+        this.explicitlyCleared = false;
+
+        for (const item of validSnapItems) {
+          const vec = binaryVectors.get(item.id)!;
+          const sku = item.sku && item.sku.trim() !== '' ? item.sku.trim() : item.id;
+          const url = item.url && item.url.trim() !== '' ? item.url.trim() : `/product/${encodeURIComponent(item.id)}`;
+          this.items.set(item.id, {
+            id: item.id,
+            sku,
+            brand: item.brand,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            price: item.price,
+            stock: item.stock,
+            inStock: item.inStock,
+            tags: item.tags,
+            url,
+            imageUrl: item.imageUrl ?? null,
+            embedding: Array.from(vec),
+            normalizedVector: vec,
+          });
+          const docText = `${item.title} ${sku} ${item.brand || ''} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
+          this.bm25.addDocument(item.id, docText);
+          loadedCount++;
+        }
+
+        Metrics.vectorStoreSize.set(this.count());
+        ApiQueryCache.invalidateAll();
+        getSemanticCache().clear();
+        return loadedCount;
+      }
+
+      for (const snapItem of validSnapItems) {
         const existing = this.items.get(snapItem.id);
         if (
           existing &&

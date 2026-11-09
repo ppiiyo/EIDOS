@@ -466,15 +466,35 @@ export const AdminCatalogAndKeysTabs: React.FC<{
   onCreateKey: (role: 'search' | 'admin', description: string) => Promise<string | null>;
   onRotateKey: (keyHash: string) => Promise<void>;
   onSeedPilotCatalog?: () => Promise<void>;
-}> = ({ mode, lang, catalogSummary, apiKeys, onCreateKey, onRotateKey, onSeedPilotCatalog }) => {
+  onSaveYmlSync?: (config: { url: string; intervalHours: 0 | 1 | 6 | 24 }) => Promise<void>;
+  onRunYmlSync?: (url: string) => Promise<void>;
+}> = ({
+  mode,
+  lang,
+  catalogSummary,
+  apiKeys,
+  onCreateKey,
+  onRotateKey,
+  onSeedPilotCatalog,
+  onSaveYmlSync,
+  onRunYmlSync,
+}) => {
   const [role, setRole] = useState<'search' | 'admin'>('search');
   const [desc, setDesc] = useState('');
   const [createdRawKey, setCreatedRawKey] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [ymlUrl, setYmlUrl] = useState<string>(() => catalogSummary?.ymlSync?.url || '');
+  const [ymlInterval, setYmlInterval] = useState<0 | 1 | 6 | 24>(
+    () => (catalogSummary?.ymlSync?.intervalHours as 0 | 1 | 6 | 24) || 0
+  );
+  const [savingYml, setSavingYml] = useState(false);
+  const [runningYml, setRunningYml] = useState(false);
+  const [ymlStatusMsg, setYmlStatusMsg] = useState<string | null>(null);
 
   if (mode === 'catalog') {
     const lastUpsert = catalogSummary?.lastUpsert;
     const categories = catalogSummary?.categories || {};
+    const ymlSync = catalogSummary?.ymlSync;
     return (
       <div className="space-y-4" data-testid="admin-catalog-panel">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono tabular-nums">
@@ -548,6 +568,116 @@ export const AdminCatalogAndKeysTabs: React.FC<{
               ))
             )}
           </div>
+        </Card>
+
+        {/* Scheduled YML / CommerceML Auto-Sync Card */}
+        <Card testId="admin-yml-cron-sync-card" className="p-4 space-y-3 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-semibold text-slate-900">
+                {lang === 'ru'
+                  ? 'Авто-импорт YML / CommerceML по расписанию (Cron URL Sync)'
+                  : 'Scheduled YML / CommerceML Feed Sync (Cron URL Sync)'}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {lang === 'ru'
+                  ? 'Укажите публичный URL фида Яндекс.Маркет (YML) или 1С-Битрикс для автоматического обновления цен и остатков.'
+                  : 'Provide a public Yandex.Market YML or CommerceML feed URL for automated price and stock updates.'}
+              </p>
+            </div>
+            {ymlSync?.lastSyncAt && (
+              <Badge tone={ymlSync.lastSyncStatus === 'error' ? 'danger' : 'success'}>
+                {ymlSync.lastSyncStatus === 'error'
+                  ? `ERR: ${ymlSync.lastError || 'Sync failed'}`
+                  : `Sync OK (${ymlSync.lastSyncCount || 0} SKU)`}
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="url"
+              aria-label="YML Feed URL"
+              data-testid="yml-sync-url-input"
+              value={ymlUrl}
+              onChange={(e) => setYmlUrl(e.target.value)}
+              placeholder="https://yourstore.ru/bitrix/catalog_export/yandex.php"
+              className="flex-1 min-w-[240px] px-3 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded-[6px] text-slate-900"
+            />
+            <select
+              aria-label="YML Sync Interval"
+              data-testid="yml-sync-interval-select"
+              value={ymlInterval}
+              onChange={(e) => setYmlInterval(Number(e.target.value) as 0 | 1 | 6 | 24)}
+              className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-[6px] text-slate-900"
+            >
+              <option value={0}>{lang === 'ru' ? 'Расписание: Выкл' : 'Schedule: Off'}</option>
+              <option value={1}>{lang === 'ru' ? 'Каждый 1 час' : 'Every 1 hour'}</option>
+              <option value={6}>{lang === 'ru' ? 'Каждые 6 часов' : 'Every 6 hours'}</option>
+              <option value={24}>{lang === 'ru' ? 'Каждые 24 часа' : 'Every 24 hours'}</option>
+            </select>
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="yml-sync-save-btn"
+              disabled={savingYml}
+              onClick={async () => {
+                setSavingYml(true);
+                setYmlStatusMsg(null);
+                try {
+                  if (onSaveYmlSync) {
+                    await onSaveYmlSync({ url: ymlUrl, intervalHours: ymlInterval });
+                  }
+                  setYmlStatusMsg(
+                    lang === 'ru' ? 'Расписание сохранено' : 'Schedule saved'
+                  );
+                } finally {
+                  setSavingYml(false);
+                }
+              }}
+            >
+              {savingYml
+                ? lang === 'ru'
+                  ? 'Сохранение...'
+                  : 'Saving...'
+                : lang === 'ru'
+                ? 'Сохранить расписание'
+                : 'Save Schedule'}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="yml-sync-run-btn"
+              disabled={runningYml || !ymlUrl.trim()}
+              onClick={async () => {
+                setRunningYml(true);
+                setYmlStatusMsg(null);
+                try {
+                  if (onRunYmlSync) {
+                    await onRunYmlSync(ymlUrl);
+                  }
+                  setYmlStatusMsg(
+                    lang === 'ru' ? 'Синхронизация выполнена' : 'Feed synchronized'
+                  );
+                } finally {
+                  setRunningYml(false);
+                }
+              }}
+            >
+              {runningYml
+                ? lang === 'ru'
+                  ? 'Импорт...'
+                  : 'Syncing...'
+                : lang === 'ru'
+                ? 'Синхронизировать сейчас'
+                : 'Sync Now'}
+            </Button>
+          </div>
+          {ymlStatusMsg && (
+            <div className="text-[11px] font-mono text-emerald-700" data-testid="yml-sync-status">
+              ✓ {ymlStatusMsg}
+            </div>
+          )}
         </Card>
 
         {lastUpsert?.sampleRowErrors?.length > 0 && (
