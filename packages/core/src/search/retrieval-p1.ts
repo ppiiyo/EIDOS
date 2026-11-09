@@ -647,82 +647,69 @@ export function matchesStructuredFilters(
  * Evaluates each field (`sku`, `title`, `brand`, `category`, `description`) independently
  * and multiplies its BM25 score by the corresponding field boost / importance.
  */
-export function scoreMultiFieldLexicalDocument(params: {
-  query: string;
-  item: FilterableCatalogItem;
-  fieldBoosts: Required<FieldBoosts>;
-  idfLookup?: (token: string) => number;
-}): {
-  totalScore: number;
-  contributions: LexicalFieldContribution[];
-  dominantField: FieldBoostField | null;
-} {
-  const { query, item, fieldBoosts, idfLookup } = params;
-  const rawQueryTokens = BM25Index.tokenize(query);
+interface CachedFieldData {
+  field: FieldBoostField;
+  avgLen: number;
+  fieldLower: string;
+  tfMap: Map<string, number>;
+  stemList: Array<{ tok: string; count: number }>;
+  baseNorm: number;
+}
 
+interface CachedDocEntry {
+  sig: string;
+  fields: Record<FieldBoostField, CachedFieldData | null>;
+}
+
+const DOC_FIELD_TOKEN_CACHE = new WeakMap<object, CachedDocEntry>();
+
+export function tokenizeMultiFieldQuery(query: string): string[] {
+  const rawQueryTokens = BM25Index.tokenize(query);
   const rawCodeTokens = query
     .toLowerCase()
     .split(/[\s,;()[\]"«»]+/)
     .map((t) => t.trim())
     .filter((t) => t.length >= 2 && /[a-zа-яё0-9]+-[a-zа-яё0-9]+/i.test(t));
+  return Array.from(new Set([...rawQueryTokens, ...rawCodeTokens]));
+}
 
-  const queryTokens = Array.from(new Set([...rawQueryTokens, ...rawCodeTokens]));
-  if (queryTokens.length === 0) {
-    return { totalScore: 0, contributions: [], dominantField: null };
+function getOrBuildDocFieldCache(item: FilterableCatalogItem): Record<FieldBoostField, CachedFieldData | null> {
+  const skuText = item.sku ? String(item.sku) : '';
+  const titleText = item.title || '';
+  const brandText = item.brand || '';
+  const catText = `${item.category || ''} ${(item.tags || []).join(' ')}`.trim();
+  const descText = item.description || '';
+  const sig = `${skuText}\u0001${titleText}\u0001${brandText}\u0001${catText}\u0001${descText.length}`;
+
+  if (typeof item === 'object' && item !== null) {
+    const cached = DOC_FIELD_TOKEN_CACHE.get(item);
+    if (cached && cached.sig === sig) {
+      return cached.fields;
+    }
   }
 
-  const fields: Array<{
-    field: FieldBoostField;
-    text: string;
-    avgLen: number;
-    boost: number;
-  }> = [
-    {
-      field: 'sku',
-      text: item.sku ? String(item.sku) : '',
-      avgLen: 2,
-      boost: fieldBoosts.sku,
-    },
-    {
-      field: 'title',
-      text: item.title || '',
-      avgLen: 8,
-      boost: fieldBoosts.title,
-    },
-    {
-      field: 'brand',
-      text: item.brand || '',
-      avgLen: 2,
-      boost: fieldBoosts.brand,
-    },
-    {
-      field: 'category',
-      text: `${item.category || ''} ${(item.tags || []).join(' ')}`.trim(),
-      avgLen: 6,
-      boost: fieldBoosts.category,
-    },
-    {
-      field: 'description',
-      text: item.description || '',
-      avgLen: 24,
-      boost: fieldBoosts.description,
-    },
+  const rawDefs: Array<{ field: FieldBoostField; text: string; avgLen: number }> = [
+    { field: 'sku', text: skuText, avgLen: 2 },
+    { field: 'title', text: titleText, avgLen: 8 },
+    { field: 'brand', text: brandText, avgLen: 2 },
+    { field: 'category', text: catText, avgLen: 6 },
+    { field: 'description', text: descText, avgLen: 24 },
   ];
 
   const k1 = 1.5;
   const b = 0.75;
-  const k1Plus1 = k1 + 1.0;
+  const built: Record<FieldBoostField, CachedFieldData | null> = {
+    sku: null,
+    title: null,
+    brand: null,
+    category: null,
+    description: null,
+  };
 
-  const contributions: LexicalFieldContribution[] = [];
-  let totalScore = 0;
-  let dominantField: FieldBoostField | null = null;
-  let maxContribution = 0;
-
-  for (const f of fields) {
-    if (!f.text || f.boost <= 0) continue;
-
-    const fieldLower = f.text.toLowerCase().trim();
-    const fieldTokens = BM25Index.tokenize(f.text);
+  for (const def of rawDefs) {
+    if (!def.text) continue;
+    const fieldLower = def.text.toLowerCase().trim();
+    const fieldTokens = BM25Index.tokenize(def.text);
     if (fieldTokens.length === 0 && !fieldLower) continue;
 
     const tfMap = new Map<string, number>();
@@ -730,7 +717,7 @@ export function scoreMultiFieldLexicalDocument(params: {
       tfMap.set(ft, (tfMap.get(ft) || 0) + 1);
     }
 
-    if (f.field === 'sku' || f.field === 'brand' || f.field === 'title') {
+    if (def.field === 'sku' || def.field === 'brand' || def.field === 'title') {
       const codeParts = fieldLower.split(/[\s,;()[\]"«»]+/).filter(Boolean);
       for (const cp of codeParts) {
         if (!tfMap.has(cp)) {
@@ -739,18 +726,75 @@ export function scoreMultiFieldLexicalDocument(params: {
       }
     }
 
+    const stemList: Array<{ tok: string; count: number }> = [];
+    for (const [docTok, count] of tfMap.entries()) {
+      if (docTok.length >= 4) {
+        stemList.push({ tok: docTok, count });
+      }
+    }
+
     const docLen = Math.max(1, fieldTokens.length);
-    const baseNorm = k1 * (1.0 - b + (b * docLen) / f.avgLen);
+    const baseNorm = k1 * (1.0 - b + (b * docLen) / def.avgLen);
+
+    built[def.field] = {
+      field: def.field,
+      avgLen: def.avgLen,
+      fieldLower,
+      tfMap,
+      stemList,
+      baseNorm,
+    };
+  }
+
+  if (typeof item === 'object' && item !== null) {
+    DOC_FIELD_TOKEN_CACHE.set(item, { sig, fields: built });
+  }
+
+  return built;
+}
+
+export function scoreMultiFieldLexicalDocument(params: {
+  query: string;
+  item: FilterableCatalogItem;
+  fieldBoosts: Required<FieldBoosts>;
+  idfLookup?: (token: string) => number;
+  precomputedQueryTokens?: string[];
+}): {
+  totalScore: number;
+  contributions: LexicalFieldContribution[];
+  dominantField: FieldBoostField | null;
+} {
+  const { query, item, fieldBoosts, idfLookup, precomputedQueryTokens } = params;
+  const queryTokens = precomputedQueryTokens ?? tokenizeMultiFieldQuery(query);
+  if (queryTokens.length === 0) {
+    return { totalScore: 0, contributions: [], dominantField: null };
+  }
+
+  const cachedFields = getOrBuildDocFieldCache(item);
+  const fieldOrder: FieldBoostField[] = ['sku', 'title', 'brand', 'category', 'description'];
+  const k1Plus1 = 2.5;
+
+  const contributions: LexicalFieldContribution[] = [];
+  let totalScore = 0;
+  let dominantField: FieldBoostField | null = null;
+  let maxContribution = 0;
+
+  for (const fieldName of fieldOrder) {
+    const boost = fieldBoosts[fieldName];
+    if (boost <= 0) continue;
+    const f = cachedFields[fieldName];
+    if (!f) continue;
 
     let rawFieldScore = 0;
     for (const qTok of queryTokens) {
-      let tf = tfMap.get(qTok) || 0;
+      let tf = f.tfMap.get(qTok) || 0;
 
       if (tf === 0 && qTok.length >= 4 && f.field !== 'sku') {
         const stem = qTok.slice(0, Math.max(4, qTok.length - 2));
-        for (const [docTok, count] of tfMap.entries()) {
-          if (docTok.length >= 4 && docTok.startsWith(stem)) {
-            tf += count * 0.85;
+        for (let i = 0; i < f.stemList.length; i++) {
+          const entry = f.stemList[i];
+          if (entry.tok.startsWith(stem)) {
+            tf += entry.count * 0.85;
           }
         }
       }
@@ -758,22 +802,22 @@ export function scoreMultiFieldLexicalDocument(params: {
       if (tf <= 0) continue;
 
       const idf = idfLookup ? Math.max(0.25, idfLookup(qTok)) : 1.5;
-      const tokenBm25 = idf * ((tf * k1Plus1) / (tf + baseNorm));
+      const tokenBm25 = idf * ((tf * k1Plus1) / (tf + f.baseNorm));
       rawFieldScore += tokenBm25;
 
-      if (f.field === 'sku' && fieldLower === qTok) {
+      if (f.field === 'sku' && f.fieldLower === qTok) {
         rawFieldScore += idf * 1.5;
       }
     }
 
     if (rawFieldScore > 0) {
-      const weighted = rawFieldScore * f.boost;
+      const weighted = rawFieldScore * boost;
       const roundedContribution = Math.round(weighted * 10000) / 10000;
       totalScore += weighted;
       contributions.push({
         field: f.field,
-        boost: f.boost,
-        importance: f.boost,
+        boost,
+        importance: boost,
         contribution: roundedContribution,
       });
       if (weighted > maxContribution) {

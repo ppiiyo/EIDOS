@@ -651,6 +651,36 @@ export async function catalogRoutes(
     }
   });
 
+  const isSafeExternalUrl = (rawUrl: string): boolean => {
+    try {
+      const parsed = new URL(rawUrl);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+      const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+      if (
+        host === 'localhost' ||
+        host === '0.0.0.0' ||
+        host === '::1' ||
+        host === 'metadata.google.internal' ||
+        host.endsWith('.local') ||
+        host.endsWith('.internal')
+      ) {
+        return false;
+      }
+      if (
+        /^127\./.test(host) ||
+        /^10\./.test(host) ||
+        /^192\.168\./.test(host) ||
+        /^169\.254\./.test(host) ||
+        /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+      ) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   // POST /v1/catalog/import-yml — Server-side proxy + parser for Yandex.Market YML & 1C-Bitrix CommerceML feeds
   fastify.post('/v1/catalog/import-yml', async (request, reply) => {
     const start = Date.now();
@@ -661,6 +691,12 @@ export async function catalogRoutes(
       const targetUrl = String(body.url).trim();
       if (!/^https?:\/\//i.test(targetUrl)) {
         return reply.status(400).send({ error: 'Invalid YML/XML feed URL. Must start with http:// or https://' });
+      }
+      if (!isSafeExternalUrl(targetUrl)) {
+        return reply.status(400).send({
+          code: 'SSRF_BLOCKED',
+          error: 'Private, loopback, or internal network URLs are not allowed for remote feed import.',
+        });
       }
       try {
         const res = await fetch(targetUrl, {
@@ -772,6 +808,8 @@ export async function catalogRoutes(
       items.slice(0, 500).forEach((it, i) => {
         store.upsert({
           id: it.id,
+          sku: it.sku,
+          brand: it.brand,
           title: it.title,
           description: it.description,
           category: it.category,
@@ -781,6 +819,7 @@ export async function catalogRoutes(
           embedding: Array.from(vectors[i]),
         });
       });
+      await store.saveSnapshotAsync();
     }
 
     return reply.status(200).send({
@@ -817,7 +856,7 @@ export async function catalogRoutes(
       let externalTitles: string[] = [];
       let externalStatus: 'fetched' | 'simulated_sql_like' = 'simulated_sql_like';
 
-      if (body.searchUrlTemplate && /^https?:\/\//i.test(body.searchUrlTemplate)) {
+      if (body.searchUrlTemplate && isSafeExternalUrl(body.searchUrlTemplate)) {
         const url = body.searchUrlTemplate.includes('{query}')
           ? body.searchUrlTemplate.replace('{query}', encodeURIComponent(q))
           : `${body.searchUrlTemplate}${body.searchUrlTemplate.includes('?') ? '&' : '?'}q=${encodeURIComponent(q)}`;

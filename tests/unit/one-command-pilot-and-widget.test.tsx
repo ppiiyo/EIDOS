@@ -272,6 +272,28 @@ describe('EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite
       expect(
         widgetApi.resolveProductUrl({ id: '10452', sku: 'WH-1000XM5' }, '/products/#SKU#/')
       ).toBe('/products/WH-1000XM5/');
+
+      const renderHighlightedTitle = (widgetApi as any).renderHighlightedTitle;
+      expect(typeof renderHighlightedTitle).toBe('function');
+      expect(
+        renderHighlightedTitle('Наушники Sony', '<em>Наушники</em> Sony <script>alert(1)</script>')
+      ).toContain('<em class="eidos-w-em">Наушники</em> Sony &lt;script&gt;');
+    });
+
+    it('blocks SSRF internal/loopback URLs in /v1/catalog/import-yml with 400 SSRF_BLOCKED', async () => {
+      const app = await buildServer();
+      try {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/v1/catalog/import-yml',
+          headers: { 'x-api-key': 'eidos_dev_key' },
+          payload: { url: 'http://127.0.0.1:8080/internal-feed.xml' },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().code).toBe('SSRF_BLOCKED');
+      } finally {
+        await app.close();
+      }
     });
   });
 

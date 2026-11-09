@@ -18,6 +18,7 @@ import {
   LexicalFieldContribution,
   DEFAULT_FIELD_BOOSTS,
   scoreMultiFieldLexicalDocument,
+  tokenizeMultiFieldQuery,
   SearchFilters,
   matchesStructuredFilters,
   RankWindow,
@@ -363,13 +364,17 @@ export class VectorStore {
     for (const item of this.items.values()) {
       out.push({
         id: String(item.id),
+        sku: typeof item.sku === 'string' && item.sku ? item.sku : undefined,
+        brand: typeof item.brand === 'string' && item.brand ? item.brand : undefined,
         title: item.title,
         description: item.description || '',
         category: item.category || 'General',
         price: typeof item.price === 'number' ? item.price : 0,
+        stock: typeof item.stock === 'number' ? item.stock : undefined,
         inStock: typeof item.inStock === 'boolean' ? item.inStock : true,
         tags: Array.isArray(item.tags) ? item.tags : [],
         url: typeof item.url === 'string' ? item.url : '',
+        imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : null,
       });
     }
     return out;
@@ -496,13 +501,17 @@ export class VectorStore {
         snapshotIds.add(String(entry.id));
         const snapItem: SnapshotCatalogItem = {
           id: String(entry.id),
+          sku: typeof entry.sku === 'string' && entry.sku.trim() ? entry.sku.trim() : undefined,
+          brand: typeof entry.brand === 'string' && entry.brand.trim() ? entry.brand.trim() : undefined,
           title: String(entry.title),
           description: typeof entry.description === 'string' ? entry.description : '',
           category: typeof entry.category === 'string' ? entry.category : 'General',
           price: typeof entry.price === 'number' && entry.price >= 0 ? entry.price : 0,
+          stock: typeof entry.stock === 'number' && Number.isFinite(entry.stock) ? entry.stock : undefined,
           inStock: typeof entry.inStock === 'boolean' ? entry.inStock : true,
           tags: Array.isArray(entry.tags) ? entry.tags.map(String) : [],
           url: typeof entry.url === 'string' ? entry.url : '',
+          imageUrl: typeof entry.imageUrl === 'string' ? entry.imageUrl : null,
         };
 
         const existing = this.items.get(snapItem.id);
@@ -512,10 +521,14 @@ export class VectorStore {
           existing.description === snapItem.description &&
           existing.category === snapItem.category
         ) {
+          existing.sku = snapItem.sku ?? existing.sku;
+          existing.brand = snapItem.brand ?? existing.brand;
           existing.price = snapItem.price;
+          existing.stock = snapItem.stock ?? existing.stock;
           existing.inStock = snapItem.inStock;
           existing.tags = snapItem.tags;
           existing.url = snapItem.url;
+          existing.imageUrl = snapItem.imageUrl ?? existing.imageUrl;
           loadedCount++;
         } else {
           const text = `${snapItem.title}. ${snapItem.category}. ${snapItem.tags.join(', ')}. ${snapItem.description}`;
@@ -545,13 +558,17 @@ export class VectorStore {
           this.upsert(
             {
               id: item.id,
+              sku: item.sku,
+              brand: item.brand,
               title: item.title,
               description: item.description,
               category: item.category,
               price: item.price,
+              stock: item.stock,
               inStock: item.inStock,
               tags: item.tags,
               url: item.url,
+              imageUrl: item.imageUrl ?? undefined,
               embedding: vec,
             },
             { fastLeaf: useFastBulk && !isRecentTail }
@@ -742,13 +759,24 @@ export class VectorStore {
       }
     >();
     const lexicalCandidates: Array<{ item: StoredItem; lexicalScore: number }> = [];
+    const precomputedQueryTokens = tokenizeMultiFieldQuery(effectiveQuery);
+    const idfCache = new Map<string, number>();
+    const idfLookupCached = (tok: string): number => {
+      let v = idfCache.get(tok);
+      if (v === undefined) {
+        v = this.bm25.getIdf(tok);
+        idfCache.set(tok, v);
+      }
+      return v;
+    };
 
     for (const stored of filteredItems) {
       const multiField = scoreMultiFieldLexicalDocument({
         query: effectiveQuery,
         item: stored,
         fieldBoosts: resolvedFieldBoosts,
-        idfLookup: (tok) => this.bm25.getIdf(tok),
+        idfLookup: idfLookupCached,
+        precomputedQueryTokens,
       });
 
       let lexicalScore = multiField.totalScore;

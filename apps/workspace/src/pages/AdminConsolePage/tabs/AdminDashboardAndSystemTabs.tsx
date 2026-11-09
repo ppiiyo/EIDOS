@@ -672,6 +672,9 @@ export const AdminSystemAndDocsTabs: React.FC<{
   lastSnapshotAt?: string | null;
   onCreateSnapshot: () => Promise<void>;
 }> = ({ mode, lang, readyPayload, itemsIndexed = 0, lastSnapshotAt = null, onCreateSnapshot }) => {
+  const [cmsPreset, setCmsPreset] = useState<'bitrix' | 'woocommerce' | 'universal'>('bitrix');
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
+
   if (mode === 'system') {
     const comps = readyPayload?.components || {};
     const isReady = Boolean(readyPayload?.ready);
@@ -777,7 +780,44 @@ export const AdminSystemAndDocsTabs: React.FC<{
     );
   }
 
-  // «Подключить магазин» / Документация (§3.4: 3 equal path cards + secondary Docker self-hosted block)
+  const originUrl =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://search.yourstore.ru';
+
+  const presetConfig = {
+    bitrix: {
+      label: '1С-Битрикс',
+      selector: '#title-search-input, input[name="q"]',
+      urlTpl: '/catalog/#ID#/',
+    },
+    woocommerce: {
+      label: 'WooCommerce / WordPress',
+      selector: 'input.woocommerce-product-search-field, input[name="s"]',
+      urlTpl: '/product/#SKU#/',
+    },
+    universal: {
+      label: lang === 'ru' ? 'Любая CMS (Авто-поиск поля)' : 'Universal Auto-Detect',
+      selector: "#eidos-search, #title-search-input, input[name='q'], input[type='search']",
+      urlTpl: '/catalog/#ID#/',
+    },
+  }[cmsPreset];
+
+  const oneClickSnippet = `<script src="${originUrl}/widget.js" defer data-api="${originUrl}" data-key="eidos_sk_public_search_key" data-input="${presetConfig.selector}" data-product-url-template="${presetConfig.urlTpl}" data-limit="6" data-lang="${lang}"></script>`;
+
+  const handleCopyOneClick = () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(oneClickSnippet);
+      }
+    } catch {
+      // Ignore clipboard permission errors in headless tests
+    }
+    setCopiedSnippet(true);
+    setTimeout(() => setCopiedSnippet(false), 2200);
+  };
+
+  // «Подключить магазин» / Документация (§3.4: 1-Click Widget + 3 equal path cards + secondary Docker self-hosted block)
   return (
     <div className="space-y-4 text-xs" data-testid="admin-docs-panel">
       <div className="space-y-1">
@@ -788,10 +828,78 @@ export const AdminSystemAndDocsTabs: React.FC<{
         </h1>
         <p className="text-xs text-slate-600">
           {lang === 'ru'
-            ? 'Три готовых пути интеграции. При недоступности сервиса поиска витрина автоматически использует штатный поиск вашей CMS.'
-            : 'Three integration paths with automatic fallback to native CMS search.'}
+            ? 'Внедрение виджета в 1 нажатие или серверные коннекторы CMS. При недоступности сервиса витрина автоматически использует штатный поиск вашей CMS.'
+            : 'One-click storefront widget or native CMS connectors with automatic fallback to native search.'}
         </p>
       </div>
+
+      {/* One-Click Storefront Widget Installer */}
+      <Card
+        elevated
+        testId="one-click-widget-installer"
+        className="p-5 space-y-3 border-slate-300 bg-white"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-900">
+                {lang === 'ru'
+                  ? 'Быстрое внедрение на сайт в 1 нажатие (widget.js)'
+                  : '1-Click Storefront Widget Embed (widget.js)'}
+              </span>
+              <Badge tone="success">{lang === 'ru' ? 'Без правок бэкенда' : 'Zero-Backend'}</Badge>
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              {lang === 'ru'
+                ? 'Выберите вашу CMS и скопируйте одну строку <script> перед закрывающим тегом </body>. Виджет сам найдёт поле поиска и подключит умную выдачу с подсветкой совпадений.'
+                : 'Select your CMS and copy a single <script> tag before </body>. The widget auto-attaches to your search input.'}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {(['bitrix', 'woocommerce', 'universal'] as const).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                data-testid={`widget-preset-${preset}`}
+                onClick={() => setCmsPreset(preset)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  cmsPreset === preset
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {preset === 'bitrix'
+                  ? '1С-Битрикс'
+                  : preset === 'woocommerce'
+                  ? 'WooCommerce'
+                  : lang === 'ru'
+                  ? 'Авто (Любой сайт)'
+                  : 'Universal'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-slate-900 text-slate-100 p-3 rounded-lg font-mono text-[11px] overflow-x-auto flex items-center justify-between gap-3">
+          <code className="whitespace-nowrap select-all" data-testid="one-click-script-code">
+            {oneClickSnippet}
+          </code>
+          <Button
+            variant="primary"
+            size="sm"
+            data-testid="copy-one-click-snippet-btn"
+            onClick={handleCopyOneClick}
+          >
+            {copiedSnippet
+              ? lang === 'ru'
+                ? '✓ Скопировано'
+                : '✓ Copied'
+              : lang === 'ru'
+              ? 'Скопировать в 1 клик'
+              : 'Copy 1-Click Code'}
+          </Button>
+        </div>
+      </Card>
 
       {/* 3 Equal Path Cards: WooCommerce · 1С-Битрикс · CSV / YML (§3.4) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

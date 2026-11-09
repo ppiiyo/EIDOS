@@ -75,6 +75,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+@layer components {
 /* ── Buttons ─────────────────────────────────── */
 .btn {
   display: inline-flex;
@@ -704,3 +705,5 @@ textarea.input {
     gap: 8px;
   }
 }
+}
+

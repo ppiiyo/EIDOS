@@ -191,7 +191,10 @@ export async function healthRoutes(
       ...(itemCount === 0 ? { code: 'INDEX_EMPTY' } : {}),
       draining: false,
       nodeId: fastify.clusterCoordinator?.nodeId || 'standalone',
-      catalogVersion: fastify.clusterCoordinator?.getCatalogVersion() ?? 1,
+      catalogVersion: Math.max(
+        opts.vectorStore.getCatalogVersion(),
+        fastify.clusterCoordinator?.getCatalogVersion() ?? 1
+      ),
       timestamp: new Date().toISOString(),
       checks: {
         vectorStore,

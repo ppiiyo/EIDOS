@@ -33,7 +33,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this, function () {
   'use strict';
 
-  var DEFAULT_SELECTORS = "#eidos-search, #title-search-input, input[name='q'], .search-input";
+  var DEFAULT_SELECTORS =
+    "#eidos-search, #title-search-input, input.woocommerce-product-search-field, input[name='q'], input[name='s'], input[name='search'], .search-input, input[type='search']";
 
   function isSafeStorefrontKey(key) {
     if (!key || typeof key !== 'string') return false;
@@ -83,6 +84,15 @@
       .replace(/'/g, '&#39;');
   }
 
+  function renderHighlightedTitle(rawTitle, highlightedTitle) {
+    if (typeof highlightedTitle === 'string' && highlightedTitle.indexOf('<em>') !== -1) {
+      return escapeHtml(highlightedTitle)
+        .replace(/&lt;em&gt;/g, '<em class="eidos-w-em">')
+        .replace(/&lt;\/em&gt;/g, '</em>');
+    }
+    return escapeHtml(rawTitle);
+  }
+
   function injectStyles(doc) {
     if (!doc || doc.getElementById('eidos-widget-styles')) return;
     var style = doc.createElement('style');
@@ -95,9 +105,10 @@
       '.eidos-w-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 11px;border-radius:7px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;}',
       '.eidos-w-item:hover,.eidos-w-item.eidos-w-active{background:rgba(16,185,129,0.12);}',
       '.eidos-w-title{font-size:14px;font-weight:600;line-height:1.3;margin:0;}',
+      '.eidos-w-em{background:rgba(250,204,21,0.35);color:inherit;font-style:normal;padding:0 2px;border-radius:3px;}',
       '.eidos-w-meta{font-size:12px;opacity:0.75;margin-top:2px;}',
       '.eidos-w-right{text-align:right;white-space:nowrap;flex-shrink:0;}',
-      '.eidos-w-price{font-size:13px;font-weight:700;}',
+      '.eidos-w-price{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;}',
       '.eidos-w-badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#059669;margin-top:2px;}',
       '.eidos-w-state{padding:14px 12px;font-size:13px;text-align:center;opacity:0.85;}',
       '.eidos-w-retry{margin-left:8px;padding:4px 10px;border-radius:6px;border:1px solid #cbd5e1;background:transparent;color:inherit;cursor:pointer;font-size:12px;}',
@@ -110,12 +121,12 @@
     var fetchImpl = options.fetch || (typeof fetch !== 'undefined' ? fetch : null);
     var apiBase = String(options.api || '').replace(/\/+$/, '');
     var customEndpoint = options.endpoint ? String(options.endpoint).trim() : '';
-    var searchKey = String(options.key || '').trim();
+    var searchKey = String(options.key || options.searchKey || '').trim();
     var limit = Math.max(1, Math.min(25, parseInt(String(options.limit || '8'), 10) || 8));
     var lang = String(options.lang || 'ru').toLowerCase() === 'en' ? 'en' : 'ru';
     var theme = String(options.theme || 'light').toLowerCase() === 'dark' ? 'dark' : 'light';
-    var urlTemplate = options.productUrlTemplate || '/catalog/#ID#/';
-    var debounceMs = typeof options.debounceMs === 'number' ? options.debounceMs : 220;
+    var urlTemplate = options.productUrlTemplate || options.urlTemplate || '/catalog/#ID#/';
+    var debounceMs = typeof options.debounceMs === 'number' ? options.debounceMs : 200;
 
     var texts =
       lang === 'en'
@@ -243,7 +254,15 @@
                 ? hit.price.toLocaleString('ru-RU') + ' ₽'
                 : String(hit.price)
               : '';
-          var categoryStr = hit.category ? String(hit.category) : '';
+          var metaParts = [];
+          if (hit.category) metaParts.push(String(hit.category));
+          if (hit.brand) metaParts.push(String(hit.brand));
+          if (hit.sku) metaParts.push('SKU: ' + String(hit.sku));
+          var metaStr = metaParts.join(' · ');
+          var highlightedTitle =
+            hit.highlights && typeof hit.highlights.title === 'string'
+              ? hit.highlights.title
+              : null;
 
           return (
             '<a class="eidos-w-item" data-idx="' +
@@ -253,9 +272,9 @@
             '">' +
             '<div class="eidos-w-left">' +
             '<div class="eidos-w-title">' +
-            escapeHtml(hit.title || hit.id) +
+            renderHighlightedTitle(hit.title || hit.id, highlightedTitle) +
             '</div>' +
-            (categoryStr ? '<div class="eidos-w-meta">' + escapeHtml(categoryStr) + '</div>' : '') +
+            (metaStr ? '<div class="eidos-w-meta">' + escapeHtml(metaStr) + '</div>' : '') +
             '</div>' +
             '<div class="eidos-w-right">' +
             (priceStr ? '<div class="eidos-w-price">' + escapeHtml(priceStr) + '</div>' : '') +
@@ -331,6 +350,7 @@
         body: JSON.stringify({
           query: q,
           mode: 'hybrid',
+          highlight: true,
           limit: limit,
         }),
         signal: controller ? controller.signal : undefined,
@@ -427,16 +447,26 @@
     var scriptEl =
       doc.querySelector('script[src*="widget.js"]') ||
       doc.querySelector('script[data-key]') ||
+      doc.querySelector('script[data-search-key]') ||
       doc.querySelector('script[data-api]');
     if (!scriptEl) return null;
 
     return createWidgetInstance({
       document: doc,
-      api: scriptEl.getAttribute('data-api') || '',
-      endpoint: scriptEl.getAttribute('data-endpoint') || '',
-      key: scriptEl.getAttribute('data-key') || '',
-      inputSelector: scriptEl.getAttribute('data-input') || DEFAULT_SELECTORS,
-      productUrlTemplate: scriptEl.getAttribute('data-product-url-template') || '/catalog/#ID#/',
+      api: scriptEl.getAttribute('data-api') || scriptEl.getAttribute('data-endpoint') || '',
+      endpoint: scriptEl.getAttribute('data-proxy-url') || '',
+      key:
+        scriptEl.getAttribute('data-key') ||
+        scriptEl.getAttribute('data-search-key') ||
+        'eidos_demo_key',
+      inputSelector:
+        scriptEl.getAttribute('data-input') ||
+        scriptEl.getAttribute('data-input-selector') ||
+        DEFAULT_SELECTORS,
+      productUrlTemplate:
+        scriptEl.getAttribute('data-product-url-template') ||
+        scriptEl.getAttribute('data-url-template') ||
+        '/catalog/#ID#/',
       limit: scriptEl.getAttribute('data-limit') || '8',
       lang: scriptEl.getAttribute('data-lang') || 'ru',
       theme: scriptEl.getAttribute('data-theme') || 'light',
@@ -449,5 +479,6 @@
     isSafeStorefrontKey: isSafeStorefrontKey,
     resolveProductUrl: resolveProductUrl,
     formatScorePercent: formatScorePercent,
+    renderHighlightedTitle: renderHighlightedTitle,
   };
 });
