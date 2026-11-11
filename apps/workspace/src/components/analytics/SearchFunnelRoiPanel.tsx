@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../../lib/apiClient';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Filter, TrendingUp, DollarSign, Sparkles } from 'lucide-react';
 
@@ -30,7 +31,7 @@ export const SearchFunnelRoiPanel: React.FC<SearchFunnelRoiPanelProps> = ({
   useEffect(() => {
     if (typeof fetch !== 'function') return;
     fetch('/v1/analytics/funnel', {
-      headers: { 'x-api-key': 'eidos_dev_key' },
+      headers: { 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: FunnelResponse | null) => {

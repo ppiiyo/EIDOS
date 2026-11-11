@@ -9,6 +9,7 @@ import { ServerEmbedder } from '../services/embedder';
 import { AdminConsoleStore } from '../services/admin-console-store';
 import { ApiQueryCache } from '../services/query-cache';
 import { getCache, getSemanticCache } from '../services/cache';
+import { getYmlSyncScheduler } from '../services/yml-sync-scheduler';
 
 const updateDictionariesSchema = z.object({
   synonyms: z
@@ -769,100 +770,152 @@ export async function adminConsoleRoutes(
   fastify.get('/v1/admin/yml-sync', { preHandler: authenticate }, async (request, reply) => {
     if (!requireAdminRole(request, reply)) return reply;
     const tenantId = resolveTenantId(request);
-    return adminStore.getYmlSyncConfig(tenantId);
+    const scheduler = getYmlSyncScheduler({ embedder, storeRegistry });
+    const cfg = scheduler.getConfig(tenantId, 'default');
+    const legacyCfg = adminStore.getYmlSyncConfig(tenantId);
+    const intervalHours =
+      cfg.intervalMinutes === 60
+        ? 1
+        : cfg.intervalMinutes === 360
+        ? 6
+        : cfg.intervalMinutes === 1440
+        ? 24
+        : legacyCfg.intervalHours;
+    return {
+      ok: true,
+      configs: scheduler.list(tenantId),
+      config: cfg,
+      ...cfg,
+      url: cfg.feedUrl || legacyCfg.url,
+      intervalHours: cfg.enabled ? intervalHours : 0,
+      lastSyncAt: cfg.lastRunAt ?? legacyCfg.lastSyncAt,
+      lastSyncCount: cfg.lastIndexedCount || legacyCfg.lastSyncCount,
+      lastSyncStatus:
+        cfg.lastStatus === 'success'
+          ? 'ok'
+          : cfg.lastStatus === 'error'
+          ? 'error'
+          : legacyCfg.lastSyncStatus,
+    };
   });
 
   /**
    * PUT /v1/admin/yml-sync
-   * Configures scheduled YML/CommerceML feed auto-sync (url, intervalHours: 0 | 1 | 6 | 24, enabled).
+   * Configures scheduled YML/CommerceML feed auto-sync.
    */
   fastify.put('/v1/admin/yml-sync', { preHandler: authenticate }, async (request, reply) => {
     if (!requireAdminRole(request, reply)) return reply;
     const body = (request.body || {}) as {
+      feedUrl?: string;
       url?: string;
+      indexName?: string;
+      intervalMinutes?: number;
       intervalHours?: number;
       enabled?: boolean;
+      authoritativeDelete?: boolean;
     };
     const tenantId = resolveTenantId(request);
-    const intervalRaw = Number(body.intervalHours ?? 0);
+    const feedUrl = String(body.feedUrl || body.url || '').trim();
+    const intervalMinutes =
+      body.intervalMinutes !== undefined
+        ? Number(body.intervalMinutes)
+        : body.intervalHours !== undefined && Number(body.intervalHours) > 0
+        ? Number(body.intervalHours) * 60
+        : 360;
+    const enabled =
+      body.enabled !== undefined
+        ? Boolean(body.enabled)
+        : body.intervalHours !== undefined
+        ? Number(body.intervalHours) > 0 && Boolean(feedUrl)
+        : false;
+
+    const scheduler = getYmlSyncScheduler({ embedder, storeRegistry });
+    const cfg = scheduler.upsertConfig({
+      tenantId,
+      indexName: body.indexName ? String(body.indexName) : 'default',
+      feedUrl,
+      enabled,
+      intervalMinutes,
+      authoritativeDelete: body.authoritativeDelete,
+    });
+
+    const intervalRaw = Number(body.intervalHours ?? (enabled ? Math.round(cfg.intervalMinutes / 60) : 0));
     const intervalHours: 0 | 1 | 6 | 24 =
       intervalRaw === 1 || intervalRaw === 6 || intervalRaw === 24 ? intervalRaw : 0;
-    const updated = adminStore.updateYmlSyncConfig(tenantId, {
-      url: typeof body.url === 'string' ? body.url.trim() : undefined,
+    const legacyUpdated = adminStore.updateYmlSyncConfig(tenantId, {
+      url: feedUrl,
       intervalHours,
-      enabled:
-        typeof body.enabled === 'boolean'
-          ? body.enabled
-          : intervalHours > 0 && Boolean(body.url && String(body.url).trim()),
+      enabled: cfg.enabled,
     });
-    return updated;
+
+    return {
+      ok: true,
+      config: cfg,
+      ...legacyUpdated,
+      ...cfg,
+      url: cfg.feedUrl,
+      intervalHours: cfg.enabled ? (intervalHours || 6) : 0,
+    };
   });
 
   /**
    * POST /v1/admin/yml-sync/run
-   * Immediately executes a YML/CommerceML feed sync using the configured or provided URL/XML.
+   * Immediately executes a YML/CommerceML feed sync using YmlSyncScheduler.
    */
   fastify.post('/v1/admin/yml-sync/run', { preHandler: authenticate }, async (request, reply) => {
     if (!requireAdminRole(request, reply)) return reply;
     const tenantId = resolveTenantId(request);
-    const body = (request.body || {}) as { url?: string; xml?: string };
-    const currentCfg = adminStore.getYmlSyncConfig(tenantId);
-    const targetUrl = (body.url !== undefined ? String(body.url) : currentCfg.url).trim();
-    const xml = typeof body.xml === 'string' ? body.xml.trim() : '';
+    const body = (request.body || {}) as {
+      indexName?: string;
+      feedUrl?: string;
+      url?: string;
+      xml?: string;
+    };
+    const indexName = body.indexName ? String(body.indexName) : 'default';
+    const overrideUrl = body.feedUrl || body.url ? String(body.feedUrl || body.url).trim() : undefined;
+    const overrideXml = typeof body.xml === 'string' && body.xml.trim() ? body.xml.trim() : undefined;
 
-    if (!targetUrl && !xml) {
-      return reply.status(400).send({
-        statusCode: 400,
-        error: 'Bad Request',
-        message: 'Provide a YML/CommerceML feed URL or XML payload to run synchronization.',
+    const scheduler = getYmlSyncScheduler({ embedder, storeRegistry });
+    try {
+      const result = await scheduler.runNow(tenantId, indexName, overrideUrl, overrideXml);
+      const syncConfig = adminStore.updateYmlSyncConfig(tenantId, {
+        url: result.feedUrl,
+        lastSyncAt: result.lastRunAt,
+        lastSyncCount: result.lastIndexedCount,
+        lastSyncStatus: 'ok',
+        lastError: null,
       });
-    }
-
-    const injectRes = await fastify.inject({
-      method: 'POST',
-      url: '/v1/catalog/import-yml',
-      headers: {
-        'content-type': 'application/json',
-        ...(request.headers['x-api-key']
-          ? { 'x-api-key': String(request.headers['x-api-key']) }
-          : {}),
-        ...(request.headers.authorization
-          ? { authorization: String(request.headers.authorization) }
-          : {}),
-      },
-      payload: {
-        url: targetUrl || undefined,
-        xml: xml || undefined,
-        autoIndex: true,
-      },
-    });
-
-    const parsedRes = injectRes.json();
-    if (injectRes.statusCode >= 400) {
+      await flushSearchCaches();
+      return reply.status(200).send({
+        ok: true,
+        success: true,
+        importedCount: result.lastIndexedCount,
+        config: result,
+        ymlSync: {
+          ...syncConfig,
+          ...result,
+          url: result.feedUrl,
+          lastSyncAt: result.lastRunAt,
+          lastSyncCount: result.lastIndexedCount,
+          lastSyncStatus: 'ok',
+        },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'YML sync failed';
       adminStore.updateYmlSyncConfig(tenantId, {
-        url: targetUrl || currentCfg.url,
+        ...(overrideUrl ? { url: overrideUrl } : {}),
         lastSyncAt: new Date().toISOString(),
         lastSyncStatus: 'error',
-        lastError: parsedRes?.error || `HTTP ${injectRes.statusCode}`,
+        lastError: msg,
       });
-      return reply.status(injectRes.statusCode).send(parsedRes);
+      const status = msg.startsWith('SSRF_BLOCKED') || msg.startsWith('YML_SYNC_MISSING_URL') ? 400 : 502;
+      return reply.status(status).send({
+        ok: false,
+        code: msg.startsWith('SSRF_BLOCKED') ? 'SSRF_BLOCKED' : 'YML_SYNC_ERROR',
+        error: msg,
+        message: msg,
+      });
     }
-
-    const importedCount = Number(parsedRes?.importedCount ?? 0);
-    const syncConfig = adminStore.updateYmlSyncConfig(tenantId, {
-      url: targetUrl || currentCfg.url,
-      lastSyncAt: new Date().toISOString(),
-      lastSyncCount: importedCount,
-      lastSyncStatus: 'ok',
-      lastError: null,
-    });
-    await flushSearchCaches();
-
-    return {
-      success: true,
-      importedCount,
-      ymlSync: syncConfig,
-    };
   });
 
   /**

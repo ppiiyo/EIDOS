@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../lib/apiClient';
 import React, { useState, useEffect } from 'react';
 import { Database, Plus, Trash2, Upload, Cpu, Layers, HardDrive, CheckCircle2 } from 'lucide-react';
 
@@ -66,7 +67,7 @@ export const IndexManagerView: React.FC<{
 
   useEffect(() => {
     if (typeof fetch !== 'function') return;
-    fetch('/v1/indexes', { headers: { 'x-api-key': 'eidos_dev_key' } })
+    fetch('/v1/indexes', { headers: { 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) } })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && Array.isArray(data.indexes) && data.indexes.length > 0) setIndexes(data.indexes);
@@ -93,7 +94,7 @@ export const IndexManagerView: React.FC<{
     try {
       const res = await fetch('/v1/indexes', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        headers: { 'content-type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         body: JSON.stringify({
           name: cleanName,
           dimension: newDimension,
@@ -121,7 +122,7 @@ export const IndexManagerView: React.FC<{
     try {
       await fetch(`/v1/indexes/${encodeURIComponent(name)}`, {
         method: 'DELETE',
-        headers: { 'x-api-key': 'eidos_dev_key' },
+        headers: { 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
       });
     } catch {}
     setIndexes((prev) => prev.filter((idx) => idx.name !== name));
@@ -135,7 +136,7 @@ export const IndexManagerView: React.FC<{
       const docs = Array.isArray(parsed) ? parsed : [parsed];
       const res = await fetch(`/v1/indexes/${encodeURIComponent(selectedIndexForUpload)}/documents`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        headers: { 'content-type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         body: JSON.stringify({ documents: docs }),
       });
       if (res.ok) {

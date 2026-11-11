@@ -57,7 +57,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({
   forceMode,
   uiLang = 'ru',
   embeddingState,
-  apiKey = 'eidos_dev_key',
+  apiKey = '<YOUR_EIDOS_API_KEY>',
   apiBaseUrl = '',
 }) => {
   const { state, ownItemsCount, setDemoState, resetToWelcome } = useDemoState();

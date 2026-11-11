@@ -58,7 +58,7 @@ import { recordSearchLatency } from '../plugins/observability';
 import { OperationalLogStore, summarizeQueryForLog } from '../services/structured-logger';
 import { AdminConsoleStore } from '../services/admin-console-store';
 import { DEMO_CATALOG_1000 } from '../demo/demo-catalog-1000';
-import { seedDemoAnalyticsIfEmpty } from './demo';
+import { seedDemoAnalyticsIfEmpty, DEMO_TENANT_ID, DEMO_INDEX_NAME, getDemoStore } from './demo';
 
 const cognitiveContextSchema = z
   .object({
@@ -1493,11 +1493,16 @@ export async function searchRoutes(
   const demoSearchPreHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     request.demoMode = true;
     request.demoRateLimit = 60;
+    request.tenantId = DEMO_TENANT_ID;
+    request.headers['x-tenant-id'] = DEMO_TENANT_ID;
+    request.headers['x-index-name'] = DEMO_INDEX_NAME;
     await demoRateLimit(request, reply);
-    if (!reply.sent && opts.vectorStore.count() === 0) {
-      fastify.storeRegistry?.setDefaultStore(opts.vectorStore);
-      await opts.vectorStore.loadDemoCatalog(DEMO_CATALOG_1000, opts.embedder);
-      seedDemoAnalyticsIfEmpty(AdminConsoleStore.getInstance());
+    if (!reply.sent) {
+      const demoStore = getDemoStore(fastify);
+      if (demoStore.count() === 0) {
+        await demoStore.loadDemoCatalog(DEMO_CATALOG_1000, opts.embedder);
+        seedDemoAnalyticsIfEmpty(AdminConsoleStore.getInstance());
+      }
     }
   };
 

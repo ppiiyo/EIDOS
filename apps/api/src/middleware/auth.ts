@@ -27,6 +27,11 @@ const WEAK_KEY_BLACKLIST = new Set([
   'eidos_dev_key',
   'test-key',
   'eidos_test_key_1',
+  'eidos_demo_key',
+  'eidos_public_demo_key',
+  'eidos_public_demo_key_2026',
+  'eidos_demo_key_2026_public',
+  'eidos_jwt_secret',
   'changeme',
   'password',
   'admin',
@@ -58,11 +63,11 @@ export function validateProductionKeyPolicy(env: NodeJS.ProcessEnv = process.env
     };
   }
 
-  if (WEAK_KEY_BLACKLIST.has(trimmed) || trimmed.length < 12) {
+  if (WEAK_KEY_BLACKLIST.has(trimmed) || trimmed.length < 24) {
     return {
       valid: false,
       reason:
-        'Insecure or short API key detected in production (minimum 12 characters required, default dev keys forbidden).',
+        'Insecure or short API key detected in production (minimum 24 characters required, default/demo keys forbidden).',
     };
   }
 
@@ -91,7 +96,18 @@ function validateJwtToken(token: string, secret: string): JwtValidationResult {
     return { isJwt: false, isValid: false, isExpired: false };
   }
 
+  if (!secret || secret.trim().length < 16) {
+    return { isJwt: true, isValid: false, isExpired: false };
+  }
+
   try {
+    const headerJson = Buffer.from(parts[0], 'base64url').toString('utf8');
+    const header = JSON.parse(headerJson) as { alg?: string; typ?: string };
+    // Strictly enforce HS256; reject alg:none or unexpected algorithms
+    if (header.alg !== 'HS256') {
+      return { isJwt: true, isValid: false, isExpired: false };
+    }
+
     const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
     const payload = JSON.parse(payloadJson) as { exp?: number; nbf?: number };
 
@@ -100,10 +116,6 @@ function validateJwtToken(token: string, secret: string): JwtValidationResult {
       return { isJwt: true, isValid: false, isExpired: true };
     }
     if (typeof payload.nbf === 'number' && payload.nbf > nowSec) {
-      return { isJwt: true, isValid: false, isExpired: false };
-    }
-
-    if (!secret) {
       return { isJwt: true, isValid: false, isExpired: false };
     }
 
@@ -212,24 +224,26 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     cleanPath === '/v1/events' ||
     (request.method === 'GET' && cleanPath.startsWith('/v1/catalog'));
 
-  const configuredDemoKey = process.env.EIDOS_PUBLIC_DEMO_KEY;
-  const demoKeys = [
-    configuredDemoKey,
-    'eidos_public_demo_key_2026',
-    'eidos_demo_key',
-    'eidos_public_demo_key',
-    'eidos_demo_key_2026_public',
-  ].filter(Boolean) as string[];
-
-  const isDemoKey = demoKeys.some((k) => timingSafeEqual(token, k));
+  const configuredDemoKey = (process.env.EIDOS_PUBLIC_DEMO_KEY || '').trim();
+  const isDemoKey = configuredDemoKey.length > 0 && timingSafeEqual(token, configuredDemoKey);
   if (isDemoKey) {
     if (isReadOnlyDemoEndpoint) {
       request.demoMode = true;
       request.demoRateLimit = 10;
+      const registry = request.server?.storeRegistry;
+      const demoStoreCount = registry ? registry.getOrCreateStore('demo', 'demo').count() : 0;
+      const defaultStoreCount = registry ? registry.getOrCreateStore('default', 'default').count() : 0;
+      const targetTenant = demoStoreCount === 0 && defaultStoreCount > 0 ? 'default' : 'demo';
+      const targetIndex = targetTenant === 'demo' ? 'demo' : 'default';
+      request.tenantId = targetTenant;
+      request.indexName = targetIndex;
+      request.headers['x-tenant-id'] = targetTenant;
+      request.headers['x-index-name'] = targetIndex;
       request.apiKeyContext = {
         keyId: maskedKey,
         role: 'search',
-        tenantId: request.tenantId || 'default',
+        tenantId: targetTenant,
+        allowedIndexes: [targetIndex],
       };
       await demoRateLimit(request, reply);
       return;
@@ -263,13 +277,10 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     request.log.warn('Using default API key. Set EIDOS_MASTER_KEY / EIDOS_API_KEY in production!');
   }
 
-  // 1. Check JWT token first
-  const jwtSecret =
-    process.env.JWT_SECRET ||
-    rawEnvKey ||
-    adminKeyEnv ||
-    masterKeyEnv ||
-    (isProduction ? '' : 'eidos_jwt_secret');
+  // 1. Check JWT token first (requires explicit JWT_SECRET in production; no fallback to weak strings)
+  const jwtSecret = isProduction
+    ? (process.env.JWT_SECRET || '').trim()
+    : (process.env.JWT_SECRET || 'eidos_jwt_secret').trim();
 
   const jwtCheck = validateJwtToken(token, jwtSecret);
   if (jwtCheck.isJwt) {
@@ -357,17 +368,17 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       (rawEnvKey && timingSafeEqual(token, rawEnvKey))
     ) {
       resolvedRole = 'admin';
+      boundTenantId = process.env.EIDOS_ADMIN_TENANT || undefined;
     } else if (searchKeyEnv && timingSafeEqual(token, searchKeyEnv)) {
       resolvedRole = 'search';
+      boundTenantId = process.env.EIDOS_SEARCH_TENANT || 'default';
     } else if (!isProduction) {
       const devAdminKeys = ['eidos_dev_key', 'eidos_test_key_1', 'test-key'];
       if (devAdminKeys.some((k) => timingSafeEqual(token, k))) {
         resolvedRole = 'admin';
-      } else if (token.startsWith('eidos_readonly_') || token.startsWith('eidos_viewer_') || token.startsWith('eidos_pk_')) {
-        resolvedRole = 'search';
-      } else if (token.startsWith('eidos_merch_') || token.startsWith('eidos_editor_') || token.startsWith('eidos_mk_')) {
-        resolvedRole = 'merchandiser';
       }
+      // NOTE: Prefix-based role inference (eidos_pk_*, eidos_merch_*, eidos_mk_*) is intentionally
+      // NOT allowed without registration in ApiKeyManager.
     }
   }
 
@@ -396,32 +407,33 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     });
   }
 
-  // 4. Enforce Tenant Isolation when key is bound to a specific non-default tenant
-  if (boundTenantId && boundTenantId !== 'default') {
+  // 4. Enforce Tenant Isolation when key is bound to a specific tenant (or role is non-master)
+  const effectiveBoundTenant =
+    boundTenantId || (resolvedRole === 'search' || resolvedRole === 'merchandiser' ? 'default' : undefined);
+
+  if (effectiveBoundTenant) {
     const requestedHeaderTenant = request.headers['x-tenant-id'];
     if (
       typeof requestedHeaderTenant === 'string' &&
       requestedHeaderTenant.trim() !== '' &&
-      requestedHeaderTenant.trim().toLowerCase() !== boundTenantId.toLowerCase()
+      requestedHeaderTenant.trim().toLowerCase() !== effectiveBoundTenant.toLowerCase()
     ) {
       logStore.record('warn', 'auth_tenant_mismatch', {
         requestId: reqId,
         keyId: maskedKey,
-        tenantId: boundTenantId,
+        tenantId: effectiveBoundTenant,
         path: cleanPath,
         statusCode: 403,
-        details: { requestedTenant: requestedHeaderTenant, boundTenantId },
+        details: { requestedTenant: requestedHeaderTenant, boundTenantId: effectiveBoundTenant },
       });
       return reply.status(403).send({
         statusCode: 403,
         error: 'Forbidden',
-        message: `API key is scoped to tenant '${boundTenantId}' and cannot access tenant '${requestedHeaderTenant}'.`,
+        message: `API key is scoped to tenant '${effectiveBoundTenant}' and cannot access tenant '${requestedHeaderTenant}'.`,
       });
     }
-    request.tenantId = boundTenantId;
-    request.headers['x-tenant-id'] = boundTenantId;
-  } else if (boundTenantId && !request.headers['x-tenant-id']) {
-    request.tenantId = boundTenantId;
+    request.tenantId = effectiveBoundTenant;
+    request.headers['x-tenant-id'] = effectiveBoundTenant;
   }
 
   // 5. Enforce Scoped Index restriction if key specifies allowedIndexes

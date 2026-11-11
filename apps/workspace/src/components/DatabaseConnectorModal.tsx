@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../lib/apiClient';
 import React, { useState, useEffect } from "react";
 import { X, Globe, Database, CheckCircle2, FileJson, ArrowRightLeft } from 'lucide-react';
 import { SecurityGuardrails } from '@eidos/core';
@@ -112,7 +113,7 @@ export const DatabaseConnectorModal: React.FC<DatabaseConnectorModalProps> = ({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-api-key': 'eidos_dev_key',
+              'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }),
             },
             body: JSON.stringify({
               items: normalized.map((item) => ({

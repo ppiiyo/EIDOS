@@ -38,6 +38,7 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
     process.env.EIDOS_ADMIN_KEY = ADMIN_KEY;
     process.env.EIDOS_MASTER_KEY = ADMIN_KEY;
     process.env.EIDOS_SEARCH_KEY = SEARCH_KEY;
+    process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_public_demo_key_2026';
     process.env.LOG_SUGGEST_RATE = '1.0';
     app = await buildServer();
     await app.ready();
@@ -52,6 +53,11 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
   }, 60_000);
 
   afterAll(async () => {
+    delete process.env.EIDOS_ADMIN_KEY;
+    delete process.env.EIDOS_MASTER_KEY;
+    delete process.env.EIDOS_SEARCH_KEY;
+    delete process.env.EIDOS_PUBLIC_DEMO_KEY;
+    delete process.env.LOG_SUGGEST_RATE;
     if (app) {
       await app.close();
     }

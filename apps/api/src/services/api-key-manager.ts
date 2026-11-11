@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import { getPersistenceStore } from './persistence-store';
 
 export type ApiKeyScopeRole = 'master' | 'admin' | 'search' | 'merchandiser';
 
@@ -25,15 +26,54 @@ export interface GenerateKeyOptions {
   expiresAt?: Date;
 }
 
+const NAMESPACE = 'api_keys';
+
+interface SerializedApiKeyRecord extends Omit<ApiKeyRecord, 'created_at' | 'revoked_at' | 'expires_at'> {
+  created_at: string;
+  revoked_at?: string;
+  expires_at?: string;
+}
+
 export class ApiKeyManager {
   private static instance: ApiKeyManager | null = null;
   private keys = new Map<string, ApiKeyRecord>();
+
+  constructor() {
+    this.hydrate();
+  }
 
   public static getInstance(): ApiKeyManager {
     if (!ApiKeyManager.instance) {
       ApiKeyManager.instance = new ApiKeyManager();
     }
     return ApiKeyManager.instance;
+  }
+
+  public static resetInstance(): void {
+    ApiKeyManager.instance = new ApiKeyManager();
+  }
+
+  private hydrate(): void {
+    const raw = getPersistenceStore().read<SerializedApiKeyRecord[]>(NAMESPACE, []);
+    this.keys.clear();
+    for (const r of raw) {
+      this.keys.set(r.key_hash, {
+        ...r,
+        created_at: new Date(r.created_at),
+        revoked_at: r.revoked_at ? new Date(r.revoked_at) : undefined,
+        expires_at: r.expires_at ? new Date(r.expires_at) : undefined,
+      });
+    }
+  }
+
+  private persist(): void {
+    const serialized: SerializedApiKeyRecord[] = Array.from(this.keys.values()).map((r) => ({
+      ...r,
+      created_at: r.created_at.toISOString(),
+      revoked_at: r.revoked_at ? r.revoked_at.toISOString() : undefined,
+      expires_at: r.expires_at ? r.expires_at.toISOString() : undefined,
+    }));
+    getPersistenceStore().write(NAMESPACE, serialized);
   }
 
   public static hashKey(key: string): string {
@@ -57,8 +97,13 @@ export class ApiKeyManager {
 
     const tenantId = opts.tenantId || 'default';
     const role: ApiKeyScopeRole = opts.role || 'admin';
-    const prefixTag =
-      role === 'search' ? 'eidos_pk_' : role === 'merchandiser' ? 'eidos_mk_' : 'eidos_sk_';
+    const prefixMap: Record<ApiKeyScopeRole, string> = {
+      master: 'eidos_mk_',
+      admin: 'eidos_ak_',
+      search: 'eidos_pk_',
+      merchandiser: 'eidos_merch_',
+    };
+    const prefixTag = prefixMap[role] || 'eidos_ak_';
     const randomPart = crypto.randomBytes(24).toString('hex');
     const key = `${prefixTag}${randomPart}`;
     const key_hash = ApiKeyManager.hashKey(key);
@@ -75,6 +120,7 @@ export class ApiKeyManager {
       created_at: new Date(),
       expires_at: opts.expiresAt,
     });
+    this.persist();
 
     return { key, key_hash, key_prefix, role, tenant_id: tenantId };
   }
@@ -113,6 +159,7 @@ export class ApiKeyManager {
     if (gracePeriodSeconds <= 0) {
       existing.revoked_at = new Date();
     }
+    this.persist();
 
     return {
       new_key: generated.key,
@@ -129,6 +176,7 @@ export class ApiKeyManager {
     if (!record) return false;
 
     record.revoked_at = new Date();
+    this.persist();
     return true;
   }
 
@@ -174,10 +222,12 @@ export class ApiKeyManager {
 
   public clear(): void {
     this.keys.clear();
+    this.persist();
   }
 }
 
 export function getApiKeyManager(): ApiKeyManager {
   return ApiKeyManager.getInstance();
 }
+
 

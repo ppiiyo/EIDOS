@@ -103,12 +103,12 @@ export const VectorScenarioAndExportBar: React.FC<VectorScenarioAndExportBarProp
     };
     if (exportFormat === 'json') return JSON.stringify(payload, null, 2);
     if (exportFormat === 'curl') {
-      return `curl -X POST http://localhost:3001/v1/search \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: eidos_dev_key" \\\n  -d '${JSON.stringify(payload)}'`;
+      return `curl -X POST http://localhost:3001/v1/search \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: <YOUR_EIDOS_API_KEY>" \\\n  -d '${JSON.stringify(payload)}'`;
     }
     if (exportFormat === 'ts') {
-      return `import { EidosClient } from '@eidos/sdk';\n\nconst eidos = new EidosClient({ baseUrl: 'http://localhost:3001', apiKey: process.env.EIDOS_API_KEY ?? 'eidos_dev_key' });\nconst response = await eidos.search({ query: ${JSON.stringify(cleanQuery)}, topK: 12, alpha: ${effectiveAlpha}, includeExplanation: true });\nconsole.log(response.extractedIntent, response.results);`;
+      return `import { EidosClient } from '@eidos/sdk';\n\nconst eidos = new EidosClient({ baseUrl: 'http://localhost:3001', apiKey: process.env.EIDOS_API_KEY ?? '<YOUR_EIDOS_API_KEY>' });\nconst response = await eidos.search({ query: ${JSON.stringify(cleanQuery)}, topK: 12, alpha: ${effectiveAlpha}, includeExplanation: true });\nconsole.log(response.extractedIntent, response.results);`;
     }
-    return `from eidos_sdk import EidosClient\n\nclient = EidosClient(base_url="http://localhost:3001", api_key="eidos_dev_key")\nres = client.search(query=${JSON.stringify(cleanQuery)}, top_k=12, alpha=${effectiveAlpha}, include_explanation=True)\nprint(res["extractedIntent"], len(res["results"]))`;
+    return `from eidos_sdk import EidosClient\n\nclient = EidosClient(base_url="http://localhost:3001", api_key='<YOUR_EIDOS_API_KEY>')\nres = client.search(query=${JSON.stringify(cleanQuery)}, top_k=12, alpha=${effectiveAlpha}, include_explanation=True)\nprint(res["extractedIntent"], len(res["results"]))`;
   }, [query, alpha, effectiveAlpha, radarCoords, simulatedHour, exportFormat, disableIntentBoost, disableMmrPenalty]);
 
   const handleCopy = () => {

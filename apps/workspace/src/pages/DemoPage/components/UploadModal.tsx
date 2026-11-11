@@ -25,7 +25,7 @@ export function UploadModal({
   isOpen = true,
   onClose,
   onSuccess,
-  apiKey = 'eidos_dev_key',
+  apiKey = '<YOUR_EIDOS_API_KEY>',
   apiBaseUrl = '',
 }: UploadModalProps) {
   const [dragActive, setDragActive] = useState(false);

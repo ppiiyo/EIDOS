@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../../../lib/apiClient';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -84,7 +85,7 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
       void window
         .fetch('/v1/benchmark/compare-url', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
           body: JSON.stringify({
             searchUrlTemplate: clientSearchUrl,
             queries: DEFAULT_BENCHMARK_SCENARIOS.map((s) => s.query),

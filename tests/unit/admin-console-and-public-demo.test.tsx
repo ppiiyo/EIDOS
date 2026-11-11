@@ -13,12 +13,14 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
   const adminKey = process.env.EIDOS_API_KEY || 'eidos_dev_key';
 
   beforeAll(async () => {
+    process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_demo_key';
     getAdminConsoleStore().resetForTests();
     app = await buildServer();
     await app.ready();
   });
 
   afterAll(async () => {
+    delete process.env.EIDOS_PUBLIC_DEMO_KEY;
     await app.close();
   });
 

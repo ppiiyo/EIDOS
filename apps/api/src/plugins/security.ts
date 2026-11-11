@@ -37,9 +37,9 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
     return payload;
   });
 
-  // Rate limiting with in-memory cache and X-API-Key / IP key generator
+  // Rate limiting keyed by client IP (never trust unauthenticated X-API-Key header for bucket selection)
   await fastify.register(rateLimit, {
-    max: parseInt(process.env.RATE_LIMIT_MAX || process.env.EIDOS_RATE_LIMIT_MAX || '10000', 10),
+    max: parseInt(process.env.RATE_LIMIT_MAX || process.env.EIDOS_RATE_LIMIT_MAX || '300', 10),
     timeWindow: '1 minute',
     cache: 10000,
     allowList: process.env.RATE_LIMIT_ALLOWLIST
@@ -47,7 +47,7 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
       : [],
     skipOnError: true,
     keyGenerator: (request) => {
-      return (request.headers['x-api-key'] as string) || request.ip;
+      return request.ip;
     },
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,

@@ -274,6 +274,10 @@ export class StoreRegistry {
     return this.getMetadata(tenantId, indexName, options).store;
   }
 
+  public getOrCreateStore(tenantId = 'default', indexName = 'default'): VectorStore {
+    return this.getStore(tenantId, indexName, { createIfMissing: true });
+  }
+
   public getMetadata(
     tenantId = 'default',
     indexName = 'default',
@@ -515,11 +519,16 @@ export class StoreRegistry {
       | FastifyRequest
       | {
           headers?: Record<string, unknown>;
+          indexName?: string;
           body?: unknown;
           query?: unknown;
         }
   ): string {
     if (!request) return 'default';
+
+    if (typeof request.indexName === 'string' && request.indexName.trim().length > 0) {
+      return StoreRegistry.validateIndexName(request.indexName);
+    }
 
     if (request.headers) {
       const headerIndex = request.headers['x-index-name'] || request.headers['x-eidos-index'];

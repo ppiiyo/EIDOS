@@ -6,6 +6,7 @@ import {
   FieldBoosts,
   RankWindow,
 } from '@eidos/core';
+import { getPersistenceStore } from './persistence-store';
 
 export interface QueryLogTopHit {
   id: string;
@@ -166,11 +167,68 @@ export class AdminConsoleStore {
   private ymlSyncByTenant = new Map<string, YmlSyncConfig>();
   private error5xxCountByTenant = new Map<string, number>();
 
+  constructor() {
+    const saved = getPersistenceStore().read<Record<string, any> | null>('admin_console_state', null);
+    if (saved) {
+      this.importState(saved);
+    }
+    this.startPersistence();
+  }
+
   public static getInstance(): AdminConsoleStore {
     if (!AdminConsoleStore.instance) {
       AdminConsoleStore.instance = new AdminConsoleStore();
     }
     return AdminConsoleStore.instance;
+  }
+
+  public static resetInstance(): void {
+    AdminConsoleStore.instance = new AdminConsoleStore();
+  }
+
+  private persistTimer: NodeJS.Timeout | null = null;
+
+  public exportState(): Record<string, any> {
+    const mapToObj = <V>(m: Map<string, V>): Record<string, V> => Object.fromEntries(m.entries());
+    return {
+      dictionariesByTenant: mapToObj(this.dictionariesByTenant),
+      synonymGroupsByTenant: mapToObj(this.synonymGroupsByTenant),
+      merchRulesByTenant: mapToObj(this.merchRulesByTenant),
+      rankingDefaultsByTenant: mapToObj(this.rankingDefaultsByTenant),
+      lastUpsertByTenant: mapToObj(this.lastUpsertByTenant),
+      ymlSyncByTenant: mapToObj(this.ymlSyncByTenant),
+      queryLogs: this.queryLogs.slice(-500),
+      events: this.events.slice(-1000),
+    };
+  }
+
+  public importState(raw: Record<string, any>): void {
+    if (!raw || typeof raw !== 'object') return;
+    const objToMap = <V>(o: unknown): Map<string, V> =>
+      o && typeof o === 'object' ? new Map(Object.entries(o as Record<string, V>)) : new Map();
+
+    if (raw.dictionariesByTenant) this.dictionariesByTenant = objToMap(raw.dictionariesByTenant);
+    if (raw.synonymGroupsByTenant) this.synonymGroupsByTenant = objToMap(raw.synonymGroupsByTenant);
+    if (raw.merchRulesByTenant) this.merchRulesByTenant = objToMap(raw.merchRulesByTenant);
+    if (raw.rankingDefaultsByTenant) this.rankingDefaultsByTenant = objToMap(raw.rankingDefaultsByTenant);
+    if (raw.lastUpsertByTenant) this.lastUpsertByTenant = objToMap(raw.lastUpsertByTenant);
+    if (raw.ymlSyncByTenant) this.ymlSyncByTenant = objToMap(raw.ymlSyncByTenant);
+    if (Array.isArray(raw.queryLogs)) this.queryLogs = raw.queryLogs.slice(-this.maxLogs);
+    if (Array.isArray(raw.events)) this.events = raw.events.slice(-this.maxEvents);
+  }
+
+  public flushStateToDisk(): void {
+    getPersistenceStore().write('admin_console_state', this.exportState());
+  }
+
+  public startPersistence(): void {
+    if (this.persistTimer) return;
+    this.persistTimer = setInterval(() => {
+      this.flushStateToDisk();
+    }, 2_000);
+    if (typeof this.persistTimer.unref === 'function') {
+      this.persistTimer.unref();
+    }
   }
 
   public getSynonymGroups(tenantId = 'default'): SynonymGroup[] {
@@ -201,6 +259,7 @@ export class AdminConsoleStore {
     existing.push(group);
     this.synonymGroupsByTenant.set(tenantId, existing);
     this.syncSynonymGroupsIntoLegacyRules(tenantId, existing);
+    this.flushStateToDisk();
     return group;
   }
 
@@ -232,6 +291,7 @@ export class AdminConsoleStore {
     existing[idx] = updated;
     this.synonymGroupsByTenant.set(tenantId, existing);
     this.syncSynonymGroupsIntoLegacyRules(tenantId, existing);
+    this.flushStateToDisk();
     return updated;
   }
 
@@ -241,6 +301,7 @@ export class AdminConsoleStore {
     if (next.length === existing.length) return false;
     this.synonymGroupsByTenant.set(tenantId, next);
     this.syncSynonymGroupsIntoLegacyRules(tenantId, next);
+    this.flushStateToDisk();
     return true;
   }
 
@@ -306,6 +367,7 @@ export class AdminConsoleStore {
     const existing = this.getMerchRules(tenantId).slice();
     existing.push(rule);
     this.merchRulesByTenant.set(tenantId, existing);
+    this.flushStateToDisk();
     return rule;
   }
 
@@ -334,6 +396,7 @@ export class AdminConsoleStore {
     };
     existing[idx] = updated;
     this.merchRulesByTenant.set(tenantId, existing);
+    this.flushStateToDisk();
     return updated;
   }
 
@@ -342,6 +405,7 @@ export class AdminConsoleStore {
     const next = existing.filter((r) => r.id !== id);
     if (next.length === existing.length) return false;
     this.merchRulesByTenant.set(tenantId, next);
+    this.flushStateToDisk();
     return true;
   }
 
@@ -431,6 +495,7 @@ export class AdminConsoleStore {
       stopwords,
     };
     this.dictionariesByTenant.set(tenantId, updated);
+    this.flushStateToDisk();
     return updated;
   }
 
@@ -674,6 +739,7 @@ export class AdminConsoleStore {
       updatedAt: new Date().toISOString(),
     };
     this.rankingDefaultsByTenant.set(tenantId, updated);
+    this.flushStateToDisk();
     return updated;
   }
 

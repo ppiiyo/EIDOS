@@ -70,6 +70,7 @@ describe('PHASE 4: Full Modernization Verification Suite (Integration & Static I
     );
     await app.ready();
 
+    process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_demo_key';
     try {
       const response = await app.inject({
         method: 'GET',
@@ -83,9 +84,10 @@ describe('PHASE 4: Full Modernization Verification Suite (Integration & Static I
       expect(response.statusCode).toBe(200);
       expect(observedProps.demoMode).toBe(true);
       expect(observedProps.demoRateLimit).toBe(10);
-      expect(observedProps.tenantId).toBe('enterprise-tenant-42');
+      expect(observedProps.tenantId).toBe('demo');
       expect(observedProps.hasStartTimeHr).toBe(true);
     } finally {
+      delete process.env.EIDOS_PUBLIC_DEMO_KEY;
       await app.close();
     }
   });

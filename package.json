@@ -36,7 +36,8 @@
     "loadtest:analyze": "chmod +x load-testing/scripts/analyze-results.sh && ./load-testing/scripts/analyze-results.sh",
     "loadtest:report": "node load-testing/scripts/generate-report.js",
     "pack:woo": "bash connectors/woocommerce/pack.sh",
-    "pack:bitrix": "bash connectors/bitrix/pack.sh"
+    "pack:bitrix": "bash connectors/bitrix/pack.sh",
+    "check:ui-keys": "bash scripts/check-ui-keys.sh"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

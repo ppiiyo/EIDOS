@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../../lib/apiClient';
 import React, { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { SeoSummaryCards } from './SeoSummaryCards';
@@ -88,7 +89,7 @@ export const SEODashboard: React.FC<SEODashboardProps> = ({ uiLang = 'en' }) => 
     setLoading(true);
     try {
       const res = await fetch('/v1/analytics/seo', {
-        headers: { 'x-api-key': 'eidos_dev_key' },
+        headers: { 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
       });
       if (res.ok) {
         const json = await res.json();
@@ -126,7 +127,7 @@ export const SEODashboard: React.FC<SEODashboardProps> = ({ uiLang = 'en' }) => 
     try {
       await fetch('/v1/analytics/synonym', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         body: JSON.stringify({ query: term.trim(), synonym: target.trim() }),
       });
     } catch {
@@ -153,7 +154,7 @@ export const SEODashboard: React.FC<SEODashboardProps> = ({ uiLang = 'en' }) => 
     try {
       await fetch('/v1/analytics/boost', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         body: JSON.stringify({ productId, boostFactor: 1.35 }),
       });
     } catch {

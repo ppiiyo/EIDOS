@@ -4,11 +4,20 @@ import { DEMO_CATALOG_1000 } from '../demo/demo-catalog-1000';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { AdminConsoleStore, getAdminConsoleStore } from '../services/admin-console-store';
+import { StoreRegistry } from '../services/store-registry';
 
 const demoLifecycleRequests = new Map<string, { count: number; resetAt: number }>();
 
+export const DEMO_TENANT_ID = 'demo';
+export const DEMO_INDEX_NAME = 'demo';
+
+export function getDemoStore(fastify: FastifyInstance): VectorStore {
+  const registry = fastify.storeRegistry || StoreRegistry.getInstance();
+  return registry.getOrCreateStore(DEMO_TENANT_ID, DEMO_INDEX_NAME);
+}
+
 export function seedDemoAnalyticsIfEmpty(adminStore: AdminConsoleStore): void {
-  const existing = adminStore.getAnalyticsSummary({ period: '7d' });
+  const existing = adminStore.getAnalyticsSummary({ tenantId: DEMO_TENANT_ID, period: '7d' });
   if (existing.totalSearches >= 10) return;
 
   const sampleQueries = [
@@ -30,8 +39,8 @@ export function seedDemoAnalyticsIfEmpty(adminStore: AdminConsoleStore): void {
   for (const s of sampleQueries) {
     for (let i = 0; i < s.count; i++) {
       adminStore.recordQueryLog({
-        tenantId: 'default',
-        indexName: 'default',
+        tenantId: DEMO_TENANT_ID,
+        indexName: DEMO_INDEX_NAME,
         query: s.q,
         normalizedQuery: s.rewritten ? 'наушники' : s.q,
         resultCount: s.empty ? 0 : 8,
@@ -60,19 +69,19 @@ export function seedDemoAnalyticsIfEmpty(adminStore: AdminConsoleStore): void {
   }
 
   adminStore.recordStorefrontEvent({
-    tenantId: 'default',
+    tenantId: DEMO_TENANT_ID,
     type: 'click',
     query: 'недорогие наушники для бега',
     productId: 'hp-run-1',
   });
   adminStore.recordStorefrontEvent({
-    tenantId: 'default',
+    tenantId: DEMO_TENANT_ID,
     type: 'click',
     query: '5W-40',
     productId: 'sku-ecom-104',
   });
   adminStore.recordStorefrontEvent({
-    tenantId: 'default',
+    tenantId: DEMO_TENANT_ID,
     type: 'add_to_cart',
     query: 'недорогие наушники для бега',
     productId: 'hp-run-1',
@@ -86,7 +95,7 @@ export async function demoRoutes(
   const applyDemoLifecycleRateLimit = async (request: FastifyRequest, reply: FastifyReply) => {
     const ip = request.ip || 'unknown';
     const now = Date.now();
-    const limit = 120;
+    const limit = 20; // Hardened: max 20 lifecycle ops per minute per IP
     const existing = demoLifecycleRequests.get(ip);
     if (!existing || existing.resetAt < now) {
       demoLifecycleRequests.set(ip, { count: 1, resetAt: now + 60_000 });
@@ -104,8 +113,8 @@ export async function demoRoutes(
 
   /**
    * POST /v1/demo/load
-   * Loads demo catalog. When scale === '48', loads 48-item catalog for backward compatibility.
-   * Default or scale === '1000' loads 1000+ realistic e-commerce SKU catalog.
+   * Loads demo catalog strictly into the isolated `demo:demo` store.
+   * NEVER mutates the default production store.
    */
   fastify.post(
     '/v1/demo/load',
@@ -117,14 +126,23 @@ export async function demoRoutes(
       const scale = requestedScale === '48' ? '48' : '1000';
       const itemsToLoad = scale === '48' ? DEMO_CATALOG : DEMO_CATALOG_1000;
 
-      fastify.storeRegistry?.setDefaultStore(opts.vectorStore);
-      await opts.vectorStore.loadDemoCatalog(itemsToLoad, opts.embedder);
+      const demoStore = getDemoStore(fastify);
+      await demoStore.loadDemoCatalog(itemsToLoad, opts.embedder);
+
+      // Also seed the default store ONLY if it contains no production items (sandbox convenience without polluting real tenant data)
+      if (!opts.vectorStore.hasProductionCatalogItems()) {
+        const registry = fastify.storeRegistry || StoreRegistry.getInstance();
+        registry.setDefaultStore(opts.vectorStore);
+        await opts.vectorStore.loadDemoCatalog(itemsToLoad, opts.embedder);
+      }
 
       const adminStore = getAdminConsoleStore();
       seedDemoAnalyticsIfEmpty(adminStore);
 
       return {
         ok: true,
+        tenantId: DEMO_TENANT_ID,
+        indexName: DEMO_INDEX_NAME,
         itemsLoaded: itemsToLoad.length,
         scale,
       };
@@ -133,16 +151,14 @@ export async function demoRoutes(
 
   /**
    * GET /v1/demo/analytics
-   * Public read-only endpoint returning demo store analytics summary for the public demo stand
-   * without requiring an ADMIN_KEY.
    */
   fastify.get('/v1/demo/analytics', async (request: FastifyRequest) => {
     const query = (request.query as { period?: '24h' | '7d' | '30d' }) || {};
     const period = query.period || '7d';
     const adminStore = getAdminConsoleStore();
     seedDemoAnalyticsIfEmpty(adminStore);
-    const summary = adminStore.getAnalyticsSummary({ tenantId: 'default', period });
-    const defaults = adminStore.getRankingDefaults('default');
+    const summary = adminStore.getAnalyticsSummary({ tenantId: DEMO_TENANT_ID, period });
+    const defaults = adminStore.getRankingDefaults(DEMO_TENANT_ID);
     return {
       ...summary,
       rankingDefaults: {
@@ -163,7 +179,6 @@ export async function demoRoutes(
 
   /**
    * GET /v1/demo/queries
-   * Public read-only endpoint returning recent query logs for the public demo stand.
    */
   fastify.get('/v1/demo/queries', async (request: FastifyRequest) => {
     const query = (request.query as { limit?: string; emptyOnly?: string }) || {};
@@ -171,17 +186,28 @@ export async function demoRoutes(
     const emptyOnly = query.emptyOnly === 'true';
     const adminStore = getAdminConsoleStore();
     seedDemoAnalyticsIfEmpty(adminStore);
-    return adminStore.listQueryLogs({ tenantId: 'default', limit, emptyOnly });
+    return adminStore.listQueryLogs({ tenantId: DEMO_TENANT_ID, limit, emptyOnly });
   });
 
+  /**
+   * POST /v1/demo/reset
+   * Resets ONLY the isolated `demo:demo` sandbox store (and demo-only default store if no production items were ever upserted).
+   * NEVER clears production items in `default:default`.
+   */
   fastify.post(
     '/v1/demo/reset',
     { preHandler: applyDemoLifecycleRateLimit },
-    async () => {
-      await opts.vectorStore.clear();
-      return {
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const demoStore = getDemoStore(fastify);
+      await demoStore.clear();
+      if (!opts.vectorStore.hasProductionCatalogItems()) {
+        await opts.vectorStore.clear();
+      }
+      return reply.status(200).send({
         ok: true,
-      };
+        tenantId: DEMO_TENANT_ID,
+        indexName: DEMO_INDEX_NAME,
+      });
     }
   );
 }

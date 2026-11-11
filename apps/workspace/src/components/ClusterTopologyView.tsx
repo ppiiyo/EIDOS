@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../lib/apiClient';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Network, ShieldCheck, AlertTriangle, RefreshCw, Power, Activity, Server, ArrowRight, CheckCircle2, XCircle, Hash } from 'lucide-react';
 
@@ -60,7 +61,7 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/v1/cluster/status', { headers: { 'x-api-key': 'eidos_dev_key' } });
+      const res = await fetch('/v1/cluster/status', { headers: { 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) } });
       if (res.ok) {
         const data = (await res.json()) as Partial<ClusterStatusResponse>;
         if (data && Array.isArray(data.shards)) {
@@ -98,7 +99,7 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
     try {
       const res = await fetch(`/v1/cluster/shards/${encodeURIComponent(shardId)}/health`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         body: JSON.stringify({ healthy: nextHealthy }),
       });
       if (res.ok) await fetchStatus();
@@ -132,7 +133,7 @@ export const ClusterTopologyView: React.FC<ClusterTopologyViewProps> = ({ onShow
     try {
       const res = await fetch('/v1/cluster/drain', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         body: JSON.stringify({ draining: nextDrain }),
       });
       if (res.ok) await fetchStatus();

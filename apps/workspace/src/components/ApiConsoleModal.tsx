@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../lib/apiClient';
 import React, { useState, useEffect } from "react";
 import { X, Play, Terminal, Code2, Copy, Check } from 'lucide-react';
 import { CatalogItem, CatalogRecommendation } from '../types';
@@ -53,11 +54,11 @@ export const ApiConsoleModal: React.FC<ApiConsoleModalProps> = ({
         let url = '/v1/recommend';
         let init: RequestInit = {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         };
         if (endpoint === 'stats' || endpoint === 'health') {
           url = endpoint === 'stats' ? '/v1/catalog/stats' : '/v1/health';
-          init = { method: 'GET', headers: { 'x-api-key': 'eidos_dev_key' } };
+          init = { method: 'GET', headers: { 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) } };
         } else if (endpoint === 'search') {
           url = '/v1/search';
           init.body = JSON.stringify({ query, mode: 'hybrid', alpha, limit });

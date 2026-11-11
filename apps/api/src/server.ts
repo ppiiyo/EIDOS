@@ -18,6 +18,7 @@ import { initTracing } from './tracing';
 import { getCache } from './services/cache';
 import { ClusterStateCoordinator } from './services/cluster-coordinator';
 import { validateProductionKeyPolicy } from './middleware/auth';
+import { getYmlSyncScheduler } from './services/yml-sync-scheduler';
 
 export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache, intentDictionary };
 
@@ -61,6 +62,7 @@ export async function buildServer(): Promise<FastifyInstance> {
             }
           : false,
     ignoreTrailingSlash: true,
+    trustProxy: process.env.EIDOS_TRUST_PROXY === 'true',
     connectionTimeout: 15_000,
     requestTimeout: 10_000,
   });
@@ -84,9 +86,13 @@ export async function buildServer(): Promise<FastifyInstance> {
   activeShutdownStore = vectorStore;
   const embedder = ServerEmbedder.getInstance();
 
-  // Only load persisted catalog snapshot when explicitly configured via EIDOS_SNAPSHOT_PATH
+  // Load persisted catalog snapshot when configured via EIDOS_SNAPSHOT_PATH, then replay any uncommitted WAL entries
+  const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
   if (process.env.EIDOS_SNAPSHOT_PATH) {
     await vectorStore.loadSnapshotFromDisk(embedder);
+  }
+  if (process.env.EIDOS_WAL_PATH || !isTestEnv) {
+    vectorStore.replayWalFromDisk();
   }
 
   // Optional periodic automatic snapshot scheduler
@@ -127,15 +133,22 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Verify Redis / cache health on startup without seeding or populating query caches
   await getCache().healthCheck();
 
+  if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+    getYmlSyncScheduler({ embedder }).start();
+  }
+
   // Attach vectorStore cleanup, graceful drain & synchronous snapshot persistence on Fastify close
   fastify.addHook('onClose', async () => {
+    getYmlSyncScheduler().stop();
     if (periodicSnapshotTimer) {
       clearInterval(periodicSnapshotTimer);
       periodicSnapshotTimer = null;
     }
     clusterCoordinator.setDraining(true);
     clusterCoordinator.close();
-    vectorStore.saveSnapshotSync();
+    if (process.env.EIDOS_SNAPSHOT_PATH || !isTestEnv) {
+      vectorStore.saveSnapshotSync();
+    }
     await vectorStore.getWAL().flush();
   });
 

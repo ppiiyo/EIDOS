@@ -1,82 +1,83 @@
-version: '3.8'
-
-# All-in-One EIDOS deployment (REST API /v1/* + Studio UI + Embedded RESP2 Redis in a single container)
-# Quick start:
-#   docker run -p 3000:3000 eidos/eidos
-#   or:
-#   docker compose up -d
+version: '3.9'
 
 services:
-  eidos:
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - EIDOS_DOMAIN=${EIDOS_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - eidos_net
+
+  api:
     image: eidos/eidos:latest
-    container_name: eidos
     build:
       context: .
       dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8080"
     ports:
       - "3000:3000"
+      - "127.0.0.1:8080:8080"
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - EIDOS_PORT=3000
-      - EIDOS_API_KEY=${EIDOS_API_KEY:-dev-key-min-32-chars}
-      - EIDOS_PUBLIC_DEMO_KEY=${EIDOS_PUBLIC_DEMO_KEY:-eidos_demo_key}
-      - AIL_ENABLED=true
+      - PORT=8080
+      - EIDOS_STRICT_PROD_BOOT=true
+      - EIDOS_TRUST_PROXY=true
+      - EIDOS_MASTER_KEY=${EIDOS_MASTER_KEY:?Set EIDOS_MASTER_KEY in .env (min 24 chars)}
+      - EIDOS_ADMIN_KEY=${EIDOS_ADMIN_KEY:-}
+      - EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY:-}
+      - EIDOS_PUBLIC_DEMO_KEY=${EIDOS_PUBLIC_DEMO_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env (min 24 chars)}
       - REDIS_URL=${REDIS_URL:-redis://127.0.0.1:6379}
-      - CACHE_TTL_SECONDS=300
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
+      - EIDOS_DATA_DIR=/app/data/db
+      - EIDOS_SNAPSHOT_PATH=/app/data/catalog.snapshot.json
+      - EIDOS_WAL_PATH=/app/data/catalog.wal.jsonl
     volumes:
-      - eidos-data:/app/data
+      - eidos_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/v1/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    restart: unless-stopped
+    networks:
+      - eidos_net
 
-  prometheus:
-    image: prom/prometheus:latest
-    profiles: ["monitoring"]
-    ports:
-      - "9090:9090"
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    depends_on:
-      eidos:
-        condition: service_healthy
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    profiles: ["monitoring"]
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources
-    depends_on:
-      prometheus:
-        condition: service_started
-    restart: unless-stopped
-
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    profiles: ["monitoring"]
-    ports:
-      - "16686:16686"  # Jaeger UI
-      - "4318:4318"    # OTLP HTTP
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-    restart: unless-stopped
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - eidos_net
 
 volumes:
-  eidos-data:
-  prometheus-data:
-  grafana-data:
+  eidos_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  eidos_net:
+    driver: bridge

@@ -20,6 +20,7 @@ describe('Post-v3.4 Hardening Acceptance Suite (P0 & P1)', () => {
   let demoEmbeddings: Map<string, Float32Array>;
 
   beforeAll(async () => {
+    process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_demo_key';
     app = await buildServer();
     await app.ready();
     demoEmbeddings = new Map();
@@ -34,6 +35,7 @@ describe('Post-v3.4 Hardening Acceptance Suite (P0 & P1)', () => {
   });
 
   afterAll(async () => {
+    delete process.env.EIDOS_PUBLIC_DEMO_KEY;
     await app.close();
   });
 

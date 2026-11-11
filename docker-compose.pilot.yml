@@ -21,7 +21,7 @@ services:
       - EIDOS_API_KEY=${EIDOS_ADMIN_KEY:-${ADMIN_KEY}}
       - ADMIN_KEY=${ADMIN_KEY:-${EIDOS_ADMIN_KEY}}
       - SEARCH_KEY=${SEARCH_KEY:-${EIDOS_SEARCH_KEY}}
-      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
       - REDIS_URL=redis://redis:6379
       - EIDOS_SNAPSHOT_PATH=/var/lib/eidos/snapshots/catalog.snapshot.json
       - EIDOS_SNAPSHOT_INTERVAL_MS=300000

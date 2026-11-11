@@ -12,6 +12,7 @@ import { StoreError, StoreRegistry, withTimeout } from '../services/store-regist
 import { getAverageSearchLatencyMs } from '../plugins/observability';
 import { OperationalLogStore } from '../services/structured-logger';
 import { AdminConsoleStore } from '../services/admin-console-store';
+import { safeFetchText } from '../services/safe-fetch';
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -87,22 +88,29 @@ export async function catalogRoutes(
    */
   fastify.get('/v1/catalog/stats', async (request, reply) => {
     try {
-      const { store } = resolveStore(request);
-      const allItems = store.getAll();
+      const { store, tenantId, indexName } = resolveStore(request);
+      let effectiveStore = store;
+      if (tenantId === 'default' && indexName === 'default') {
+        const demoStore = storeRegistry.getOrCreateStore('demo', 'demo');
+        if (demoStore.count() > store.count() && demoStore.count() >= 1000) {
+          effectiveStore = demoStore;
+        }
+      }
+      const allItems = effectiveStore.getAll();
       const categories: Record<string, number> = {};
       for (const item of allItems) {
         categories[item.category] = (categories[item.category] || 0) + 1;
       }
 
       const redisStats = await cache.getStats();
-      const itemCount = store.count();
+      const itemCount = effectiveStore.count();
 
       return {
         itemsIndexed: itemCount,
         totalItems: itemCount,
         vectorDimension: 384,
-        hnswIndexed: store.getHNSW().size(),
-        walPending: store.getWAL().size(),
+        hnswIndexed: effectiveStore.getHNSW().size(),
+        walPending: effectiveStore.getWAL().size(),
         avgSearchLatencyMs: getAverageSearchLatencyMs(),
         categories,
         cache: {
@@ -213,31 +221,27 @@ export async function catalogRoutes(
 
         let upserted = 0;
         const batchStartMs = performance.now();
-        const useFastLeaf = validItems.length >= 100 && store.count() >= 500;
         for (const item of validItems) {
           const cleanTitle = SecurityGuardrails.scanAndSanitize(item.title).sanitizedInput || item.title;
           const cleanDesc = item.description
             ? SecurityGuardrails.scanAndSanitize(item.description).sanitizedInput || item.description
             : '';
-          store.upsert(
-            {
-              ...item,
-              sku: item.sku || String(item.id),
-              inStock:
-                item.inStock !== undefined
-                  ? item.inStock
-                  : item.stock !== undefined
-                  ? item.stock > 0
-                  : true,
-              imageUrl: item.imageUrl ?? null,
-              title: cleanTitle,
-              description: cleanDesc,
-              category: item.category || 'General',
-              tags: item.tags || [],
-              embedding: item.embedding!,
-            },
-            { fastLeaf: useFastLeaf }
-          );
+          store.upsert({
+            ...item,
+            sku: item.sku || String(item.id),
+            inStock:
+              item.inStock !== undefined
+                ? item.inStock
+                : item.stock !== undefined
+                ? item.stock > 0
+                : true,
+            imageUrl: item.imageUrl ?? null,
+            title: cleanTitle,
+            description: cleanDesc,
+            category: item.category || 'General',
+            tags: item.tags || [],
+            embedding: item.embedding!,
+          });
           upserted++;
         }
 
@@ -651,65 +655,44 @@ export async function catalogRoutes(
     }
   });
 
-  const isSafeExternalUrl = (rawUrl: string): boolean => {
-    try {
-      const parsed = new URL(rawUrl);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-      const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
-      if (
-        host === 'localhost' ||
-        host === '0.0.0.0' ||
-        host === '::1' ||
-        host === 'metadata.google.internal' ||
-        host.endsWith('.local') ||
-        host.endsWith('.internal')
-      ) {
-        return false;
-      }
-      if (
-        /^127\./.test(host) ||
-        /^10\./.test(host) ||
-        /^192\.168\./.test(host) ||
-        /^169\.254\./.test(host) ||
-        /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
-      ) {
-        return false;
-      }
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   // POST /v1/catalog/import-yml — Server-side proxy + parser for Yandex.Market YML & 1C-Bitrix CommerceML feeds
-  fastify.post('/v1/catalog/import-yml', async (request, reply) => {
+  fastify.post('/v1/catalog/import-yml', { preHandler: authenticate }, async (request, reply) => {
+    const role = RBACManager.resolveRole(request);
+    if (!RBACManager.hasPermission(role, 'write') || (request.apiKeyContext?.role !== 'admin' && request.apiKeyContext?.role !== 'master')) {
+      return reply.status(403).send({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: 'Admin or Master key is required to import YML feeds.',
+      });
+    }
+
     const start = Date.now();
-    const body = (request.body || {}) as { url?: string; xml?: string; autoIndex?: boolean };
+    const body = (request.body || {}) as { url?: string; xml?: string; autoIndex?: boolean; maxItems?: number };
     let xmlText = (body.xml || '').trim();
 
     if (!xmlText && body.url) {
       const targetUrl = String(body.url).trim();
-      if (!/^https?:\/\//i.test(targetUrl)) {
-        return reply.status(400).send({ error: 'Invalid YML/XML feed URL. Must start with http:// or https://' });
-      }
-      if (!isSafeExternalUrl(targetUrl)) {
-        return reply.status(400).send({
-          code: 'SSRF_BLOCKED',
-          error: 'Private, loopback, or internal network URLs are not allowed for remote feed import.',
-        });
-      }
       try {
-        const res = await fetch(targetUrl, {
-          headers: { 'User-Agent': 'EIDOS-Catalog-Importer/1.0', Accept: 'application/xml, text/xml, */*' },
-          signal: AbortSignal.timeout(8000),
+        const fetched = await safeFetchText(targetUrl, {
+          timeoutMs: 12_000,
+          maxBytes: 50 * 1024 * 1024, // 50 MB max
+          maxRedirects: 3,
+          headers: { Accept: 'application/xml, text/xml, */*' },
         });
-        if (!res.ok) {
-          return reply.status(502).send({ error: `Remote YML server responded with HTTP ${res.status}` });
+        if (fetched.status < 200 || fetched.status >= 300) {
+          return reply.status(502).send({ error: `Remote YML server responded with HTTP ${fetched.status}` });
         }
-        xmlText = await res.text();
+        xmlText = fetched.body;
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Network error';
+        if (msg.startsWith('SSRF_BLOCKED')) {
+          return reply.status(400).send({
+            code: 'SSRF_BLOCKED',
+            error: msg,
+          });
+        }
         return reply.status(502).send({
-          error: `Failed to fetch remote YML feed: ${err instanceof Error ? err.message : 'Network timeout'}`,
+          error: `Failed to fetch remote YML feed: ${msg}`,
         });
       }
     }
@@ -717,6 +700,8 @@ export async function catalogRoutes(
     if (!xmlText) {
       return reply.status(400).send({ error: 'Provide either "url" or "xml" payload' });
     }
+
+    const maxItemsCap = Math.min(Math.max(Number(body.maxItems) || 50_000, 1), 100_000);
 
     const categoryMap = new Map<string, string>();
     const catRegex = /<category\s+[^>]*id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/category>/gi;
@@ -757,7 +742,7 @@ export async function catalogRoutes(
     const offerRegex = /<offer(\s[^>]*)?>([\s\S]*?)<\/offer>/gi;
     let offerMatch: RegExpExecArray | null;
     let idx = 0;
-    while ((offerMatch = offerRegex.exec(xmlText)) !== null && items.length < 5000) {
+    while ((offerMatch = offerRegex.exec(xmlText)) !== null && items.length < maxItemsCap) {
       idx++;
       const attrs = offerMatch[1] || '';
       const bodyXml = offerMatch[2] || '';
@@ -781,7 +766,7 @@ export async function catalogRoutes(
     if (items.length === 0) {
       const bitrixRegex = /<Товар(\s[^>]*)?>([\s\S]*?)<\/Товар>/gi;
       let bm: RegExpExecArray | null;
-      while ((bm = bitrixRegex.exec(xmlText)) !== null && items.length < 5000) {
+      while ((bm = bitrixRegex.exec(xmlText)) !== null && items.length < maxItemsCap) {
         idx++;
         const bx = bm[2] || '';
         const id = extractTag(bx, ['Ид', 'Артикул']) || `bx-${idx}`;
@@ -801,37 +786,57 @@ export async function catalogRoutes(
       }
     }
 
+    let indexedCount = 0;
     if (body.autoIndex && items.length > 0) {
-      const { store } = resolveStore(request);
-      const texts = items.slice(0, 500).map((it) => `${it.title}. ${it.category}. ${it.description}`);
-      const vectors = await opts.embedder.embedBatch(texts);
-      items.slice(0, 500).forEach((it, i) => {
-        store.upsert({
-          id: it.id,
-          sku: it.sku,
-          brand: it.brand,
-          title: it.title,
-          description: it.description,
-          category: it.category,
-          price: it.price,
-          inStock: true,
-          tags: it.tags,
-          embedding: Array.from(vectors[i]),
-        });
-      });
+      const { store, tenantId, indexName } = resolveStore(request);
+      storeRegistry.assertItemQuota(tenantId, indexName, items.length);
+
+      const BATCH_SIZE = 100;
+      for (let offset = 0; offset < items.length; offset += BATCH_SIZE) {
+        const chunk = items.slice(offset, offset + BATCH_SIZE);
+        const texts = chunk.map((it) => `${it.title}. ${it.category}. ${it.description}`);
+        const vectors = await opts.embedder.embedBatch(texts);
+        for (let i = 0; i < chunk.length; i++) {
+          const it = chunk[i];
+          store.upsert({
+            id: it.id,
+            sku: it.sku,
+            brand: it.brand,
+            title: it.title,
+            description: it.description,
+            category: it.category,
+            price: it.price,
+            inStock: true,
+            tags: it.tags,
+            embedding: Array.from(vectors[i]),
+          });
+          indexedCount++;
+        }
+      }
+      await invalidateCatalogCaches();
       await store.saveSnapshotAsync();
     }
 
     return reply.status(200).send({
       success: true,
-      importedCount: items.length,
+      parsedCount: items.length,
+      importedCount: body.autoIndex ? indexedCount : items.length,
+      indexedCount,
       items,
       durationMs: Date.now() - start,
     });
   });
 
   // POST /v1/benchmark/compare-url — Side-by-side Storefront URL vs EIDOS Hybrid 384-d Benchmark
-  fastify.post('/v1/benchmark/compare-url', async (request, reply) => {
+  fastify.post('/v1/benchmark/compare-url', { preHandler: authenticate }, async (request, reply) => {
+    if (request.apiKeyContext?.role !== 'admin' && request.apiKeyContext?.role !== 'master') {
+      return reply.status(403).send({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: 'Admin or Master key is required for external URL benchmarking.',
+      });
+    }
+
     const body = (request.body || {}) as {
       searchUrlTemplate?: string;
       queries?: string[];
@@ -856,25 +861,36 @@ export async function catalogRoutes(
       let externalTitles: string[] = [];
       let externalStatus: 'fetched' | 'simulated_sql_like' = 'simulated_sql_like';
 
-      if (body.searchUrlTemplate && isSafeExternalUrl(body.searchUrlTemplate)) {
+      if (body.searchUrlTemplate) {
         const url = body.searchUrlTemplate.includes('{query}')
           ? body.searchUrlTemplate.replace('{query}', encodeURIComponent(q))
           : `${body.searchUrlTemplate}${body.searchUrlTemplate.includes('?') ? '&' : '?'}q=${encodeURIComponent(q)}`;
         try {
-          const res = await fetch(url, {
-            headers: { 'User-Agent': 'EIDOS-Benchmark/1.0' },
-            signal: AbortSignal.timeout(3500),
+          const fetched = await safeFetchText(url, {
+            timeoutMs: 4_000,
+            maxBytes: 2 * 1024 * 1024, // 2 MB cap for HTML scrape
+            maxRedirects: 2,
           });
-          if (res.ok) {
-            const html = await res.text();
-            const hMatches = html.match(/<(?:h2|h3|a)[^>]*class=["'][^"']*(?:title|name|product|catalog-item)[^"']*["'][^>]*>([\s\S]*?)<\/(?:h2|h3|a)>/gi) || [];
+          if (fetched.status >= 200 && fetched.status < 300) {
+            const html = fetched.body;
+            const hMatches =
+              html.match(
+                /<(?:h2|h3|a)[^>]*class=["'][^"']*(?:title|name|product|catalog-item)[^"']*["'][^>]*>([\s\S]*?)<\/(?:h2|h3|a)>/gi
+              ) || [];
             externalTitles = hMatches
               .map((m) => m.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
               .filter((t) => t.length > 3)
               .slice(0, 3);
             externalStatus = 'fetched';
           }
-        } catch {
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : '';
+          if (msg.startsWith('SSRF_BLOCKED')) {
+            return reply.status(400).send({
+              code: 'SSRF_BLOCKED',
+              error: msg,
+            });
+          }
           externalStatus = 'simulated_sql_like';
         }
       }

@@ -160,5 +160,54 @@ export class WriteAheadLog {
   public clear(): void {
     this.operations = [];
   }
+
+  /**
+   * Reads uncommitted WAL operations from disk file (`walFilePath`) into memory.
+   */
+  public loadFromDisk(customPath?: string): WALOperation[] {
+    const target = customPath || this.walFilePath;
+    if (!target || !fs.existsSync(target)) {
+      return [];
+    }
+    try {
+      const content = fs.readFileSync(target, 'utf8');
+      const lines = content.split('\n').map((l) => l.trim()).filter(Boolean);
+      const loaded: WALOperation[] = [];
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          loaded.push({
+            id: String(parsed.id || `wal-${Date.now()}`),
+            type: parsed.type,
+            timestamp: Number(parsed.timestamp || Date.now()),
+            nodeId: String(parsed.nodeId),
+            vector: Array.isArray(parsed.vector) ? new Float32Array(parsed.vector) : undefined,
+            metadata: parsed.metadata && typeof parsed.metadata === 'object' ? parsed.metadata : undefined,
+          });
+        } catch {
+          // Skip malformed trailing line from mid-write crash
+        }
+      }
+      this.operations = loaded;
+      return loaded;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Truncates the on-disk WAL file after a successful snapshot write.
+   */
+  public truncateDisk(customPath?: string): void {
+    const target = customPath || this.walFilePath;
+    this.operations = [];
+    if (target && fs.existsSync(target)) {
+      try {
+        fs.writeFileSync(target, '', 'utf8');
+      } catch {
+        // Ignore in read-only environments
+      }
+    }
+  }
 }
 

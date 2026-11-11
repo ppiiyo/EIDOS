@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../lib/apiClient';
 import React, { useEffect, useState } from 'react';
 import {
   Search,
@@ -80,7 +81,7 @@ export const AnalyticsView: React.FC<{ uiLang?: UiLanguage }> = () => {
     try {
       await fetch('/v1/analytics/synonym', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
         body: JSON.stringify({ source: query, target }),
       });
     } catch {

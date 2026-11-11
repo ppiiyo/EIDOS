@@ -30,6 +30,9 @@ describe('EIDOS Engine P1 — High-ROI Retrieval Controls (PR1–PR5 & Golden G1
   }, 60_000);
 
   afterAll(async () => {
+    delete process.env.EIDOS_ADMIN_KEY;
+    delete process.env.EIDOS_MASTER_KEY;
+    delete process.env.EIDOS_SEARCH_KEY;
     if (app) {
       await app.close();
     }

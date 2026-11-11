@@ -126,86 +126,95 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
   });
 
   describe('TASK 1.3: Production Auth & JWT Expiration Validation', () => {
-    it('allows public /v1/health in production (200), rejects missing key on protected endpoints (401), rejects hardcoded dev keys (eidos_dev_key, test-key), and allows eidos_demo_key on read-only search/recommend', async () => {
+    it('allows public /v1/health in production (200), rejects missing key on protected endpoints (401), rejects hardcoded dev keys (eidos_dev_key, test-key), and allows EIDOS_PUBLIC_DEMO_KEY on read-only search/recommend', async () => {
       const prevEnv = process.env.NODE_ENV;
       const prevKey = process.env.EIDOS_API_KEY;
+      const prevDemoKey = process.env.EIDOS_PUBLIC_DEMO_KEY;
       process.env.NODE_ENV = 'production';
       process.env.EIDOS_API_KEY = 'prod_secret_key_999';
+      process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_demo_key';
 
       const warnSpy = vi.spyOn(app.log, 'warn');
 
-      // /v1/health is public in all environments (including production)
-      const healthNoKeyRes = await app.inject({
-        method: 'GET',
-        url: '/v1/health',
-      });
-      expect(healthNoKeyRes.statusCode).toBe(200);
-      expect(healthNoKeyRes.json().checks.redis.stats.type).toBe('redis');
+      try {
+        // /v1/health is public in all environments (including production)
+        const healthNoKeyRes = await app.inject({
+          method: 'GET',
+          url: '/v1/health',
+        });
+        expect(healthNoKeyRes.statusCode).toBe(200);
+        expect(healthNoKeyRes.json().checks.redis.stats.type).toBe('redis');
 
-      // Missing key on protected /v1/recommend in production must return 401
-      const recommendNoKeyRes = await app.inject({
-        method: 'POST',
-        url: '/v1/recommend',
-        payload: { item_id: '1', strategy: 'simple' },
-      });
-      expect(recommendNoKeyRes.statusCode).toBe(401);
+        // Missing key on protected /v1/recommend in production must return 401
+        const recommendNoKeyRes = await app.inject({
+          method: 'POST',
+          url: '/v1/recommend',
+          payload: { item_id: '1', strategy: 'simple' },
+        });
+        expect(recommendNoKeyRes.statusCode).toBe(401);
 
-      const devKeyRes = await app.inject({
-        method: 'POST',
-        url: '/v1/recommend',
-        headers: { 'x-api-key': 'eidos_dev_key' },
-        payload: { item_id: '1', strategy: 'simple' },
-      });
-      expect(devKeyRes.statusCode).toBe(401);
+        const devKeyRes = await app.inject({
+          method: 'POST',
+          url: '/v1/recommend',
+          headers: { 'x-api-key': 'eidos_dev_key' },
+          payload: { item_id: '1', strategy: 'simple' },
+        });
+        expect(devKeyRes.statusCode).toBe(401);
 
-      const testKeyRes = await app.inject({
-        method: 'POST',
-        url: '/v1/recommend',
-        headers: { 'x-api-key': 'test-key' },
-        payload: { item_id: '1', strategy: 'simple' },
-      });
-      expect(testKeyRes.statusCode).toBe(401);
+        const testKeyRes = await app.inject({
+          method: 'POST',
+          url: '/v1/recommend',
+          headers: { 'x-api-key': 'test-key' },
+          payload: { item_id: '1', strategy: 'simple' },
+        });
+        expect(testKeyRes.statusCode).toBe(401);
 
-      // Public demo key works on read-only /v1/search and /v1/recommend in production
-      const demoKeySearchRes = await app.inject({
-        method: 'POST',
-        url: '/v1/search',
-        headers: { 'x-api-key': 'eidos_demo_key' },
-        payload: { query: 'wireless headphones', limit: 3 },
-      });
-      expect(demoKeySearchRes.statusCode).toBe(200);
+        // Public demo key works on read-only /v1/search and /v1/recommend in production
+        const demoKeySearchRes = await app.inject({
+          method: 'POST',
+          url: '/v1/search',
+          headers: { 'x-api-key': 'eidos_demo_key' },
+          payload: { query: 'wireless headphones', limit: 3 },
+        });
+        expect(demoKeySearchRes.statusCode).toBe(200);
 
-      // Keyless /v1/demo/search endpoint works in production without auth headers
-      const keylessDemoSearchRes = await app.inject({
-        method: 'POST',
-        url: '/v1/demo/search',
-        payload: { query: 'wireless headphones', limit: 3 },
-      });
-      expect(keylessDemoSearchRes.statusCode).toBe(200);
+        // Keyless /v1/demo/search endpoint works in production without auth headers
+        const keylessDemoSearchRes = await app.inject({
+          method: 'POST',
+          url: '/v1/demo/search',
+          payload: { query: 'wireless headphones', limit: 3 },
+        });
+        expect(keylessDemoSearchRes.statusCode).toBe(200);
 
-      // Public demo key is rejected on write endpoints (/v1/catalog/items) in production
-      const demoKeyWriteRes = await app.inject({
-        method: 'POST',
-        url: '/v1/catalog/items',
-        headers: { 'x-api-key': 'eidos_demo_key' },
-        payload: { id: 'unauth-1', title: 'Test', category: 'General' },
-      });
-      expect(demoKeyWriteRes.statusCode).toBe(401);
+        // Public demo key is rejected on write endpoints (/v1/catalog/items) in production
+        const demoKeyWriteRes = await app.inject({
+          method: 'POST',
+          url: '/v1/catalog/items',
+          headers: { 'x-api-key': 'eidos_demo_key' },
+          payload: { id: 'unauth-1', title: 'Test', category: 'General' },
+        });
+        expect(demoKeyWriteRes.statusCode).toBe(401);
 
-      const prodKeyRes = await app.inject({
-        method: 'POST',
-        url: '/v1/recommend',
-        headers: { 'x-api-key': 'prod_secret_key_999' },
-        payload: { item_id: '1', strategy: 'simple' },
-      });
-      expect(prodKeyRes.statusCode).toBe(200);
-
-      warnSpy.mockRestore();
-      process.env.NODE_ENV = prevEnv;
-      if (prevKey === undefined) {
-        delete process.env.EIDOS_API_KEY;
-      } else {
-        process.env.EIDOS_API_KEY = prevKey;
+        const prodKeyRes = await app.inject({
+          method: 'POST',
+          url: '/v1/recommend',
+          headers: { 'x-api-key': 'prod_secret_key_999' },
+          payload: { item_id: '1', strategy: 'simple' },
+        });
+        expect(prodKeyRes.statusCode).toBe(200);
+      } finally {
+        warnSpy.mockRestore();
+        process.env.NODE_ENV = prevEnv;
+        if (prevKey === undefined) {
+          delete process.env.EIDOS_API_KEY;
+        } else {
+          process.env.EIDOS_API_KEY = prevKey;
+        }
+        if (prevDemoKey === undefined) {
+          delete process.env.EIDOS_PUBLIC_DEMO_KEY;
+        } else {
+          process.env.EIDOS_PUBLIC_DEMO_KEY = prevDemoKey;
+        }
       }
     });
 

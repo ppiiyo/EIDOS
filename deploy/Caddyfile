@@ -1,0 +1,24 @@
+{$EIDOS_DOMAIN:localhost} {
+  encode zstd gzip
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    -Server
+  }
+
+  # Block external scraping of Prometheus metrics
+  @internalMetrics {
+    path /metrics /v1/metrics/prometheus
+    not remote_ip 127.0.0.1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+  }
+  respond @internalMetrics "Forbidden" 403
+
+  reverse_proxy api:8080 {
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+  }
+}

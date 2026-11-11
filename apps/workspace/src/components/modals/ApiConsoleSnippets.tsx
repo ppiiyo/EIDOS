@@ -28,7 +28,7 @@ export const ApiConsoleSnippets: React.FC<ApiConsoleSnippetsProps> = ({
 
 const eidos = new EidosClient({
   baseUrl: 'http://localhost:3001',
-  apiKey: process.env.EIDOS_API_KEY ?? 'eidos_dev_key',
+  apiKey: process.env.EIDOS_API_KEY ?? '<YOUR_EIDOS_API_KEY>',
 });
 
 // 1. Hybrid 384-d Vector + BM25 Search
@@ -48,12 +48,12 @@ const recs = await eidos.recommend({
 
   const curlSnippet = `curl -X POST http://localhost:3001/v1/search \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: eidos_dev_key" \\
+  -H "x-api-key: <YOUR_EIDOS_API_KEY>" \\
   -d '${JSON.stringify({ query, mode: 'hybrid', alpha, limit })}'`;
 
   const pySnippet = `from eidos_sdk import EidosClient, AsyncEidosClient
 
-client = EidosClient(base_url="http://localhost:3001", api_key="eidos_dev_key")
+client = EidosClient(base_url="http://localhost:3001", api_key='<YOUR_EIDOS_API_KEY>')
 hits = client.search(query=${JSON.stringify(query)}, alpha=${alpha}, limit=${limit})
 print(f"Found {len(hits['results'])} items in {hits['tookMs']}ms")`;
 

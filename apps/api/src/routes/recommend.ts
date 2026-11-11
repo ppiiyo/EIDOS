@@ -16,6 +16,7 @@ import { ApiQueryCache } from '../services/query-cache';
 import { getCache, CacheKeys, getSingleFlight } from '../services/cache';
 import { StoreError, StoreRegistry, withTimeout } from '../services/store-registry';
 import { recordSearchLatency } from '../plugins/observability';
+import { DEMO_TENANT_ID, DEMO_INDEX_NAME } from './demo';
 
 export const recommendSchema = z
   .object({
@@ -838,6 +839,9 @@ export async function recommendRoutes(
       preHandler: async (request, reply) => {
         request.demoMode = true;
         request.demoRateLimit = 60;
+        request.tenantId = DEMO_TENANT_ID;
+        request.headers['x-tenant-id'] = DEMO_TENANT_ID;
+        request.headers['x-index-name'] = DEMO_INDEX_NAME;
         await demoRateLimit(request, reply);
       },
     },

@@ -42,21 +42,25 @@ describe('PHASE 1 Modernization: Fastify Declaration Merging & CSP Hardening', (
     );
     await testApp.ready();
 
-    const demoRes = await testApp.inject({
-      method: 'GET',
-      url: '/v1/catalog/test-phase1-types',
-      headers: {
-        'x-api-key': 'eidos_demo_key',
-        'x-tenant-id': 'acme-corp',
-      },
-    });
+    process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_demo_key';
+    try {
+      const demoRes = await testApp.inject({
+        method: 'GET',
+        url: '/v1/catalog/test-phase1-types',
+        headers: {
+          'x-api-key': 'eidos_demo_key',
+          'x-tenant-id': 'acme-corp',
+        },
+      });
 
-    expect(demoRes.statusCode).toBe(200);
-    expect(capturedRequest.demoMode).toBe(true);
-    expect(capturedRequest.demoRateLimit).toBe(10);
-    expect(capturedRequest.tenantId).toBe('acme-corp');
-
-    await testApp.close();
+      expect(demoRes.statusCode).toBe(200);
+      expect(capturedRequest.demoMode).toBe(true);
+      expect(capturedRequest.demoRateLimit).toBe(10);
+      expect(capturedRequest.tenantId).toBe('demo');
+    } finally {
+      delete process.env.EIDOS_PUBLIC_DEMO_KEY;
+      await testApp.close();
+    }
   });
 
   it('enforces strict CSP script-src without unsafe-inline while keeping style-src compatible with Studio UI', async () => {

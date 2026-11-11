@@ -30,6 +30,7 @@ export default defineConfig({
       'apps/api/tests/**/*.test.ts',
       'tests/unit/**/*.test.ts',
       'tests/unit/**/*.test.tsx',
+      'tests/security/**/*.test.ts',
       'tests/integration/**/*.test.ts',
       'tests/sharding/**/*.test.ts',
       'tests/cache/**/*.test.ts',

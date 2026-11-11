@@ -1,59 +1,70 @@
-# All-in-One Production Dockerfile for EIDOS (API /v1/* + Studio UI + Embedded Redis on port 3000)
-# Usage:
-#   docker build -t eidos/eidos .
-#   docker run -p 3000:3000 eidos/eidos
-FROM node:20-slim AS builder
-
-WORKDIR /app
+# ==============================================================================
+# Stage 1: Builder (Monorepo: @eidos/core + @eidos/sdk + @eidos/api + @eidos/workspace)
+# ==============================================================================
+FROM node:22-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
-COPY .npmrc* pnpm-lock.yaml* pnpm-workspace.yaml package.json tsconfig.json turbo.json server.ts ./
-COPY packages/core ./packages/core
-COPY packages/sdk ./packages/sdk
-COPY apps/api ./apps/api
-COPY apps/workspace ./apps/workspace
+WORKDIR /app
 
-RUN pnpm install --no-frozen-lockfile
-RUN pnpm --filter @eidos/core build
-RUN pnpm --filter @eidos/sdk build
-RUN pnpm --filter @eidos/api build
-RUN pnpm run build
+# Copy workspace manifests first for layer caching
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
+COPY packages/core/package.json ./packages/core/
+COPY packages/sdk/package.json ./packages/sdk/
+COPY apps/api/package.json ./apps/api/
+COPY apps/workspace/package.json ./apps/workspace/
 
-FROM node:20-slim AS runner
+RUN pnpm install --frozen-lockfile
+
+# Copy full source
+COPY packages ./packages
+COPY apps ./apps
+COPY public ./public
+COPY index.html vite.config.ts ./
+
+# Build core, sdk, api, and workspace SPA
+RUN pnpm --filter @eidos/core build \
+ && pnpm --filter @eidos/sdk build \
+ && pnpm --filter @eidos/api build \
+ && pnpm build
+
+# ==============================================================================
+# Stage 2: Production Runtime
+# ==============================================================================
+FROM node:22-alpine AS runner
+
+RUN apk add --no-cache dumb-init wget \
+ && addgroup -g 1001 -S nodejs \
+ && adduser -S eidos -u 1001 -G nodejs
 
 WORKDIR /app
+
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV EIDOS_PORT=3000
-ENV HOST=0.0.0.0
-ENV EIDOS_SNAPSHOT_PATH=/app/data/catalog.snapshot.json
 ENV REDIS_URL=redis://127.0.0.1:6379
-ENV CACHE_TTL_SECONDS=300
-ENV AIL_ENABLED=true
-ENV TRANSFORMERS_CACHE=/tmp/transformers-cache
+ENV EIDOS_DATA_DIR=/app/data/db
+ENV EIDOS_SNAPSHOT_PATH=/app/data/catalog.snapshot.json
+ENV EIDOS_WAL_PATH=/app/data/catalog.wal.jsonl
 
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+COPY --from=builder --chown=eidos:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=eidos:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=eidos:nodejs /app/packages/core/dist ./packages/core/dist
+COPY --from=builder --chown=eidos:nodejs /app/packages/core/package.json ./packages/core/package.json
+COPY --from=builder --chown=eidos:nodejs /app/apps/api/dist ./apps/api/dist
+COPY --from=builder --chown=eidos:nodejs /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder --chown=eidos:nodejs /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder --chown=eidos:nodejs /app/dist ./dist
+COPY --from=builder --chown=eidos:nodejs /app/public ./public
 
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/server.ts ./server.ts
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/packages/core ./packages/core
-COPY --from=builder /app/packages/sdk ./packages/sdk
-COPY --from=builder /app/apps/api ./apps/api
-COPY --from=builder /app/node_modules ./node_modules
+RUN mkdir -p /app/data/db && chown -R eidos:nodejs /app/data
 
-RUN mkdir -p /app/data /tmp/transformers-cache && chown -R node:node /app /tmp/transformers-cache
-
-VOLUME ["/app/data"]
+USER eidos
 
 EXPOSE 3000
+EXPOSE 8080
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:${PORT:-3000}/v1/health/live || exit 1
 
-USER node
-
-CMD ["npx", "tsx", "server.ts"]
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "apps/api/dist/server.js"]

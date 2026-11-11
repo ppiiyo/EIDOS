@@ -209,6 +209,7 @@ describe('EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite
 
   describe('Part D.2 & C.1 — Fastify API Empty Catalog 200 OK, Calibrated scorePercent, and GET /widget.js', () => {
     it('returns 200 OK with empty results on 0 SKU catalog, serves /widget.js, and returns scorePercent after upsert', async () => {
+      process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_demo_key';
       const app = await buildServer();
 
       try {
@@ -239,6 +240,7 @@ describe('EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite
         expect(widgetRes.body).toContain('EidosSearchWidget');
         expect(widgetRes.body).toContain('isSafeStorefrontKey');
       } finally {
+        delete process.env.EIDOS_PUBLIC_DEMO_KEY;
         await app.close();
       }
     });
@@ -258,7 +260,7 @@ describe('EIDOS One-Command Pilot + Zero-Bug Hardening + Storefront Widget Suite
 
       expect(widgetApi.isSafeStorefrontKey('eidos_mk_secret_master_key_123456')).toBe(false);
       expect(widgetApi.isSafeStorefrontKey('eidos_ak_secret_admin_key_123456')).toBe(false);
-      expect(widgetApi.isSafeStorefrontKey('eidos_sk_public_search_key_123456')).toBe(true);
+      expect(widgetApi.isSafeStorefrontKey('eidos_pk_public_search_key_123456')).toBe(true);
 
       expect(
         widgetApi.resolveProductUrl(

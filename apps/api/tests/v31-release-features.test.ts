@@ -6,11 +6,13 @@ describe('EIDOS v3.1 Release Features & Production Hardening', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
+    process.env.EIDOS_PUBLIC_DEMO_KEY = 'eidos_public_demo_key_2026';
     app = await buildServer();
     await app.ready();
   });
 
   afterAll(async () => {
+    delete process.env.EIDOS_PUBLIC_DEMO_KEY;
     await app.close();
   });
 

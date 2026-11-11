@@ -47,6 +47,10 @@ declare module 'fastify' {
      */
     tenantId?: string;
     /**
+     * Resolved target index identifier bound by auth middleware.
+     */
+    indexName?: string;
+    /**
      * Resolved API key hierarchy & scope context attached by authenticate middleware.
      */
     apiKeyContext?: AuthenticatedKeyContext;

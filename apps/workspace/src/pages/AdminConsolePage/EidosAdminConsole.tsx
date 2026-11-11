@@ -66,9 +66,13 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
         const params = new URLSearchParams(window.location?.search || '');
         if (params.get('loggedOut') === '1') return '';
       }
-      return sessionStorage.getItem('eidos_admin_key') ?? 'eidos_dev_key';
+      return (
+        sessionStorage.getItem('eidos_admin_key') ||
+        sessionStorage.getItem('eidos_admin_api_key') ||
+        ''
+      );
     } catch {
-      return 'eidos_dev_key';
+      return '';
     }
   });
   const [loginKeyDraft, setLoginKeyDraft] = useState<string>(apiKey);
@@ -114,7 +118,13 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
 
   const c = ADMIN_COPY[lang];
   const isPublicDemo = surfaceMode === 'public-demo';
-  const isLockedAdmin = !isPublicDemo && (!apiKey.trim() || Boolean(authWarning));
+  const isExplicitlyLoggedOut =
+    typeof window !== 'undefined' &&
+    Boolean(window.location?.search && new URLSearchParams(window.location.search).get('loggedOut') === '1');
+  const isBrowserRuntime = typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined';
+  const isLockedAdmin =
+    !isPublicDemo &&
+    (isExplicitlyLoggedOut || ((isBrowserRuntime || Boolean(authWarning)) && (!apiKey.trim() || Boolean(authWarning))));
 
   const switchSurface = (target: 'admin' | 'public-demo') => {
     setSurfaceMode(target);

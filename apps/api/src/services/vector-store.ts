@@ -66,6 +66,7 @@ export interface VectorStoreOptions {
  * and Write-Ahead Log (WAL) persistence.
  */
 export class VectorStore {
+  private static globalCatalogVersion = 1;
   private items = new Map<string, StoredItem>();
   private hnsw: HNSWIndex;
   private bm25: BM25Index;
@@ -73,6 +74,8 @@ export class VectorStore {
   private wal: WriteAheadLog;
   private options?: VectorStoreOptions;
   private explicitlyCleared = false;
+  private hasProductionItems = false;
+  private isSeedingDemo = false;
   private catalogVersion = 1;
 
   constructor(options?: VectorStoreOptions) {
@@ -86,15 +89,28 @@ export class VectorStore {
     });
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync());
+    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+    const defaultWalPath =
+      process.env.EIDOS_WAL_PATH ||
+      (!isTestEnv ? path.resolve(process.cwd(), './data/catalog.wal.jsonl') : undefined);
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), defaultWalPath);
   }
 
   public isExplicitlyCleared(): boolean {
     return this.explicitlyCleared && this.items.size === 0;
   }
 
+  public hasProductionCatalogItems(): boolean {
+    return this.hasProductionItems && this.items.size > 0;
+  }
+
   public getCatalogVersion(): number {
-    return this.catalogVersion;
+    return Math.max(this.catalogVersion, VectorStore.globalCatalogVersion);
+  }
+
+  private bumpCatalogVersion(): void {
+    VectorStore.globalCatalogVersion += 1;
+    this.catalogVersion = VectorStore.globalCatalogVersion;
   }
 
   private snapshotTimer: NodeJS.Timeout | null = null;
@@ -107,20 +123,21 @@ export class VectorStore {
     embedder: ServerEmbedder = ServerEmbedder.getInstance()
   ): Promise<void> {
     this.explicitlyCleared = false;
-    this.catalogVersion += 1;
+    this.bumpCatalogVersion();
     const BATCH_SIZE = 100;
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      const batch = items.slice(i, i + BATCH_SIZE);
-      const texts = batch.map(
-        (it) => `${it.title}. ${it.category}. ${(it.tags || []).join(', ')}. ${it.description}`
-      );
-      const vectors = await embedder.embedBatch(texts);
-      for (let j = 0; j < batch.length; j++) {
-        const it = batch[j];
-        const vec = vectors[j];
-        const idStr = String(it.id);
-        this.upsert(
-          {
+    this.isSeedingDemo = true;
+    try {
+      for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const batch = items.slice(i, i + BATCH_SIZE);
+        const texts = batch.map(
+          (it) => `${it.title}. ${it.category}. ${(it.tags || []).join(', ')}. ${it.description}`
+        );
+        const vectors = await embedder.embedBatch(texts);
+        for (let j = 0; j < batch.length; j++) {
+          const it = batch[j];
+          const vec = vectors[j];
+          const idStr = String(it.id);
+          this.upsert({
             id: idStr,
             sku: it.sku || (idStr.startsWith('sku-') ? idStr.toUpperCase() : `SKU-${idStr}`),
             brand: it.brand,
@@ -135,10 +152,11 @@ export class VectorStore {
             imageUrl: it.imageUrl || `/assets/demo/product-${encodeURIComponent(idStr)}.svg`,
             embedding: Array.from(vec),
             normalizedVector: vec instanceof Float32Array ? vec : new Float32Array(vec),
-          },
-          { fastLeaf: this.items.size > 150 }
-        );
+          });
+        }
       }
+    } finally {
+      this.isSeedingDemo = false;
     }
 
     Metrics.vectorStoreSize.set(this.count());
@@ -158,7 +176,8 @@ export class VectorStore {
   public async clear(): Promise<void> {
     this.items.clear();
     this.explicitlyCleared = true;
-    this.catalogVersion += 1;
+    this.hasProductionItems = false;
+    this.bumpCatalogVersion();
     this.hnsw = new HNSWIndex({
       M: this.options?.M ?? 16,
       M0: (this.options?.M ?? 16) * 2,
@@ -168,7 +187,11 @@ export class VectorStore {
     });
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync());
+    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+    const defaultWalPath =
+      process.env.EIDOS_WAL_PATH ||
+      (!isTestEnv ? path.resolve(process.cwd(), './data/catalog.wal.jsonl') : undefined);
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), defaultWalPath);
 
     Metrics.vectorStoreSize.set(0);
     ApiQueryCache.invalidateAll();
@@ -181,18 +204,40 @@ export class VectorStore {
     ]);
   }
 
-  public upsert(item: StoredItem, options?: { fastLeaf?: boolean }): void {
+  private static isSafeCatalogUrl(raw: string): boolean {
+    const trimmed = raw.trim();
+    if (!trimmed) return false;
+    if (trimmed.startsWith('/')) return !trimmed.startsWith('//');
+    try {
+      const parsed = new URL(trimmed);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  public upsert(item: StoredItem): void {
     this.explicitlyCleared = false;
-    this.catalogVersion += 1;
+    if (!this.isSeedingDemo) {
+      this.hasProductionItems = true;
+    }
+    this.bumpCatalogVersion();
     const id = String(item.id);
     const sku = item.sku && String(item.sku).trim() !== '' ? String(item.sku).trim() : id;
-    const url = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : `/product/${encodeURIComponent(id)}`;
-    const imageUrl = item.imageUrl !== undefined ? item.imageUrl : null;
+    const rawUrl = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : '';
+    const url = VectorStore.isSafeCatalogUrl(rawUrl)
+      ? rawUrl
+      : `/product/${encodeURIComponent(id)}`;
+    const rawImg = item.imageUrl && String(item.imageUrl).trim() !== '' ? String(item.imageUrl).trim() : '';
+    const imageUrl = rawImg && VectorStore.isSafeCatalogUrl(rawImg) ? rawImg : null;
+
     const normalized =
       item.normalizedVector ||
       (item.embedding instanceof Float32Array
         ? item.embedding
         : new Float32Array(item.embedding));
+
+    const existedBefore = this.items.has(id);
 
     this.items.set(id, {
       ...item,
@@ -203,49 +248,67 @@ export class VectorStore {
       normalizedVector: normalized,
     });
 
-    // Update in-memory HNSW dense index
-    if (options?.fastLeaf && this.items.size > 250) {
-      this.hnsw.fastInsertLeaf(id, normalized);
-    } else {
-      this.hnsw.insert(id, normalized);
+    // If item already existed in HNSW, remove stale node first so the updated vector is indexed
+    if (existedBefore) {
+      this.hnsw.delete(id);
     }
+    this.hnsw.insert(id, normalized);
 
-    // Update in-memory BM25 sparse index
+    // Update in-memory BM25 sparse index (addDocument overwrites existing document)
     const docText = `${item.title} ${sku} ${item.brand || ''} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
     this.bm25.addDocument(id, docText);
 
-    // Append to Write-Ahead Log for crash resilience
+    // Append full item metadata + vector to Write-Ahead Log for crash recovery
     this.wal.append({
-      type: 'INSERT_NODE',
+      type: existedBefore ? 'UPDATE_NODE' : 'INSERT_NODE',
       nodeId: id,
       vector: normalized,
+      metadata: {
+        id,
+        sku,
+        brand: item.brand,
+        title: item.title,
+        description: item.description || '',
+        category: item.category || 'General',
+        price: typeof item.price === 'number' ? item.price : 0,
+        stock: item.stock,
+        inStock: typeof item.inStock === 'boolean' ? item.inStock : true,
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        url,
+        imageUrl,
+      },
     });
 
-    if (!options?.fastLeaf) {
-      ApiQueryCache.invalidateAll();
-      getSemanticCache().clear();
-    }
+    ApiQueryCache.invalidateAll();
+    getSemanticCache().clear();
   }
 
   /**
-   * Bulk-seeds 5,000+ catalog items in <35ms using multi-anchor HNSW graph construction + BM25 indexing.
+   * Bulk-seeds catalog items using full HNSW multi-layer construction + BM25 indexing (including SKU and brand).
    */
   public bulkSeed(items: StoredItem[]): void {
     this.catalogVersion += 1;
-    const categoryAnchors = new Map<string, string>();
-    const fullHnswLimit = 20;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const id = String(item.id);
       const sku = item.sku && String(item.sku).trim() !== '' ? String(item.sku).trim() : id;
-      const url = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : `/product/${encodeURIComponent(id)}`;
-      const imageUrl = item.imageUrl !== undefined ? item.imageUrl : null;
+      const rawUrl = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : '';
+      const url = VectorStore.isSafeCatalogUrl(rawUrl)
+        ? rawUrl
+        : `/product/${encodeURIComponent(id)}`;
+      const rawImg = item.imageUrl && String(item.imageUrl).trim() !== '' ? String(item.imageUrl).trim() : '';
+      const imageUrl = rawImg && VectorStore.isSafeCatalogUrl(rawImg) ? rawImg : null;
+
       const normalized =
         item.normalizedVector ||
         (item.embedding instanceof Float32Array
           ? item.embedding
           : new Float32Array(item.embedding));
+
+      if (this.items.has(id)) {
+        this.hnsw.delete(id);
+      }
 
       this.items.set(id, {
         ...item,
@@ -256,18 +319,9 @@ export class VectorStore {
         normalizedVector: normalized,
       });
 
-      if (i < fullHnswLimit || !categoryAnchors.has(item.category)) {
-        this.hnsw.insert(id, normalized);
-        categoryAnchors.set(item.category, id);
-      } else {
-        const anchorId = categoryAnchors.get(item.category);
-        this.hnsw.fastInsertLeaf(id, normalized, anchorId);
-        if (i % 16 === 0) {
-          categoryAnchors.set(item.category, id);
-        }
-      }
+      this.hnsw.insert(id, normalized);
 
-      const docText = `${item.title} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
+      const docText = `${item.title} ${sku} ${item.brand || ''} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
       this.bm25.addDocument(id, docText);
     }
     ApiQueryCache.invalidateAll();
@@ -398,6 +452,7 @@ export class VectorStore {
     const binPayload = Buffer.from(this.exportBinarySnapshot());
     await fs.promises.writeFile(tempBinPath, binPayload);
     await fs.promises.rename(tempBinPath, binPath);
+    this.wal.truncateDisk();
   }
 
   private writeSnapshotFilesSync(targetPath: string): void {
@@ -414,6 +469,7 @@ export class VectorStore {
     const binPayload = Buffer.from(this.exportBinarySnapshot());
     fs.writeFileSync(tempBinPath, binPayload);
     fs.renameSync(tempBinPath, binPath);
+    this.wal.truncateDisk();
   }
 
   /**
@@ -644,24 +700,21 @@ export class VectorStore {
           if (useFastBulk && isRecentTail && typeof embedder.embed === 'function') {
             vec = await embedder.embed(toEmbed[i].text);
           }
-          this.upsert(
-            {
-              id: item.id,
-              sku: item.sku,
-              brand: item.brand,
-              title: item.title,
-              description: item.description,
-              category: item.category,
-              price: item.price,
-              stock: item.stock,
-              inStock: item.inStock,
-              tags: item.tags,
-              url: item.url,
-              imageUrl: item.imageUrl ?? undefined,
-              embedding: vec,
-            },
-            { fastLeaf: useFastBulk && !isRecentTail }
-          );
+          this.upsert({
+            id: item.id,
+            sku: item.sku,
+            brand: item.brand,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            price: item.price,
+            stock: item.stock,
+            inStock: item.inStock,
+            tags: item.tags,
+            url: item.url,
+            imageUrl: item.imageUrl ?? undefined,
+            embedding: vec,
+          });
           loadedCount++;
         }
       }
@@ -671,6 +724,66 @@ export class VectorStore {
       console.error('[EIDOS] Failed to load catalog snapshot from disk:', err);
       return 0;
     }
+  }
+
+  /**
+   * Replays uncommitted WAL entries from disk into items Map, HNSW, and BM25.
+   * Call immediately after `loadSnapshotFromDisk()` on startup.
+   */
+  public replayWalFromDisk(customWalPath?: string): number {
+    const ops = this.wal.loadFromDisk(customWalPath);
+    if (ops.length === 0) return 0;
+
+    let applied = 0;
+    for (const op of ops) {
+      if ((op.type === 'INSERT_NODE' || op.type === 'UPDATE_NODE') && op.vector && op.metadata) {
+        const m = op.metadata as Record<string, any>;
+        const id = String(m.id || op.nodeId);
+        const sku = m.sku ? String(m.sku) : id;
+        const vec = op.vector instanceof Float32Array ? op.vector : new Float32Array(op.vector);
+
+        if (this.items.has(id)) {
+          this.hnsw.delete(id);
+        }
+
+        const stored: StoredItem = {
+          id,
+          sku,
+          brand: typeof m.brand === 'string' ? m.brand : undefined,
+          title: String(m.title || id),
+          description: String(m.description || ''),
+          category: String(m.category || 'General'),
+          price: typeof m.price === 'number' ? m.price : 0,
+          stock: typeof m.stock === 'number' ? m.stock : undefined,
+          inStock: typeof m.inStock === 'boolean' ? m.inStock : true,
+          tags: Array.isArray(m.tags) ? m.tags.map(String) : [],
+          url: typeof m.url === 'string' && VectorStore.isSafeCatalogUrl(m.url) ? m.url : `/product/${encodeURIComponent(id)}`,
+          imageUrl: typeof m.imageUrl === 'string' && VectorStore.isSafeCatalogUrl(m.imageUrl) ? m.imageUrl : null,
+          embedding: Array.from(vec),
+          normalizedVector: vec,
+        };
+
+        this.items.set(id, stored);
+        this.hnsw.insert(id, vec);
+        const docText = `${stored.title} ${sku} ${stored.brand || ''} ${stored.description} ${stored.category} ${(stored.tags || []).join(' ')}`;
+        this.bm25.addDocument(id, docText);
+        applied++;
+      } else if (op.type === 'DELETE_NODE') {
+        const id = String(op.nodeId);
+        if (this.items.delete(id)) {
+          this.hnsw.delete(id);
+          this.bm25.removeDocument(id);
+          applied++;
+        }
+      }
+    }
+
+    if (applied > 0) {
+      this.catalogVersion += 1;
+      ApiQueryCache.invalidateAll();
+      getSemanticCache().clear();
+    }
+    return applied;
   }
 
   /**

@@ -1,3 +1,4 @@
+import { getActiveApiKey } from '../lib/apiClient';
 import { useState, useEffect, useCallback } from 'react';
 import { SecurityGuardrails } from '@eidos/core';
 import {
@@ -119,7 +120,7 @@ export function useStudioWorkspace() {
         void window
           .fetch('/v1/catalog/upsert', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+            headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
             body: JSON.stringify({
               id: String(sanitizedItem.id),
               title: sanitizedItem.title,
@@ -274,7 +275,7 @@ export function useStudioWorkspace() {
           void window
             .fetch('/v1/catalog/upsert', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'x-api-key': 'eidos_dev_key' },
+              headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
               body: JSON.stringify({ items: chunk }),
             })
             .catch(() => {});
