@@ -20,7 +20,6 @@ permissions:
 jobs:
   apply-and-verify:
     runs-on: ubuntu-latest
-    # Prevent infinite loop: skip commits already produced by this bot
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !contains(github.event.head_commit.message, 'apply pending injects'))
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +33,7 @@ jobs:
           set -euo pipefail
           applied=0
           failed=0
-          for s in inject_when_ready inject_jwt_dev_secret inject_embedder_onnx_flag inject_wal_sync_checkpoint inject_bitrix_delete_hooks inject_demo_mutations_gate inject_fix_security_tests inject_health_redis_optional inject_security_plugin_scope inject_store_default_guard inject_demo_ephemeral inject_metrics_public inject_v35_reindex_status inject_v35_snap_count inject_role_demotion inject_api_key_roles inject_critical_routes_seed inject_docker_compose_port inject_prometheus_seed inject_store_error_json; do
+          for s in inject_when_ready inject_jwt_dev_secret inject_embedder_onnx_flag inject_wal_sync_checkpoint inject_bitrix_delete_hooks inject_demo_mutations_gate inject_fix_security_tests inject_health_redis_optional inject_security_plugin_scope inject_store_default_guard inject_demo_ephemeral inject_metrics_public inject_v35_reindex_status inject_v35_snap_count inject_role_demotion inject_api_key_roles inject_critical_routes_seed inject_docker_compose_port inject_prometheus_seed inject_store_error_json inject_widget_total; do
             f="scripts/${s}.py"
             if [ ! -f "$f" ]; then
               echo "skip missing $f"
@@ -43,7 +42,7 @@ jobs:
             echo "=== $f ==="
             if out=$(python3 "$f" 2>&1); then
               echo "$out"
-              if echo "$out" | grep -qiE 'written|fixed|roles|prefix'; then
+              if echo "$out" | grep -qiE 'written|fixed|roles|prefix|synced'; then
                 applied=$((applied+1))
               fi
             else
