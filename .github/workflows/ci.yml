@@ -72,9 +72,11 @@ jobs:
         run: |
           mkdir -p data
           pnpm test
-      - name: Coverage thresholds (core)
+      - name: Coverage thresholds (packages/core only)
         if: matrix.node-version == 20
-        run: pnpm run test:coverage
+        run: |
+          mkdir -p data
+          pnpm exec vitest run --coverage packages/core/src/tests
 
   php-connectors:
     name: PHP connectors lint
