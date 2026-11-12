@@ -21,6 +21,8 @@ export interface StoredItem {
   stock?: number;
   url?: string;
   imageUrl?: string | null;
+  variantGroup?: string;
+  attributes?: Record<string, string | number | boolean | string[] | undefined>;
   metadata?: Record<string, string | number | boolean | string[] | undefined>;
   embedding: number[] | Float32Array;
   normalizedVector?: Float32Array;

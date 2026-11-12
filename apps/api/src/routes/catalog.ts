@@ -13,6 +13,11 @@ import { getAverageSearchLatencyMs } from '../plugins/observability';
 import { OperationalLogStore } from '../services/structured-logger';
 import { AdminConsoleStore } from '../services/admin-console-store';
 import { safeFetchText } from '../services/safe-fetch';
+import { parseYmlOrCommerceMl } from '../services/yml-parser';
+
+const itemAttributesSchema = z
+  .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]))
+  .optional();
 
 export const upsertItemSchema = z.object({
   id: z.string().min(1).max(100),
@@ -27,6 +32,8 @@ export const upsertItemSchema = z.object({
   stock: z.number().int().min(0).optional(),
   url: z.string().max(2000).optional(),
   imageUrl: z.string().max(2000).optional().nullable(),
+  variantGroup: z.string().max(120).optional(),
+  attributes: itemAttributesSchema,
   embedding: z.array(z.number()).length(384).optional(),
   index: z.string().optional(),
   indexName: z.string().optional(),
@@ -45,6 +52,8 @@ const catalogItemSchema = z.object({
   stock: z.number().int().min(0).optional(),
   url: z.string().max(2000).optional(),
   imageUrl: z.string().max(2000).optional().nullable(),
+  variantGroup: z.string().max(120).optional(),
+  attributes: itemAttributesSchema,
   embedding: z.array(z.number()).optional(),
 });
 
@@ -72,13 +81,14 @@ export async function catalogRoutes(
     };
   }
 
-  async function invalidateCatalogCaches(): Promise<void> {
-    ApiQueryCache.invalidateAll();
-    semanticCache.clear();
-    fastify.clusterCoordinator?.broadcastInvalidation('catalog.mutation');
+  async function invalidateCatalogCaches(tenantId = 'default', indexName = 'default'): Promise<void> {
+    const ns = `${tenantId}:${indexName}`;
+    ApiQueryCache.invalidateNamespace(ns);
+    semanticCache.invalidateNamespace(ns);
+    fastify.clusterCoordinator?.broadcastInvalidation(`catalog.mutation:${ns}`);
     await Promise.all([
-      cache.invalidate('search:*'),
-      cache.invalidate('recommend:*'),
+      cache.invalidate(`search:${ns}:*`),
+      cache.invalidate(`recommend:${ns}:*`),
       cache.del(CacheKeys.catalogStats()),
     ]);
   }
@@ -230,14 +240,13 @@ export async function catalogRoutes(
           }
         }
 
-        let upserted = 0;
         const batchStartMs = performance.now();
-        for (const item of validItems) {
+        const batchPrepared = validItems.map((item) => {
           const cleanTitle = SecurityGuardrails.scanAndSanitize(item.title).sanitizedInput || item.title;
           const cleanDesc = item.description
             ? SecurityGuardrails.scanAndSanitize(item.description).sanitizedInput || item.description
             : '';
-          store.upsert({
+          return {
             ...item,
             sku: item.sku || String(item.id),
             inStock:
@@ -252,12 +261,12 @@ export async function catalogRoutes(
             category: item.category || 'General',
             tags: item.tags || [],
             embedding: item.embedding!,
-          });
-          upserted++;
-        }
+          };
+        });
+        const upserted = store.upsertBatch(batchPrepared);
 
         if (upserted > 0) {
-          await invalidateCatalogCaches();
+          await invalidateCatalogCaches(tenantId, indexName);
           Metrics.vectorStoreSize.set(store.count());
 
           if (AILManager.isEnabled()) {
@@ -337,7 +346,7 @@ export async function catalogRoutes(
         embedding,
       });
 
-      await invalidateCatalogCaches();
+      await invalidateCatalogCaches(tenantId, indexName);
       Metrics.vectorStoreSize.set(store.count());
 
       if (AILManager.isEnabled()) {
@@ -423,7 +432,7 @@ export async function catalogRoutes(
 
       storeRegistry.assertItemQuota(tenantId, indexName, parsedItems.length);
 
-      let indexedCount = 0;
+      const preparedItems = [];
       for (const item of parsedItems) {
         let embedding = item.embedding;
         if (!embedding || embedding.length === 0) {
@@ -432,7 +441,7 @@ export async function catalogRoutes(
           embedding = Array.from(vec);
         }
 
-        store.upsert({
+        preparedItems.push({
           ...item,
           sku: item.sku || String(item.id),
           imageUrl: item.imageUrl ?? null,
@@ -441,11 +450,11 @@ export async function catalogRoutes(
           tags: item.tags || [],
           embedding,
         });
-        indexedCount++;
       }
+      const indexedCount = store.upsertBatch(preparedItems);
 
       // Invalidate search and recommend caches when catalog changes
-      await invalidateCatalogCaches();
+      await invalidateCatalogCaches(tenantId, indexName);
       Metrics.vectorStoreSize.set(store.count());
 
       AuditLogger.getInstance().record({
@@ -493,12 +502,12 @@ export async function catalogRoutes(
           });
         }
 
-        const { store, tenantId } = resolveStore(request);
+        const { store, tenantId, indexName } = resolveStore(request);
         const { id } = request.params;
         const deleted = store.delete(id);
 
         // Invalidate caches on deletion
-        await invalidateCatalogCaches();
+        await invalidateCatalogCaches(tenantId, indexName);
         Metrics.vectorStoreSize.set(store.count());
 
         if (!deleted) {
@@ -545,9 +554,9 @@ export async function catalogRoutes(
             message: `Role '${role}' is not permitted to clear catalog`,
           });
         }
-        const { store, tenantId } = resolveStore(request);
-        store.clear();
-        await invalidateCatalogCaches();
+        const { store, tenantId, indexName } = resolveStore(request);
+        await store.clear();
+        await invalidateCatalogCaches(tenantId, indexName);
         Metrics.vectorStoreSize.set(0);
         AuditLogger.getInstance().record({
           tenantId,
@@ -619,30 +628,26 @@ export async function catalogRoutes(
         }
       }
 
-      let indexed = 0;
-      for (const item of items) {
-        store.upsert({
-          ...item,
-          sku: item.sku || String(item.id),
-          imageUrl: item.imageUrl ?? null,
-          description: item.description || '',
-          category: item.category || 'General',
-          tags: item.tags || [],
-          embedding: item.embedding!,
+      const batchItems = items.map((item) => ({
+        ...item,
+        sku: item.sku || String(item.id),
+        imageUrl: item.imageUrl ?? null,
+        description: item.description || '',
+        category: item.category || 'General',
+        tags: item.tags || [],
+        embedding: item.embedding!,
+      }));
+      const indexed = store.upsertBatch(batchItems);
+
+      if (AILManager.isEnabled()) {
+        const ail = AILManager.getInstance();
+        ail.ranker.updateStatistics({
+          popularity: 1.0,
+          freshness: 1.0,
         });
-
-        if (AILManager.isEnabled()) {
-          const ail = AILManager.getInstance();
-          ail.ranker.updateStatistics({
-            popularity: 1.0,
-            freshness: 1.0,
-          });
-        }
-
-        indexed++;
       }
 
-      await invalidateCatalogCaches();
+      await invalidateCatalogCaches(tenantId, indexName);
       Metrics.vectorStoreSize.set(store.count());
 
       AuditLogger.getInstance().record({
@@ -713,89 +718,7 @@ export async function catalogRoutes(
     }
 
     const maxItemsCap = Math.min(Math.max(Number(body.maxItems) || 50_000, 1), 100_000);
-
-    const categoryMap = new Map<string, string>();
-    const catRegex = /<category\s+[^>]*id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/category>/gi;
-    let catMatch: RegExpExecArray | null;
-    while ((catMatch = catRegex.exec(xmlText)) !== null) {
-      categoryMap.set(catMatch[1].trim(), catMatch[2].replace(/<[^>]+>/g, '').trim());
-    }
-
-    const extractTag = (block: string, tags: string[]): string => {
-      for (const tag of tags) {
-        const rx = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i');
-        const m = rx.exec(block);
-        if (m && m[1]) {
-          const clean = m[1]
-            .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/&quot;/g, '"')
-            .replace(/&amp;/g, '&')
-            .replace(/\s+/g, ' ')
-            .trim();
-          if (clean) return clean;
-        }
-      }
-      return '';
-    };
-
-    const items: Array<{
-      id: string;
-      title: string;
-      description: string;
-      category: string;
-      price: number;
-      brand?: string;
-      sku?: string;
-      tags: string[];
-    }> = [];
-
-    const offerRegex = /<offer(\s[^>]*)?>([\s\S]*?)<\/offer>/gi;
-    let offerMatch: RegExpExecArray | null;
-    let idx = 0;
-    while ((offerMatch = offerRegex.exec(xmlText)) !== null && items.length < maxItemsCap) {
-      idx++;
-      const attrs = offerMatch[1] || '';
-      const bodyXml = offerMatch[2] || '';
-      const idAttr = /id=["']([^"']+)["']/i.exec(attrs);
-      const id = (idAttr ? idAttr[1] : extractTag(bodyXml, ['id', 'vendorCode'])) || `yml-${idx}`;
-      const name = extractTag(bodyXml, ['name', 'model', 'title']);
-      const vendor = extractTag(bodyXml, ['vendor', 'brand']);
-      const vendorCode = extractTag(bodyXml, ['vendorCode', 'sku']);
-      if (!name && !vendor) continue;
-      const title =
-        name && vendor && !name.toLowerCase().includes(vendor.toLowerCase()) ? `${vendor} ${name}` : name || vendor;
-      const catId = extractTag(bodyXml, ['categoryId']);
-      const category = (catId && categoryMap.get(catId)) || extractTag(bodyXml, ['category']) || 'Каталог YML';
-      const priceRaw = parseFloat(extractTag(bodyXml, ['price']).replace(/[^\d.]/g, ''));
-      const price = Number.isFinite(priceRaw) && priceRaw >= 0 ? priceRaw : 0;
-      const description = extractTag(bodyXml, ['description', 'sales_notes']) || title;
-      const tags = [category, vendor, vendorCode].filter(Boolean);
-      items.push({ id, title, description, category, price, brand: vendor || undefined, sku: vendorCode || undefined, tags });
-    }
-
-    if (items.length === 0) {
-      const bitrixRegex = /<Товар(\s[^>]*)?>([\s\S]*?)<\/Товар>/gi;
-      let bm: RegExpExecArray | null;
-      while ((bm = bitrixRegex.exec(xmlText)) !== null && items.length < maxItemsCap) {
-        idx++;
-        const bx = bm[2] || '';
-        const id = extractTag(bx, ['Ид', 'Артикул']) || `bx-${idx}`;
-        const title = extractTag(bx, ['Наименование', 'ПолноеНаименование']);
-        if (!title) continue;
-        const description = extractTag(bx, ['Описание']) || title;
-        const sku = extractTag(bx, ['Артикул']);
-        items.push({
-          id,
-          title,
-          description,
-          category: 'Bitrix CommerceML',
-          price: 0,
-          sku: sku || undefined,
-          tags: ['CommerceML', sku].filter(Boolean),
-        });
-      }
-    }
+    const items = parseYmlOrCommerceMl(xmlText, maxItemsCap);
 
     let indexedCount = 0;
     if (body.autoIndex && items.length > 0) {
@@ -807,24 +730,23 @@ export async function catalogRoutes(
         const chunk = items.slice(offset, offset + BATCH_SIZE);
         const texts = chunk.map((it) => `${it.title}. ${it.category}. ${it.description}`);
         const vectors = await opts.embedder.embedBatch(texts);
-        for (let i = 0; i < chunk.length; i++) {
-          const it = chunk[i];
-          store.upsert({
-            id: it.id,
-            sku: it.sku,
-            brand: it.brand,
-            title: it.title,
-            description: it.description,
-            category: it.category,
-            price: it.price,
-            inStock: true,
-            tags: it.tags,
-            embedding: Array.from(vectors[i]),
-          });
-          indexedCount++;
-        }
+        const batchPrepared = chunk.map((it, i) => ({
+          id: it.id,
+          sku: it.sku,
+          brand: it.brand,
+          title: it.title,
+          description: it.description,
+          category: it.category,
+          price: it.price,
+          inStock: it.inStock,
+          url: it.url,
+          imageUrl: it.imageUrl,
+          tags: it.tags,
+          embedding: Array.from(vectors[i]),
+        }));
+        indexedCount += store.upsertBatch(batchPrepared);
       }
-      await invalidateCatalogCaches();
+      await invalidateCatalogCaches(tenantId, indexName);
       await store.saveSnapshotAsync();
     }
 

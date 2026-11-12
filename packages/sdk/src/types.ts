@@ -22,6 +22,8 @@ export interface SearchRequest {
   query: string;
   limit?: number;
   topK?: number;
+  offset?: number;
+  page?: number;
   mode?: 'dense' | 'sparse' | 'hybrid' | 'semantic';
   alpha?: number;
   rerank?: boolean;
@@ -49,6 +51,10 @@ export interface RecommendationResponse {
 export interface SearchResponse {
   query: string;
   results: RecommendationItem[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
   latencyMs: number;
 }
 

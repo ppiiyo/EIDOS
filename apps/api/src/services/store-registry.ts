@@ -355,6 +355,8 @@ export class StoreRegistry {
 
     const persistence = StoreRegistry.getStorePersistencePaths(cleanTenant, cleanIndex);
     const store = new VectorStore({
+      tenantId: cleanTenant,
+      indexName: cleanIndex,
       ...persistence,
     });
     if (persistence.snapshotPath) {
@@ -420,6 +422,8 @@ export class StoreRegistry {
     const store =
       config.store ||
       new VectorStore({
+        tenantId: cleanTenant,
+        indexName: cleanName,
         M,
         efConstruction,
         efSearch,

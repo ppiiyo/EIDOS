@@ -197,6 +197,8 @@ export class HNSWIndex {
   private idToInternal = new Map<string, number>();
   private internalToId: string[] = [];
   private internalToNode: (HNSWNode | undefined)[] = [];
+  private reverseLinks: Array<Array<Set<number>>> = [];
+  private freeInternalIds: number[] = [];
   private nextInternalId = 0;
   private entryPointId: string | null = null;
   private maxLevel = -1;
@@ -238,11 +240,38 @@ export class HNSWIndex {
   public getInternalId(id: string): number {
     let internalId = this.idToInternal.get(id);
     if (internalId === undefined) {
-      internalId = this.nextInternalId++;
+      internalId =
+        this.freeInternalIds.length > 0 ? this.freeInternalIds.pop()! : this.nextInternalId++;
       this.idToInternal.set(id, internalId);
       this.internalToId[internalId] = id;
+      if (!this.reverseLinks[internalId]) {
+        this.reverseLinks[internalId] = [];
+      }
     }
     return internalId;
+  }
+
+  private addReverseLink(targetIntId: number, level: number, sourceIntId: number): void {
+    let byLevel = this.reverseLinks[targetIntId];
+    if (!byLevel) {
+      byLevel = [];
+      this.reverseLinks[targetIntId] = byLevel;
+    }
+    let set = byLevel[level];
+    if (!set) {
+      set = new Set<number>();
+      byLevel[level] = set;
+    }
+    set.add(sourceIntId);
+  }
+
+  private removeReverseLink(targetIntId: number, level: number, sourceIntId: number): void {
+    const byLevel = this.reverseLinks[targetIntId];
+    if (!byLevel) return;
+    const set = byLevel[level];
+    if (set) {
+      set.delete(sourceIntId);
+    }
   }
 
   /**
@@ -352,8 +381,17 @@ export class HNSWIndex {
    * Synchronizes flat Int32Array and string array for a node's level.
    */
   private setNodeFriends(node: HNSWNode, level: number, friendIntIds: number[]): void {
+    const prev = node.friendsInt32[level];
+    if (prev && prev.length > 0) {
+      for (let i = 0; i < prev.length; i++) {
+        this.removeReverseLink(prev[i], level, node.intId);
+      }
+    }
     node.friendsInt32[level] = new Int32Array(friendIntIds);
     node.friends[level] = friendIntIds.map((intId) => this.internalToId[intId] || '');
+    for (let i = 0; i < friendIntIds.length; i++) {
+      this.addReverseLink(friendIntIds[i], level, node.intId);
+    }
   }
 
   /**
@@ -364,6 +402,7 @@ export class HNSWIndex {
     if (!existing || existing.length === 0) {
       node.friendsInt32[level] = new Int32Array([friendIntId]);
       node.friends[level] = [this.internalToId[friendIntId] || ''];
+      this.addReverseLink(friendIntId, level, node.intId);
       return;
     }
 
@@ -377,6 +416,7 @@ export class HNSWIndex {
     next[existing.length] = friendIntId;
     node.friendsInt32[level] = next;
     node.friends[level].push(this.internalToId[friendIntId] || '');
+    this.addReverseLink(friendIntId, level, node.intId);
   }
 
   /**
@@ -468,12 +508,12 @@ export class HNSWIndex {
       );
 
       const maxM = l === 0 ? this.config.M0 : this.config.M;
-      const selectedNeighbors = candidates.slice(0, maxM);
+      const selectedIntIds = this.selectNeighborsHeuristic(candidates, maxM);
 
       const newFriendIntIds: number[] = [];
-      for (const neighbor of selectedNeighbors) {
-        newFriendIntIds.push(neighbor.intId);
-        const neighborNode = this.internalToNode[neighbor.intId];
+      for (const neighborIntId of selectedIntIds) {
+        newFriendIntIds.push(neighborIntId);
+        const neighborNode = this.internalToNode[neighborIntId];
         if (neighborNode) {
           this.addFriend(neighborNode, l, intId);
 
@@ -495,7 +535,53 @@ export class HNSWIndex {
   }
 
   /**
-   * Prunes connections of a node at layer l to keep only the closest maxM neighbors.
+   * Malkov & Yashunin (2018) Algorithm 4: Select-Neighbors-Heuristic.
+   * Preserves angular diversity and inter-cluster bridge links instead of collapsing into isolated cliques.
+   */
+  private selectNeighborsHeuristic(
+    sortedCandidates: ReadonlyArray<{ intId: number; dist: number }>,
+    maxM: number
+  ): number[] {
+    if (sortedCandidates.length <= maxM) {
+      return sortedCandidates.map((c) => c.intId);
+    }
+
+    const selected: number[] = [];
+    const selectedNodes: HNSWNode[] = [];
+    const discarded: number[] = [];
+
+    for (let i = 0; i < sortedCandidates.length; i++) {
+      if (selected.length >= maxM) break;
+      const cand = sortedCandidates[i];
+      const candNode = this.internalToNode[cand.intId];
+      if (!candNode) continue;
+
+      let diverseEnough = true;
+      for (let j = 0; j < selectedNodes.length; j++) {
+        const distBetween = this.getDistance(candNode.vector, candNode.quantized, selectedNodes[j]);
+        if (distBetween < cand.dist) {
+          diverseEnough = false;
+          break;
+        }
+      }
+
+      if (diverseEnough) {
+        selected.push(cand.intId);
+        selectedNodes.push(candNode);
+      } else {
+        discarded.push(cand.intId);
+      }
+    }
+
+    for (let i = 0; i < discarded.length && selected.length < maxM; i++) {
+      selected.push(discarded[i]);
+    }
+
+    return selected;
+  }
+
+  /**
+   * Prunes connections of a node at layer l using HNSW neighbor diversity heuristic.
    */
   private pruneNeighbors(node: HNSWNode, level: number, maxM: number): void {
     const neighbors = node.friendsInt32[level];
@@ -511,7 +597,7 @@ export class HNSWIndex {
     }
 
     scored.sort((a, b) => a.dist - b.dist);
-    const pruned = scored.slice(0, maxM).map((s) => s.intId);
+    const pruned = this.selectNeighborsHeuristic(scored, maxM);
     this.setNodeFriends(node, level, pruned);
   }
 
@@ -545,8 +631,8 @@ export class HNSWIndex {
     let currEpNode = this.nodes.get(currEp)!;
     let currEpDist = this.getDistance(normQuery, queryQuant, currEpNode);
 
-    // Greedy routing from top level down to layer 1
-    for (let l = this.maxLevel; l >= 1; l--) {
+    // Greedy routing from top level down to layer 2
+    for (let l = this.maxLevel; l >= 2; l--) {
       let changed = true;
       while (changed) {
         changed = false;
@@ -568,9 +654,17 @@ export class HNSWIndex {
       }
     }
 
-    // Search layer 0 with efSearch
     const ef = Math.max(k, efSearch ?? this.config.efSearch);
-    const candidates = this.searchLayer(normQuery, queryQuant, [currEp], ef, 0);
+    let layer0Entries = [currEp];
+    if (this.maxLevel >= 1) {
+      const layer1Cands = this.searchLayer(normQuery, queryQuant, [currEp], Math.min(ef, 8), 1);
+      if (layer1Cands.length > 0) {
+        layer0Entries = layer1Cands.map((c) => c.id);
+      }
+    }
+
+    // Search layer 0 with efSearch
+    const candidates = this.searchLayer(normQuery, queryQuant, layer0Entries, ef, 0);
 
     const topK = candidates.slice(0, k);
 
@@ -611,16 +705,27 @@ export class HNSWIndex {
     }
 
     const intId = node.intId;
-    this.nodes.delete(id);
-    this.internalToNode[intId] = undefined;
-    delete this.internalToId[intId];
-    this.idToInternal.delete(id);
+    // 1. Remove outgoing reverse-link entries in O(deg * levels)
+    for (let l = 0; l <= node.level; l++) {
+      const outFriends = node.friendsInt32[l];
+      if (outFriends) {
+        for (let i = 0; i < outFriends.length; i++) {
+          this.removeReverseLink(outFriends[i], l, intId);
+        }
+      }
+    }
 
-    // Clean up references from neighbors at all levels
-    for (const other of this.nodes.values()) {
-      for (let l = 0; l <= other.level; l++) {
-        const friends = other.friendsInt32[l];
-        if (friends) {
+    // 2. Clean up incoming references from neighbors in O(deg * levels) using reverseLinks
+    const incomingByLevel = this.reverseLinks[intId];
+    if (incomingByLevel) {
+      for (let l = 0; l < incomingByLevel.length; l++) {
+        const incomingSet = incomingByLevel[l];
+        if (!incomingSet || incomingSet.size === 0) continue;
+        for (const sourceIntId of Array.from(incomingSet)) {
+          const other = this.internalToNode[sourceIntId];
+          if (!other) continue;
+          const friends = other.friendsInt32[l];
+          if (!friends) continue;
           const filtered: number[] = [];
           for (let i = 0; i < friends.length; i++) {
             if (friends[i] !== intId) filtered.push(friends[i]);
@@ -629,8 +734,16 @@ export class HNSWIndex {
             this.setNodeFriends(other, l, filtered);
           }
         }
+        incomingSet.clear();
       }
+      this.reverseLinks[intId] = [];
     }
+
+    this.nodes.delete(id);
+    this.internalToNode[intId] = undefined;
+    this.internalToId[intId] = '';
+    this.idToInternal.delete(id);
+    this.freeInternalIds.push(intId);
 
     if (this.entryPointId === id) {
       if (this.nodes.size === 0) {
@@ -675,7 +788,7 @@ export class HNSWIndex {
       this.internalToNode[intId] = nodeObj;
     }
 
-    // Now resolve friend internal IDs
+    // Now resolve friend internal IDs and populate reverseLinks
     for (const node of this.nodes.values()) {
       for (let l = 0; l <= node.level; l++) {
         const stringFriends = node.friends[l] || [];
@@ -683,6 +796,9 @@ export class HNSWIndex {
           .map((sf) => this.idToInternal.get(sf))
           .filter((id): id is number => id !== undefined);
         node.friendsInt32[l] = new Int32Array(intFriends);
+        for (let i = 0; i < intFriends.length; i++) {
+          this.addReverseLink(intFriends[i], l, node.intId);
+        }
       }
     }
 
@@ -714,6 +830,8 @@ export class HNSWIndex {
     this.idToInternal.clear();
     this.internalToId = [];
     this.internalToNode = [];
+    this.reverseLinks = [];
+    this.freeInternalIds = [];
     this.nextInternalId = 0;
     this.entryPointId = null;
     this.maxLevel = -1;

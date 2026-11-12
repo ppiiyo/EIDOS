@@ -348,6 +348,27 @@ export class RedisCache {
     this.fallbackCache!.clearSync();
   }
 
+  invalidateNamespaceSync(namespace?: string): void {
+    this.initFallback();
+    if (!namespace || namespace === 'default:default') {
+      // Only remove un-namespaced default keys (keys without a tenant:index segment)
+      for (const key of this.fallbackCache!.keysMatching('search:*')) {
+        if (key.split(':').length === 2) {
+          void this.fallbackCache!.del(key);
+        }
+      }
+      for (const key of this.fallbackCache!.keysMatching('recommend:*')) {
+        const parts = key.split(':');
+        if (parts.length <= 4) {
+          void this.fallbackCache!.del(key);
+        }
+      }
+      return;
+    }
+    this.fallbackCache!.invalidateSync(`search:${namespace}:*`);
+    this.fallbackCache!.invalidateSync(`recommend:${namespace}:*`);
+  }
+
   /**
    * Check if cache layer is operational
    */

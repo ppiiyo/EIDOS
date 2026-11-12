@@ -133,10 +133,14 @@ const TRANSLIT_MAP: Record<string, string> = {
 
 export interface CategoryFamilySpec {
   id: string;
+  key?: string;
   canonicalRu: string;
   canonicalEn: string;
   queryStems: string[];
   itemStems: string[];
+  queryTriggers?: string[];
+  categoryMatchers?: string[];
+  titleMatchers?: string[];
 }
 
 export const PRODUCT_CATEGORY_FAMILIES: ReadonlyArray<CategoryFamilySpec> = [
@@ -269,8 +273,15 @@ export const PRODUCT_CATEGORY_FAMILIES: ReadonlyArray<CategoryFamilySpec> = [
     id: 'oils',
     canonicalRu: 'масла и автохимия',
     canonicalEn: 'motor oils',
-    queryStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil', 'колодк', 'тормозн'],
-    itemStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil', 'motul', 'mobil', 'лукойл', 'shell', 'колодк', 'тормозн', 'brembo', 'автотовар'],
+    queryStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil'],
+    itemStems: ['масло', 'автомасло', '5w-40', '5w40', '5w-30', '5w30', 'моторн', 'oil', 'motul', 'mobil', 'лукойл', 'shell', 'автохимия'],
+  },
+  {
+    id: 'brake_pads',
+    canonicalRu: 'тормозные колодки и диски',
+    canonicalEn: 'brake pads & discs',
+    queryStems: ['колодк', 'тормозн', 'суппорт', 'brembo', 'brake'],
+    itemStems: ['колодк', 'тормозн', 'суппорт', 'brembo', 'brake'],
   },
   {
     id: 'appliances',
@@ -567,9 +578,71 @@ export function normalizeQueryWithLayoutRecovery(rawQuery: string): NormalizedQu
  * Extracts the primary product category intent from a query, giving strict priority
  * to head nouns ("наушники" in "недорогие наушники для бега") over prepositional modifiers ("для бега").
  */
-export function extractHeadCategoryIntent(rawQuery: string): HeadCategoryIntent {
+/**
+ * Automatically derives CategoryFamilySpec entries from an arbitrary client catalog's actual categories
+ * using token frequency analysis and morphological stem extraction (zero hardcoded demo words).
+ */
+export function buildDynamicCategoryFamiliesFromCatalog(
+  items: ReadonlyArray<{ category?: string; title?: string; tags?: string[] }>
+): CategoryFamilySpec[] {
+  const categoryCounts = new Map<string, number>();
+  for (const it of items) {
+    const rawCat = (it.category || '').trim();
+    if (!rawCat || rawCat.toLowerCase() === 'general') continue;
+    categoryCounts.set(rawCat, (categoryCounts.get(rawCat) || 0) + 1);
+  }
+
+  const families: CategoryFamilySpec[] = [];
+  for (const [catName] of categoryCounts.entries()) {
+    const cleanLower = catName.toLowerCase().trim();
+    const rawTokens = cleanLower
+      .split(/[\s,_\-—/()&+]+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+    if (rawTokens.length === 0) continue;
+
+    const stems = new Set<string>();
+    stems.add(cleanLower);
+    for (const tok of rawTokens) {
+      stems.add(tok);
+      if (tok.length >= 5) {
+        stems.add(tok.slice(0, tok.length - 1));
+      }
+      if (tok.length >= 6) {
+        stems.add(tok.slice(0, tok.length - 2));
+      }
+    }
+
+    const id = `dyn_${cleanLower.replace(/[^a-zа-яё0-9]+/gi, '_').replace(/^_|_$/g, '')}`;
+    const stemArr = Array.from(stems).filter((s) => s.length >= 3);
+    if (stemArr.length > 0) {
+      families.push({
+        id,
+        canonicalRu: catName,
+        canonicalEn: catName,
+        queryStems: stemArr,
+        itemStems: stemArr,
+      });
+    }
+  }
+  return families;
+}
+
+/**
+ * Extracts the primary product category intent from a query, giving strict priority
+ * to head nouns ("наушники" in "недорогие наушники для бега") over prepositional modifiers ("для бега").
+ * Supports per-tenant custom families and dynamically derived catalog families.
+ */
+export function extractHeadCategoryIntent(
+  rawQuery: string,
+  customFamilies?: ReadonlyArray<CategoryFamilySpec>
+): HeadCategoryIntent {
   const qInfo = normalizeQueryWithLayoutRecovery(rawQuery);
   const lower = qInfo.normalizedQuery.toLowerCase();
+  const activeFamilies: ReadonlyArray<CategoryFamilySpec> =
+    customFamilies && customFamilies.length > 0
+      ? [...customFamilies, ...PRODUCT_CATEGORY_FAMILIES]
+      : PRODUCT_CATEGORY_FAMILIES;
 
   const isBudgetIntent = qInfo.isBudgetIntent;
   const isPremiumIntent = /(премиум|премиальн|флагман|дорог|топов|люкс|premium|flagship|luxury|high-end)/i.test(lower);
@@ -584,7 +657,7 @@ export function extractHeadCategoryIntent(rawQuery: string): HeadCategoryIntent 
 
   // 1. Check headTokens first (tokens BEFORE "для"/"под"/"for") so head noun wins over use-case
   for (const hTok of qInfo.headTokens) {
-    for (const fam of PRODUCT_CATEGORY_FAMILIES) {
+    for (const fam of activeFamilies) {
       if (
         fam.queryStems.some(
           (stem) => hTok.includes(stem) || (hTok.length >= 6 && stem.startsWith(hTok))
@@ -612,7 +685,7 @@ export function extractHeadCategoryIntent(rawQuery: string): HeadCategoryIntent 
   // 2. If no head token matched (e.g. inverted word order "для бега наушники"), check modifier tokens
   //    for explicit product nouns (excluding pure use-case words like "бег"/"спорт"/"игр")
   for (const mTok of qInfo.modifierTokens) {
-    for (const fam of PRODUCT_CATEGORY_FAMILIES) {
+    for (const fam of activeFamilies) {
       if (fam.id === 'sneakers' && /^бег/i.test(mTok)) continue;
       if (fam.id === 'games' && /^игр/i.test(mTok)) continue;
       if (fam.queryStems.some((stem) => mTok.includes(stem))) {
@@ -658,7 +731,8 @@ export function extractHeadCategoryIntent(rawQuery: string): HeadCategoryIntent 
 export function evaluateCandidateCategoryGate(
   headIntent: HeadCategoryIntent,
   candidate: GuardrailCandidateInput,
-  _mode: SimpleCategoryGateMode = 'hard'
+  _mode: SimpleCategoryGateMode = 'hard',
+  customFamilies?: ReadonlyArray<CategoryFamilySpec>
 ): CategoryGateEvaluation {
   if (!headIntent.familyId || headIntent.confidence < 0.7) {
     return {
@@ -672,6 +746,11 @@ export function evaluateCandidateCategoryGate(
     };
   }
 
+  const activeFamilies: ReadonlyArray<CategoryFamilySpec> =
+    customFamilies && customFamilies.length > 0
+      ? [...customFamilies, ...PRODUCT_CATEGORY_FAMILIES]
+      : PRODUCT_CATEGORY_FAMILIES;
+
   const primaryFields = `${candidate.title || ''} ${candidate.category || ''} ${(candidate.tags || []).join(' ')}`.toLowerCase();
   const fullText = `${primaryFields} ${candidate.description || ''}`.toLowerCase();
 
@@ -679,7 +758,7 @@ export function evaluateCandidateCategoryGate(
 
   let conflictsWithHeadCategory = false;
   if (!matchesHeadCategory) {
-    for (const otherFam of PRODUCT_CATEGORY_FAMILIES) {
+    for (const otherFam of activeFamilies) {
       if (otherFam.id === headIntent.familyId) continue;
       if (otherFam.itemStems.some((stem) => primaryFields.includes(stem))) {
         conflictsWithHeadCategory = true;

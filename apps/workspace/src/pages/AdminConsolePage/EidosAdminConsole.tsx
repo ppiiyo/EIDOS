@@ -230,11 +230,10 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
 
           if (signal?.aborted) return;
 
-          const resolvedItems =
-            Math.max(
-              Number(currentReady?.itemsIndexed ?? 0),
-              Number(st?.itemsIndexed ?? 0)
-            ) || 1048;
+          const resolvedItems = Math.max(
+            Number(currentReady?.itemsIndexed ?? 0),
+            Number(st?.itemsIndexed ?? 0)
+          );
 
           // Synchronize BOTH readyPayload and catalogSummary so searchReady is never stale
           setReadyPayload({
@@ -246,7 +245,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
           });
           setCatalogSummary({
             itemsIndexed: resolvedItems,
-            hnswIndexed: st?.hnswIndexed || resolvedItems,
+            hnswIndexed: st?.hnswIndexed ?? resolvedItems,
             categories: st?.categories || {},
           });
 

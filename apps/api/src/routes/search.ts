@@ -102,6 +102,8 @@ const searchRequestSchema = z.object({
   query: z.string().max(500).optional().default(''),
   limit: z.number().int().min(1).max(100).optional(),
   topK: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).max(10000).optional(),
+  page: z.number().int().min(1).max(1000).optional(),
   minSimilarity: z.number().min(0).max(1).optional(),
   minScore: z.number().min(0).max(1).optional(),
   simpleCategoryGate: z.enum(['hard', 'soft', 'off']).optional(),
@@ -185,6 +187,8 @@ export async function searchRoutes(
         query,
         limit: rawLimit,
         topK,
+        offset: rawOffset,
+        page: rawPage,
         minSimilarity: rawMinSimilarity,
         minScore: rawMinScore,
         simpleCategoryGate: rawSimpleCategoryGate,
@@ -227,6 +231,13 @@ export async function searchRoutes(
       const limit = isSuggest
         ? Math.min(Math.max(rawLimit ?? topK ?? 6, 1), 8)
         : (rawLimit ?? topK ?? 10);
+      const offset = isSuggest
+        ? 0
+        : rawOffset !== undefined
+        ? rawOffset
+        : rawPage !== undefined
+        ? (rawPage - 1) * limit
+        : 0;
       const candidateFetchLimit = Math.max(limit, 10);
 
       const scopedCategory =
@@ -461,7 +472,11 @@ export async function searchRoutes(
         ? normalizeQueryWithLayoutRecovery(dictPrep.processedQuery)
         : layoutInfo;
       const safeQuery = queryInfo.normalizedQuery || dictPrep.processedQuery || rawSanitized;
-      const headIntent = extractHeadCategoryIntent(safeQuery);
+      const customCategoryFamilies = adminStore.getCategoryFamilies(tenantId);
+      const headIntent = extractHeadCategoryIntent(
+        safeQuery,
+        customCategoryFamilies.length > 0 ? customCategoryFamilies : undefined
+      );
 
       // Stage 3: Classify query shape ('sku_like' | 'short' | 'natural') and apply Query-Shape Bias
       const queryShape: QueryShape = classifyQueryShape(safeQuery, rawSanitized);
@@ -659,6 +674,7 @@ export async function searchRoutes(
         normalizedFilters.facets = resolvedFacets.join(',');
       }
       if (preserveExactRrfOrder) normalizedFilters.pureRrf = true;
+      if (offset > 0) normalizedFilters.offset = offset;
       if (tenantId !== 'default') normalizedFilters.tenantId = tenantId;
       if (indexName !== 'default') normalizedFilters.indexName = indexName;
       if (rerank) {
@@ -673,7 +689,7 @@ export async function searchRoutes(
       const cacheKey = CacheKeys.search(
         safeQuery,
         normalizedFilters,
-        candidateFetchLimit,
+        limit,
         cacheNamespace
       );
       const keySafe = isCacheKeySafe(cacheKey);
@@ -752,6 +768,10 @@ export async function searchRoutes(
         }
         const { extractedIntent: _cachedIntent, ...restCached } = cachedResponse;
         const cachedMeta = cachedResponse.meta || {};
+        const cachedTotal =
+          typeof cachedResponse.total === 'number'
+            ? cachedResponse.total
+            : formattedCachedResults.length;
         return {
           ...restCached,
           query: safeQuery,
@@ -764,7 +784,12 @@ export async function searchRoutes(
           simpleCategoryGate,
           results: formattedCachedResults,
           count: formattedCachedResults.length,
-          total: formattedCachedResults.length,
+          total: cachedTotal,
+          offset,
+          limit,
+          hasMore: Boolean(
+            cachedResponse.hasMore ?? offset + formattedCachedResults.length < cachedTotal
+          ),
           ...(cachedResponse.facets ? { facets: cachedResponse.facets } : {}),
           meta: {
             latencyMs: hitLatencyMs,
@@ -806,10 +831,14 @@ export async function searchRoutes(
         };
       }
 
-      const filterKey = JSON.stringify({ normalizedFilters, limit: candidateFetchLimit });
+      const filterKey = `${cacheNamespace}:${JSON.stringify({ normalizedFilters, limit, offset })}`;
       const filterStats = {
         candidatesBeforeFilter: activeStore.count(),
         candidatesAfterFilter: activeStore.count(),
+      };
+      const totalHolder = {
+        total: 0,
+        hasMore: false,
       };
       const facetsHolder: { facets?: FacetCounts } = {};
 
@@ -1008,12 +1037,12 @@ export async function searchRoutes(
               dominantLexicalField?: FieldBoostField | null;
             }> = await traceSpan(
               spanName,
-              { mode, limit: candidateFetchLimit },
+              { mode, limit, offset },
               async () =>
                 activeStore.hybridSearch(
                   safeQuery,
                   cleanVector,
-                  candidateFetchLimit,
+                  offset > 0 ? limit : candidateFetchLimit,
                   denseW,
                   sparseW,
                   effectiveCategory,
@@ -1030,6 +1059,9 @@ export async function searchRoutes(
                     facetsOut: facetsHolder,
                     preserveExactRrfOrder,
                     filterStatsOut: filterStats,
+                    offset,
+                    totalOut: totalHolder,
+                    customCategoryFamilies,
                   }
                 )
             );
@@ -1349,6 +1381,8 @@ export async function searchRoutes(
       const cachedAt = new Date().toISOString();
       const combinedRules = [...dictPrep.appliedRules, ...appliedMerchRuleLabels];
       const slicedFresh = freshResults.slice(0, limit).map(formatResultForView);
+      const resolvedTotal = Math.max(totalHolder.total, offset + slicedFresh.length);
+      const resolvedHasMore = offset + slicedFresh.length < resolvedTotal;
 
       const fullCachePayload = {
         query: safeQuery,
@@ -1363,8 +1397,11 @@ export async function searchRoutes(
         simpleCategoryGate,
         headCategoryIntent: headIntent.familyKey,
         results: freshResults,
-        count: freshResults.length,
-        total: freshResults.length,
+        count: slicedFresh.length,
+        total: resolvedTotal,
+        offset,
+        limit,
+        hasMore: resolvedHasMore,
         ...(resolvedFacets && facetsHolder.facets ? { facets: facetsHolder.facets } : {}),
         latencyMs,
         cacheHit: false,
@@ -1405,7 +1442,10 @@ export async function searchRoutes(
         ...fullCachePayload,
         results: slicedFresh,
         count: slicedFresh.length,
-        total: slicedFresh.length,
+        total: resolvedTotal,
+        offset,
+        limit,
+        hasMore: resolvedHasMore,
       };
 
       const topFresh = slicedFresh[0];

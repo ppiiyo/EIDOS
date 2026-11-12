@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-11-12T05:43:00.592Z",
+  "engine": "EIDOS Hybrid Retrieval v4.0 (HNSW + BM25 Postings + Weighted RRF)",
+  "results": [
+    {
+      "scale": 1000,
+      "buildTimeMs": 3258,
+      "rssMB": 232.58,
+      "p50LatencyMs": 10.33,
+      "p95LatencyMs": 20.23,
+      "p99LatencyMs": 20.23,
+      "avgLatencyMs": 11.51,
+      "rps": 87,
+      "recallAt10VsBruteForce": 1,
+      "byClass": {
+        "sku_like": {
+          "p50Ms": 13.08,
+          "p95Ms": 14.85,
+          "avgRecallAt10": 1
+        },
+        "short": {
+          "p50Ms": 10.86,
+          "p95Ms": 20.23,
+          "avgRecallAt10": 1
+        },
+        "natural": {
+          "p50Ms": 10.33,
+          "p95Ms": 15.94,
+          "avgRecallAt10": 1
+        }
+      }
+    },
+    {
+      "scale": 10000,
+      "buildTimeMs": 91971,
+      "rssMB": 549.89,
+      "p50LatencyMs": 18.3,
+      "p95LatencyMs": 25.11,
+      "p99LatencyMs": 25.11,
+      "avgLatencyMs": 17.74,
+      "rps": 56,
+      "recallAt10VsBruteForce": 0.9167,
+      "byClass": {
+        "sku_like": {
+          "p50Ms": 24.3,
+          "p95Ms": 25.11,
+          "avgRecallAt10": 0.75
+        },
+        "short": {
+          "p50Ms": 13.17,
+          "p95Ms": 13.36,
+          "avgRecallAt10": 1
+        },
+        "natural": {
+          "p50Ms": 18.3,
+          "p95Ms": 23.82,
+          "avgRecallAt10": 1
+        }
+      }
+    }
+  ]
+}

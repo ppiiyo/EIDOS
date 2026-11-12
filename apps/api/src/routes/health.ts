@@ -58,11 +58,16 @@ async function checkEmbeddingModel(embedder?: ServerEmbedder): Promise<Component
   try {
     const instance = embedder || ServerEmbedder.getInstance();
     const dim = instance.getEmbeddingDimension();
+    const activeModel = instance.getActiveModelName();
+    const mode = instance.getEmbeddingMode();
+    const embeddingSpaceId = instance.getEmbeddingSpaceId();
     return {
       status: dim === 384 ? 'ok' : 'degraded',
-      model: 'all-MiniLM-L6-v2',
+      model: activeModel,
+      mode,
+      embeddingSpaceId,
       dimension: dim,
-      message: 'Embedding model loaded',
+      message: `Embedding model loaded (${mode}: ${activeModel})`,
     };
   } catch (err) {
     return {
@@ -127,6 +132,7 @@ export async function healthRoutes(
     const itemCount = opts.vectorStore.count();
     const initializedEmpty = initialItemsIndexed === 0;
 
+    const instance = opts.embedder || ServerEmbedder.getInstance();
     return reply.status(isHealthy ? 200 : 503).send({
       ok: isHealthy,
       status: isHealthy ? 'healthy' : 'degraded',
@@ -138,7 +144,9 @@ export async function healthRoutes(
       initialItemsIndexed,
       initializedEmpty,
       uptimeSeconds: Math.floor((Date.now() - bootTime) / 1000),
-      model: 'all-MiniLM-L6-v2',
+      model: instance.getActiveModelName(),
+      embeddingMode: instance.getEmbeddingMode(),
+      embeddingSpaceId: instance.getEmbeddingSpaceId(),
       ...(isHealthy ? {} : { error: 'One or more health checks reported degraded or error status' }),
       checks,
     });
@@ -179,6 +187,7 @@ export async function healthRoutes(
     const hnswSize = opts.vectorStore.getHNSW().size();
     const searchReady = isReady && itemCount > 0;
 
+    const instance = opts.embedder || ServerEmbedder.getInstance();
     return reply.status(isReady ? 200 : 503).send({
       status: isReady ? 'ready' : 'not ready',
       ready: isReady,
@@ -186,6 +195,9 @@ export async function healthRoutes(
       searchReady,
       itemsIndexed: itemCount,
       hnswIndexed: hnswSize,
+      model: instance.getActiveModelName(),
+      embeddingMode: instance.getEmbeddingMode(),
+      embeddingSpaceId: instance.getEmbeddingSpaceId(),
       redis: redisHealthy ? 'ok' : 'degraded',
       version: process.env.npm_package_version || '3.4.0',
       ...(itemCount === 0 ? { code: 'INDEX_EMPTY' } : {}),

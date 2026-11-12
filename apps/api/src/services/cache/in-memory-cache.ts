@@ -120,6 +120,10 @@ export class InMemoryCache {
   }
 
   async invalidate(pattern: string): Promise<number> {
+    return this.invalidateSync(pattern);
+  }
+
+  invalidateSync(pattern: string): number {
     const keysToDelete = this.keysMatching(pattern);
     keysToDelete.forEach((key) => this.store.delete(key));
     return keysToDelete.length;

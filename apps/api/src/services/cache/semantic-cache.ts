@@ -202,6 +202,21 @@ export class SemanticQueryCache {
     this.buckets.clear();
   }
 
+  public invalidateNamespace(namespace?: string): void {
+    const ns = namespace || 'default:default';
+    for (let i = this.entries.length - 1; i >= 0; i--) {
+      const entry = this.entries[i];
+      const matchesNs =
+        entry.filterKey.includes(`::${ns}::`) ||
+        entry.filterKey.startsWith(`${ns}::`) ||
+        (ns === 'default:default' && !entry.filterKey.includes('tenant='));
+      if (matchesNs || entry.filterKey.includes(`tenant=${ns}`)) {
+        this.entries.splice(i, 1);
+        this.removeEntryFromBucket(entry);
+      }
+    }
+  }
+
   public size(): number {
     return this.entries.length;
   }

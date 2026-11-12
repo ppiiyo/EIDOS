@@ -257,25 +257,34 @@ export async function adminRoutes(
 
   /**
    * POST /v1/admin/reindex & POST /v1/admin/optimize
-   * Rebuilds and compacts the HNSW graph + BM25 index for the resolved store and flushes stale caches.
+   * Rebuilds and compacts the HNSW graph + BM25 index for the resolved store (re-embedding on /reindex) and flushes stale caches.
    */
   const handleReindexOrOptimize = async (request: FastifyRequest, reply: FastifyReply) => {
     if (!requireAdminRole(request, reply)) return reply;
     const startMs = performance.now();
     const { store, tenantId, indexName } = storeRegistry.resolveRequestStore(request);
-    const items = store.getAll();
+    const isReindex = request.url.includes('/reindex');
+    let itemsReindexed = 0;
 
-    await store.clear();
-    if (items.length > 0) {
-      store.bulkSeed(items);
+    if (isReindex) {
+      const res = await store.reindexAll(opts.embedder);
+      itemsReindexed = res.reindexed;
+    } else {
+      const items = store.getAll();
+      itemsReindexed = items.length;
+      await store.clear();
+      if (items.length > 0) {
+        store.bulkSeed(items);
+      }
+      await store.getWAL().flush();
     }
-    await store.getWAL().flush();
 
-    ApiQueryCache.invalidateAll();
-    getSemanticCache().clear();
+    const ns = `${tenantId}:${indexName}`;
+    ApiQueryCache.invalidateNamespace(ns);
+    getSemanticCache().invalidateNamespace(ns);
     await Promise.all([
-      cache.invalidate('search:*'),
-      cache.invalidate('recommend:*'),
+      cache.invalidate(`search:${ns}:*`),
+      cache.invalidate(`recommend:${ns}:*`),
       cache.del(CacheKeys.catalogStats()),
     ]);
     Metrics.vectorStoreSize.set(store.count());
@@ -287,14 +296,15 @@ export async function adminRoutes(
       indexName,
       keyId: request.apiKeyContext?.keyId,
       latencyMs: durationMs,
-      details: { operation: 'reindex_optimize', batchSize: items.length },
+      details: { operation: isReindex ? 'reindex_all' : 'reindex_optimize', batchSize: itemsReindexed },
     });
 
     return {
-      status: 'optimized',
+      status: isReindex ? 'reindexed' : 'optimized',
       tenantId,
       indexName,
-      itemsReindexed: items.length,
+      itemsReindexed,
+      embeddingSpaceId: store.getEmbeddingSpaceId(),
       hnswNodes: store.getHNSW().size(),
       durationMs,
       timestamp: new Date().toISOString(),

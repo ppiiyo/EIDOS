@@ -410,4 +410,25 @@ export class ServerEmbedder {
   public getEmbeddingDimension(): number {
     return 384;
   }
+
+  public getEmbeddingMode(): 'onnx' | 'deterministic' {
+    return process.env.EIDOS_USE_ONNX_EMBEDDER === 'true' || process.env.EIDOS_USE_ONNX === 'true'
+      ? 'onnx'
+      : 'deterministic';
+  }
+
+  public getActiveModelName(): string {
+    return this.getEmbeddingMode() === 'onnx'
+      ? 'all-MiniLM-L6-v2'
+      : 'eidos-deterministic-384-v1';
+  }
+
+  public getEmbeddingSpaceId(): string {
+    if (process.env.EIDOS_EMBEDDING_SPACE_ID && process.env.EIDOS_EMBEDDING_SPACE_ID.trim()) {
+      return process.env.EIDOS_EMBEDDING_SPACE_ID.trim();
+    }
+    return this.getEmbeddingMode() === 'onnx'
+      ? 'onnx:all-MiniLM-L6-v2:384:v1'
+      : 'deterministic:eidos-384:v1';
+  }
 }

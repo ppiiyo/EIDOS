@@ -26,6 +26,7 @@ export class BM25Index {
   private documentFrequency: Map<string, number> = new Map();
   private termFrequency: Map<string, Map<string, number>> = new Map();
   private postings: Map<string, Map<string, number>> = new Map();
+  private prefixToTokens: Map<string, Set<string>> = new Map();
   private documentLengths: Map<string, number> = new Map();
   private totalDocumentLength: number = 0;
   private avgDocumentLength: number = 0;
@@ -111,15 +112,39 @@ export class BM25Index {
     this.documentLengths.set(id, tokens.length);
     this.totalDocumentLength += tokens.length;
 
+    const rawLower = combinedText.toLowerCase();
+    const codeTokens = rawLower
+      .split(/[\s,;()[\]"«»]+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 2 && /[a-zа-яё0-9]+-[a-zа-яё0-9]+/i.test(t));
+
     // Compute Term Frequency for this document and update inverted posting lists
     const tf = new Map<string, number>();
     for (const token of tokens) {
       tf.set(token, (tf.get(token) || 0) + 1);
     }
+    for (const ct of codeTokens) {
+      if (!tf.has(ct)) {
+        tf.set(ct, 1);
+      }
+    }
     this.termFrequency.set(id, tf);
 
     for (const [token, count] of tf.entries()) {
-      this.documentFrequency.set(token, (this.documentFrequency.get(token) || 0) + 1);
+      const prevDf = this.documentFrequency.get(token) || 0;
+      this.documentFrequency.set(token, prevDf + 1);
+      if (prevDf === 0 && token.length >= 3) {
+        const maxPrefix = Math.min(token.length, 6);
+        for (let len = 3; len <= maxPrefix; len++) {
+          const pref = token.slice(0, len);
+          let set = this.prefixToTokens.get(pref);
+          if (!set) {
+            set = new Set<string>();
+            this.prefixToTokens.set(pref, set);
+          }
+          set.add(token);
+        }
+      }
       let postingMap = this.postings.get(token);
       if (!postingMap) {
         postingMap = new Map<string, number>();
@@ -146,6 +171,19 @@ export class BM25Index {
       const currentDf = this.documentFrequency.get(token) || 0;
       if (currentDf <= 1) {
         this.documentFrequency.delete(token);
+        if (token.length >= 3) {
+          const maxPrefix = Math.min(token.length, 6);
+          for (let len = 3; len <= maxPrefix; len++) {
+            const pref = token.slice(0, len);
+            const set = this.prefixToTokens.get(pref);
+            if (set) {
+              set.delete(token);
+              if (set.size === 0) {
+                this.prefixToTokens.delete(pref);
+              }
+            }
+          }
+        }
       } else {
         this.documentFrequency.set(token, currentDf - 1);
       }
@@ -162,6 +200,58 @@ export class BM25Index {
     this.documentLengths.delete(id);
     this.termFrequency.delete(id);
     this.avgDocumentLength = this.documents.size > 0 ? this.totalDocumentLength / this.documents.size : 0;
+  }
+
+  /**
+   * Retrieves candidate document IDs from inverted postings (union over exact tokens and morphological stem prefixes).
+   * Eliminates O(N) full-catalog lexical scans on 50k+ SKU indices.
+   */
+  public getCandidateDocIds(queryTokens: string[], stems?: string[]): Set<string> {
+    const candidates = new Set<string>();
+    const expandedTokens = new Set<string>();
+
+    for (const rawTok of queryTokens) {
+      const tok = rawTok.toLowerCase().trim();
+      if (!tok) continue;
+      expandedTokens.add(tok);
+      if (tok.length >= 4) {
+        const stemLen = Math.min(6, Math.max(4, tok.length - 2));
+        const pref = tok.slice(0, stemLen);
+        const prefMatches = this.prefixToTokens.get(pref);
+        if (prefMatches) {
+          for (const matchedTok of prefMatches) {
+            expandedTokens.add(matchedTok);
+          }
+        }
+      }
+    }
+
+    if (stems && stems.length > 0) {
+      for (const rawStem of stems) {
+        const s = rawStem.toLowerCase().trim();
+        if (s.length < 3) continue;
+        expandedTokens.add(s);
+        const pref = s.slice(0, Math.min(6, s.length));
+        const prefMatches = this.prefixToTokens.get(pref);
+        if (prefMatches) {
+          for (const matchedTok of prefMatches) {
+            if (matchedTok.startsWith(s)) {
+              expandedTokens.add(matchedTok);
+            }
+          }
+        }
+      }
+    }
+
+    for (const token of expandedTokens) {
+      const postingMap = this.postings.get(token);
+      if (!postingMap) continue;
+      for (const docId of postingMap.keys()) {
+        candidates.add(docId);
+      }
+    }
+
+    return candidates;
   }
 
   /**

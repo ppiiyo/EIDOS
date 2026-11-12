@@ -171,6 +171,7 @@ export async function demoRoutes(
     const defaults = adminStore.getRankingDefaults(DEMO_TENANT_ID);
     return {
       ...summary,
+      synthetic: true,
       rankingDefaults: {
         fieldBoosts: defaults.fieldBoosts,
         fieldImportance: defaults.fieldImportance,
@@ -196,7 +197,10 @@ export async function demoRoutes(
     const emptyOnly = query.emptyOnly === 'true';
     const adminStore = getAdminConsoleStore();
     seedDemoAnalyticsIfEmpty(adminStore);
-    return adminStore.listQueryLogs({ tenantId: DEMO_TENANT_ID, limit, emptyOnly });
+    return {
+      ...adminStore.listQueryLogs({ tenantId: DEMO_TENANT_ID, limit, emptyOnly }),
+      synthetic: true,
+    };
   });
 
   /**

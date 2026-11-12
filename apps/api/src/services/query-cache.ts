@@ -25,5 +25,18 @@ export class ApiQueryCache {
     getCache().clearMemorySync();
     ApiQueryCache.syncMetrics();
   }
+
+  public static invalidateNamespace(namespace?: string): void {
+    if (!namespace || namespace === 'default:default') {
+      ApiQueryCache.getInstance().invalidatePrefix('search:default:default:');
+      ApiQueryCache.getInstance().invalidatePrefix('recommend:default:default:');
+      getCache().invalidateNamespaceSync('default:default');
+    } else {
+      ApiQueryCache.getInstance().invalidatePrefix(`search:${namespace}:`);
+      ApiQueryCache.getInstance().invalidatePrefix(`recommend:${namespace}:`);
+      getCache().invalidateNamespaceSync(namespace);
+    }
+    ApiQueryCache.syncMetrics();
+  }
 }
 

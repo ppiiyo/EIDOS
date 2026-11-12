@@ -12,6 +12,8 @@ import {
   evaluateCandidateGuardrail,
   extractHeadCategoryIntent,
   evaluateCandidateCategoryGate,
+  buildDynamicCategoryFamiliesFromCatalog,
+  CategoryFamilySpec,
   SimpleCategoryGateMode,
   FieldBoosts,
   FieldBoostField,
@@ -38,6 +40,22 @@ import { ServerEmbedder, computeDeterministicEmbedding } from './embedder';
 import { ApiQueryCache } from './query-cache';
 import { getCache, CacheKeys, getSemanticCache } from './cache';
 
+export class EmbeddingSpaceMismatchError extends Error {
+  public readonly code = 'EMBEDDING_SPACE_MISMATCH';
+  public readonly statusCode = 409;
+  public readonly snapshotSpaceId: string;
+  public readonly activeSpaceId: string;
+
+  constructor(snapshotSpaceId: string, activeSpaceId: string) {
+    super(
+      `Snapshot embeddingSpaceId "${snapshotSpaceId}" does not match active embedder space "${activeSpaceId}". Run POST /v1/admin/reindex or re-index the catalog.`
+    );
+    this.name = 'EmbeddingSpaceMismatchError';
+    this.snapshotSpaceId = snapshotSpaceId;
+    this.activeSpaceId = activeSpaceId;
+  }
+}
+
 export interface SnapshotCatalogItem {
   id: string;
   sku?: string;
@@ -51,6 +69,7 @@ export interface SnapshotCatalogItem {
   tags: string[];
   url: string;
   imageUrl?: string | null;
+  variantGroup?: string;
 }
 
 export interface VectorStoreOptions {
@@ -60,6 +79,9 @@ export interface VectorStoreOptions {
   efSearch?: number;
   walPath?: string;
   snapshotPath?: string;
+  tenantId?: string;
+  indexName?: string;
+  embeddingSpaceId?: string;
 }
 
 /**
@@ -77,13 +99,23 @@ export class VectorStore {
   private options?: VectorStoreOptions;
   private walPath?: string;
   private snapshotPath?: string;
+  private tenantId: string;
+  private indexName: string;
+  private embeddingSpaceId: string;
   private explicitlyCleared = false;
   private hasProductionItems = false;
   private isSeedingDemo = false;
+  private suppressCacheInvalidation = false;
   private catalogVersion = 1;
+  private cachedDynamicFamiliesVersion = -1;
+  private cachedDynamicFamilies: CategoryFamilySpec[] = [];
 
   constructor(options?: VectorStoreOptions) {
     this.options = options;
+    this.tenantId = options?.tenantId || 'default';
+    this.indexName = options?.indexName || 'default';
+    this.embeddingSpaceId =
+      options?.embeddingSpaceId || ServerEmbedder.getInstance().getEmbeddingSpaceId();
     this.hnsw = new HNSWIndex({
       M: options?.M ?? 16,
       M0: (options?.M ?? 16) * 2,
@@ -102,6 +134,34 @@ export class VectorStore {
     this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), this.walPath);
   }
 
+  public getNamespace(): string {
+    return `${this.tenantId}:${this.indexName}`;
+  }
+
+  public getEmbeddingSpaceId(): string {
+    return this.embeddingSpaceId;
+  }
+
+  public setEmbeddingSpaceId(spaceId: string): void {
+    this.embeddingSpaceId = spaceId;
+  }
+
+  public invalidateStoreCache(): void {
+    const ns = this.getNamespace();
+    ApiQueryCache.invalidateNamespace(ns);
+    getSemanticCache().invalidateNamespace(ns);
+  }
+
+  public getDynamicCategoryFamilies(): CategoryFamilySpec[] {
+    if (this.cachedDynamicFamiliesVersion !== this.catalogVersion) {
+      this.cachedDynamicFamilies = buildDynamicCategoryFamiliesFromCatalog(
+        Array.from(this.items.values())
+      );
+      this.cachedDynamicFamiliesVersion = this.catalogVersion;
+    }
+    return this.cachedDynamicFamilies;
+  }
+
   public isExplicitlyCleared(): boolean {
     return this.explicitlyCleared && this.items.size === 0;
   }
@@ -111,12 +171,12 @@ export class VectorStore {
   }
 
   public getCatalogVersion(): number {
-    return Math.max(this.catalogVersion, VectorStore.globalCatalogVersion);
+    return this.catalogVersion;
   }
 
   private bumpCatalogVersion(): void {
     VectorStore.globalCatalogVersion += 1;
-    this.catalogVersion = VectorStore.globalCatalogVersion;
+    this.catalogVersion += 1;
   }
 
   private snapshotTimer: NodeJS.Timeout | null = null;
@@ -132,6 +192,7 @@ export class VectorStore {
     this.bumpCatalogVersion();
     const BATCH_SIZE = 100;
     this.isSeedingDemo = true;
+    this.suppressCacheInvalidation = true;
     try {
       for (let i = 0; i < items.length; i += BATCH_SIZE) {
         const batch = items.slice(i, i + BATCH_SIZE);
@@ -163,15 +224,16 @@ export class VectorStore {
       }
     } finally {
       this.isSeedingDemo = false;
+      this.suppressCacheInvalidation = false;
     }
 
     Metrics.vectorStoreSize.set(this.count());
-    ApiQueryCache.invalidateAll();
-    getSemanticCache().clear();
+    this.invalidateStoreCache();
     const cache = getCache();
+    const ns = this.getNamespace();
     await Promise.all([
-      cache.invalidate('search:*'),
-      cache.invalidate('recommend:*'),
+      cache.invalidate(ns === 'default:default' ? 'search:*' : `search:${ns}:*`),
+      cache.invalidate(ns === 'default:default' ? 'recommend:*' : `recommend:${ns}:*`),
       cache.del(CacheKeys.catalogStats()),
     ]);
   }
@@ -196,12 +258,12 @@ export class VectorStore {
     this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), this.walPath);
 
     Metrics.vectorStoreSize.set(0);
-    ApiQueryCache.invalidateAll();
-    getSemanticCache().clear();
+    this.invalidateStoreCache();
     const cache = getCache();
+    const ns = this.getNamespace();
     await Promise.all([
-      cache.invalidate('search:*'),
-      cache.invalidate('recommend:*'),
+      cache.invalidate(ns === 'default:default' ? 'search:*' : `search:${ns}:*`),
+      cache.invalidate(ns === 'default:default' ? 'recommend:*' : `recommend:${ns}:*`),
       cache.del(CacheKeys.catalogStats()),
     ]);
   }
@@ -283,8 +345,26 @@ export class VectorStore {
     });
     }
 
-    ApiQueryCache.invalidateAll();
-    getSemanticCache().clear();
+    if (!this.suppressCacheInvalidation) {
+      this.invalidateStoreCache();
+    }
+  }
+
+  /**
+   * Batch upserts multiple items while coalescing cache invalidation into a single per-tenant operation.
+   */
+  public upsertBatch(items: StoredItem[]): number {
+    if (items.length === 0) return 0;
+    this.suppressCacheInvalidation = true;
+    try {
+      for (const item of items) {
+        this.upsert(item);
+      }
+    } finally {
+      this.suppressCacheInvalidation = false;
+    }
+    this.invalidateStoreCache();
+    return items.length;
   }
 
   /**
@@ -328,8 +408,7 @@ export class VectorStore {
       const docText = `${item.title} ${sku} ${item.brand || ''} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
       this.bm25.addDocument(id, docText);
     }
-    ApiQueryCache.invalidateAll();
-    getSemanticCache().clear();
+    this.invalidateStoreCache();
   }
 
   public delete(id: string): boolean {
@@ -343,8 +422,9 @@ export class VectorStore {
         type: 'DELETE_NODE',
         nodeId: strId,
       });
-      ApiQueryCache.invalidateAll();
-      getSemanticCache().clear();
+      if (!this.suppressCacheInvalidation) {
+        this.invalidateStoreCache();
+      }
     }
     return existed;
   }
@@ -437,6 +517,7 @@ export class VectorStore {
         tags: Array.isArray(item.tags) ? item.tags : [],
         url: typeof item.url === 'string' ? item.url : '',
         imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : null,
+        ...(item.variantGroup ? { variantGroup: item.variantGroup } : {}),
       });
     }
     return out;
@@ -450,6 +531,16 @@ export class VectorStore {
     const payload = JSON.stringify(this.toSnapshotArray());
     await fs.promises.writeFile(tempPath, payload, 'utf8');
     await fs.promises.rename(tempPath, targetPath);
+
+    const metaPath = `${targetPath}.meta.json`;
+    const metaPayload = JSON.stringify({
+      version: 2,
+      dimension: 384,
+      embeddingSpaceId: this.getEmbeddingSpaceId(),
+      itemCount: this.items.size,
+      savedAt: new Date().toISOString(),
+    });
+    await fs.promises.writeFile(metaPath, metaPayload, 'utf8');
 
     const binPath = `${targetPath}.hnsw.bin`;
     const tempBinPath = `${binPath}.tmp-${nowTag}`;
@@ -467,6 +558,16 @@ export class VectorStore {
     const payload = JSON.stringify(this.toSnapshotArray());
     fs.writeFileSync(tempPath, payload, 'utf8');
     fs.renameSync(tempPath, targetPath);
+
+    const metaPath = `${targetPath}.meta.json`;
+    const metaPayload = JSON.stringify({
+      version: 2,
+      dimension: 384,
+      embeddingSpaceId: this.getEmbeddingSpaceId(),
+      itemCount: this.items.size,
+      savedAt: new Date().toISOString(),
+    });
+    fs.writeFileSync(metaPath, metaPayload, 'utf8');
 
     const binPath = `${targetPath}.hnsw.bin`;
     const tempBinPath = `${binPath}.tmp-${nowTag}`;
@@ -577,8 +678,41 @@ export class VectorStore {
     }
 
     try {
+      const metaPath = `${targetPath}.meta.json`;
+      if (fs.existsSync(metaPath)) {
+        const metaRaw = fs.readFileSync(metaPath, 'utf8');
+        const metaObj = JSON.parse(metaRaw);
+        const activeSpaceId =
+          this.options?.embeddingSpaceId || ServerEmbedder.getInstance().getEmbeddingSpaceId();
+        if (
+          metaObj &&
+          typeof metaObj.embeddingSpaceId === 'string' &&
+          metaObj.embeddingSpaceId &&
+          metaObj.embeddingSpaceId !== activeSpaceId
+        ) {
+          throw new EmbeddingSpaceMismatchError(metaObj.embeddingSpaceId, activeSpaceId);
+        }
+      }
+
       const raw = fs.readFileSync(targetPath, 'utf8');
-      const parsed = JSON.parse(raw);
+      const parsedJson = JSON.parse(raw);
+      if (
+        parsedJson &&
+        !Array.isArray(parsedJson) &&
+        typeof parsedJson === 'object' &&
+        typeof parsedJson.embeddingSpaceId === 'string'
+      ) {
+        const activeSpaceId =
+          this.options?.embeddingSpaceId || ServerEmbedder.getInstance().getEmbeddingSpaceId();
+        if (parsedJson.embeddingSpaceId !== activeSpaceId) {
+          throw new EmbeddingSpaceMismatchError(parsedJson.embeddingSpaceId, activeSpaceId);
+        }
+      }
+      const parsed = Array.isArray(parsedJson)
+        ? parsedJson
+        : Array.isArray(parsedJson?.items)
+        ? parsedJson.items
+        : [];
       if (!Array.isArray(parsed) || parsed.length === 0) {
         return 0;
       }
@@ -624,6 +758,7 @@ export class VectorStore {
           tags: Array.isArray(entry.tags) ? entry.tags.map(String) : [],
           url: typeof entry.url === 'string' ? entry.url : '',
           imageUrl: typeof entry.imageUrl === 'string' ? entry.imageUrl : null,
+          variantGroup: typeof entry.variantGroup === 'string' ? entry.variantGroup : undefined,
         };
         validSnapItems.push(snapItem);
       }
@@ -659,6 +794,7 @@ export class VectorStore {
             tags: item.tags,
             url,
             imageUrl: item.imageUrl ?? null,
+            variantGroup: item.variantGroup,
             embedding: Array.from(vec),
             normalizedVector: vec,
           });
@@ -671,8 +807,7 @@ export class VectorStore {
           this.hasProductionItems = true;
         }
         Metrics.vectorStoreSize.set(this.count());
-        ApiQueryCache.invalidateAll();
-        getSemanticCache().clear();
+        this.invalidateStoreCache();
         return loadedCount;
       }
 
@@ -692,6 +827,7 @@ export class VectorStore {
           existing.tags = snapItem.tags;
           existing.url = snapItem.url;
           existing.imageUrl = snapItem.imageUrl ?? existing.imageUrl;
+          existing.variantGroup = snapItem.variantGroup ?? existing.variantGroup;
           loadedCount++;
         } else {
           const text = `${snapItem.title}. ${snapItem.category}. ${snapItem.tags.join(', ')}. ${snapItem.description}`;
@@ -709,55 +845,63 @@ export class VectorStore {
       }
 
       if (toEmbed.length > 0) {
-        if (!embedder) {
-          for (let i = 0; i < toEmbed.length; i++) {
-            const { item, text } = toEmbed[i];
-            const vec = computeDeterministicEmbedding(text);
-            this.upsert({
-              id: item.id,
-              sku: item.sku,
-              brand: item.brand,
-              title: item.title,
-              description: item.description,
-              category: item.category,
-              price: item.price,
-              stock: item.stock,
-              inStock: item.inStock,
-              tags: item.tags,
-              url: item.url,
-              imageUrl: item.imageUrl ?? undefined,
-              embedding: vec,
-            });
-            loadedCount++;
-          }
-        } else {
-          const vectors = await embedder.embedBatch(toEmbed.map((e) => e.text));
-          const useFastBulk = toEmbed.length > 100;
-          for (let i = 0; i < toEmbed.length; i++) {
-            const { item } = toEmbed[i];
-            const isRecentTail = i >= toEmbed.length - 25;
-            let vec = vectors[i];
-            if (useFastBulk && isRecentTail && typeof embedder.embed === 'function') {
-              vec = await embedder.embed(toEmbed[i].text);
+        this.suppressCacheInvalidation = true;
+        try {
+          if (!embedder) {
+            for (let i = 0; i < toEmbed.length; i++) {
+              const { item, text } = toEmbed[i];
+              const vec = computeDeterministicEmbedding(text);
+              this.upsert({
+                id: item.id,
+                sku: item.sku,
+                brand: item.brand,
+                title: item.title,
+                description: item.description,
+                category: item.category,
+                price: item.price,
+                stock: item.stock,
+                inStock: item.inStock,
+                tags: item.tags,
+                url: item.url,
+                imageUrl: item.imageUrl ?? undefined,
+                variantGroup: item.variantGroup,
+                embedding: vec,
+              });
+              loadedCount++;
             }
-            this.upsert({
-              id: item.id,
-              sku: item.sku,
-              brand: item.brand,
-              title: item.title,
-              description: item.description,
-              category: item.category,
-              price: item.price,
-              stock: item.stock,
-              inStock: item.inStock,
-              tags: item.tags,
-              url: item.url,
-              imageUrl: item.imageUrl ?? undefined,
-              embedding: vec,
-            });
-            loadedCount++;
+          } else {
+            const vectors = await embedder.embedBatch(toEmbed.map((e) => e.text));
+            const useFastBulk = toEmbed.length > 100;
+            for (let i = 0; i < toEmbed.length; i++) {
+              const { item } = toEmbed[i];
+              const isRecentTail = i >= toEmbed.length - 25;
+              let vec = vectors[i];
+              if (useFastBulk && isRecentTail && typeof embedder.embed === 'function') {
+                vec = await embedder.embed(toEmbed[i].text);
+              }
+              this.upsert({
+                id: item.id,
+                sku: item.sku,
+                brand: item.brand,
+                title: item.title,
+                description: item.description,
+                category: item.category,
+                price: item.price,
+                stock: item.stock,
+                inStock: item.inStock,
+                tags: item.tags,
+                url: item.url,
+                imageUrl: item.imageUrl ?? undefined,
+                variantGroup: item.variantGroup,
+                embedding: vec,
+              });
+              loadedCount++;
+            }
           }
+        } finally {
+          this.suppressCacheInvalidation = false;
         }
+        this.invalidateStoreCache();
       }
 
       if (this.items.size > 0) {
@@ -765,9 +909,76 @@ export class VectorStore {
       }
       return loadedCount;
     } catch (err) {
+      if (err instanceof EmbeddingSpaceMismatchError) {
+        throw err;
+      }
       console.error('[EIDOS] Failed to load catalog snapshot from disk:', err);
       return 0;
     }
+  }
+
+  /**
+   * Re-embeds all stored items into the active embeddingSpaceId and rebuilds the HNSW + BM25 indices (EIDOS-103).
+   */
+  public async reindexAll(
+    embedder: {
+      embedBatch: (texts: string[]) => Promise<Array<Float32Array | number[]>>;
+      getEmbeddingSpaceId?: () => string;
+    } = ServerEmbedder.getInstance()
+  ): Promise<{ reindexed: number; reindexedCount: number; embeddingSpaceId: string; durationMs: number }> {
+    const startMs = performance.now();
+    const currentItems = Array.from(this.items.values());
+    const newSpaceId =
+      typeof embedder.getEmbeddingSpaceId === 'function'
+        ? embedder.getEmbeddingSpaceId()
+        : ServerEmbedder.getInstance().getEmbeddingSpaceId();
+    this.embeddingSpaceId = newSpaceId;
+
+    this.hnsw = new HNSWIndex({
+      M: this.options?.M ?? 16,
+      M0: (this.options?.M ?? 16) * 2,
+      efConstruction: this.options?.efConstruction ?? 64,
+      efSearch: this.options?.efSearch ?? 32,
+      useQuantization: this.options?.useQuantization ?? false,
+    });
+    this.bm25 = new BM25Index();
+    this.hybrid = new HybridSearch(this.hnsw, this.bm25);
+    this.items.clear();
+
+    const BATCH_SIZE = 100;
+    this.suppressCacheInvalidation = true;
+    try {
+      for (let i = 0; i < currentItems.length; i += BATCH_SIZE) {
+        const batch = currentItems.slice(i, i + BATCH_SIZE);
+        const texts = batch.map(
+          (it) => `${it.title}. ${it.category}. ${(it.tags || []).join(', ')}. ${it.description}`
+        );
+        const vectors = await embedder.embedBatch(texts);
+        for (let j = 0; j < batch.length; j++) {
+          const it = batch[j];
+          const vec = vectors[j];
+          this.upsert({
+            ...it,
+            embedding: Array.from(vec),
+            normalizedVector: vec instanceof Float32Array ? vec : new Float32Array(vec),
+          });
+        }
+      }
+    } finally {
+      this.suppressCacheInvalidation = false;
+    }
+
+    this.invalidateStoreCache();
+    if (this.snapshotPath) {
+      this.saveSnapshotSync(this.snapshotPath);
+    }
+
+    return {
+      reindexed: this.items.size,
+      reindexedCount: this.items.size,
+      embeddingSpaceId: this.embeddingSpaceId,
+      durationMs: Math.round((performance.now() - startMs) * 100) / 100,
+    };
   }
 
   /**
@@ -919,6 +1130,7 @@ export class VectorStore {
     sparseWeight = 0.5,
     filterCategory?: string,
     options?: {
+      offset?: number;
       simpleCategoryGate?: SimpleCategoryGateMode;
       minScore?: number;
       fieldBoosts?: Required<FieldBoosts>;
@@ -931,6 +1143,8 @@ export class VectorStore {
       facetsOut?: { facets?: FacetCounts };
       preserveExactRrfOrder?: boolean;
       filterStatsOut?: { candidatesBeforeFilter: number; candidatesAfterFilter: number };
+      totalOut?: { total: number; hasMore: boolean };
+      customCategoryFamilies?: ReadonlyArray<CategoryFamilySpec>;
     }
   ): {
     item: StoredItem;
@@ -943,12 +1157,15 @@ export class VectorStore {
     lexicalFieldContributions: LexicalFieldContribution[];
     dominantLexicalField: FieldBoostField | null;
   }[] {
-    const allItems = Array.from(this.items.values());
-    const candidatesBeforeFilter = allItems.length;
+    const candidatesBeforeFilter = this.items.size;
     if (candidatesBeforeFilter === 0) {
       if (options?.filterStatsOut) {
         options.filterStatsOut.candidatesBeforeFilter = 0;
         options.filterStatsOut.candidatesAfterFilter = 0;
+      }
+      if (options?.totalOut) {
+        options.totalOut.total = 0;
+        options.totalOut.hasMore = false;
       }
       if (options?.facets && options.facets.length > 0 && options.facetsOut) {
         options.facetsOut.facets = computeFacetCounts([], options.facets);
@@ -956,10 +1173,19 @@ export class VectorStore {
       return [];
     }
 
+    const offset = Math.max(0, options?.offset ?? 0);
     const gateMode: SimpleCategoryGateMode = options?.simpleCategoryGate ?? 'hard';
     const minScoreThreshold = options?.minScore ?? 0;
     const resolvedFieldBoosts = options?.fieldBoosts ?? DEFAULT_FIELD_BOOSTS;
     const resolvedRankWindow = options?.rankWindow ?? DEFAULT_RANK_WINDOW;
+    const effectiveLexWindow =
+      offset > 0
+        ? Math.max(resolvedRankWindow.lexical, offset + limit + 25)
+        : resolvedRankWindow.lexical;
+    const effectiveDenseWindow =
+      offset > 0
+        ? Math.max(resolvedRankWindow.dense, offset + limit + 25)
+        : resolvedRankWindow.dense;
     const k = options?.rankConstant ?? DEFAULT_RANK_CONSTANT;
     const fusionMode: FusionMode = options?.fusionMode ?? 'rrf';
     const strictMissing = options?.filterStrictMissing ?? true;
@@ -974,23 +1200,43 @@ export class VectorStore {
       effectiveFilters.category = filterCategory;
     }
 
-    const filteredItems = effectiveFilters
-      ? allItems.filter((item) => matchesStructuredFilters(item, effectiveFilters, strictMissing))
-      : allItems;
-    const candidatesAfterFilter = filteredItems.length;
+    let filteredItems: StoredItem[] | null = null;
+    let filteredSet: Set<string> | null = null;
+    let candidatesAfterFilter = candidatesBeforeFilter;
+
+    if (effectiveFilters) {
+      filteredItems = [];
+      filteredSet = new Set<string>();
+      for (const item of this.items.values()) {
+        if (matchesStructuredFilters(item, effectiveFilters, strictMissing)) {
+          filteredItems.push(item);
+          filteredSet.add(item.id);
+        }
+      }
+      candidatesAfterFilter = filteredItems.length;
+    }
+
     if (options?.filterStatsOut) {
       options.filterStatsOut.candidatesBeforeFilter = candidatesBeforeFilter;
       options.filterStatsOut.candidatesAfterFilter = candidatesAfterFilter;
     }
-    if (filteredItems.length === 0) {
+    if (candidatesAfterFilter === 0) {
+      if (options?.totalOut) {
+        options.totalOut.total = 0;
+        options.totalOut.hasMore = false;
+      }
       if (options?.facets && options.facets.length > 0 && options.facetsOut) {
         options.facetsOut.facets = computeFacetCounts([], options.facets);
       }
       return [];
     }
 
+    const activeCustomFamilies = [
+      ...(options?.customCategoryFamilies || []),
+      ...this.getDynamicCategoryFamilies(),
+    ];
     const queryInfo = normalizeQueryWithLayoutRecovery(queryText);
-    const headIntent = extractHeadCategoryIntent(queryText);
+    const headIntent = extractHeadCategoryIntent(queryText, activeCustomFamilies);
     const effectiveQuery = queryInfo.normalizedQuery || queryText;
     const qVec = queryVector instanceof Float32Array ? queryVector : new Float32Array(queryVector);
 
@@ -998,7 +1244,7 @@ export class VectorStore {
       new Set([...queryInfo.coreStems, ...headIntent.familyStems])
     ).filter((s) => s.length >= 3);
 
-    // 2. Lexical channel (Multi-Field BM25 with fieldImportance/fieldBoosts + channelWindows.lexical)
+    // 2. Lexical channel via BM25 Inverted Postings (EIDOS-102: no O(N) full scan on large catalogs)
     const lexicalScoredById = new Map<
       string,
       {
@@ -1019,7 +1265,7 @@ export class VectorStore {
       return v;
     };
 
-    for (const stored of filteredItems) {
+    const scoreLexicalItem = (stored: StoredItem) => {
       const multiField = scoreMultiFieldLexicalDocument({
         query: effectiveQuery,
         item: stored,
@@ -1032,7 +1278,6 @@ export class VectorStore {
       let contributions = multiField.contributions;
       let dominantField = multiField.dominantField;
 
-      // Fallback stem check if multiField score is 0 but morphological stem matched
       if (lexicalScore === 0 && lookupStems.length > 0) {
         const titleLower = (stored.title || '').toLowerCase();
         const catLower = `${stored.category || ''} ${(stored.tags || []).join(' ')}`.toLowerCase();
@@ -1054,14 +1299,61 @@ export class VectorStore {
         }
       }
 
-      lexicalScoredById.set(stored.id, {
+      const entry = {
         score: lexicalScore,
         contributions,
         dominantField,
-      });
-
+      };
+      lexicalScoredById.set(stored.id, entry);
       if (lexicalScore > 0) {
         lexicalCandidates.push({ item: stored, lexicalScore });
+      }
+      return entry;
+    };
+
+    const postingCandidateIds = this.bm25.getCandidateDocIds(precomputedQueryTokens, lookupStems);
+    const maxLexicalScorePool = Math.max(effectiveLexWindow * 4, 200);
+    if (filteredItems && filteredItems.length <= postingCandidateIds.size && filteredItems.length <= maxLexicalScorePool) {
+      for (const stored of filteredItems) {
+        if (postingCandidateIds.has(stored.id)) {
+          scoreLexicalItem(stored);
+        }
+      }
+    } else if (postingCandidateIds.size <= maxLexicalScorePool) {
+      for (const docId of postingCandidateIds) {
+        if (filteredSet && !filteredSet.has(docId)) continue;
+        const stored = this.items.get(docId);
+        if (stored) {
+          scoreLexicalItem(stored);
+        }
+      }
+    } else {
+      // Fast O(postings) pre-ranking via BM25 inverted index before multi-field breakdown
+      const bm25TopHits = this.bm25.search(
+        `${effectiveQuery} ${lookupStems.join(' ')}`.trim(),
+        maxLexicalScorePool * 2
+      );
+      let scoredCount = 0;
+      for (const hit of bm25TopHits) {
+        if (filteredSet && !filteredSet.has(hit.id)) continue;
+        const stored = this.items.get(hit.id);
+        if (stored) {
+          scoreLexicalItem(stored);
+          scoredCount++;
+          if (scoredCount >= maxLexicalScorePool) break;
+        }
+      }
+      if (scoredCount < maxLexicalScorePool) {
+        for (const docId of postingCandidateIds) {
+          if (lexicalScoredById.has(docId)) continue;
+          if (filteredSet && !filteredSet.has(docId)) continue;
+          const stored = this.items.get(docId);
+          if (stored) {
+            scoreLexicalItem(stored);
+            scoredCount++;
+            if (scoredCount >= maxLexicalScorePool) break;
+          }
+        }
       }
     }
 
@@ -1072,23 +1364,58 @@ export class VectorStore {
       return String(a.item.id).localeCompare(String(b.item.id));
     });
 
-    const lexicalWindowed = lexicalCandidates.slice(0, resolvedRankWindow.lexical);
+    const lexicalWindowed = lexicalCandidates.slice(0, effectiveLexWindow);
     const lexicalRankMap = new Map<string, number>();
     for (let i = 0; i < lexicalWindowed.length; i++) {
       lexicalRankMap.set(lexicalWindowed[i].item.id, i + 1);
     }
 
-    // 3. Dense channel (HNSW + Exact Cosine + channelWindows.dense)
-    this.hnsw.search(qVec, Math.min(Math.max(resolvedRankWindow.dense, 32), 200));
+    // 3. Dense channel via HNSW Graph Search with Adaptive Over-Fetch & Filter Fallback (EIDOS-101)
+    const selectivity = candidatesAfterFilter / Math.max(1, candidatesBeforeFilter);
+    const baseOverfetch = effectiveFilters
+      ? Math.min(
+          candidatesBeforeFilter,
+          Math.max(
+            effectiveDenseWindow * 4,
+            Math.ceil(effectiveDenseWindow / Math.max(0.02, selectivity))
+          )
+        )
+      : Math.min(candidatesBeforeFilter, Math.max(effectiveDenseWindow * 3, 128));
+    const adaptiveEf = Math.max(baseOverfetch, 128);
 
     const denseScoredById = new Map<string, number>();
     const denseCandidates: Array<{ item: StoredItem; exactDense: number }> = [];
-    for (const stored of filteredItems) {
-      const vec = stored.normalizedVector || stored.embedding;
-      const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
-      denseScoredById.set(stored.id, exactDense);
-      if (exactDense > 0) {
-        denseCandidates.push({ item: stored, exactDense });
+
+    if (denseWeight > 0 || sparseWeight === 0) {
+      const annHits = this.hnsw.search(qVec, Math.max(1, baseOverfetch), adaptiveEf);
+      for (const ann of annHits) {
+        if (filteredSet && !filteredSet.has(ann.id)) continue;
+        const stored = this.items.get(ann.id);
+        if (!stored) continue;
+        const vec = stored.normalizedVector || stored.embedding;
+        const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
+        denseScoredById.set(stored.id, exactDense);
+        if (exactDense > 0) {
+          denseCandidates.push({ item: stored, exactDense });
+        }
+      }
+
+      // High-selectivity filter fallback (e.g. 0.1% filter selectivity) or small catalog exact completion
+      const targetMinDense = Math.min(effectiveDenseWindow, candidatesAfterFilter);
+      if (
+        denseCandidates.length < targetMinDense &&
+        (filteredItems !== null || candidatesBeforeFilter <= 250)
+      ) {
+        const poolToScan = filteredItems ?? Array.from(this.items.values());
+        for (const stored of poolToScan) {
+          if (denseScoredById.has(stored.id)) continue;
+          const vec = stored.normalizedVector || stored.embedding;
+          const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
+          denseScoredById.set(stored.id, exactDense);
+          if (exactDense > 0) {
+            denseCandidates.push({ item: stored, exactDense });
+          }
+        }
       }
     }
 
@@ -1099,7 +1426,7 @@ export class VectorStore {
       return String(a.item.id).localeCompare(String(b.item.id));
     });
 
-    const denseWindowed = denseCandidates.slice(0, resolvedRankWindow.dense);
+    const denseWindowed = denseCandidates.slice(0, effectiveDenseWindow);
     const denseRankMap = new Map<string, number>();
     for (let i = 0; i < denseWindowed.length; i++) {
       denseRankMap.set(denseWindowed[i].item.id, i + 1);
@@ -1129,6 +1456,17 @@ export class VectorStore {
     if (denseWeight > 0 || sparseWeight === 0) {
       for (const entry of denseWindowed) {
         candidateItemMap.set(entry.item.id, entry.item);
+      }
+    }
+
+    // Ensure every candidate in candidateItemMap has both exactDense and lexical score populated for X-Ray honesty
+    for (const stored of candidateItemMap.values()) {
+      if (!denseScoredById.has(stored.id)) {
+        const vec = stored.normalizedVector || stored.embedding;
+        denseScoredById.set(stored.id, Math.max(0, cosineSimilarity(qVec, vec)));
+      }
+      if (!lexicalScoredById.has(stored.id)) {
+        scoreLexicalItem(stored);
       }
     }
 
@@ -1225,7 +1563,12 @@ export class VectorStore {
         catalogHasLexicalMatches && normSparseShare >= 0.15
       );
 
-      const catGate = evaluateCandidateCategoryGate(headIntent, stored, gateMode);
+      const catGate = evaluateCandidateCategoryGate(
+        headIntent,
+        stored,
+        gateMode,
+        activeCustomFamilies
+      );
 
       let rawScore = rrfScore;
       if (!isSingleChannelOrPureRrf) {
@@ -1297,6 +1640,10 @@ export class VectorStore {
     // Strict zero-results guardrail: never bypass passesGate when no candidates qualify
     let finalPool = scoredCandidates.filter((c) => c.passesGate);
     if (finalPool.length === 0) {
+      if (options?.totalOut) {
+        options.totalOut.total = 0;
+        options.totalOut.hasMore = false;
+      }
       if (options?.facets && options.facets.length > 0 && options.facetsOut) {
         options.facetsOut.facets = computeFacetCounts([], options.facets);
       }
@@ -1321,6 +1668,10 @@ export class VectorStore {
     }
 
     if (finalPool.length === 0) {
+      if (options?.totalOut) {
+        options.totalOut.total = 0;
+        options.totalOut.hasMore = false;
+      }
       if (options?.facets && options.facets.length > 0 && options.facetsOut) {
         options.facetsOut.facets = computeFacetCounts([], options.facets);
       }
@@ -1345,15 +1696,34 @@ export class VectorStore {
       return String(a.item.id).localeCompare(String(b.item.id));
     });
 
-    // Diversify near-identical color/size variants of the same product model in general storefront hybrid search
+    // Diversify near-identical variants using explicit variantGroup (EIDOS-108) or title parentheticals
     let orderedPool = finalPool;
     if (!isSingleChannelOrPureRrf) {
       const seenModels = new Set<string>();
+      const explicitGroupCounts = new Map<string, number>();
       const primaryModels: typeof finalPool = [];
       const overflowVariants: typeof finalPool = [];
       for (const candidate of finalPool) {
+        const explicitGroup =
+          candidate.item.variantGroup ||
+          (typeof candidate.item.attributes?.variantGroup === 'string'
+            ? candidate.item.attributes.variantGroup
+            : undefined) ||
+          (typeof candidate.item.metadata?.variantGroup === 'string'
+            ? candidate.item.metadata.variantGroup
+            : undefined);
+        if (explicitGroup) {
+          const vgKey = explicitGroup.trim().toLowerCase();
+          const prevCount = explicitGroupCounts.get(vgKey) || 0;
+          if (prevCount >= 2) {
+            continue;
+          }
+          explicitGroupCounts.set(vgKey, prevCount + 1);
+        }
         const descMatch = candidate.item.description?.match(/^([^,]+),\s*комплектация:/i);
-        const modelKey = descMatch
+        const modelKey = explicitGroup
+          ? `vg:${explicitGroup.trim().toLowerCase()}`
+          : descMatch
           ? descMatch[1].trim().toLowerCase()
           : /\([^)]+\)\s*$/.test(candidate.item.title)
           ? candidate.item.title.replace(/\s*\([^)]+\)\s*$/, '').trim().toLowerCase()
@@ -1368,7 +1738,32 @@ export class VectorStore {
       orderedPool = [...primaryModels, ...overflowVariants];
     }
 
-    return orderedPool.slice(0, limit).map((c) => ({
+    // Compute honest total count of qualifying matches across the corpus (EIDOS-105)
+    let totalMatches = orderedPool.length;
+    if (lexicalCandidates.length > orderedPool.length) {
+      const orderedIds = new Set(orderedPool.map((c) => c.item.id));
+      for (const lexCand of lexicalCandidates) {
+        if (orderedIds.has(lexCand.item.id)) continue;
+        if (gateMode !== 'off' && headIntent.hasHeadCategoryIntent) {
+          const cg = evaluateCandidateCategoryGate(
+            headIntent,
+            lexCand.item,
+            gateMode,
+            activeCustomFamilies
+          );
+          if (gateMode === 'hard' && !cg.matchesHeadCategory) continue;
+          if (gateMode === 'soft' && !cg.passesHardGate) continue;
+        }
+        totalMatches++;
+      }
+    }
+
+    if (options?.totalOut) {
+      options.totalOut.total = totalMatches;
+      options.totalOut.hasMore = offset + limit < totalMatches;
+    }
+
+    return orderedPool.slice(offset, offset + limit).map((c) => ({
       item: c.item,
       score: Math.round(c.rawScore * 1000000) / 1000000,
       rrfScore: c.rrf.fusedScore,

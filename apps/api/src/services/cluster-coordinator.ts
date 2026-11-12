@@ -117,9 +117,18 @@ export class ClusterStateCoordinator {
     this.unsubscribeBus = ClusterInvalidationBus.subscribe((event) => {
       this.localCatalogVersion = Math.max(this.localCatalogVersion, event.catalogVersion);
       if (event.sourceNodeId !== this.nodeId) {
-        ApiQueryCache.invalidateAll();
-        getSemanticCache().clear();
-        getCache().clearMemorySync();
+        const ns = event.reason.startsWith('catalog.mutation:')
+          ? event.reason.slice('catalog.mutation:'.length)
+          : undefined;
+        if (ns) {
+          ApiQueryCache.invalidateNamespace(ns);
+          getSemanticCache().invalidateNamespace(ns);
+          getCache().invalidateNamespaceSync(ns);
+        } else {
+          ApiQueryCache.invalidateAll();
+          getSemanticCache().clear();
+          getCache().clearMemorySync();
+        }
       }
     });
   }
@@ -141,9 +150,18 @@ export class ClusterStateCoordinator {
   }
 
   public broadcastInvalidation(reason = 'catalog.mutation'): ClusterInvalidationEvent {
-    ApiQueryCache.invalidateAll();
-    getSemanticCache().clear();
-    getCache().clearMemorySync();
+    const ns = reason.startsWith('catalog.mutation:')
+      ? reason.slice('catalog.mutation:'.length)
+      : undefined;
+    if (ns) {
+      ApiQueryCache.invalidateNamespace(ns);
+      getSemanticCache().invalidateNamespace(ns);
+      getCache().invalidateNamespaceSync(ns);
+    } else {
+      ApiQueryCache.invalidateAll();
+      getSemanticCache().clear();
+      getCache().clearMemorySync();
+    }
     const event = ClusterInvalidationBus.publish(this.nodeId, reason);
     this.localCatalogVersion = event.catalogVersion;
     return event;

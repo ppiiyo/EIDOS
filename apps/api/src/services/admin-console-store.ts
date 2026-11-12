@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import {
+  CategoryFamilySpec,
   DEFAULT_FIELD_BOOSTS,
   DEFAULT_RANK_CONSTANT,
   DEFAULT_RANK_WINDOW,
@@ -86,6 +87,7 @@ export interface TenantDictionaries {
   synonymGroups?: SynonymGroup[];
   rewrites: RewriteRule[];
   stopwords: string[];
+  categoryFamilies?: CategoryFamilySpec[];
 }
 
 export interface TenantRankingDefaults {
@@ -429,12 +431,17 @@ export class AdminConsoleStore {
     return initial;
   }
 
+  public getCategoryFamilies(tenantId = 'default'): CategoryFamilySpec[] {
+    return this.getDictionaries(tenantId).categoryFamilies || [];
+  }
+
   public updateDictionaries(
     tenantId = 'default',
     patch: {
       synonyms?: Array<{ id?: string; phrase: string; replacement: string; enabled?: boolean }>;
       rewrites?: Array<{ id?: string; from: string; to: string; enabled?: boolean }>;
       stopwords?: string[];
+      categoryFamilies?: CategoryFamilySpec[];
     }
   ): TenantDictionaries {
     const current = this.getDictionaries(tenantId);
@@ -486,6 +493,18 @@ export class AdminConsoleStore {
           )
         : current.stopwords;
 
+    const categoryFamilies: CategoryFamilySpec[] | undefined =
+      patch.categoryFamilies !== undefined
+        ? patch.categoryFamilies.filter(
+            (cf) =>
+              cf &&
+              typeof cf.key === 'string' &&
+              Array.isArray(cf.queryTriggers) &&
+              Array.isArray(cf.categoryMatchers) &&
+              Array.isArray(cf.titleMatchers)
+          )
+        : current.categoryFamilies;
+
     const updated: TenantDictionaries = {
       version: current.version + 1,
       updatedAt: new Date().toISOString(),
@@ -493,6 +512,7 @@ export class AdminConsoleStore {
       synonymGroups: this.getSynonymGroups(tenantId),
       rewrites,
       stopwords,
+      ...(categoryFamilies !== undefined ? { categoryFamilies } : {}),
     };
     this.dictionariesByTenant.set(tenantId, updated);
     this.flushStateToDisk();
