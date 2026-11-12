@@ -1,0 +1,28 @@
+name: Verify inject markers (daily)
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify inject markers
+        run: bash scripts/verify_injects.sh
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @eidos/core build
+      - name: Typecheck
+        run: pnpm --filter @eidos/api exec tsc --noEmit

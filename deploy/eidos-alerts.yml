@@ -1,0 +1,67 @@
+groups:
+  - name: eidos_availability
+    interval: 30s
+    rules:
+      - alert: EidosApiDown
+        expr: up{job="eidos-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: eidos-api
+        annotations:
+          summary: "EIDOS API scrape target is down"
+          description: "Prometheus cannot scrape /metrics for more than 1 minute."
+
+      - alert: EidosHighSearchLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum(rate(search_latency_seconds_bucket[5m])) by (le)) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: eidos-api
+        annotations:
+          summary: "Search p95 latency > 50ms"
+          description: "p95 search latency is {{ $value }}s over 5m."
+
+      - alert: EidosHttp5xxSpike
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          service: eidos-api
+        annotations:
+          summary: "HTTP 5xx rate elevated"
+          description: "{{ $value }} 5xx responses/sec over 5m."
+
+  - name: eidos_redis_cache_alerts
+    interval: 30s
+    rules:
+      - alert: EidosLowCacheHitRate
+        expr: eidos_cache_hit_rate < 0.70
+        for: 5m
+        labels:
+          severity: warning
+          service: eidos-api
+        annotations:
+          summary: "EIDOS Redis cache hit rate below 70%"
+          description: "Cache hit rate has dropped to {{ $value }}."
+
+      - alert: EidosHighCacheOperationLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(eidos_cache_operation_duration_ms_bucket[5m])) by (le, operation)) > 15
+        for: 2m
+        labels:
+          severity: warning
+          service: eidos-api
+        annotations:
+          summary: "High P95 cache operation latency (>15ms)"
+
+      - alert: EidosCacheErrorSpike
+        expr: sum(rate(eidos_cache_errors_total[5m])) > 1
+        for: 1m
+        labels:
+          severity: critical
+          service: eidos-api
+        annotations:
+          summary: "Redis cache error rate spike"
