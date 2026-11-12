@@ -203,11 +203,15 @@ async function startUnifiedServer() {
   })();
 
   const apiPromise = (async () => {
-    await vitePromise;
-    await new Promise<void>((resolve) => setTimeout(resolve, 25));
-    const { buildServer } = await import('./apps/api/src/server');
-    fastifyApp = await buildServer();
-    await fastifyApp.ready();
+    try {
+      await vitePromise;
+      await new Promise<void>((resolve) => setTimeout(resolve, 25));
+      const { buildServer } = await import('./apps/api/src/server');
+      fastifyApp = await buildServer();
+      await fastifyApp.ready();
+    } catch (err) {
+      console.error('Error initializing Fastify API inside unified server:', err);
+    }
   })();
 
   await Promise.all([vitePromise, apiPromise]);

@@ -360,7 +360,9 @@ export class StoreRegistry {
       ...persistence,
     });
     if (persistence.snapshotPath) {
-      void store.loadSnapshotFromDisk(persistence.snapshotPath);
+      void store.loadSnapshotFromDisk(persistence.snapshotPath).catch((err) => {
+        console.warn('[EIDOS] Background tenant snapshot load skipped:', err instanceof Error ? err.message : err);
+      });
     }
     if (persistence.walPath) {
       store.replayWalFromDisk(persistence.walPath);
@@ -431,7 +433,9 @@ export class StoreRegistry {
         ...persistence,
       });
     if (!config.store && persistence.snapshotPath) {
-      void store.loadSnapshotFromDisk(persistence.snapshotPath);
+      void store.loadSnapshotFromDisk(persistence.snapshotPath).catch((err) => {
+        console.warn('[EIDOS] Background index snapshot load skipped:', err instanceof Error ? err.message : err);
+      });
     }
     if (!config.store && persistence.walPath) {
       store.replayWalFromDisk(persistence.walPath);
