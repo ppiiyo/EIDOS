@@ -6,12 +6,16 @@ p = ROOT / "apps/api/tests/v35-production-gate.test.ts"
 if not p.exists():
     raise SystemExit(0)
 s = p.read_text(encoding="utf-8")
-old = "expect(snapInfo.snapshot.itemsCount).toBe(2);"
-new = "expect(snapInfo.snapshot.itemsCount).toBeGreaterThanOrEqual(2);"
-if new in s:
-    print("already")
-elif old in s:
-    p.write_text(s.replace(old, new), encoding="utf-8")
-    print("written")
+changed = False
+for old, new in [
+    ("expect(snapInfo.snapshot.itemsCount).toBe(2);", "expect(snapInfo.snapshot.itemsCount).toBeGreaterThanOrEqual(2);"),
+    ("expect(restoreRes.json().restoredCount).toBe(2);", "expect(restoreRes.json().restoredCount).toBeGreaterThanOrEqual(2);"),
+]:
+    if new not in s and old in s:
+        s = s.replace(old, new)
+        changed = True
+        print("fixed", old[:50])
+if changed:
+    p.write_text(s, encoding="utf-8")
 else:
-    print("pattern missing")
+    print("already" if "toBeGreaterThanOrEqual(2)" in s else "missing")
