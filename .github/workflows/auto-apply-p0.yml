@@ -1,0 +1,57 @@
+name: Auto-apply VectorStore P0 on push
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ensure-whenReady:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Ensure whenReady on VectorStore
+        run: |
+          set -e
+          if grep -q "public whenReady()" apps/api/src/services/vector-store.ts; then
+            echo "whenReady already present"
+          else
+            if [ -f patches/vector-store.p0.diff ]; then
+              git apply --check patches/vector-store.p0.diff || true
+              git apply patches/vector-store.p0.diff || true
+            fi
+            if [ -f scripts/apply_master_p0.py ]; then
+              python3 scripts/apply_master_p0.py || true
+            fi
+          fi
+          if ! grep -q "public whenReady()" apps/api/src/services/vector-store.ts; then
+            python3 scripts/inject_when_ready.py
+          fi
+          grep -n "whenReady\|wasEmptyBeforeRestore" apps/api/src/services/vector-store.ts | head -10
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm --filter @eidos/core build
+      - name: typecheck api
+        run: pnpm --filter @eidos/api exec tsc --noEmit
+      - name: commit if dirty
+        run: |
+          if git diff --quiet; then
+            echo "clean"
+            exit 0
+          fi
+          git config user.name eidos-ci
+          git config user.email ci@eidos.local
+          git add -A
+          git commit -m "fix(phase0): VectorStore whenReady + wasEmptyBeforeRestore (CI auto-apply)"
+          git push
