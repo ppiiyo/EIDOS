@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import { getPersistenceStore } from './persistence-store';
 
-export type ApiKeyScopeRole = 'master' | 'admin' | 'search' | 'merchandiser';
+export type ApiKeyScopeRole = 'master' | 'admin' | 'search' | 'merchandiser' | 'viewer' | 'editor';
 
 export interface ApiKeyRecord {
   key_hash: string;
@@ -102,6 +102,8 @@ export class ApiKeyManager {
       admin: 'eidos_ak_',
       search: 'eidos_pk_',
       merchandiser: 'eidos_merch_',
+      viewer: 'eidos_vw_',
+      editor: 'eidos_ed_',
     };
     const prefixTag = prefixMap[role] || 'eidos_ak_';
     const randomPart = crypto.randomBytes(24).toString('hex');
@@ -229,5 +231,3 @@ export class ApiKeyManager {
 export function getApiKeyManager(): ApiKeyManager {
   return ApiKeyManager.getInstance();
 }
-
-
