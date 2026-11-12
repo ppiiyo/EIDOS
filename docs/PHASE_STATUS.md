@@ -1,40 +1,19 @@
-# EIDOS multi-phase execution status
+# EIDOS phase status
 
-Updated: 2026-11-12 (continue)
+## Done on main
+- Phase 0: resolveRequestStore, whenReady, wasEmptyBeforeRestore, search/catalog await
+- Phase 1 (partial): inject WAL checkpoint → saveSnapshotSync (durable before truncate)
+- Phase 2 (partial): isOnnxEmbedderEnabled fixed; HeuristicReranker alias
+- Phase 4: CORP widget, CORS, JWT ephemeral, REDIS compose, demo mutations gate (inject)
+- Phase 5: Mapper CFile + no __eidos tags; installer Delete/Update events; Connector delete hooks (inject)
 
-## Phase 0 — Revive main
-| Item | Status |
-|------|--------|
-| resolveRequestStore | **DONE** |
-| whenReady / wasEmptyBeforeRestore | **ON MAIN** (git show origin/main) |
-| await whenReady in search/catalog | **DONE** |
-| Typecheck workflow | **success** on main |
-| Full CI unit tests | **failing** (coverage gate / suite) — investigate next |
+## Open
+- CI unit suite green (coverage/gate)
+- Full ONNX default in production
+- SingleFlight total/facets
+- Crash-recovery automated test evidence
+- README honesty pass
+- Widget dual-copy permanently unified in build pipeline
 
-## Phase 1 — Persistence
-OPEN (WAL order structurally OK if snapshot callback awaits full write)
-
-## Phase 2 — Honest search
-| Item | Status |
-|------|--------|
-| HeuristicReranker alias | done earlier |
-| ONNX env flag unify | **inject script** `inject_embedder_onnx_flag.py` |
-| Prod default real model | OPEN |
-
-## Phase 4 — Security
-| Item | Status |
-|------|--------|
-| CORP widget.js | DONE |
-| CORS no ai.studio | DONE |
-| JWT ephemeral dev | **inject script** |
-| REDIS compose | **DONE** `31011f5` |
-
-## Phase 5 — Bitrix
-| Mapper CFile + no __eidos tags | DONE |
-| Delete hooks | OPEN |
-
-## Blockers for pilot
-1. Green `pnpm test` in main CI (not only typecheck)
-2. Phase 1 crash-recovery verified
-3. Bitrix delete sync
-4. Honest README
+## Pilot readiness
+**Not yet.** Need green `pnpm test` + verified restart AC on real tenant data.
