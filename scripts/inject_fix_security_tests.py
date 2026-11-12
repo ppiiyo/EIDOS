@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Align security tests with production-safe CORS/JWT (no ai.studio, no fixed jwt secret)."""
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+TEST_JWT = "test-jwt-secret-at-least-24chars!!"
+
+p = ROOT / "apps/api/tests/phase1-api-hardening.test.ts"
+if p.exists():
+    s = p.read_text(encoding="utf-8")
+    if "http://localhost:3000" not in s or "ai.studio" in s:
+        s = s.replace(
+            """  beforeAll(async () => {
+    process.env.AIL_ENABLED = 'true';
+    app = await buildServer();
+""",
+            f"""  beforeAll(async () => {{
+    process.env.AIL_ENABLED = 'true';
+    process.env.JWT_SECRET = process.env.JWT_SECRET || '{TEST_JWT}';
+    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000';
+    app = await buildServer();
+""",
+        )
+        s = s.replace(
+            "https://eidos-semantic-ideation-platform.ai.studio",
+            "http://localhost:3000",
+        )
+        s = s.replace(
+            "const secret = 'eidos_jwt_secret';",
+            f"const secret = process.env.JWT_SECRET || '{TEST_JWT}';",
+        )
+        s = s.replace("'eidos_jwt_secret'", f"process.env.JWT_SECRET || '{TEST_JWT}'")
+        p.write_text(s, encoding="utf-8")
+        print("phase1 fixed")
+    else:
+        print("phase1 ok")
+
+p2 = ROOT / "apps/api/tests/p0-p1-final-audit.test.ts"
+if p2.exists():
+    s2 = p2.read_text(encoding="utf-8")
+    if "eidos_jwt_secret" in s2:
+        s2 = s2.replace("'eidos_jwt_secret'", f"process.env.JWT_SECRET || '{TEST_JWT}'")
+        if "JWT_SECRET" not in s2[:1200]:
+            s2 = s2.replace(
+                "beforeAll(async () => {",
+                f"beforeAll(async () => {{\n    process.env.JWT_SECRET = process.env.JWT_SECRET || '{TEST_JWT}';",
+                1,
+            )
+        p2.write_text(s2, encoding="utf-8")
+        print("p0-p1 fixed")
+    else:
+        print("p0-p1 ok")
