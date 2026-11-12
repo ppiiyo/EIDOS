@@ -59,10 +59,12 @@ jobs:
       - run: |
           pnpm --filter @eidos/core build
           pnpm --filter @eidos/sdk build
-      - name: Apply pending injects
+      - name: Apply product + acceptance injects
         run: |
+          set -euo pipefail
           for s in scripts/inject_*.py; do
-            [ -f "$s" ] && python3 "$s" || true
+            echo "=== $s ==="
+            python3 "$s"
           done
       - name: Verify inject markers
         run: bash scripts/verify_injects.sh
