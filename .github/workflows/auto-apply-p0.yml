@@ -45,5 +45,5 @@ jobs:
           git config user.name eidos-ci
           git config user.email ci@eidos.local
           git add -A
-          git commit -m "fix: apply pending injects (StoreError JSON, prometheus seed, RBAC)"
+          git commit -m "fix: apply pending injects (StoreError, RBAC, prometheus/critical seed)"
           git push
