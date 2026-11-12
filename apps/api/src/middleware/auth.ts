@@ -43,6 +43,20 @@ const WEAK_KEY_BLACKLIST = new Set([
  * Validates that a production deployment has a strong Master or Admin key configured.
  * Throws an error to prevent startup if a weak or missing key is detected in strict production mode.
  */
+
+let _devJwtSecret: string | null = null;
+function getDevJwtSecret(): string {
+  if (_devJwtSecret) return _devJwtSecret;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { randomBytes } = require('crypto') as typeof import('crypto');
+  _devJwtSecret = randomBytes(32).toString('hex');
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn('[EIDOS] JWT_SECRET not set; using ephemeral random secret for this process (dev only).');
+  }
+  return _devJwtSecret;
+}
+
+
 export function validateProductionKeyPolicy(env: NodeJS.ProcessEnv = process.env): {
   valid: boolean;
   reason?: string;
@@ -326,7 +340,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   // 1. Check JWT token first (requires explicit JWT_SECRET in production; no fallback to weak strings)
   const jwtSecret = isProduction
     ? (process.env.JWT_SECRET || '').trim()
-    : (process.env.JWT_SECRET || 'eidos_jwt_secret').trim();
+    : (process.env.JWT_SECRET || getDevJwtSecret()).trim();
 
   const jwtCheck = validateJwtToken(token, jwtSecret);
   if (jwtCheck.isJwt) {

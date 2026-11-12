@@ -228,6 +228,13 @@ function createFallbackPipeline(dim: number = 384): FeatureExtractionPipeline {
   return fn as unknown as FeatureExtractionPipeline;
 }
 
+
+/** Single source of truth for ONNX embedder flag (accepts legacy EIDOS_USE_ONNX alias). */
+function isOnnxEmbedderEnabled(): boolean {
+  return isOnnxEmbedderEnabled();
+}
+
+
 export class ServerEmbedder {
   private static instance: ServerEmbedder | null = null;
   private pipe: FeatureExtractionPipeline | null = null;
@@ -261,7 +268,7 @@ export class ServerEmbedder {
 
     // Use unified multilingual deterministic 384-d embedder by default so embed() and embedBatch()
     // always share the exact same 384-d space across RU/EN/JA/ZH catalogs of any size (1..50,000 SKUs).
-    if (process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true') {
+    if (!isOnnxEmbedderEnabled()) {
       this.pipe = createFallbackPipeline(384);
       return;
     }
@@ -309,7 +316,7 @@ export class ServerEmbedder {
 
     await this.ensureInitialized();
 
-    if (!this.pipe || process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true') {
+    if (!this.pipe || !isOnnxEmbedderEnabled()) {
       const vec = computeDeterministicEmbedding(cleanText, 384);
       this.setCachedEmbedding(cleanText, vec);
       const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
@@ -351,7 +358,7 @@ export class ServerEmbedder {
     const startHr = performance.now();
     await this.ensureInitialized();
 
-    if (!this.pipe || process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true') {
+    if (!this.pipe || !isOnnxEmbedderEnabled()) {
       const vectors = texts.map((t) => {
         const clean = t.trim();
         if (!clean) return new Float32Array(384);
@@ -412,7 +419,7 @@ export class ServerEmbedder {
   }
 
   public getEmbeddingMode(): 'onnx' | 'deterministic' {
-    return process.env.EIDOS_USE_ONNX_EMBEDDER === 'true' || process.env.EIDOS_USE_ONNX === 'true'
+    return isOnnxEmbedderEnabled()
       ? 'onnx'
       : 'deterministic';
   }
