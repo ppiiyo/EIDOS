@@ -44,7 +44,16 @@ const helmetPlugin: FastifyPluginAsync<HelmetOptions> = async (
     reply.header('strict-transport-security', 'max-age=15552000; includeSubDomains');
     reply.header('referrer-policy', 'no-referrer');
     reply.header('cross-origin-opener-policy', 'same-origin');
-    reply.header('cross-origin-resource-policy', 'same-origin');
+    // CORP: allow cross-origin embedding of the storefront widget script only
+    const pathOnly = (request.url || '').split('?')[0];
+    const isWidgetAsset =
+      pathOnly === '/widget.js' ||
+      pathOnly.endsWith('/widget.js') ||
+      pathOnly === '/public/widget.js';
+    reply.header(
+      'cross-origin-resource-policy',
+      isWidgetAsset ? 'cross-origin' : 'same-origin'
+    );
     reply.header('x-dns-prefetch-control', 'off');
     reply.header('x-download-options', 'noopen');
     reply.header('x-permitted-cross-domain-policies', 'none');
