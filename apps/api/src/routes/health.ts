@@ -127,7 +127,9 @@ export async function healthRoutes(
       uptime: checkUptime(),
     };
 
-    const isHealthy = Object.values(checks).every((c) => c.status === 'ok');
+    // Redis/cache is optional: degraded cache must not fail the readiness health probe.
+    const critical = [checks.vectorStore, checks.database, checks.embeddingModel, checks.memory, checks.uptime];
+    const isHealthy = critical.every((c) => c.status === 'ok');
     const responseTime = Date.now() - startTime;
     const itemCount = opts.vectorStore.count();
     const initializedEmpty = initialItemsIndexed === 0;
@@ -177,11 +179,11 @@ export async function healthRoutes(
       cache.healthCheck(),
     ]);
 
+    // Redis is optional cache layer — readiness does not require it.
     const isReady =
       vectorStore.status === 'ok' &&
       database.status === 'ok' &&
-      embeddingModel.status === 'ok' &&
-      redisHealthy;
+      embeddingModel.status === 'ok';
 
     const itemCount = opts.vectorStore.count();
     const hnswSize = opts.vectorStore.getHNSW().size();

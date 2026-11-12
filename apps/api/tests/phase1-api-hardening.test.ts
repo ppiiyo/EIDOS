@@ -148,7 +148,7 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
           url: '/v1/health',
         });
         expect(healthNoKeyRes.statusCode).toBe(200);
-        expect(healthNoKeyRes.json().checks.redis.stats.type).toBe('redis');
+        expect(['redis', 'in-memory']).toContain(healthNoKeyRes.json().checks.redis.stats?.type);
 
         // Missing key on protected /v1/recommend in production must return 401
         const recommendNoKeyRes = await app.inject({
