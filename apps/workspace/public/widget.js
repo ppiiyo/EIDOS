@@ -265,7 +265,8 @@
       var header = document.createElement('div');
       header.className = 'eidos-widget-header';
       var leftSpan = document.createElement('span');
-      leftSpan.textContent = results.length > 0 ? ('Найдено: ' + results.length) : 'Нет совпадений';
+      var totalCount = (data && typeof data.total === 'number') ? data.total : results.length;
+      leftSpan.textContent = results.length > 0 ? ('Найдено: ' + totalCount) : 'Нет совпадений';
       var rightSpan = document.createElement('span');
       var lat = data && data.meta && typeof data.meta.latencyMs === 'number' ? data.meta.latencyMs : data.latencyMs;
       rightSpan.textContent = typeof lat === 'number' ? (lat.toFixed(1) + ' мс · EIDOS') : 'EIDOS Hybrid';
