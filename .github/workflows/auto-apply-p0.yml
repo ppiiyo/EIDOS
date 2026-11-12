@@ -18,7 +18,7 @@ jobs:
       - name: Surgical injects
         run: |
           set -e
-          for s in inject_when_ready inject_jwt_dev_secret inject_embedder_onnx_flag inject_wal_sync_checkpoint inject_bitrix_delete_hooks inject_demo_mutations_gate inject_fix_security_tests inject_health_redis_optional inject_security_plugin_scope inject_store_default_guard inject_demo_ephemeral; do
+          for s in inject_when_ready inject_jwt_dev_secret inject_embedder_onnx_flag inject_wal_sync_checkpoint inject_bitrix_delete_hooks inject_demo_mutations_gate inject_fix_security_tests inject_health_redis_optional inject_security_plugin_scope inject_store_default_guard inject_demo_ephemeral inject_metrics_public inject_v35_reindex_status inject_v35_snap_count; do
             f="scripts/${s}.py"
             if [ -f "$f" ]; then python3 "$f" || true; fi
           done
@@ -45,5 +45,5 @@ jobs:
           git config user.name eidos-ci
           git config user.email ci@eidos.local
           git add -A
-          git commit -m "fix: apply pending injects (demo ephemeral)"
+          git commit -m "fix: apply pending injects (metrics public, demo ephemeral, v35)"
           git push
