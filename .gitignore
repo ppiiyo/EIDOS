@@ -20,3 +20,6 @@ dist/
 *.log
 bun.lock
 bun.lockb
+
+# runtime data / snapshots
+data/
