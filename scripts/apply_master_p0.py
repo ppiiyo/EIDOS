@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Master P0 applicator — idempotent. Caller+callee, correct purge flag."""
+"""Master P0 applicator — idempotent. Caller+callee same apply; correct purge."""
 from pathlib import Path
 import re, sys
 
@@ -29,16 +29,17 @@ def patch_vector_store():
     else:
         skip("whenReady")
 
+    # MUST use body anchor — first `{` after loadSnapshotFromDisk is a type-union param, not method body
     if "wasEmptyBeforeRestore" not in s:
-        s2, n = re.subn(
-            r"(public async loadSnapshotFromDisk[\s\S]*?\{)\n",
-            r"\1\n    const wasEmptyBeforeRestore = this.items.size === 0;\n",
-            s,
-            count=1,
+        anchor = "  ): Promise<number> {\n    const hasExplicitEmbedder ="
+        inject = (
+            "  ): Promise<number> {\n"
+            "    const wasEmptyBeforeRestore = this.items.size === 0;\n"
+            "    const hasExplicitEmbedder ="
         )
-        if n != 1:
-            return fail("wasEmptyBeforeRestore inject failed")
-        s = s2
+        if anchor not in s:
+            return fail("wasEmptyBeforeRestore body anchor not found")
+        s = s.replace(anchor, inject, 1)
         changed = True
         ok("wasEmptyBeforeRestore")
     else:
