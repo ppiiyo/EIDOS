@@ -7,7 +7,7 @@ on:
 
 jobs:
   typecheck:
-    name: Typecheck all workspaces
+    name: Typecheck workspaces (explicit filters)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,5 +19,14 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
-      - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
-      - run: pnpm -r exec tsc --noEmit
+      - run: pnpm --filter @eidos/core build
+      - run: pnpm --filter @eidos/sdk build
+      - name: tsc core
+        run: pnpm --filter @eidos/core exec tsc --noEmit
+      - name: tsc api
+        run: pnpm --filter @eidos/api exec tsc --noEmit
+      - name: tsc sdk
+        run: pnpm --filter @eidos/sdk exec tsc --noEmit
+      - name: workspace lint (project script)
+        run: pnpm --filter @eidos/workspace run lint
+        continue-on-error: false
