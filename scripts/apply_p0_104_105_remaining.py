@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
-"""Apply remaining P0 server fail-closed + EIDOS-104 ranking-guardrails merge + EIDOS-105 deep page. Run from repo root."""
+"""Apply remaining P0 + EIDOS-104/105. Run from repo root after git pull."""
 from pathlib import Path
 import re
+
+def patch_vector_store_ready():
+    p = Path('apps/api/src/services/vector-store.ts')
+    s = p.read_text()
+    if 'public whenReady()' in s:
+        print('= vector-store whenReady already')
+        return
+    gate = (
+        "  private readyPromise: Promise<void> = Promise.resolve();\n"
+        "  public setReadyPromise(p: Promise<void>): void { this.readyPromise = p; }\n"
+        "  public whenReady(): Promise<void> { return this.readyPromise; }\n\n"
+    )
+    pat = r'(\n[ \t]*)(public[ \t]+async[ \t]+loadSnapshotFromDisk[ \t]*\()'
+    m = list(re.finditer(pat, s))
+    if len(m) != 1:
+        print('! vector-store loadSnapshotFromDisk pattern not found', len(m))
+        return
+    s = re.sub(pat, lambda m: '\n' + gate + m.group(1) + m.group(2), s, count=1)
+    p.write_text(s)
+    print('+ vector-store whenReady/setReadyPromise')
 
 def patch_server():
     p = Path('apps/api/src/server.ts')
@@ -61,7 +81,8 @@ def patch_deep_page():
     print('+ deep pagination headroom +50')
 
 if __name__ == '__main__':
+    patch_vector_store_ready()
     patch_server()
     patch_gate_merge()
     patch_deep_page()
-    print('Done. Review diff and commit.')
+    print('Done. Review diff, run tests, commit.')
