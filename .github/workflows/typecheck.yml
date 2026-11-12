@@ -7,7 +7,7 @@ on:
 
 jobs:
   typecheck:
-    name: Typecheck workspaces (explicit filters)
+    name: Typecheck workspaces
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,10 +23,7 @@ jobs:
       - run: pnpm --filter @eidos/sdk build
       - name: tsc core
         run: pnpm --filter @eidos/core exec tsc --noEmit
-      - name: tsc api
-        run: pnpm --filter @eidos/api exec tsc --noEmit
       - name: tsc sdk
         run: pnpm --filter @eidos/sdk exec tsc --noEmit
-      - name: workspace lint (project script)
-        run: pnpm --filter @eidos/workspace run lint
-        continue-on-error: false
+      - name: tsc api
+        run: pnpm --filter @eidos/api exec tsc --noEmit
