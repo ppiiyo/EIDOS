@@ -101,8 +101,8 @@ export class StoreRegistry {
 
   private static getStorePersistencePaths(tenantId: string, indexName: string): { walPath?: string; snapshotPath?: string } {
     if (tenantId === 'demo') {
-      const dir = path.join(os.tmpdir(), 'eidos-demo', indexName);
-      return { walPath: path.join(dir, 'catalog.wal.jsonl'), snapshotPath: path.join(dir, 'catalog.snapshot.json') };
+      // Demo sandbox is ephemeral: no disk persistence (avoids cross-run 409 DEMO_DISABLED).
+      return {};
     }
     const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
     if (isTestEnv && !process.env.EIDOS_WAL_PATH && !process.env.EIDOS_SNAPSHOT_PATH && !process.env.EIDOS_DATA_DIR) return {};
