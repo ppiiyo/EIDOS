@@ -9,6 +9,8 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
 
   beforeAll(async () => {
     process.env.AIL_ENABLED = 'true';
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-at-least-24chars!!';
+    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000';
     app = await buildServer();
     await app.ready();
 
@@ -83,13 +85,13 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
         method: 'OPTIONS',
         url: '/v1/search',
         headers: {
-          origin: 'https://eidos-semantic-ideation-platform.ai.studio',
+          origin: 'http://localhost:3000',
           'access-control-request-method': 'POST',
         },
       });
 
       expect(allowedRes.headers['access-control-allow-origin']).toBe(
-        'https://eidos-semantic-ideation-platform.ai.studio'
+        'http://localhost:3000'
       );
     });
 
@@ -222,7 +224,7 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
     });
 
     it('validates JWT expiration (rejects expired JWT and accepts valid JWT)', async () => {
-      const secret = 'eidos_jwt_secret';
+      const secret = process.env.JWT_SECRET || 'test-jwt-secret-at-least-24chars!!';
       const expiredJwt = signJwtToken(
         { sub: 'user-1', exp: Math.floor(Date.now() / 1000) - 60 },
         secret

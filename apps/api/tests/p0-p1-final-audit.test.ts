@@ -327,7 +327,7 @@ describe('P0 (1–12) & P1 Final Audit Regression Suite', () => {
       // JWT with default/search role cannot write catalog
       const searchJwt = signJwtToken(
         { sub: 'user-1', exp: Math.floor(Date.now() / 1000) + 3600 },
-        'eidos_jwt_secret'
+        process.env.JWT_SECRET || 'test-jwt-secret-at-least-24chars!!'
       );
       const jwtWriteRes = await app.inject({
         method: 'POST',
