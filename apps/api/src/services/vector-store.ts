@@ -34,7 +34,7 @@ import {
 } from '@eidos/core';
 import { StoredItem } from '../types';
 import { CatalogItem } from '../demo/demo-catalog';
-import { ServerEmbedder } from './embedder';
+import { ServerEmbedder, computeDeterministicEmbedding } from './embedder';
 import { ApiQueryCache } from './query-cache';
 import { getCache, CacheKeys, getSemanticCache } from './cache';
 
@@ -261,6 +261,7 @@ export class VectorStore {
     this.bm25.addDocument(id, docText);
 
     // Append full item metadata + vector to Write-Ahead Log for crash recovery
+    if (!this.isSeedingDemo) {
     this.wal.append({
       type: existedBefore ? 'UPDATE_NODE' : 'INSERT_NODE',
       nodeId: id,
@@ -280,6 +281,7 @@ export class VectorStore {
         imageUrl,
       },
     });
+    }
 
     ApiQueryCache.invalidateAll();
     getSemanticCache().clear();
@@ -547,12 +549,20 @@ export class VectorStore {
    * Restores binary HNSW graph (.hnsw.bin) directly when available to avoid cold-start re-embedding.
    */
   public async loadSnapshotFromDisk(
-    embedder: {
-      embed: (text: string) => Promise<Float32Array | number[]>;
-      embedBatch: (texts: string[]) => Promise<Array<Float32Array | number[]>>;
-    },
-    customPath?: string
+    embedderOrPath?:
+      | {
+          embed: (text: string) => Promise<Float32Array | number[]>;
+          embedBatch: (texts: string[]) => Promise<Array<Float32Array | number[]>>;
+        }
+      | string,
+    maybeCustomPath?: string
   ): Promise<number> {
+    const hasExplicitEmbedder =
+      typeof embedderOrPath === 'object' && embedderOrPath !== null && 'embedBatch' in embedderOrPath;
+    const customPath =
+      typeof embedderOrPath === 'string' ? embedderOrPath : maybeCustomPath;
+    const embedder = hasExplicitEmbedder ? embedderOrPath : undefined;
+
     if (
       (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
       !process.env.EIDOS_SNAPSHOT_PATH &&
@@ -567,7 +577,7 @@ export class VectorStore {
     }
 
     try {
-      const raw = await fs.promises.readFile(targetPath, 'utf8');
+      const raw = fs.readFileSync(targetPath, 'utf8');
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed) || parsed.length === 0) {
         return 0;
@@ -579,7 +589,7 @@ export class VectorStore {
       let restoredHnsw: HNSWIndex | null = null;
       if (fs.existsSync(binPath)) {
         try {
-          const binBuf = await fs.promises.readFile(binPath);
+          const binBuf = fs.readFileSync(binPath);
           const binUint8 = new Uint8Array(binBuf.buffer, binBuf.byteOffset, binBuf.byteLength);
           restoredHnsw = HNSWIndexSerializer.deserialize(binUint8);
           for (const node of restoredHnsw.getAllNodes()) {
@@ -699,31 +709,54 @@ export class VectorStore {
       }
 
       if (toEmbed.length > 0) {
-        const vectors = await embedder.embedBatch(toEmbed.map((e) => e.text));
-        const useFastBulk = toEmbed.length > 100;
-        for (let i = 0; i < toEmbed.length; i++) {
-          const { item } = toEmbed[i];
-          const isRecentTail = i >= toEmbed.length - 25;
-          let vec = vectors[i];
-          if (useFastBulk && isRecentTail && typeof embedder.embed === 'function') {
-            vec = await embedder.embed(toEmbed[i].text);
+        if (!embedder) {
+          for (let i = 0; i < toEmbed.length; i++) {
+            const { item, text } = toEmbed[i];
+            const vec = computeDeterministicEmbedding(text);
+            this.upsert({
+              id: item.id,
+              sku: item.sku,
+              brand: item.brand,
+              title: item.title,
+              description: item.description,
+              category: item.category,
+              price: item.price,
+              stock: item.stock,
+              inStock: item.inStock,
+              tags: item.tags,
+              url: item.url,
+              imageUrl: item.imageUrl ?? undefined,
+              embedding: vec,
+            });
+            loadedCount++;
           }
-          this.upsert({
-            id: item.id,
-            sku: item.sku,
-            brand: item.brand,
-            title: item.title,
-            description: item.description,
-            category: item.category,
-            price: item.price,
-            stock: item.stock,
-            inStock: item.inStock,
-            tags: item.tags,
-            url: item.url,
-            imageUrl: item.imageUrl ?? undefined,
-            embedding: vec,
-          });
-          loadedCount++;
+        } else {
+          const vectors = await embedder.embedBatch(toEmbed.map((e) => e.text));
+          const useFastBulk = toEmbed.length > 100;
+          for (let i = 0; i < toEmbed.length; i++) {
+            const { item } = toEmbed[i];
+            const isRecentTail = i >= toEmbed.length - 25;
+            let vec = vectors[i];
+            if (useFastBulk && isRecentTail && typeof embedder.embed === 'function') {
+              vec = await embedder.embed(toEmbed[i].text);
+            }
+            this.upsert({
+              id: item.id,
+              sku: item.sku,
+              brand: item.brand,
+              title: item.title,
+              description: item.description,
+              category: item.category,
+              price: item.price,
+              stock: item.stock,
+              inStock: item.inStock,
+              tags: item.tags,
+              url: item.url,
+              imageUrl: item.imageUrl ?? undefined,
+              embedding: vec,
+            });
+            loadedCount++;
+          }
         }
       }
 

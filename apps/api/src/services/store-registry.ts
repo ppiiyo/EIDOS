@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as os from 'os';
 import { FastifyRequest } from 'fastify';
 import { VectorStore } from './vector-store';
 
@@ -242,8 +243,20 @@ export class StoreRegistry {
     tenantId: string,
     indexName: string
   ): { walPath?: string; snapshotPath?: string } {
+    if (tenantId === 'demo') {
+      const dir = path.join(os.tmpdir(), `eidos-demo-${process.pid}`, indexName);
+      return {
+        walPath: path.join(dir, 'catalog.wal.jsonl'),
+        snapshotPath: path.join(dir, 'catalog.snapshot.json'),
+      };
+    }
     const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-    if (isTestEnv && !process.env.EIDOS_WAL_PATH && !process.env.EIDOS_SNAPSHOT_PATH) {
+    if (
+      isTestEnv &&
+      !process.env.EIDOS_WAL_PATH &&
+      !process.env.EIDOS_SNAPSHOT_PATH &&
+      !process.env.EIDOS_DATA_DIR
+    ) {
       return {};
     }
     if (tenantId === 'default' && indexName === 'default') {
@@ -254,7 +267,7 @@ export class StoreRegistry {
       };
     }
     const baseDataDir = process.env.EIDOS_DATA_DIR
-      ? path.dirname(path.resolve(process.cwd(), process.env.EIDOS_DATA_DIR))
+      ? path.resolve(process.cwd(), process.env.EIDOS_DATA_DIR)
       : path.resolve(process.cwd(), './data');
     return {
       walPath: path.join(baseDataDir, tenantId, indexName, 'catalog.wal.jsonl'),
@@ -344,6 +357,9 @@ export class StoreRegistry {
     const store = new VectorStore({
       ...persistence,
     });
+    if (persistence.snapshotPath) {
+      void store.loadSnapshotFromDisk(persistence.snapshotPath);
+    }
     if (persistence.walPath) {
       store.replayWalFromDisk(persistence.walPath);
     }
@@ -410,6 +426,9 @@ export class StoreRegistry {
         useQuantization: quantization !== 'fp32',
         ...persistence,
       });
+    if (!config.store && persistence.snapshotPath) {
+      void store.loadSnapshotFromDisk(persistence.snapshotPath);
+    }
     if (!config.store && persistence.walPath) {
       store.replayWalFromDisk(persistence.walPath);
     }

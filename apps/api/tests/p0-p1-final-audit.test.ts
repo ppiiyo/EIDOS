@@ -26,8 +26,14 @@ describe('P0 (1–12) & P1 Final Audit Regression Suite', () => {
 
     expect(includePhp).not.toMatch(/\bnamespace\s+/);
     expect(includePhp).toContain("require_once __DIR__ . '/lib/Core/ConnectorInterface.php'");
+    expect(includePhp).toContain("class_alias(\\Eidos\\Connectors\\Bitrix\\Connector::class, 'EidosConnector')");
     expect(connectorInterfacePhp).toContain('namespace Eidos\\Connectors\\Core;');
     expect(connectorInterfacePhp).toContain('interface ConnectorInterface');
+    expect(
+      fs.existsSync(path.join(REPO_ROOT, 'connectors/bitrix/eidos.search/install/version.php'))
+    ).toBe(true);
+    const dockerfile = fs.readFileSync(path.join(REPO_ROOT, 'Dockerfile'), 'utf8');
+    expect(dockerfile).toContain('COPY --from=builder --chown=eidos:nodejs /app/dist ./dist');
   });
 
   it('P0-2: Bitrix SearchReplacer payload shape without diversityFactor in filters returns 200 on live /v1/search', async () => {
@@ -168,9 +174,11 @@ describe('P0 (1–12) & P1 Final Audit Regression Suite', () => {
     }
   });
 
-  it('P0-6: VectorStore marks hasProductionCatalogItems() = true after snapshot/WAL restore', async () => {
+  it('P0-6: VectorStore marks hasProductionCatalogItems() = true after snapshot/WAL restore and StoreRegistry restores non-default tenant snapshots while keeping demo ephemeral', async () => {
     const tmpDir = fs.mkdtempSync(path.join(REPO_ROOT, 'data/test-snap-'));
     const snapPath = path.join(tmpDir, 'catalog.snapshot.json');
+    const prevDataDir = process.env.EIDOS_DATA_DIR;
+    process.env.EIDOS_DATA_DIR = tmpDir;
     try {
       const store1 = new VectorStore({ snapshotPath: snapPath });
       store1.upsert({
@@ -196,7 +204,50 @@ describe('P0 (1–12) & P1 Final Audit Regression Suite', () => {
       );
       expect(count).toBe(1);
       expect(store2.hasProductionCatalogItems()).toBe(true);
+
+      // Verify non-default tenant snapshot restore across StoreRegistry restart (when WAL is truncated by saveSnapshotSync)
+      const reg1 = new StoreRegistry();
+      const acmeStore1 = reg1.getOrCreateStore('acme', 'products');
+      acmeStore1.upsert({
+        id: 'acme-1',
+        title: 'Acme Industrial Pump',
+        description: 'Heavy duty pump',
+        category: 'Industrial',
+        price: 1200,
+        inStock: true,
+        tags: [],
+        url: '/product/acme-1',
+        embedding: new Array(384).fill(0.03),
+      });
+      acmeStore1.saveSnapshotSync();
+
+      // Simulate restart with fresh StoreRegistry instance
+      const reg2 = new StoreRegistry();
+      const acmeStore2 = reg2.getOrCreateStore('acme', 'products');
+      expect(acmeStore2.count()).toBe(1);
+      expect(acmeStore2.hasProductionCatalogItems()).toBe(true);
+
+      // Demo store seeding does not write WAL or mark production items
+      const demoStore = reg2.getOrCreateStore('demo', 'demo');
+      await demoStore.loadDemoCatalog([
+        {
+          id: 'demo-item-1',
+          title: 'Demo Headphones',
+          description: 'Wireless',
+          category: 'Audio',
+          price: 99,
+          inStock: true,
+          tags: [],
+          url: '/product/demo-item-1',
+        },
+      ]);
+      expect(demoStore.hasProductionCatalogItems()).toBe(false);
     } finally {
+      if (prevDataDir === undefined) {
+        delete process.env.EIDOS_DATA_DIR;
+      } else {
+        process.env.EIDOS_DATA_DIR = prevDataDir;
+      }
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });

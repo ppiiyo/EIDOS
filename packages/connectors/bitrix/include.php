@@ -46,3 +46,14 @@ if (!class_exists('Eidos\\Bitrix\\Mapper', false)) {
 if (!class_exists('Eidos\\Bitrix\\Connector', false)) {
     class_alias(\Eidos\Connectors\Bitrix\Connector::class, 'Eidos\\Bitrix\\Connector');
 }
+
+// Global aliases for CAgent / event handlers registered as 'EidosConnector'
+if (!class_exists('EidosConnector', false)) {
+    class_alias(\Eidos\Connectors\Bitrix\Connector::class, 'EidosConnector');
+}
+if (!class_exists('EidosHttpClient', false)) {
+    class_alias(\Eidos\Connectors\Bitrix\HttpClient::class, 'EidosHttpClient');
+}
+if (!class_exists('EidosMapper', false)) {
+    class_alias(\Eidos\Connectors\Bitrix\Mapper::class, 'EidosMapper');
+}

@@ -20,7 +20,7 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
   await fastify.register(cors, {
     origin: corsOriginOption,
     methods: allowedMethods,
-    credentials: true,
+    credentials: !isWildcardOrigin,
   });
 
   // Ensure all 3 CORS headers are always emitted even on direct curl requests without Origin header
@@ -38,7 +38,7 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
     if (!reply.getHeader('access-control-allow-methods')) {
       reply.header('access-control-allow-methods', allowedMethods.join(', '));
     }
-    if (!reply.getHeader('access-control-allow-credentials')) {
+    if (!isWildcardOrigin && !reply.getHeader('access-control-allow-credentials')) {
       reply.header('access-control-allow-credentials', 'true');
     }
     return payload;

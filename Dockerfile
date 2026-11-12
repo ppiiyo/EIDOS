@@ -52,7 +52,7 @@ COPY --from=builder --chown=eidos:nodejs /app/packages/core/package.json ./packa
 COPY --from=builder --chown=eidos:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=eidos:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=eidos:nodejs /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=builder --chown=eidos:nodejs /app/apps/workspace/dist ./dist
+COPY --from=builder --chown=eidos:nodejs /app/dist ./dist
 COPY --from=builder --chown=eidos:nodejs /app/public ./public
 
 RUN mkdir -p /app/data/db && chown -R eidos:nodejs /app/data

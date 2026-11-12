@@ -88,7 +88,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Load persisted catalog snapshot when configured via EIDOS_SNAPSHOT_PATH, then replay any uncommitted WAL entries
   const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-  if (process.env.EIDOS_SNAPSHOT_PATH) {
+  if (process.env.EIDOS_SNAPSHOT_PATH || !isTestEnv) {
     await vectorStore.loadSnapshotFromDisk(embedder);
   }
   if (process.env.EIDOS_WAL_PATH || !isTestEnv) {
