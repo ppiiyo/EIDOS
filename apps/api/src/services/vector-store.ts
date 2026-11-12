@@ -649,6 +649,11 @@ export class VectorStore {
    * Loads persisted catalog snapshot from disk into VectorStore before HTTP server starts.
    * Restores binary HNSW graph (.hnsw.bin) directly when available to avoid cold-start re-embedding.
    */
+  private readyPromise: Promise<void> = Promise.resolve();
+  public setReadyPromise(p: Promise<void>): void { this.readyPromise = p; }
+  public whenReady(): Promise<void> { return this.readyPromise; }
+
+
   public async loadSnapshotFromDisk(
     embedderOrPath?:
       | {
@@ -658,6 +663,7 @@ export class VectorStore {
       | string,
     maybeCustomPath?: string
   ): Promise<number> {
+    const wasEmptyBeforeRestore = this.items.size === 0;
     const hasExplicitEmbedder =
       typeof embedderOrPath === 'object' && embedderOrPath !== null && 'embedBatch' in embedderOrPath;
     const customPath =
@@ -836,7 +842,7 @@ export class VectorStore {
       }
 
       // Reconcile deleted seed items if this snapshot represents a full catalog state
-      if (snapshotIds.size >= 100) {
+      if (snapshotIds.size >= 100 && wasEmptyBeforeRestore) {
         for (const existingId of Array.from(this.items.keys())) {
           if (!snapshotIds.has(existingId)) {
             this.delete(existingId);
@@ -1180,11 +1186,11 @@ export class VectorStore {
     const resolvedRankWindow = options?.rankWindow ?? DEFAULT_RANK_WINDOW;
     const effectiveLexWindow =
       offset > 0
-        ? Math.max(resolvedRankWindow.lexical, offset + limit + 25)
+        ? Math.max(resolvedRankWindow.lexical, offset + limit + 50)
         : resolvedRankWindow.lexical;
     const effectiveDenseWindow =
       offset > 0
-        ? Math.max(resolvedRankWindow.dense, offset + limit + 25)
+        ? Math.max(resolvedRankWindow.dense, offset + limit + 50)
         : resolvedRankWindow.dense;
     const k = options?.rankConstant ?? DEFAULT_RANK_CONSTANT;
     const fusionMode: FusionMode = options?.fusionMode ?? 'rrf';

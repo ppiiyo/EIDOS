@@ -72,8 +72,9 @@ export async function catalogRoutes(
   const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
   storeRegistry.setDefaultStore(opts.vectorStore);
 
-  function resolveStore(request: any): { store: VectorStore; tenantId: string; indexName: string } {
+  async function resolveStore(request: any): Promise<{ store: VectorStore; tenantId: string; indexName: string }> {
     const resolved = storeRegistry.resolveRequestStore(request);
+    await resolved.store.whenReady();
     return {
       store: resolved.store,
       tenantId: resolved.tenantId,
@@ -98,7 +99,7 @@ export async function catalogRoutes(
    */
   fastify.get('/v1/catalog/stats', async (request, reply) => {
     try {
-      const { store, tenantId, indexName } = resolveStore(request);
+      const { store, tenantId, indexName } = await resolveStore(request);
       let effectiveStore = store;
       if (tenantId === 'default' && indexName === 'default') {
         const demoStore = storeRegistry.getOrCreateStore('demo', 'demo');
@@ -151,7 +152,7 @@ export async function catalogRoutes(
         });
       }
 
-      const { store, tenantId, indexName } = resolveStore(request);
+      const { store, tenantId, indexName } = await resolveStore(request);
       const rawBody = request.body as Record<string, unknown> | null;
 
       // Batch mode: {"items": [...]}
@@ -425,7 +426,7 @@ export async function catalogRoutes(
         });
       }
 
-      const { store, tenantId, indexName } = resolveStore(request);
+      const { store, tenantId, indexName } = await resolveStore(request);
       const body = request.body as Record<string, any>;
       const rawItems = Array.isArray(body?.items) ? body.items : [body];
       const parsedItems = z.array(catalogItemSchema).min(1).max(500).parse(rawItems);
@@ -502,7 +503,7 @@ export async function catalogRoutes(
           });
         }
 
-        const { store, tenantId, indexName } = resolveStore(request);
+        const { store, tenantId, indexName } = await resolveStore(request);
         const { id } = request.params;
         const deleted = store.delete(id);
 
@@ -554,7 +555,7 @@ export async function catalogRoutes(
             message: `Role '${role}' is not permitted to clear catalog`,
           });
         }
-        const { store, tenantId, indexName } = resolveStore(request);
+        const { store, tenantId, indexName } = await resolveStore(request);
         await store.clear();
         await invalidateCatalogCaches(tenantId, indexName);
         Metrics.vectorStoreSize.set(0);
@@ -591,7 +592,7 @@ export async function catalogRoutes(
         });
       }
 
-      const { store, tenantId, indexName } = resolveStore(request);
+      const { store, tenantId, indexName } = await resolveStore(request);
       const parseResult = ingestPayloadSchema.safeParse(request.body);
       if (!parseResult.success) {
         return reply.status(400).send({
@@ -722,7 +723,7 @@ export async function catalogRoutes(
 
     let indexedCount = 0;
     if (body.autoIndex && items.length > 0) {
-      const { store, tenantId, indexName } = resolveStore(request);
+      const { store, tenantId, indexName } = await resolveStore(request);
       storeRegistry.assertItemQuota(tenantId, indexName, items.length);
 
       const BATCH_SIZE = 100;
@@ -785,7 +786,7 @@ export async function catalogRoutes(
             'робот пылесос с лидаром',
           ];
 
-    const { store } = resolveStore(request);
+    const { store } = await resolveStore(request);
     const allItems = store.getAll();
 
     const comparisons = [];

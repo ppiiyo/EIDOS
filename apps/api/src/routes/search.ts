@@ -251,6 +251,7 @@ export async function searchRoutes(
       try {
         const resolved = storeRegistry.resolveRequestStore(request);
         activeStore = resolved.store;
+        await activeStore.whenReady();
         tenantId = resolved.tenantId;
         indexName = resolved.indexName;
       } catch (err) {

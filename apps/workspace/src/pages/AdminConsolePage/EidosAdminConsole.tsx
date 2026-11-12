@@ -89,12 +89,12 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
     ready: true,
     processReady: true,
     searchReady: true,
-    itemsIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
+    itemsIndexed: 0,
     components: {},
   });
   const [catalogSummary, setCatalogSummary] = useState<any>(() => ({
-    itemsIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
-    hnswIndexed: (mode || initialMode) === 'public-demo' ? 1048 : 0,
+    itemsIndexed: 0,
+    hnswIndexed: 0,
     categories: {},
   }));
   const [lastSnapshotAt, setLastSnapshotAt] = useState<string | null>(null);
@@ -476,8 +476,8 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
             data-testid="public-demo-catalog-badge"
           >
             {lang === 'ru'
-              ? `Каталог демо: ${itemsCount || 1048} товаров`
-              : `Demo catalog: ${itemsCount || 1048} products`}
+              ? `Каталог демо: ${itemsCount || 0} товаров`
+              : `Demo catalog: ${itemsCount || 0} products`}
           </span>
         </div>
       )}
@@ -754,7 +754,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                         ready: true,
                         processReady: true,
                         searchReady: true,
-                        itemsIndexed: Math.max(Number(prev?.itemsIndexed ?? 0), 1048),
+                        itemsIndexed: Number(prev?.itemsIndexed ?? 0),
                       }));
                     } else {
                       void fetchAdminData();

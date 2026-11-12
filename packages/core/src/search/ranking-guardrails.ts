@@ -639,9 +639,10 @@ export function extractHeadCategoryIntent(
 ): HeadCategoryIntent {
   const qInfo = normalizeQueryWithLayoutRecovery(rawQuery);
   const lower = qInfo.normalizedQuery.toLowerCase();
+  // EIDOS-104: prefer caller families.
   const activeFamilies: ReadonlyArray<CategoryFamilySpec> =
     customFamilies && customFamilies.length > 0
-      ? [...customFamilies, ...PRODUCT_CATEGORY_FAMILIES]
+      ? customFamilies
       : PRODUCT_CATEGORY_FAMILIES;
 
   const isBudgetIntent = qInfo.isBudgetIntent;
@@ -746,9 +747,10 @@ export function evaluateCandidateCategoryGate(
     };
   }
 
+  // EIDOS-104: prefer caller families.
   const activeFamilies: ReadonlyArray<CategoryFamilySpec> =
     customFamilies && customFamilies.length > 0
-      ? [...customFamilies, ...PRODUCT_CATEGORY_FAMILIES]
+      ? customFamilies
       : PRODUCT_CATEGORY_FAMILIES;
 
   const primaryFields = `${candidate.title || ''} ${candidate.category || ''} ${(candidate.tags || []).join(' ')}`.toLowerCase();
