@@ -92,6 +92,25 @@ export async function demoRoutes(
   fastify: FastifyInstance,
   opts: { vectorStore: VectorStore; embedder?: ServerEmbedder }
 ): Promise<void> {
+
+function assertDemoMutationsAllowed(reply: FastifyReply): boolean {
+  const enabled = process.env.EIDOS_ENABLE_DEMO_MUTATIONS;
+  const allowed =
+    process.env.NODE_ENV === 'production'
+      ? enabled === 'true'
+      : enabled !== 'false';
+  if (!allowed) {
+    reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'Demo catalog mutations disabled. Set EIDOS_ENABLE_DEMO_MUTATIONS=true to enable.',
+    });
+    return false;
+  }
+  return true;
+}
+
+
   const applyDemoLifecycleRateLimit = async (request: FastifyRequest, reply: FastifyReply) => {
     const ip = request.ip || 'unknown';
     const now = Date.now();
@@ -133,6 +152,7 @@ export async function demoRoutes(
     '/v1/demo/load',
     { preHandler: applyDemoLifecycleRateLimit },
     async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!assertDemoMutationsAllowed(reply)) return;
       const demoStore = getDemoStore(fastify);
       if (demoStore.hasProductionCatalogItems()) {
         return reply.status(409).send({ error: 'DEMO_DISABLED_FOR_PRODUCTION_CATALOG' });
@@ -212,6 +232,7 @@ export async function demoRoutes(
     '/v1/demo/reset',
     { preHandler: applyDemoLifecycleRateLimit },
     async (_request: FastifyRequest, reply: FastifyReply) => {
+      if (!assertDemoMutationsAllowed(reply)) return;
       const demoStore = getDemoStore(fastify);
       if (demoStore.hasProductionCatalogItems()) {
         return reply.status(409).send({ error: 'DEMO_DISABLED_FOR_PRODUCTION_CATALOG' });

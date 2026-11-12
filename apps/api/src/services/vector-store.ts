@@ -131,7 +131,7 @@ export class VectorStore {
       process.env.EIDOS_WAL_PATH ||
       (!isTestEnv ? path.resolve(process.cwd(), './data/catalog.wal.jsonl') : undefined);
     this.snapshotPath = options?.snapshotPath;
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), this.walPath);
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotSync(), this.walPath);
   }
 
   public getNamespace(): string {
@@ -255,7 +255,7 @@ export class VectorStore {
     });
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), this.walPath);
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotSync(), this.walPath);
 
     Metrics.vectorStoreSize.set(0);
     this.invalidateStoreCache();

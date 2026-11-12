@@ -630,4 +630,74 @@ class Connector implements ConnectorInterface
             'total' => $total,
         ];
     }
+
+
+    /**
+     * Bitrix event: element deleted — remove from EIDOS index.
+     * @param array<string, mixed> $arFields
+     */
+    public static function onAfterIBlockElementDelete(array &$arFields): void
+    {
+        $id = trim((string) ($arFields['ID'] ?? $arFields['id'] ?? ''));
+        if ($id === '') {
+            return;
+        }
+        try {
+            $connector = isset($GLOBALS['__EIDOS_TEST_CONNECTOR']) && $GLOBALS['__EIDOS_TEST_CONNECTOR'] instanceof self
+                ? $GLOBALS['__EIDOS_TEST_CONNECTOR']
+                : self::fromBitrixOptions(false);
+            $connector->deleteCatalogItem($id);
+        } catch (\Throwable $e) {
+            if (function_exists('AddMessage2Log')) {
+                AddMessage2Log('[EIDOS] onAfterIBlockElementDelete: ' . $e->getMessage(), 'eidos.connector');
+            }
+        }
+    }
+
+    /**
+     * Bitrix event: deactivated element removed from EIDOS.
+     * @param array<string, mixed> $arFields
+     */
+    public static function onAfterIBlockElementUpdate(array &$arFields): void
+    {
+        $id = trim((string) ($arFields['ID'] ?? $arFields['id'] ?? ''));
+        if ($id === '') {
+            return;
+        }
+        $active = strtoupper((string) ($arFields['ACTIVE'] ?? 'Y'));
+        if ($active !== 'N') {
+            return;
+        }
+        try {
+            $connector = isset($GLOBALS['__EIDOS_TEST_CONNECTOR']) && $GLOBALS['__EIDOS_TEST_CONNECTOR'] instanceof self
+                ? $GLOBALS['__EIDOS_TEST_CONNECTOR']
+                : self::fromBitrixOptions(false);
+            $connector->deleteCatalogItem($id);
+        } catch (\Throwable $e) {
+            if (function_exists('AddMessage2Log')) {
+                AddMessage2Log('[EIDOS] onAfterIBlockElementUpdate: ' . $e->getMessage(), 'eidos.connector');
+            }
+        }
+    }
+
+    /**
+     * DELETE /v1/catalog/items/:id against EIDOS API.
+     */
+    public function deleteCatalogItem(string $id): void
+    {
+        $cleanId = trim($id);
+        if ($cleanId === '') {
+            return;
+        }
+        try {
+            $this->httpClient->request('DELETE', '/v1/catalog/items/' . rawurlencode($cleanId), null, 10.0);
+        } catch (\Throwable $e) {
+            $this->httpClient->logError('deleteCatalogItem', $e->getMessage());
+            throw $e;
+        }
+        if (method_exists($this->searchReplacer, 'markItemDeletedInBitrix')) {
+            $this->searchReplacer->markItemDeletedInBitrix($cleanId);
+        }
+    }
+
 }
