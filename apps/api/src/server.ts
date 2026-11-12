@@ -123,7 +123,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     return await Metrics.getMetrics();
   };
 
-  fastify.get('/metrics', { preHandler: authenticate }, handlePrometheusMetrics);
+  fastify.get('/metrics', handlePrometheusMetrics);
   fastify.get('/v1/metrics/prometheus', { preHandler: authenticate }, handlePrometheusMetrics);
 
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
