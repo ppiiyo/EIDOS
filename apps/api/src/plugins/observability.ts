@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify';
 import * as crypto from 'crypto';
 import { Metrics } from '@eidos/core';
 import { cacheMetrics } from '../services/cache/cache-metrics';
+import { authenticate } from '../middleware/auth';
 
 const MAX_LATENCY_SAMPLES = 1000;
 const latencySamplesMs: number[] = [];
@@ -188,7 +189,7 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
     recordRequestMetricsOnce(request, reply.statusCode);
   });
 
-  fastify.get('/v1/telemetry', async () => {
+  fastify.get('/v1/telemetry', { preHandler: authenticate }, async () => {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -199,7 +200,7 @@ export async function observabilityPlugin(fastify: FastifyInstance): Promise<voi
     };
   });
 
-  fastify.get('/v1/metrics', async () => {
+  fastify.get('/v1/metrics', { preHandler: authenticate }, async () => {
     if (fastify.storeRegistry) {
       Metrics.vectorStoreSize.set(fastify.storeRegistry.getTotalVectorCount());
       Metrics.activeIndexesTotal.set(fastify.storeRegistry.listIndexes().length);

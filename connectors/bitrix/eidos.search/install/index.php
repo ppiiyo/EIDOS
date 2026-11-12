@@ -1,37 +1,39 @@
 <?php
 /**
- * 1C-Bitrix Module Installer: eidos.search (Pilot Edition)
- * Provides 4-step Setup Wizard (Connection -> Sync IBlock -> Replace Search -> Verify),
- * CIBlockElement delta hooks, Live Suggest widget, and fail-safe fallback to native CSearch.
+ * DEPRECATED: Legacy 1C-Bitrix installer stub (eidos.search).
+ * Use the production module `eidos.connector` located in `packages/connectors/bitrix`.
  */
 
 use Bitrix\Main\ModuleManager;
-use Bitrix\Main\EventManager;
+use Bitrix\Main\Config\Option;
 
 class eidos_search extends CModule
 {
     public $MODULE_ID = 'eidos.search';
-    public $MODULE_VERSION = '3.4.0';
-    public $MODULE_VERSION_DATE = '2026-11-06 12:00:00';
-    public $MODULE_NAME = 'EIDOS — Гибридный поиск для 1С-Битрикс';
-    public $MODULE_DESCRIPTION = 'Self-hosted гибридный поиск (HNSW + BM25 + RRF + Category Gate) с авто-fallback на CSearch';
+    public $MODULE_VERSION;
+    public $MODULE_VERSION_DATE;
+    public $MODULE_NAME = 'EIDOS Search & Merchandising (DEPRECATED — используйте eidos.connector)';
+    public $MODULE_DESCRIPTION = 'Устаревший черновик модуля. Используйте актуальный модуль eidos.connector из packages/connectors/bitrix.';
+    public $PARTNER_NAME = 'EIDOS';
+    public $PARTNER_URI = 'https://eidos.search';
 
-    public function DoInstall()
+    public function __construct()
+    {
+        $arModuleVersion = [];
+        include __DIR__ . '/version.php';
+        $this->MODULE_VERSION = $arModuleVersion['VERSION'] ?? '3.4.0';
+        $this->MODULE_VERSION_DATE = $arModuleVersion['VERSION_DATE'] ?? '2026-04-12 00:00:00';
+    }
+
+    public function DoInstall(): bool
     {
         ModuleManager::registerModule($this->MODULE_ID);
-        $em = EventManager::getInstance();
-        $em->registerEventHandler('iblock', 'OnAfterIBlockElementAdd', $this->MODULE_ID, 'EidosBitrixSync', 'onElementUpsert');
-        $em->registerEventHandler('iblock', 'OnAfterIBlockElementUpdate', $this->MODULE_ID, 'EidosBitrixSync', 'onElementUpsert');
-        $em->registerEventHandler('iblock', 'OnAfterIBlockElementDelete', $this->MODULE_ID, 'EidosBitrixSync', 'onElementDelete');
         return true;
     }
 
-    public function DoUninstall()
+    public function DoUninstall(): bool
     {
-        $em = EventManager::getInstance();
-        $em->unRegisterEventHandler('iblock', 'OnAfterIBlockElementAdd', $this->MODULE_ID, 'EidosBitrixSync', 'onElementUpsert');
-        $em->unRegisterEventHandler('iblock', 'OnAfterIBlockElementUpdate', $this->MODULE_ID, 'EidosBitrixSync', 'onElementUpsert');
-        $em->unRegisterEventHandler('iblock', 'OnAfterIBlockElementDelete', $this->MODULE_ID, 'EidosBitrixSync', 'onElementDelete');
+        Option::delete($this->MODULE_ID);
         ModuleManager::unRegisterModule($this->MODULE_ID);
         return true;
     }

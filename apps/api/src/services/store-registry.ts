@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { FastifyRequest } from 'fastify';
 import { VectorStore } from './vector-store';
 
@@ -237,6 +238,30 @@ export class StoreRegistry {
     return `${tenantId}:${indexName}`;
   }
 
+  private static getStorePersistencePaths(
+    tenantId: string,
+    indexName: string
+  ): { walPath?: string; snapshotPath?: string } {
+    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+    if (isTestEnv && !process.env.EIDOS_WAL_PATH && !process.env.EIDOS_SNAPSHOT_PATH) {
+      return {};
+    }
+    if (tenantId === 'default' && indexName === 'default') {
+      return {
+        walPath: process.env.EIDOS_WAL_PATH || path.resolve(process.cwd(), './data/catalog.wal.jsonl'),
+        snapshotPath:
+          process.env.EIDOS_SNAPSHOT_PATH || path.resolve(process.cwd(), './data/catalog.snapshot.json'),
+      };
+    }
+    const baseDataDir = process.env.EIDOS_DATA_DIR
+      ? path.dirname(path.resolve(process.cwd(), process.env.EIDOS_DATA_DIR))
+      : path.resolve(process.cwd(), './data');
+    return {
+      walPath: path.join(baseDataDir, tenantId, indexName, 'catalog.wal.jsonl'),
+      snapshotPath: path.join(baseDataDir, tenantId, indexName, 'catalog.snapshot.json'),
+    };
+  }
+
   public setDefaultStore(store: VectorStore): void {
     const key = StoreRegistry.makeKey('default', 'default');
     const existing = this.stores.get(key);
@@ -304,7 +329,7 @@ export class StoreRegistry {
     const shouldCreate =
       options?.createIfMissing !== undefined
         ? options.createIfMissing
-        : cleanIndex === 'default';
+        : cleanIndex === 'default' || (cleanTenant === 'demo' && cleanIndex === 'demo');
 
     if (!shouldCreate) {
       throw new StoreError(
@@ -313,6 +338,14 @@ export class StoreRegistry {
         404,
         { tenantId: cleanTenant, indexName: cleanIndex }
       );
+    }
+
+    const persistence = StoreRegistry.getStorePersistencePaths(cleanTenant, cleanIndex);
+    const store = new VectorStore({
+      ...persistence,
+    });
+    if (persistence.walPath) {
+      store.replayWalFromDisk(persistence.walPath);
     }
 
     const meta: IndexMetadata = {
@@ -326,7 +359,7 @@ export class StoreRegistry {
       shards: 3,
       replicationFactor: 2,
       createdAt: new Date().toISOString(),
-      store: new VectorStore(),
+      store,
     };
     this.stores.set(key, meta);
     return meta;
@@ -367,6 +400,7 @@ export class StoreRegistry {
     const shards = config.shards ?? 3;
     const replicationFactor = config.replicationFactor ?? 2;
 
+    const persistence = StoreRegistry.getStorePersistencePaths(cleanTenant, cleanName);
     const store =
       config.store ||
       new VectorStore({
@@ -374,7 +408,11 @@ export class StoreRegistry {
         efConstruction,
         efSearch,
         useQuantization: quantization !== 'fp32',
+        ...persistence,
       });
+    if (!config.store && persistence.walPath) {
+      store.replayWalFromDisk(persistence.walPath);
+    }
 
     const meta: IndexMetadata = {
       tenantId: cleanTenant,

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildServer } from '../src/server';
+import { DEMO_CATALOG } from '../src/demo/demo-catalog';
 
 describe('POST /v1/recommend/adaptive', () => {
   let app: FastifyInstance;
@@ -10,6 +11,7 @@ describe('POST /v1/recommend/adaptive', () => {
     app = await buildServer();
     await app.ready();
     await app.inject({ method: 'POST', url: '/v1/demo/load' });
+    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
   });
 
   afterAll(async () => {

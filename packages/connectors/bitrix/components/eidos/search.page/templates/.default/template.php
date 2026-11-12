@@ -35,7 +35,7 @@
                         <a
                             href="<?= $itemUrl ?>"
                             data-eidos-item-id="<?= $itemId ?>"
-                            onclick="eidosTrackClick(<?= json_encode((string) ($item['ID'] ?? '')) ?>, <?= json_encode((string) ($arResult['QUERY'] ?? '')) ?>)"
+                            onclick="eidosTrackClick(<?= htmlspecialchars((string) json_encode((string) ($item['ID'] ?? '')), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars((string) json_encode((string) ($arResult['QUERY'] ?? '')), ENT_QUOTES, 'UTF-8') ?>)"
                         >
                             <?= $itemName ?>
                         </a>

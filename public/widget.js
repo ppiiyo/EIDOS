@@ -15,7 +15,6 @@
   var FORBIDDEN_KEY_PREFIXES = [
     'eidos_mk_',
     'eidos_ak_',
-    'eidos_sk_',
     'eidos_merch_',
     'eidos_master_',
     'eidos_admin_',
@@ -23,7 +22,7 @@
     'test-key',
   ];
 
-  var ALLOWED_PUBLIC_PREFIXES = ['eidos_pk_', 'eidos_search_'];
+  var ALLOWED_PUBLIC_PREFIXES = ['eidos_pk_', 'eidos_search_', 'eidos_sk_'];
 
   function isForbiddenKey(key) {
     if (!key || typeof key !== 'string') return true;
@@ -442,17 +441,25 @@
 
   // Auto-init from <script src=".../widget.js" data-api-key="eidos_pk_..." data-api-url="...">
   function autoInitFromScriptTag() {
-    var scripts = document.querySelectorAll('script[data-api-key]');
+    var scripts = document.querySelectorAll('script[data-api-key], script[data-key]');
     for (var i = 0; i < scripts.length; i++) {
       var s = scripts[i];
       if (s.getAttribute('data-eidos-mounted') === 'true') continue;
       s.setAttribute('data-eidos-mounted', 'true');
+      var apiKey = s.getAttribute('data-api-key') || s.getAttribute('data-key');
+      var apiUrl =
+        s.getAttribute('data-api-url') ||
+        s.getAttribute('data-api') ||
+        s.src.replace(/\/widget\.js(\?.*)?$/, '');
+      var inputSel = s.getAttribute('data-input-selector') || s.getAttribute('data-input') || undefined;
+      var limit = parseInt(s.getAttribute('data-limit') || '8', 10);
       mountWidget({
-        apiUrl: s.getAttribute('data-api-url') || s.src.replace(/\/widget\.js(\?.*)?$/, ''),
-        apiKey: s.getAttribute('data-api-key'),
+        apiUrl: apiUrl,
+        apiKey: apiKey,
         tenantId: s.getAttribute('data-tenant-id') || '',
         indexName: s.getAttribute('data-index-name') || '',
-        inputSelector: s.getAttribute('data-input-selector') || undefined,
+        inputSelector: inputSel,
+        limit: limit,
       });
     }
   }

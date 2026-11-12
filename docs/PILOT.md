@@ -23,10 +23,10 @@ chmod +x deploy/pilot/install.sh
 ```
 
 Скрипт автоматически:
-1. Сгенерирует криптостойкие `ADMIN_KEY` (`eidos_adm_...`) и `SEARCH_KEY` (`eidos_pub_...`) в `.env.pilot`.
+1. Сгенерирует криптостойкие `ADMIN_KEY` (`eidos_ak_...`) и `SEARCH_KEY` (`eidos_pk_...`) в `.env.pilot`.
 2. Запустит `docker compose -f docker-compose.pilot.yml up -d` с персистентным томом `/var/lib/eidos` и Redis 7.
 3. Дождётся `GET http://localhost:3001/v1/ready` (`"ready": true`, `"processReady": true`).
-4. Выведет готовые ключи для вставки в плагин WooCommerce (`connectors/woocommerce/eidos-search`) или модуль 1С-Битрикс (`connectors/bitrix/eidos.search`).
+4. Выведет готовые ключи для вставки в плагин WooCommerce (`packages/connectors/woocommerce`) или модуль 1С-Битрикс (`packages/connectors/bitrix` / `eidos.connector`).
 
 Проверка готовности вручную:
 ```bash

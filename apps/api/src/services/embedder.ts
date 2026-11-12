@@ -351,7 +351,7 @@ export class ServerEmbedder {
     const startHr = performance.now();
     await this.ensureInitialized();
 
-    if (!this.pipe || process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true' || texts.length >= 100) {
+    if (!this.pipe || process.env.EIDOS_USE_ONNX_EMBEDDER !== 'true') {
       const vectors = texts.map((t) => {
         const clean = t.trim();
         if (!clean) return new Float32Array(384);

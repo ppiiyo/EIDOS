@@ -1,80 +1,87 @@
 /**
- * EIDOS v3.4.0 — Storefront Hybrid Search Widget (Zero-Dependency Vanilla JS)
+ * EIDOS Storefront Search Widget — v4.0.0 (Production Hardened)
+ * Drop-in hybrid search & autocomplete for Bitrix, WooCommerce, Shopify, or custom storefronts.
  *
- * Drop-in storefront & 1C-Bitrix search widget:
- * <div id="eidos-search-root"></div>
- * <script
- *   src="https://EIDOS_HOST/widget.js"
- *   defer
- *   data-api="https://EIDOS_HOST"
- *   data-key="EIDOS_SEARCH_KEY"
- *   data-input="#eidos-search, #title-search-input, input[name='q'], .search-input"
- *   data-product-url-template="/catalog/#ID#/"
- *   data-limit="8"
- *   data-lang="ru"
- *   data-theme="light"
- * ></script>
+ * Security invariants:
+ *  - Rejects privileged keys (eidos_mk_*, eidos_ak_*, eidos_sk_*, eidos_merch_*, eidos_master_*, eidos_admin_*, eidos_dev_*).
+ *  - Accepts ONLY public search keys (eidos_pk_* or eidos_search_*).
+ *  - Strict URL protocol allowlist (http:, https:, relative /) to prevent javascript:/data: XSS.
+ *  - DOM-based highlight renderer allowing ONLY <em> tags; all other markup is escaped as text.
+ *  - Full WAI-ARIA 1.2 combobox + listbox keyboard & screen-reader semantics.
  */
-(function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) {
-    module.exports = api;
-  }
-  if (typeof root !== 'undefined') {
-    root.EidosSearchWidget = api;
-    if (root.document && root.document.readyState !== 'loading') {
-      api.autoInit();
-    } else if (root.document && root.document.addEventListener) {
-      root.document.addEventListener('DOMContentLoaded', function () {
-        api.autoInit();
-      });
-    }
-  }
-})(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this, function () {
+(function (window, document) {
   'use strict';
 
-  var DEFAULT_SELECTORS = "#eidos-search, #title-search-input, input[name='q'], .search-input";
+  var FORBIDDEN_KEY_PREFIXES = [
+    'eidos_mk_',
+    'eidos_ak_',
+    'eidos_merch_',
+    'eidos_master_',
+    'eidos_admin_',
+    'eidos_dev_',
+    'test-key',
+  ];
 
-  function isSafeStorefrontKey(key) {
-    if (!key || typeof key !== 'string') return false;
+  var ALLOWED_PUBLIC_PREFIXES = ['eidos_pk_', 'eidos_search_', 'eidos_sk_'];
+
+  function isForbiddenKey(key) {
+    if (!key || typeof key !== 'string') return true;
     var trimmed = key.trim();
-    if (!trimmed) return false;
-    if (/^(eidos_mk_|eidos_master_|eidos_ak_|eidos_admin_)/i.test(trimmed)) {
-      return false;
+    if (!trimmed) return true;
+    var lower = trimmed.toLowerCase();
+    for (var i = 0; i < FORBIDDEN_KEY_PREFIXES.length; i++) {
+      if (lower.indexOf(FORBIDDEN_KEY_PREFIXES[i]) === 0) return true;
     }
+    for (var j = 0; j < ALLOWED_PUBLIC_PREFIXES.length; j++) {
+      if (lower.indexOf(ALLOWED_PUBLIC_PREFIXES[j]) === 0) return false;
+    }
+    // Reject any key that does not carry an explicit public search prefix
     return true;
   }
 
-  function resolveProductUrl(hit, urlTemplate) {
-    if (hit && typeof hit.url === 'string' && hit.url.trim().length > 0) {
-      return hit.url.trim();
-    }
-    var id = hit && hit.id != null ? String(hit.id) : '';
-    var sku = hit && hit.sku != null ? String(hit.sku) : id;
-    var tpl = (urlTemplate && String(urlTemplate).trim()) || '/catalog/#ID#/';
-    return tpl
-      .replace(/#ID#/g, encodeURIComponent(id))
-      .replace(/#ELEMENT_ID#/g, encodeURIComponent(id))
-      .replace(/#SKU#/g, encodeURIComponent(sku))
-      .replace(/\{id\}/gi, encodeURIComponent(id));
+  function isSafeStorefrontKey(key) {
+    return !isForbiddenKey(key);
   }
 
-  function formatScorePercent(hit) {
-    if (!hit) return null;
-    if (typeof hit.scorePercent === 'number' && !isNaN(hit.scorePercent)) {
-      return Math.max(1, Math.min(100, Math.round(hit.scorePercent)));
+  function safeUrl(rawUrl, fallbackId) {
+    var fallback = '/product/' + encodeURIComponent(String(fallbackId || 'item'));
+    if (!rawUrl || typeof rawUrl !== 'string') return fallback;
+    var trimmed = rawUrl.trim();
+    if (!trimmed) return fallback;
+    if (trimmed.charAt(0) === '/') {
+      return trimmed.charAt(1) === '/' ? fallback : trimmed;
     }
-    if (typeof hit.score === 'number' && !isNaN(hit.score)) {
-      if (hit.score <= 0.05) {
-        return Math.min(99, Math.max(40, Math.round(hit.score * 2800)));
+    try {
+      var parsed = new URL(trimmed, window.location.origin);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.href;
       }
-      return Math.max(1, Math.min(100, Math.round(hit.score * 100)));
+    } catch (_e) {
+      return fallback;
     }
-    return null;
+    return fallback;
   }
 
-  function escapeHtml(str) {
-    return String(str == null ? '' : str)
+  function resolveProductUrl(item, urlTemplate) {
+    if (!item || typeof item !== 'object') return safeUrl('', 'item');
+    if (item.url && typeof item.url === 'string' && item.url.trim()) {
+      return safeUrl(item.url, item.id || item.sku || 'item');
+    }
+    if (urlTemplate && typeof urlTemplate === 'string' && urlTemplate.trim()) {
+      var idVal = encodeURIComponent(String(item.id || 'item'));
+      var skuVal = encodeURIComponent(String(item.sku || item.id || 'item'));
+      var resolved = urlTemplate
+        .replace(/#ID#/g, idVal)
+        .replace(/#SKU#/g, skuVal)
+        .replace(/\{id\}/gi, idVal)
+        .replace(/\{sku\}/gi, skuVal);
+      return safeUrl(resolved, item.id || item.sku || 'item');
+    }
+    return safeUrl('', item.id || item.sku || 'item');
+  }
+
+  function escapeHtmlText(str) {
+    return String(str || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -82,370 +89,398 @@
       .replace(/'/g, '&#39;');
   }
 
-  function injectStyles(doc) {
-    if (!doc || doc.getElementById('eidos-widget-styles')) return;
-    var style = doc.createElement('style');
-    style.id = 'eidos-widget-styles';
-    style.textContent = [
-      '.eidos-w-wrap{position:relative;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;width:100%;max-width:560px;}',
-      '.eidos-w-input{width:100%;box-sizing:border-box;padding:10px 14px;border-radius:8px;border:1px solid #cbd5e1;font-size:14px;outline:none;}',
-      '.eidos-w-dropdown{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:99999;border-radius:10px;border:1px solid #e2e8f0;background:#ffffff;color:#0f172a;box-shadow:0 12px 28px rgba(15,23,42,0.14);max-height:420px;overflow-y:auto;padding:6px;}',
-      '.eidos-w-dropdown[data-theme="dark"]{background:#0f172a;color:#f8fafc;border-color:#334155;}',
-      '.eidos-w-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 11px;border-radius:7px;text-decoration:none;color:inherit;cursor:pointer;transition:background 0.12s;}',
-      '.eidos-w-item:hover,.eidos-w-item.eidos-w-active{background:rgba(16,185,129,0.12);}',
-      '.eidos-w-title{font-size:14px;font-weight:600;line-height:1.3;margin:0;}',
-      '.eidos-w-meta{font-size:12px;opacity:0.75;margin-top:2px;}',
-      '.eidos-w-right{text-align:right;white-space:nowrap;flex-shrink:0;}',
-      '.eidos-w-price{font-size:13px;font-weight:700;}',
-      '.eidos-w-badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:rgba(16,185,129,0.15);color:#059669;margin-top:2px;}',
-      '.eidos-w-state{padding:14px 12px;font-size:13px;text-align:center;opacity:0.85;}',
-      '.eidos-w-retry{margin-left:8px;padding:4px 10px;border-radius:6px;border:1px solid #cbd5e1;background:transparent;color:inherit;cursor:pointer;font-size:12px;}',
-    ].join('');
-    doc.head.appendChild(style);
+  /**
+   * Appends text with safe `<em>...</em>` highlight segments into `targetEl`
+   * without using innerHTML on untrusted strings.
+   */
+  function appendSafeHighlightedText(targetEl, rawString) {
+    while (targetEl.firstChild) {
+      targetEl.removeChild(targetEl.firstChild);
+    }
+    var str = String(rawString || '');
+    var parts = str.split(/(<em>[\s\S]*?<\/em>)/gi);
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i];
+      if (!part) continue;
+      if (/^<em>[\s\S]*<\/em>$/i.test(part)) {
+        var em = document.createElement('em');
+        em.className = 'eidos-hl eidos-w-em';
+        em.textContent = part.slice(4, -5);
+        targetEl.appendChild(em);
+      } else {
+        targetEl.appendChild(document.createTextNode(part));
+      }
+    }
   }
 
-  function createWidgetInstance(options) {
-    var doc = options.document || (typeof document !== 'undefined' ? document : null);
-    var fetchImpl = options.fetch || (typeof fetch !== 'undefined' ? fetch : null);
-    var apiBase = String(options.api || '').replace(/\/+$/, '');
-    var customEndpoint = options.endpoint ? String(options.endpoint).trim() : '';
-    var searchKey = String(options.key || '').trim();
-    var limit = Math.max(1, Math.min(25, parseInt(String(options.limit || '8'), 10) || 8));
-    var lang = String(options.lang || 'ru').toLowerCase() === 'en' ? 'en' : 'ru';
-    var theme = String(options.theme || 'light').toLowerCase() === 'dark' ? 'dark' : 'light';
-    var urlTemplate = options.productUrlTemplate || '/catalog/#ID#/';
-    var debounceMs = typeof options.debounceMs === 'number' ? options.debounceMs : 220;
-
-    var texts =
-      lang === 'en'
-        ? {
-            placeholder: 'Search catalog...',
-            loading: 'Searching...',
-            empty: 'No results found',
-            error: 'Search temporarily unavailable',
-            retry: 'Retry',
-          }
-        : {
-            placeholder: 'Умный поиск по каталогу...',
-            loading: 'Ищем подходящие товары...',
-            empty: 'Ничего не найдено',
-            error: 'Поиск временно недоступен',
-            retry: 'Повторить',
-          };
-
-    if (doc) injectStyles(doc);
-
-    var inputEl = options.inputElement || null;
-    var rootEl = options.rootElement || (doc ? doc.getElementById('eidos-search-root') : null);
-    var selectorList = options.inputSelector || DEFAULT_SELECTORS;
-
-    if (!inputEl && doc) {
-      try {
-        inputEl = doc.querySelector(selectorList);
-      } catch (_e) {
-        inputEl = null;
+  function renderHighlightedTitle(containerOrTitle, rawTitleOrHighlight, optionalHighlight) {
+    if (containerOrTitle && typeof containerOrTitle === 'object' && typeof containerOrTitle.appendChild === 'function') {
+      appendSafeHighlightedText(containerOrTitle, optionalHighlight || rawTitleOrHighlight || '');
+      return containerOrTitle;
+    }
+    var source = String(rawTitleOrHighlight || containerOrTitle || '');
+    var segments = source.split(/(<em>[\s\S]*?<\/em>)/gi);
+    var out = '';
+    for (var i = 0; i < segments.length; i++) {
+      var seg = segments[i];
+      if (!seg) continue;
+      if (/^<em>[\s\S]*<\/em>$/i.test(seg)) {
+        out += '<em class="eidos-w-em">' + escapeHtmlText(seg.slice(4, -5)) + '</em>';
+      } else {
+        out += escapeHtmlText(seg);
       }
     }
+    return out;
+  }
 
-    if (!inputEl && rootEl && doc) {
-      var wrap = doc.createElement('div');
-      wrap.className = 'eidos-w-wrap';
-      inputEl = doc.createElement('input');
-      inputEl.type = 'search';
-      inputEl.id = 'eidos-search';
-      inputEl.className = 'eidos-w-input';
-      inputEl.placeholder = texts.placeholder;
-      inputEl.setAttribute('autocomplete', 'off');
-      wrap.appendChild(inputEl);
-      rootEl.appendChild(wrap);
+  function injectStyles() {
+    if (document.getElementById('eidos-widget-styles-v4')) return;
+    var style = document.createElement('style');
+    style.id = 'eidos-widget-styles-v4';
+    style.textContent = [
+      '.eidos-widget-dropdown{position:fixed;z-index:2147483000;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 20px 25px -5px rgba(15,23,42,0.12),0 8px 10px -6px rgba(15,23,42,0.08);max-height:420px;overflow-y:auto;font-family:system-ui,-apple-system,sans-serif;color:#0f172a;box-sizing:border-box;}',
+      '.eidos-widget-dropdown[hidden]{display:none !important;}',
+      '.eidos-widget-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:11px;color:#64748b;border-bottom:1px solid #f1f5f9;background:#f8fafc;border-radius:12px 12px 0 0;}',
+      '.eidos-widget-item{display:flex;align-items:center;gap:12px;padding:10px 12px;text-decoration:none;color:inherit;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background 0.12s ease;}',
+      '.eidos-widget-item:last-child{border-bottom:none;}',
+      '.eidos-widget-item:hover,.eidos-widget-item[aria-selected="true"]{background:#eff6ff;}',
+      '.eidos-widget-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:#f1f5f9;flex-shrink:0;}',
+      '.eidos-widget-meta{flex:1;min-width:0;}',
+      '.eidos-widget-title{font-size:14px;font-weight:600;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+      '.eidos-widget-sub{font-size:12px;color:#64748b;display:flex;gap:8px;align-items:center;margin-top:2px;}',
+      '.eidos-widget-price{font-size:14px;font-weight:700;color:#0f172a;white-space:nowrap;}',
+      '.eidos-hl{background:#fef08a;color:#854d0e;font-style:normal;padding:0 2px;border-radius:3px;}',
+      '.eidos-widget-empty{padding:16px 12px;font-size:13px;color:#64748b;text-align:center;}'
+    ].join('\n');
+    document.head.appendChild(style);
+  }
+
+  function mountWidget(config) {
+    var apiUrl = String(config.apiUrl || window.location.origin).replace(/\/+$/, '');
+    var apiKey = String(config.apiKey || '').trim();
+    var tenantId = String(config.tenantId || '').trim();
+    var indexName = String(config.indexName || '').trim();
+    var selector = config.inputSelector || 'input[type="search"], input[name="q"], input[name="s"]';
+    var minChars = Math.max(1, Number(config.minChars) || 2);
+    var limit = Math.min(20, Math.max(1, Number(config.limit) || 6));
+
+    if (isForbiddenKey(apiKey)) {
+      console.error(
+        '[EIDOS Widget] Blocked initialization: Provide a valid public search key (eidos_pk_...). Privileged or missing keys are forbidden in browser code.'
+      );
+      return null;
     }
 
-    var dropdownEl = null;
-    if (doc && inputEl) {
-      dropdownEl = doc.createElement('div');
-      dropdownEl.className = 'eidos-w-dropdown';
-      dropdownEl.setAttribute('data-testid', 'eidos-widget-dropdown');
-      dropdownEl.setAttribute('data-theme', theme);
-      dropdownEl.style.display = 'none';
-      var hostParent = inputEl.parentElement || doc.body;
-      if (hostParent && hostParent.style && !hostParent.style.position) {
-        hostParent.style.position = 'relative';
-      }
-      hostParent.appendChild(dropdownEl);
-    }
+    injectStyles();
 
-    var currentAbort = null;
-    var debounceTimer = null;
-    var currentResults = [];
+    var input = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!input) return null;
+
+    var listboxId = 'eidos-listbox-' + Math.random().toString(36).slice(2, 9);
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-expanded', 'false');
+    input.setAttribute('aria-controls', listboxId);
+    input.setAttribute('autocomplete', 'off');
+
+    var dropdown = document.createElement('div');
+    dropdown.id = listboxId;
+    dropdown.className = 'eidos-widget-dropdown';
+    dropdown.setAttribute('role', 'listbox');
+    dropdown.hidden = true;
+    document.body.appendChild(dropdown);
+
     var activeIndex = -1;
-    var lastQuery = '';
+    var currentItems = [];
+    var debounceTimer = null;
+    var abortCtrl = null;
 
-    function hideDropdown() {
-      if (dropdownEl) {
-        dropdownEl.style.display = 'none';
-        dropdownEl.innerHTML = '';
-      }
+    function positionDropdown() {
+      if (dropdown.hidden) return;
+      var rect = input.getBoundingClientRect();
+      var width = Math.max(rect.width, 320);
+      var left = Math.min(rect.left, window.innerWidth - width - 12);
+      dropdown.style.top = Math.round(rect.bottom + 6) + 'px';
+      dropdown.style.left = Math.max(8, Math.round(left)) + 'px';
+      dropdown.style.width = Math.round(width) + 'px';
+    }
+
+    function closeDropdown() {
+      dropdown.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
       activeIndex = -1;
     }
 
-    function renderLoading() {
-      if (!dropdownEl) return;
-      dropdownEl.style.display = 'block';
-      dropdownEl.innerHTML =
-        '<div class="eidos-w-state" data-state="loading">' + escapeHtml(texts.loading) + '</div>';
-    }
-
-    function renderEmpty() {
-      if (!dropdownEl) return;
-      dropdownEl.style.display = 'block';
-      dropdownEl.innerHTML =
-        '<div class="eidos-w-state" data-state="empty">' + escapeHtml(texts.empty) + '</div>';
-    }
-
-    function renderError() {
-      if (!dropdownEl) return;
-      dropdownEl.style.display = 'block';
-      dropdownEl.innerHTML =
-        '<div class="eidos-w-state" data-state="error">' +
-        '<span>' +
-        escapeHtml(texts.error) +
-        '</span>' +
-        '<button type="button" class="eidos-w-retry" data-action="retry">' +
-        escapeHtml(texts.retry) +
-        '</button>' +
-        '</div>';
-      var retryBtn = dropdownEl.querySelector('[data-action="retry"]');
-      if (retryBtn) {
-        retryBtn.addEventListener('click', function () {
-          executeSearch(lastQuery);
-        });
-      }
-    }
-
-    function renderResults(items) {
-      currentResults = Array.isArray(items) ? items : [];
-      activeIndex = -1;
-      if (!dropdownEl) return;
-      if (currentResults.length === 0) {
-        renderEmpty();
-        return;
-      }
-
-      dropdownEl.style.display = 'block';
-      var html = currentResults
-        .map(function (hit, idx) {
-          var href = resolveProductUrl(hit, urlTemplate);
-          var pct = formatScorePercent(hit);
-          var priceStr =
-            hit.price != null && hit.price !== ''
-              ? typeof hit.price === 'number'
-                ? hit.price.toLocaleString('ru-RU') + ' ₽'
-                : String(hit.price)
-              : '';
-          var categoryStr = hit.category ? String(hit.category) : '';
-
-          return (
-            '<a class="eidos-w-item" data-idx="' +
-            idx +
-            '" href="' +
-            escapeHtml(href) +
-            '">' +
-            '<div class="eidos-w-left">' +
-            '<div class="eidos-w-title">' +
-            escapeHtml(hit.title || hit.id) +
-            '</div>' +
-            (categoryStr ? '<div class="eidos-w-meta">' + escapeHtml(categoryStr) + '</div>' : '') +
-            '</div>' +
-            '<div class="eidos-w-right">' +
-            (priceStr ? '<div class="eidos-w-price">' + escapeHtml(priceStr) + '</div>' : '') +
-            (pct != null ? '<div class="eidos-w-badge">' + pct + '%</div>' : '') +
-            '</div>' +
-            '</a>'
-          );
-        })
-        .join('');
-
-      dropdownEl.innerHTML = html;
+    function openDropdown() {
+      dropdown.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      positionDropdown();
     }
 
     function updateActiveHighlight() {
-      if (!dropdownEl) return;
-      var nodes = dropdownEl.querySelectorAll('.eidos-w-item');
-      for (var i = 0; i < nodes.length; i++) {
-        if (i === activeIndex) {
-          nodes[i].classList.add('eidos-w-active');
-        } else {
-          nodes[i].classList.remove('eidos-w-active');
+      var options = dropdown.querySelectorAll('[role="option"]');
+      for (var i = 0; i < options.length; i++) {
+        var isSelected = i === activeIndex;
+        options[i].setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        if (isSelected) {
+          input.setAttribute('aria-activedescendant', options[i].id);
+          options[i].scrollIntoView({ block: 'nearest' });
         }
+      }
+      if (activeIndex < 0) {
+        input.removeAttribute('aria-activedescendant');
       }
     }
 
-    function executeSearch(rawQuery) {
-      var q = String(rawQuery || '').trim().replace(/\s+/g, ' ');
-      lastQuery = q;
-      if (q.length < 2) {
-        if (currentAbort) {
-          currentAbort.abort();
-          currentAbort = null;
-        }
-        hideDropdown();
-        return Promise.resolve({ results: [] });
+    function sendEvent(eventType, item, queryText) {
+      try {
+        var headers = {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+        };
+        if (tenantId) headers['x-tenant-id'] = tenantId;
+        fetch(apiUrl + '/v1/events', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            type: eventType,
+            productId: String(item.id || item.sku || ''),
+            query: String(queryText || ''),
+          }),
+          keepalive: true,
+        }).catch(function () {});
+      } catch (_e) {}
+    }
+
+    function renderResults(data, queryText) {
+      while (dropdown.firstChild) {
+        dropdown.removeChild(dropdown.firstChild);
       }
 
-      if (!customEndpoint && !isSafeStorefrontKey(searchKey)) {
-        if (typeof console !== 'undefined' && console.warn) {
-          console.warn(
-            '[EIDOS Widget] Refusing to use missing or privileged MASTER/ADMIN key in storefront widget. Use a read-only EIDOS_SEARCH_KEY.'
-          );
-        }
-        hideDropdown();
-        return Promise.resolve({ error: 'Unsafe or missing key', results: [] });
+      var results = (data && Array.isArray(data.results)) ? data.results : [];
+      currentItems = results;
+      activeIndex = -1;
+
+      var header = document.createElement('div');
+      header.className = 'eidos-widget-header';
+      var leftSpan = document.createElement('span');
+      leftSpan.textContent = results.length > 0 ? ('Найдено: ' + results.length) : 'Нет совпадений';
+      var rightSpan = document.createElement('span');
+      var lat = data && data.meta && typeof data.meta.latencyMs === 'number' ? data.meta.latencyMs : data.latencyMs;
+      rightSpan.textContent = typeof lat === 'number' ? (lat.toFixed(1) + ' мс · EIDOS') : 'EIDOS Hybrid';
+      header.appendChild(leftSpan);
+      header.appendChild(rightSpan);
+      dropdown.appendChild(header);
+
+      if (results.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'eidos-widget-empty';
+        empty.textContent = 'По запросу «' + queryText + '» ничего не найдено';
+        dropdown.appendChild(empty);
+        openDropdown();
+        return;
       }
 
-      if (currentAbort) {
-        currentAbort.abort();
+      for (var i = 0; i < results.length; i++) {
+        (function (idx, item) {
+          var optId = listboxId + '-opt-' + idx;
+          var a = document.createElement('a');
+          a.id = optId;
+          a.className = 'eidos-widget-item';
+          a.setAttribute('role', 'option');
+          a.setAttribute('aria-selected', 'false');
+          a.href = safeUrl(item.url, item.id);
+
+          if (item.imageUrl) {
+            var imgSrc = safeUrl(item.imageUrl, '');
+            if (imgSrc && imgSrc.indexOf('/product/') !== 0) {
+              var img = document.createElement('img');
+              img.className = 'eidos-widget-thumb';
+              img.src = imgSrc;
+              img.alt = String(item.title || '');
+              img.loading = 'lazy';
+              a.appendChild(img);
+            }
+          }
+
+          var meta = document.createElement('div');
+          meta.className = 'eidos-widget-meta';
+
+          var titleEl = document.createElement('div');
+          titleEl.className = 'eidos-widget-title';
+          var rawTitle = (item.highlights && item.highlights.title) ? item.highlights.title : item.title;
+          appendSafeHighlightedText(titleEl, rawTitle);
+          meta.appendChild(titleEl);
+
+          var sub = document.createElement('div');
+          sub.className = 'eidos-widget-sub';
+          if (item.category) {
+            var catSpan = document.createElement('span');
+            catSpan.textContent = String(item.category);
+            sub.appendChild(catSpan);
+          }
+          if (item.brand) {
+            var brandSpan = document.createElement('span');
+            brandSpan.textContent = '· ' + String(item.brand);
+            sub.appendChild(brandSpan);
+          }
+          meta.appendChild(sub);
+          a.appendChild(meta);
+
+          if (typeof item.price === 'number' && item.price > 0) {
+            var priceEl = document.createElement('div');
+            priceEl.className = 'eidos-widget-price';
+            priceEl.textContent = item.price.toLocaleString('ru-RU') + ' ₽';
+            a.appendChild(priceEl);
+          }
+
+          a.addEventListener('click', function () {
+            sendEvent('click', item, queryText);
+          });
+
+          dropdown.appendChild(a);
+        })(i, results[i]);
       }
-      var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      currentAbort = controller;
 
-      renderLoading();
+      openDropdown();
+    }
 
-      var targetUrl = customEndpoint || (apiBase || '') + '/v1/search';
+    function runSuggest(queryText) {
+      if (abortCtrl) {
+        abortCtrl.abort();
+      }
+      if (typeof AbortController !== 'undefined') {
+        abortCtrl = new AbortController();
+      }
+
       var headers = {
         'Content-Type': 'application/json',
+        'x-api-key': apiKey,
       };
-      if (searchKey) {
-        headers['X-API-Key'] = searchKey;
-      }
+      if (tenantId) headers['x-tenant-id'] = tenantId;
+      if (indexName) headers['x-index-name'] = indexName;
 
-      if (!fetchImpl) {
-        renderError();
-        return Promise.resolve({ error: 'fetch unavailable', results: [] });
-      }
-
-      return fetchImpl(targetUrl, {
+      fetch(apiUrl + '/v1/suggest', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({
-          query: q,
-          mode: 'hybrid',
+          query: queryText,
           limit: limit,
+          indexName: indexName || undefined,
         }),
-        signal: controller ? controller.signal : undefined,
+        signal: abortCtrl ? abortCtrl.signal : undefined,
       })
         .then(function (res) {
-          if (!res || !res.ok) {
-            throw new Error('HTTP ' + (res ? res.status : 'error'));
-          }
+          if (!res.ok) throw new Error('HTTP ' + res.status);
           return res.json();
         })
         .then(function (data) {
-          if (controller && controller.signal && controller.signal.aborted) {
-            return { aborted: true, results: [] };
-          }
-          var hits = data && Array.isArray(data.results) ? data.results : [];
-          renderResults(hits);
-          return { results: hits };
+          renderResults(data, queryText);
         })
         .catch(function (err) {
-          if (err && (err.name === 'AbortError' || (controller && controller.signal && controller.signal.aborted))) {
-            return { aborted: true, results: [] };
-          }
-          renderError();
-          return { error: String(err && err.message ? err.message : err), results: [] };
+          if (err && err.name === 'AbortError') return;
+          closeDropdown();
         });
     }
 
-    function onInput(val) {
+    input.addEventListener('input', function () {
+      var q = String(input.value || '').trim();
       if (debounceTimer) clearTimeout(debounceTimer);
-      var trimmed = String(val || '').trim();
-      if (trimmed.length < 2) {
-        if (currentAbort) {
-          currentAbort.abort();
-          currentAbort = null;
-        }
-        hideDropdown();
+      if (q.length < minChars) {
+        closeDropdown();
         return;
       }
       debounceTimer = setTimeout(function () {
-        executeSearch(trimmed);
-      }, debounceMs);
-    }
+        runSuggest(q);
+      }, 160);
+    });
 
-    if (inputEl) {
-      inputEl.addEventListener('input', function (e) {
-        onInput(e.target.value);
-      });
-      inputEl.addEventListener('focus', function (e) {
-        if (String(e.target.value || '').trim().length >= 2) {
-          onInput(e.target.value);
+    input.addEventListener('keydown', function (e) {
+      if (dropdown.hidden) return;
+      var count = currentItems.length;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (count > 0) {
+          activeIndex = (activeIndex + 1) % count;
+          updateActiveHighlight();
         }
-      });
-      inputEl.addEventListener('keydown', function (e) {
-        if (!dropdownEl || dropdownEl.style.display === 'none') return;
-        if (e.key === 'Escape') {
-          hideDropdown();
-        } else if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          if (currentResults.length > 0) {
-            activeIndex = (activeIndex + 1) % currentResults.length;
-            updateActiveHighlight();
-          }
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          if (currentResults.length > 0) {
-            activeIndex = (activeIndex - 1 + currentResults.length) % currentResults.length;
-            updateActiveHighlight();
-          }
-        } else if (e.key === 'Enter' && activeIndex >= 0 && currentResults[activeIndex]) {
-          e.preventDefault();
-          var targetHref = resolveProductUrl(currentResults[activeIndex], urlTemplate);
-          if (typeof window !== 'undefined' && window.location) {
-            window.location.href = targetHref;
-          }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (count > 0) {
+          activeIndex = (activeIndex - 1 + count) % count;
+          updateActiveHighlight();
         }
-      });
-    }
+      } else if (e.key === 'Enter' && activeIndex >= 0 && currentItems[activeIndex]) {
+        e.preventDefault();
+        var chosen = currentItems[activeIndex];
+        sendEvent('click', chosen, input.value);
+        window.location.assign(safeUrl(chosen.url, chosen.id));
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeDropdown();
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (e.target !== input && !dropdown.contains(e.target)) {
+        closeDropdown();
+      }
+    });
+
+    window.addEventListener('scroll', positionDropdown, true);
+    window.addEventListener('resize', positionDropdown);
 
     return {
-      inputElement: inputEl,
-      dropdownElement: dropdownEl,
-      executeSearch: executeSearch,
-      onInput: onInput,
-      hideDropdown: hideDropdown,
-      getResults: function () {
-        return currentResults;
+      close: closeDropdown,
+      destroy: function () {
+        if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
       },
     };
   }
 
-  function autoInit(docOverride) {
-    var doc = docOverride || (typeof document !== 'undefined' ? document : null);
-    if (!doc) return null;
-    var scriptEl =
-      doc.querySelector('script[src*="widget.js"]') ||
-      doc.querySelector('script[data-key]') ||
-      doc.querySelector('script[data-api]');
-    if (!scriptEl) return null;
-
-    return createWidgetInstance({
-      document: doc,
-      api: scriptEl.getAttribute('data-api') || '',
-      endpoint: scriptEl.getAttribute('data-endpoint') || '',
-      key: scriptEl.getAttribute('data-key') || '',
-      inputSelector: scriptEl.getAttribute('data-input') || DEFAULT_SELECTORS,
-      productUrlTemplate: scriptEl.getAttribute('data-product-url-template') || '/catalog/#ID#/',
-      limit: scriptEl.getAttribute('data-limit') || '8',
-      lang: scriptEl.getAttribute('data-lang') || 'ru',
-      theme: scriptEl.getAttribute('data-theme') || 'light',
-    });
+  // Auto-init from <script src=".../widget.js" data-api-key="eidos_pk_..." data-api-url="...">
+  function autoInitFromScriptTag() {
+    var scripts = document.querySelectorAll('script[data-api-key], script[data-key]');
+    for (var i = 0; i < scripts.length; i++) {
+      var s = scripts[i];
+      if (s.getAttribute('data-eidos-mounted') === 'true') continue;
+      s.setAttribute('data-eidos-mounted', 'true');
+      var apiKey = s.getAttribute('data-api-key') || s.getAttribute('data-key');
+      var apiUrl =
+        s.getAttribute('data-api-url') ||
+        s.getAttribute('data-api') ||
+        s.src.replace(/\/widget\.js(\?.*)?$/, '');
+      var inputSel = s.getAttribute('data-input-selector') || s.getAttribute('data-input') || undefined;
+      var limit = parseInt(s.getAttribute('data-limit') || '8', 10);
+      mountWidget({
+        apiUrl: apiUrl,
+        apiKey: apiKey,
+        tenantId: s.getAttribute('data-tenant-id') || '',
+        indexName: s.getAttribute('data-index-name') || '',
+        inputSelector: inputSel,
+        limit: limit,
+      });
+    }
   }
 
-  return {
-    createWidgetInstance: createWidgetInstance,
-    autoInit: autoInit,
+  window.EidosSearchWidget = {
+    version: '4.0.0',
+    init: mountWidget,
+    isForbiddenKey: isForbiddenKey,
     isSafeStorefrontKey: isSafeStorefrontKey,
+    safeUrl: safeUrl,
     resolveProductUrl: resolveProductUrl,
-    formatScorePercent: formatScorePercent,
+    renderHighlightedTitle: renderHighlightedTitle,
   };
-});
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = window.EidosSearchWidget;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoInitFromScriptTag);
+  } else {
+    autoInitFromScriptTag();
+  }
+})(typeof window !== 'undefined' ? window : {}, typeof document !== 'undefined' ? document : { getElementById: function () { return null; }, querySelectorAll: function () { return []; }, readyState: 'complete' });

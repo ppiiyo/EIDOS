@@ -58,6 +58,8 @@ export interface VectorStoreOptions {
   M?: number;
   efConstruction?: number;
   efSearch?: number;
+  walPath?: string;
+  snapshotPath?: string;
 }
 
 /**
@@ -73,6 +75,8 @@ export class VectorStore {
   private hybrid: HybridSearch;
   private wal: WriteAheadLog;
   private options?: VectorStoreOptions;
+  private walPath?: string;
+  private snapshotPath?: string;
   private explicitlyCleared = false;
   private hasProductionItems = false;
   private isSeedingDemo = false;
@@ -90,10 +94,12 @@ export class VectorStore {
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
     const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-    const defaultWalPath =
+    this.walPath =
+      options?.walPath ||
       process.env.EIDOS_WAL_PATH ||
       (!isTestEnv ? path.resolve(process.cwd(), './data/catalog.wal.jsonl') : undefined);
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), defaultWalPath);
+    this.snapshotPath = options?.snapshotPath;
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), this.walPath);
   }
 
   public isExplicitlyCleared(): boolean {
@@ -187,11 +193,7 @@ export class VectorStore {
     });
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
-    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-    const defaultWalPath =
-      process.env.EIDOS_WAL_PATH ||
-      (!isTestEnv ? path.resolve(process.cwd(), './data/catalog.wal.jsonl') : undefined);
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), defaultWalPath);
+    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotAsync(), this.walPath);
 
     Metrics.vectorStoreSize.set(0);
     ApiQueryCache.invalidateAll();
@@ -409,7 +411,7 @@ export class VectorStore {
   public getSnapshotPath(customPath?: string): string {
     return path.resolve(
       process.cwd(),
-      customPath || process.env.EIDOS_SNAPSHOT_PATH || './data/catalog.snapshot.json'
+      customPath || this.snapshotPath || process.env.EIDOS_SNAPSHOT_PATH || './data/catalog.snapshot.json'
     );
   }
 
@@ -480,6 +482,7 @@ export class VectorStore {
     if (
       (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
       !process.env.EIDOS_SNAPSHOT_PATH &&
+      !this.snapshotPath &&
       !customPath
     ) {
       return;
@@ -526,6 +529,7 @@ export class VectorStore {
     if (
       (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
       !process.env.EIDOS_SNAPSHOT_PATH &&
+      !this.snapshotPath &&
       !customPath
     ) {
       return;
@@ -552,6 +556,7 @@ export class VectorStore {
     if (
       (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
       !process.env.EIDOS_SNAPSHOT_PATH &&
+      !this.snapshotPath &&
       !customPath
     ) {
       return 0;
@@ -652,6 +657,9 @@ export class VectorStore {
           loadedCount++;
         }
 
+        if (this.items.size > 0) {
+          this.hasProductionItems = true;
+        }
         Metrics.vectorStoreSize.set(this.count());
         ApiQueryCache.invalidateAll();
         getSemanticCache().clear();
@@ -719,6 +727,9 @@ export class VectorStore {
         }
       }
 
+      if (this.items.size > 0) {
+        this.hasProductionItems = true;
+      }
       return loadedCount;
     } catch (err) {
       console.error('[EIDOS] Failed to load catalog snapshot from disk:', err);
@@ -779,6 +790,9 @@ export class VectorStore {
     }
 
     if (applied > 0) {
+      if (this.items.size > 0) {
+        this.hasProductionItems = true;
+      }
       this.catalogVersion += 1;
       ApiQueryCache.invalidateAll();
       getSemanticCache().clear();

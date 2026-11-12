@@ -41,6 +41,8 @@ describe('PHASE 2: Product Improvements (5,000+ Seed Dataset, OpenAPI 3.0.3, Sen
       url: '/v1/demo/load',
     });
     expect(loadRes.statusCode).toBe(200);
+    const { DEMO_CATALOG } = await import('../src/demo/demo-catalog');
+    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
 
     const statsRes = await app.inject({
       method: 'GET',

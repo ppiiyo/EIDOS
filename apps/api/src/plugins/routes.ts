@@ -45,18 +45,39 @@ export async function apiRoutesPlugin(
   const keyManager = opts.keyManager || ApiKeyManager.getInstance();
   fastify.keyManager = keyManager;
 
+  const MIME_BY_EXT: Record<string, string> = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
+    '.mjs': 'application/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon',
+    '.json': 'application/json; charset=utf-8',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+  };
+
   // Ensure reply.sendFile is available even if @fastify/static is not mounted
   if (!fastify.hasReplyDecorator('sendFile')) {
     fastify.decorateReply('sendFile', function (this: FastifyReply, filename: string) {
-      const candidatePaths = [
-        path.resolve(process.cwd(), 'dist', filename),
-        path.resolve(process.cwd(), 'apps/workspace/dist', filename),
-        path.resolve(process.cwd(), 'apps/workspace', filename),
+      const cleanRel = filename.replace(/^\/+/, '');
+      const candidateBases = [
+        path.resolve(process.cwd(), 'dist'),
+        path.resolve(process.cwd(), 'apps/workspace/dist'),
+        path.resolve(process.cwd(), 'apps/workspace'),
       ];
-      for (const candidate of candidatePaths) {
-        if (fs.existsSync(candidate)) {
-          const content = fs.readFileSync(candidate, 'utf-8');
-          return this.status(200).header('content-type', 'text/html; charset=utf-8').send(content);
+      for (const base of candidateBases) {
+        const candidate = path.resolve(base, cleanRel);
+        if (!candidate.startsWith(base + path.sep) && candidate !== base) continue;
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          const ext = path.extname(candidate).toLowerCase();
+          const mime = MIME_BY_EXT[ext] || 'text/html; charset=utf-8';
+          const content = fs.readFileSync(candidate);
+          return this.status(200).header('content-type', mime).send(content);
         }
       }
       return this.status(200)
@@ -66,6 +87,30 @@ export async function apiRoutesPlugin(
         );
     });
   }
+
+  fastify.get('/assets/*', async (request, reply) => {
+    const reqPath = request.url.split('?')[0].replace(/^\/+/, '');
+    const candidateBases = [
+      path.resolve(process.cwd(), 'dist'),
+      path.resolve(process.cwd(), 'apps/workspace/dist'),
+      path.resolve(process.cwd(), 'public'),
+    ];
+    for (const base of candidateBases) {
+      const candidate = path.resolve(base, reqPath);
+      if (!candidate.startsWith(base + path.sep)) continue;
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        const ext = path.extname(candidate).toLowerCase();
+        const mime = MIME_BY_EXT[ext] || 'application/octet-stream';
+        const content = await fs.promises.readFile(candidate);
+        return reply
+          .status(200)
+          .header('content-type', mime)
+          .header('cache-control', 'public, max-age=31536000, immutable')
+          .send(content);
+      }
+    }
+    return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Asset not found' });
+  });
 
   // Register all API routes BEFORE SPA fallback
   await fastify.register(healthRoutes, {

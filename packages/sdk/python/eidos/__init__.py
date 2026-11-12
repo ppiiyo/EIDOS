@@ -245,8 +245,24 @@ class EidosClient:
         return self._request("POST", "/v1/catalog/items", payload)
 
     def ingest_batch(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Batch ingestion for high-throughput product indexing."""
-        return self._request("POST", "/v1/catalog/batch", {"items": items})
+        """Batch ingestion for high-throughput product indexing (chunks of up to 500 items)."""
+        if not items:
+            return {"success": True, "indexedCount": 0, "durationMs": 0}
+        total_indexed = 0
+        total_duration = 0
+        last_resp: Dict[str, Any] = {}
+        for i in range(0, len(items), 500):
+            chunk = items[i : i + 500]
+            resp = self._request("POST", "/v1/catalog", {"items": chunk})
+            last_resp = resp
+            total_indexed += int(resp.get("indexedCount", resp.get("upserted", len(chunk))))
+            total_duration += int(resp.get("durationMs", 0))
+        return {
+            **last_resp,
+            "success": True,
+            "indexedCount": total_indexed,
+            "durationMs": total_duration,
+        }
 
     def feedback(
         self,

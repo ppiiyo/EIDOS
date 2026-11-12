@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildServer } from '../src/server';
 import { signJwtToken } from '../src/middleware/auth';
+import { DEMO_CATALOG } from '../src/demo/demo-catalog';
 
 describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
   let app: FastifyInstance;
@@ -16,6 +17,7 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
     expect(healthRes.json().initializedEmpty).toBe(true);
 
     await app.inject({ method: 'POST', url: '/v1/demo/load' });
+    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
   });
 
   afterAll(async () => {
@@ -117,6 +119,7 @@ describe('PHASE 1: Critical API Fixes & Security Hardening', () => {
 
       await rateLimitedApp.close();
       await app.inject({ method: 'POST', url: '/v1/demo/load' });
+      await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
       if (prevMax === undefined) {
         delete process.env.RATE_LIMIT_MAX;
       } else {

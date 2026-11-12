@@ -56,7 +56,7 @@ if [[ -f "${ENV_FILE}" ]]; then
 else
   EIDOS_MASTER_KEY="$(generate_secret_key "eidos_mk")"
   EIDOS_ADMIN_KEY="$(generate_secret_key "eidos_ak")"
-  EIDOS_SEARCH_KEY="$(generate_secret_key "eidos_sk")"
+  EIDOS_SEARCH_KEY="$(generate_secret_key "eidos_pk")"
   PORT="${PORT:-3001}"
 
   cat > "${ENV_FILE}" <<EOF

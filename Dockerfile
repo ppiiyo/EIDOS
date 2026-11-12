@@ -20,13 +20,12 @@ RUN pnpm install --frozen-lockfile
 COPY packages ./packages
 COPY apps ./apps
 COPY public ./public
-COPY index.html vite.config.ts ./
 
 # Build core, sdk, api, and workspace SPA
 RUN pnpm --filter @eidos/core build \
  && pnpm --filter @eidos/sdk build \
  && pnpm --filter @eidos/api build \
- && pnpm build
+ && pnpm --filter @eidos/workspace build
 
 # ==============================================================================
 # Stage 2: Production Runtime
@@ -53,7 +52,7 @@ COPY --from=builder --chown=eidos:nodejs /app/packages/core/package.json ./packa
 COPY --from=builder --chown=eidos:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=eidos:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=eidos:nodejs /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=builder --chown=eidos:nodejs /app/dist ./dist
+COPY --from=builder --chown=eidos:nodejs /app/apps/workspace/dist ./dist
 COPY --from=builder --chown=eidos:nodejs /app/public ./public
 
 RUN mkdir -p /app/data/db && chown -R eidos:nodejs /app/data

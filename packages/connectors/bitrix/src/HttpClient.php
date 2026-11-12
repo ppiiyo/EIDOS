@@ -77,8 +77,10 @@ class HttpClient
         $cleanPath = '/' . ltrim($path, '/');
         if (
             str_starts_with($cleanPath, '/v1/search')
+            || str_starts_with($cleanPath, '/v1/suggest')
             || str_starts_with($cleanPath, '/v1/recommend')
             || str_starts_with($cleanPath, '/v1/feedback')
+            || str_starts_with($cleanPath, '/v1/events')
         ) {
             return $this->searchKey !== '' ? $this->searchKey : $this->apiKey;
         }

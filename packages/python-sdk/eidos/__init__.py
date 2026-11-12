@@ -95,6 +95,27 @@ class EidosClient:
         r.raise_for_status()
         return r.json()
 
+    def ingest_batch(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not items:
+            return {"success": True, "indexedCount": 0, "durationMs": 0}
+        total_indexed = 0
+        total_duration = 0
+        last_resp: Dict[str, Any] = {}
+        for i in range(0, len(items), 500):
+            chunk = items[i : i + 500]
+            r = self.client.post("/v1/catalog", json={"items": chunk})
+            r.raise_for_status()
+            resp = r.json()
+            last_resp = resp
+            total_indexed += int(resp.get("indexedCount", resp.get("upserted", len(chunk))))
+            total_duration += int(resp.get("durationMs", 0))
+        return {
+            **last_resp,
+            "success": True,
+            "indexedCount": total_indexed,
+            "durationMs": total_duration,
+        }
+
     def record_feedback(
         self,
         user_id: str,

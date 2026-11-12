@@ -158,6 +158,17 @@ export async function catalogRoutes(
           });
         }
 
+        if (rawItems.length > 500) {
+          return reply.status(400).send({
+            statusCode: 400,
+            error: 'Validation Error',
+            message: 'Batch size exceeds maximum limit of 500 items per request.',
+            upserted: 0,
+            failed: rawItems.length,
+            errors: ['items: Array must contain at most 500 elements'],
+          });
+        }
+
         const validItems: Array<z.infer<typeof upsertItemSchema>> = [];
         const errors: string[] = [];
         const rowErrors: Array<{ row: number; field: string; message: string }> = [];

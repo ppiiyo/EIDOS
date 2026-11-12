@@ -29,9 +29,14 @@ const helmetPlugin: FastifyPluginAsync<HelmetOptions> = async (
     }
   }
 
-  fastify.addHook('onSend', async (_request, reply, payload) => {
+  const docsCspHeader =
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:";
+
+  fastify.addHook('onSend', async (request, reply, payload) => {
     if (opts.contentSecurityPolicy !== false) {
-      reply.header('content-security-policy', cspHeader);
+      const cleanPath = (request.url || '').split('?')[0];
+      const isSwaggerDocs = cleanPath === '/docs' || cleanPath.startsWith('/docs/');
+      reply.header('content-security-policy', isSwaggerDocs ? docsCspHeader : cspHeader);
     }
     reply.header('x-content-type-options', 'nosniff');
     reply.header('x-frame-options', 'SAMEORIGIN');

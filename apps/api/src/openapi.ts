@@ -70,8 +70,7 @@ export async function registerOpenAPI(fastify: FastifyInstance): Promise<void> {
       docExpansion: 'list',
       deepLinking: true,
     },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
+    staticCSP: false,
     transformSpecification: (swaggerObject) => {
       const spec = { ...swaggerObject, paths: { ...(swaggerObject.paths || {}) } };
       const extraPaths: Record<string, Record<string, unknown>> = {

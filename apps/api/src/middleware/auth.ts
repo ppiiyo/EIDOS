@@ -88,6 +88,8 @@ interface JwtValidationResult {
   isJwt: boolean;
   isValid: boolean;
   isExpired: boolean;
+  role?: ApiKeyScopeRole;
+  tenantId?: string;
 }
 
 function validateJwtToken(token: string, secret: string): JwtValidationResult {
@@ -109,12 +111,24 @@ function validateJwtToken(token: string, secret: string): JwtValidationResult {
     }
 
     const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
-    const payload = JSON.parse(payloadJson) as { exp?: number; nbf?: number };
+    const payload = JSON.parse(payloadJson) as {
+      exp?: number;
+      nbf?: number;
+      role?: string;
+      tenantId?: string;
+      tenant_id?: string;
+    };
 
     const nowSec = Math.floor(Date.now() / 1000);
-    if (typeof payload.exp === 'number' && payload.exp <= nowSec) {
+    // Require explicit numeric exp claim in production
+    if (typeof payload.exp !== 'number') {
+      if (process.env.NODE_ENV === 'production') {
+        return { isJwt: true, isValid: false, isExpired: false };
+      }
+    } else if (payload.exp <= nowSec) {
       return { isJwt: true, isValid: false, isExpired: true };
     }
+
     if (typeof payload.nbf === 'number' && payload.nbf > nowSec) {
       return { isJwt: true, isValid: false, isExpired: false };
     }
@@ -126,7 +140,25 @@ function validateJwtToken(token: string, secret: string): JwtValidationResult {
       .digest('base64url');
 
     const sigMatches = timingSafeEqual(parts[2], expectedSig);
-    return { isJwt: true, isValid: sigMatches, isExpired: false };
+    const rawRole = typeof payload.role === 'string' ? payload.role.trim().toLowerCase() : '';
+    const resolvedJwtRole: ApiKeyScopeRole =
+      rawRole === 'admin' || rawRole === 'merchandiser' || rawRole === 'search'
+        ? rawRole
+        : 'search';
+    const resolvedJwtTenant =
+      typeof payload.tenantId === 'string' && payload.tenantId.trim()
+        ? payload.tenantId.trim()
+        : typeof payload.tenant_id === 'string' && payload.tenant_id.trim()
+        ? payload.tenant_id.trim()
+        : undefined;
+
+    return {
+      isJwt: true,
+      isValid: sigMatches,
+      isExpired: false,
+      role: resolvedJwtRole,
+      tenantId: resolvedJwtTenant,
+    };
   } catch {
     return { isJwt: true, isValid: false, isExpired: false };
   }
@@ -169,11 +201,28 @@ function isKeyManagementRoute(cleanPath: string): boolean {
   return cleanPath.startsWith('/v1/keys') || cleanPath.startsWith('/v1/admin/keys');
 }
 
+function isMetricsEndpoint(cleanPath: string): boolean {
+  return (
+    cleanPath === '/metrics' ||
+    cleanPath === '/v1/metrics' ||
+    cleanPath === '/v1/metrics/prometheus' ||
+    cleanPath === '/v1/telemetry'
+  );
+}
+
 export async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<unknown> {
   const cleanPath = request.url.split('?')[0];
   request.tenantId = TenantNamespaceManager.getInstance().resolveTenantId(request);
 
-  if (PUBLIC_ENDPOINTS.includes(cleanPath) || cleanPath.startsWith('/docs')) {
+  if (isMetricsEndpoint(cleanPath)) {
+    const requireMetricsAuth =
+      process.env.EIDOS_REQUIRE_METRICS_AUTH === 'true' ||
+      process.env.EIDOS_PUBLIC_METRICS === 'false' ||
+      (process.env.NODE_ENV === 'production' && process.env.EIDOS_PUBLIC_METRICS !== 'true');
+    if (!requireMetricsAuth) {
+      return;
+    }
+  } else if (PUBLIC_ENDPOINTS.includes(cleanPath) || cleanPath.startsWith('/docs')) {
     return;
   }
 
@@ -230,11 +279,8 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     if (isReadOnlyDemoEndpoint) {
       request.demoMode = true;
       request.demoRateLimit = 10;
-      const registry = request.server?.storeRegistry;
-      const demoStoreCount = registry ? registry.getOrCreateStore('demo', 'demo').count() : 0;
-      const defaultStoreCount = registry ? registry.getOrCreateStore('default', 'default').count() : 0;
-      const targetTenant = demoStoreCount === 0 && defaultStoreCount > 0 ? 'default' : 'demo';
-      const targetIndex = targetTenant === 'demo' ? 'demo' : 'default';
+      const targetTenant = 'demo';
+      const targetIndex = 'demo';
       request.tenantId = targetTenant;
       request.indexName = targetIndex;
       request.headers['x-tenant-id'] = targetTenant;
@@ -309,11 +355,23 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     }
 
     if (jwtCheck.isValid) {
+      const jwtRole = jwtCheck.role || 'search';
+      const jwtTenant = jwtCheck.tenantId || request.tenantId || 'default';
+      request.tenantId = jwtTenant;
+      request.headers['x-tenant-id'] = jwtTenant;
       request.apiKeyContext = {
         keyId: maskedKey,
-        role: 'admin',
-        tenantId: request.tenantId || 'default',
+        role: jwtRole,
+        tenantId: jwtTenant,
       };
+      if (jwtRole === 'search' && !isSearchOrPublicReadRoute(request.method, cleanPath)) {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message:
+            'JWT with search role is restricted to search, recommendation, and public read endpoints.',
+        });
+      }
       return;
     }
   }

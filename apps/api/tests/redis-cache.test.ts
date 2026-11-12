@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify';
 import { buildServer } from '../src/server';
 import { getCache, CacheKeys, RedisCache } from '../src/services/cache';
 import { ApiQueryCache } from '../src/services/query-cache';
+import { DEMO_CATALOG } from '../src/demo/demo-catalog';
 
 describe('WEEK 1: Redis Caching Layer & Cache Invalidation', () => {
   let app: FastifyInstance;
@@ -14,6 +15,7 @@ describe('WEEK 1: Redis Caching Layer & Cache Invalidation', () => {
     app = await buildServer();
     await app.ready();
     await app.inject({ method: 'POST', url: '/v1/demo/load' });
+    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
   });
 
   afterAll(async () => {

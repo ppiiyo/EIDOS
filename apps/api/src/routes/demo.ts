@@ -96,6 +96,19 @@ export async function demoRoutes(
     const ip = request.ip || 'unknown';
     const now = Date.now();
     const limit = 20; // Hardened: max 20 lifecycle ops per minute per IP
+
+    if (demoLifecycleRequests.size > 1000) {
+      for (const [k, v] of demoLifecycleRequests.entries()) {
+        if (v.resetAt < now) {
+          demoLifecycleRequests.delete(k);
+        }
+      }
+      if (demoLifecycleRequests.size >= 5000) {
+        const oldestKey = demoLifecycleRequests.keys().next().value;
+        if (oldestKey) demoLifecycleRequests.delete(oldestKey);
+      }
+    }
+
     const existing = demoLifecycleRequests.get(ip);
     if (!existing || existing.resetAt < now) {
       demoLifecycleRequests.set(ip, { count: 1, resetAt: now + 60_000 });
@@ -119,22 +132,19 @@ export async function demoRoutes(
   fastify.post(
     '/v1/demo/load',
     { preHandler: applyDemoLifecycleRateLimit },
-    async (request: FastifyRequest) => {
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const demoStore = getDemoStore(fastify);
+      if (demoStore.hasProductionCatalogItems()) {
+        return reply.status(409).send({ error: 'DEMO_DISABLED_FOR_PRODUCTION_CATALOG' });
+      }
+
       const body = (request.body as { scale?: string | number; size?: string | number }) || {};
       const query = (request.query as { scale?: string | number; size?: string | number }) || {};
       const requestedScale = String(body.scale ?? body.size ?? query.scale ?? query.size ?? '1000');
       const scale = requestedScale === '48' ? '48' : '1000';
       const itemsToLoad = scale === '48' ? DEMO_CATALOG : DEMO_CATALOG_1000;
 
-      const demoStore = getDemoStore(fastify);
       await demoStore.loadDemoCatalog(itemsToLoad, opts.embedder);
-
-      // Also seed the default store ONLY if it contains no production items (sandbox convenience without polluting real tenant data)
-      if (!opts.vectorStore.hasProductionCatalogItems()) {
-        const registry = fastify.storeRegistry || StoreRegistry.getInstance();
-        registry.setDefaultStore(opts.vectorStore);
-        await opts.vectorStore.loadDemoCatalog(itemsToLoad, opts.embedder);
-      }
 
       const adminStore = getAdminConsoleStore();
       seedDemoAnalyticsIfEmpty(adminStore);
@@ -191,18 +201,18 @@ export async function demoRoutes(
 
   /**
    * POST /v1/demo/reset
-   * Resets ONLY the isolated `demo:demo` sandbox store (and demo-only default store if no production items were ever upserted).
-   * NEVER clears production items in `default:default`.
+   * Resets ONLY the isolated `demo:demo` sandbox store.
+   * NEVER clears production items or touches `default:default`.
    */
   fastify.post(
     '/v1/demo/reset',
     { preHandler: applyDemoLifecycleRateLimit },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const demoStore = getDemoStore(fastify);
-      await demoStore.clear();
-      if (!opts.vectorStore.hasProductionCatalogItems()) {
-        await opts.vectorStore.clear();
+      if (demoStore.hasProductionCatalogItems()) {
+        return reply.status(409).send({ error: 'DEMO_DISABLED_FOR_PRODUCTION_CATALOG' });
       }
+      await demoStore.clear();
       return reply.status(200).send({
         ok: true,
         tenantId: DEMO_TENANT_ID,

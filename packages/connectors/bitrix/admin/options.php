@@ -26,12 +26,16 @@ $csrfValid = !function_exists('check_bitrix_sessid') || check_bitrix_sessid();
 if ($requestMethod === 'POST' && isset($_POST['save']) && $csrfValid) {
     $rawUrl = trim((string) ($_POST['eidos_api_url'] ?? ''));
     $rawKey = trim((string) ($_POST['eidos_api_key'] ?? ''));
+    $rawSearchKey = trim((string) ($_POST['eidos_search_key'] ?? ''));
     $rawIblockId = (string) ((int) ($_POST['eidos_iblock_id'] ?? 0));
 
     if (class_exists('\COption')) {
         \COption::SetOptionString($module_id, 'api_url', $rawUrl);
         if ($rawKey !== '') {
             \COption::SetOptionString($module_id, 'api_key', $rawKey);
+        }
+        if ($rawSearchKey !== '') {
+            \COption::SetOptionString($module_id, 'search_key', $rawSearchKey);
         }
         \COption::SetOptionInt($module_id, 'iblock_id', (int) $rawIblockId);
     }
@@ -41,6 +45,10 @@ if ($requestMethod === 'POST' && isset($_POST['save']) && $csrfValid) {
     if ($rawKey !== '') {
         Settings::setOption('api_key', $rawKey);
         Settings::setOption(Settings::OPT_API_KEY, $rawKey);
+    }
+    if ($rawSearchKey !== '') {
+        Settings::setOption('search_key', $rawSearchKey);
+        Settings::setOption(Settings::OPT_SEARCH_KEY, $rawSearchKey);
     }
     Settings::setOption('iblock_id', $rawIblockId);
     Settings::setOption(Settings::OPT_IBLOCK_ID, $rawIblockId);
@@ -54,12 +62,16 @@ $apiKey = class_exists('\COption')
     ? (string) \COption::GetOptionString($module_id, 'api_key', Settings::getOption(Settings::OPT_API_KEY, ''))
     : Settings::getOption('api_key', Settings::getOption(Settings::OPT_API_KEY, ''));
 
+$searchKey = class_exists('\COption')
+    ? (string) \COption::GetOptionString($module_id, 'search_key', Settings::getOption(Settings::OPT_SEARCH_KEY, ''))
+    : Settings::getOption('search_key', Settings::getOption(Settings::OPT_SEARCH_KEY, ''));
+
 $iblockId = class_exists('\COption')
     ? (int) \COption::GetOptionInt($module_id, 'iblock_id', (int) Settings::getOption(Settings::OPT_IBLOCK_ID, '0'))
     : (int) Settings::getOption('iblock_id', Settings::getOption(Settings::OPT_IBLOCK_ID, '0'));
 
 $enforceHttps = str_starts_with(strtolower($apiUrl), 'https://');
-$httpClient = new HttpClient($apiUrl !== '' ? $apiUrl : 'https://localhost:3000', $apiKey, 3.0, 1, $enforceHttps);
+$httpClient = new HttpClient($apiUrl !== '' ? $apiUrl : 'https://localhost:3000', $apiKey, 3.0, 1, $enforceHttps, null, $searchKey);
 $connector = new Connector($httpClient);
 
 $syncBannerHtml = '';
@@ -85,6 +97,7 @@ if ($requestMethod === 'POST' && isset($_POST['sync_now']) && $csrfValid) {
 
 // Автоматический или ручной Health-check (таймаут 3 секунды)
 $health = $connector->healthCheck();
+$maskedAdminPlaceholder = $apiKey !== '' ? '•••••••• (ключ сохранён — оставьте пустым, чтобы не менять)' : 'eidos_ak_...';
 ?>
 <?= $syncBannerHtml ?>
 <div style="padding: 12px; margin-bottom: 16px; border-radius: 4px; background: <?= $health['ok'] ? '#e8f5e9' : '#ffebee' ?>;">
@@ -111,9 +124,15 @@ $health = $connector->healthCheck();
             </td>
         </tr>
         <tr>
-            <td>API-ключ EIDOS:</td>
+            <td>Admin API-ключ EIDOS (для синхронизации):</td>
             <td>
-                <input type="password" name="eidos_api_key" value="<?= htmlspecialchars($apiKey, ENT_QUOTES, 'UTF-8') ?>" size="50" />
+                <input type="password" name="eidos_api_key" value="" placeholder="<?= htmlspecialchars($maskedAdminPlaceholder, ENT_QUOTES, 'UTF-8') ?>" autocomplete="new-password" size="50" />
+            </td>
+        </tr>
+        <tr>
+            <td>Public Search-ключ EIDOS (для поиска и подсказок):</td>
+            <td>
+                <input type="text" name="eidos_search_key" value="<?= htmlspecialchars($searchKey, ENT_QUOTES, 'UTF-8') ?>" placeholder="eidos_pk_..." size="50" />
             </td>
         </tr>
         <tr>

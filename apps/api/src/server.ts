@@ -17,7 +17,7 @@ import {
 import { initTracing } from './tracing';
 import { getCache } from './services/cache';
 import { ClusterStateCoordinator } from './services/cluster-coordinator';
-import { validateProductionKeyPolicy } from './middleware/auth';
+import { authenticate, validateProductionKeyPolicy } from './middleware/auth';
 import { getYmlSyncScheduler } from './services/yml-sync-scheduler';
 
 export { mulberry32, generateDeterministicSeedCatalog, resetSeedCatalogCache, intentDictionary };
@@ -124,8 +124,8 @@ export async function buildServer(): Promise<FastifyInstance> {
   };
 
   // Prometheus /metrics and /v1/metrics/prometheus endpoints
-  fastify.get('/metrics', handlePrometheusMetrics);
-  fastify.get('/v1/metrics/prometheus', handlePrometheusMetrics);
+  fastify.get('/metrics', { preHandler: authenticate }, handlePrometheusMetrics);
+  fastify.get('/v1/metrics/prometheus', { preHandler: authenticate }, handlePrometheusMetrics);
 
   // 4. Register API routes and 404/SPA fallback handler
   await fastify.register(apiRoutesPlugin, { vectorStore, embedder });
@@ -148,8 +148,22 @@ export async function buildServer(): Promise<FastifyInstance> {
     clusterCoordinator.close();
     if (process.env.EIDOS_SNAPSHOT_PATH || !isTestEnv) {
       vectorStore.saveSnapshotSync();
+      if (fastify.storeRegistry) {
+        for (const meta of fastify.storeRegistry.listIndexes()) {
+          if (meta.store !== vectorStore) {
+            meta.store.saveSnapshotSync();
+          }
+        }
+      }
     }
     await vectorStore.getWAL().flush();
+    if (fastify.storeRegistry) {
+      for (const meta of fastify.storeRegistry.listIndexes()) {
+        if (meta.store !== vectorStore) {
+          await meta.store.getWAL().flush();
+        }
+      }
+    }
   });
 
   // Log all registered routes when DEBUG_ROUTES is enabled

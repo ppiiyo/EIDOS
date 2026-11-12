@@ -10,8 +10,8 @@ PORT="${PORT:-3001}"
 
 echo "==> [1/4] Generating cryptographic ADMIN_KEY and SEARCH_KEY..."
 if [ ! -f "${ENV_FILE}" ]; then
-  ADMIN_HEX="eidos_adm_$(openssl rand -hex 24)"
-  SEARCH_HEX="eidos_pub_$(openssl rand -hex 24)"
+  ADMIN_HEX="eidos_ak_$(openssl rand -hex 24)"
+  SEARCH_HEX="eidos_pk_$(openssl rand -hex 24)"
   cat > "${ENV_FILE}" <<EOF
 PORT=${PORT}
 NODE_ENV=production

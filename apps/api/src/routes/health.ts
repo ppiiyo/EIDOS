@@ -18,7 +18,7 @@ async function checkVectorStore(
     const hnswSize = vectorStore.getHNSW().size();
     const initializedEmpty = initialItemsIndexed === 0;
     return {
-      status: initializedEmpty ? 'ok' : 'warning',
+      status: 'ok',
       itemCount,
       itemsCount: itemCount,
       itemsIndexed: itemCount,

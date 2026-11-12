@@ -1,31 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ==============================================================================
+# EIDOS 1C-Bitrix Module Packager (eidos.connector)
+# Builds eidos.connector.tar.gz ready for extraction into /bitrix/modules/
+# from the canonical packages/connectors/bitrix module.
+# ==============================================================================
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-OUT_DIR="$ROOT_DIR/dist"
-mkdir -p "$OUT_DIR"
-OUT_ZIP="$OUT_DIR/eidos-bitrix-module.zip"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+MODULE_SRC="${REPO_ROOT}/packages/connectors/bitrix"
+DIST_DIR="${SCRIPT_DIR}/dist"
+STAGE_DIR="${DIST_DIR}/eidos.connector"
+ARCHIVE="${DIST_DIR}/eidos.connector.tar.gz"
 
-rm -f "$OUT_ZIP"
+rm -rf "${DIST_DIR}"
+mkdir -p "${STAGE_DIR}"
 
-if command -v zip >/dev/null 2>&1; then
-  (cd "$SCRIPT_DIR" && zip -rq "$OUT_ZIP" eidos.search)
-elif command -v python3 >/dev/null 2>&1; then
-  python3 - "$SCRIPT_DIR" "$OUT_ZIP" << 'PYEOF'
-import os, sys, zipfile
-base_dir = sys.argv[1]
-out_zip = sys.argv[2]
-target_dir = os.path.join(base_dir, "eidos.search")
-with zipfile.ZipFile(out_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-    for root, _, files in os.walk(target_dir):
-        for f in files:
-            full_path = os.path.join(root, f)
-            rel_path = os.path.relpath(full_path, base_dir)
-            zf.write(full_path, rel_path)
-PYEOF
-else
-  tar -czf "$OUT_ZIP" -C "$SCRIPT_DIR" eidos.search
-fi
+cp -R "${MODULE_SRC}/." "${STAGE_DIR}/"
+rm -rf "${STAGE_DIR}/vendor" "${STAGE_DIR}/tests"
 
-echo "1C-Bitrix module archive created: $OUT_ZIP"
+tar -czf "${ARCHIVE}" -C "${DIST_DIR}" eidos.connector
+rm -rf "${STAGE_DIR}"
+
+echo "✅ Packaged 1C-Bitrix module: ${ARCHIVE}"
+echo "   Extract on Bitrix server: tar -xzf eidos.connector.tar.gz -C /var/www/html/bitrix/modules/"

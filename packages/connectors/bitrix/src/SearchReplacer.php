@@ -122,9 +122,7 @@ class SearchReplacer
             'limit' => $limit,
             'mode' => 'hybrid',
             'alpha' => $alpha,
-            'filters' => (object) array_merge($eidosFilters, [
-                'diversityFactor' => $diversityFactor,
-            ]),
+            'filters' => (object) $eidosFilters,
         ];
 
         if (!empty($eidosFilters['category'])) {
