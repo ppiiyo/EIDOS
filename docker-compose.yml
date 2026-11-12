@@ -40,7 +40,7 @@ services:
       - EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY:-}
       - EIDOS_PUBLIC_DEMO_KEY=${EIDOS_PUBLIC_DEMO_KEY:-}
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env (min 24 chars)}
-      - REDIS_URL=${REDIS_URL:-redis://127.0.0.1:6379}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
       - EIDOS_DATA_DIR=/app/data/db
       - EIDOS_SNAPSHOT_PATH=/app/data/catalog.snapshot.json
