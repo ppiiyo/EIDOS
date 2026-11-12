@@ -18,7 +18,7 @@ jobs:
       - name: Surgical injects
         run: |
           set -e
-          for s in inject_when_ready inject_jwt_dev_secret inject_embedder_onnx_flag inject_wal_sync_checkpoint inject_bitrix_delete_hooks inject_demo_mutations_gate inject_fix_security_tests; do
+          for s in inject_when_ready inject_jwt_dev_secret inject_embedder_onnx_flag inject_wal_sync_checkpoint inject_bitrix_delete_hooks inject_demo_mutations_gate inject_fix_security_tests inject_health_redis_optional; do
             f="scripts/${s}.py"
             if [ -f "$f" ]; then python3 "$f" || true; fi
           done
@@ -43,5 +43,5 @@ jobs:
           git config user.name eidos-ci
           git config user.email ci@eidos.local
           git add -A
-          git commit -m "fix: apply pending injects (security tests, WAL, demo, bitrix)"
+          git commit -m "fix: apply pending injects (health redis optional, security tests)"
           git push

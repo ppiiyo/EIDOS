@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Align security tests with production-safe CORS/JWT (no ai.studio, no fixed jwt secret)."""
+"""Align security tests with production-safe CORS/JWT and optional Redis."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,6 +8,7 @@ TEST_JWT = "test-jwt-secret-at-least-24chars!!"
 p = ROOT / "apps/api/tests/phase1-api-hardening.test.ts"
 if p.exists():
     s = p.read_text(encoding="utf-8")
+    changed = False
     if "http://localhost:3000" not in s or "ai.studio" in s:
         s = s.replace(
             """  beforeAll(async () => {
@@ -30,6 +31,13 @@ if p.exists():
             f"const secret = process.env.JWT_SECRET || '{TEST_JWT}';",
         )
         s = s.replace("'eidos_jwt_secret'", f"process.env.JWT_SECRET || '{TEST_JWT}'")
+        changed = True
+    old_redis = "expect(healthNoKeyRes.json().checks.redis.stats.type).toBe('redis');"
+    new_redis = "expect(['redis', 'in-memory']).toContain(healthNoKeyRes.json().checks.redis.stats?.type);"
+    if old_redis in s:
+        s = s.replace(old_redis, new_redis)
+        changed = True
+    if changed:
         p.write_text(s, encoding="utf-8")
         print("phase1 fixed")
     else:
