@@ -16,21 +16,8 @@ class Mapper
     public const WIRE_DESCRIPTION_LIMIT = 2000;
 
     /**
-     * Преобразует элемент инфоблока 1С-Битрикс в канонический формат EIDOS Connector v1.0.
-     *
-     * Маппинг полей:
-     * - ID -> id
-     * - NAME -> title
-     * - DETAIL_TEXT (или PREVIEW_TEXT) -> description (без HTML, до 5000 символов)
-     * - SECTION_NAME (или IBLOCK_SECTION_NAME) -> category
-     * - PRICE (или CATALOG_PRICE_1) -> price
-     * - QUANTITY > 0 (или CATALOG_QUANTITY > 0) -> inStock
-     * - TAGS -> tags
-     * - DETAIL_PAGE_URL -> url
-     * - PREVIEW_PICTURE -> imageUrl
-     *
-     * @param mixed $systemItem Ассоциативный массив элемента Битрикс или объект D7
-     * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string}
+     * @param mixed $systemItem
+     * @return array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string, sku?: string}
      */
     public function mapFields(mixed $systemItem): array
     {
@@ -64,7 +51,6 @@ class Mapper
             $title = 'Item #' . $rawId;
         }
 
-        // Предпочитаем детальное описание, при его отсутствии используем анонс
         $rawDescription = (string) ($item['DETAIL_TEXT'] ?? $item['PREVIEW_TEXT'] ?? $item['description'] ?? '');
         $description = $this->cleanPlainText($rawDescription, self::MAX_DESCRIPTION_LENGTH);
 
@@ -114,26 +100,13 @@ class Mapper
     }
 
     /**
-     * Формирует JSON-payload для POST /v1/catalog/upsert.
-     * Сохраняет системные поля Битрикса (url, imageUrl, inStock, sku) в полях и мета-тегах,
-     * гарантируя id = ELEMENT_ID (string) и XML_ID -> sku.
-     *
      * @param array{id: string, title: string, description: string, category: string, price: float, inStock: bool, tags: array<int, string>, url: string, imageUrl?: ?string, sku?: string} $mapped
      * @return array<string, mixed>
      */
     public function toUpsertPayload(array $mapped): array
     {
-        $userTags = array_slice($mapped['tags'], 0, 16);
-        $metaTags = [
-            '__eidos_instock:' . ($mapped['inStock'] ? '1' : '0'),
-            '__eidos_url:' . $mapped['url'],
-        ];
-        if (!empty($mapped['imageUrl'])) {
-            $metaTags[] = '__eidos_img:' . $mapped['imageUrl'];
-        }
-        if (!empty($mapped['sku'])) {
-            $metaTags[] = '__eidos_sku:' . $mapped['sku'];
-        }
+        // Do not pollute BM25/embeddings with synthetic __eidos_* tags; url/inStock/imageUrl/sku are dedicated fields.
+        $userTags = array_values(array_unique(array_slice($mapped['tags'], 0, 16)));
 
         $payload = [
             'id' => (string) $mapped['id'],
@@ -142,32 +115,30 @@ class Mapper
             'category' => $mapped['category'],
             'url' => $mapped['url'],
             'inStock' => (bool) $mapped['inStock'],
-            'tags' => array_values(array_unique(array_merge($userTags, $metaTags))),
+            'tags' => $userTags,
         ];
 
         if (!empty($mapped['sku'])) {
             $payload['sku'] = (string) $mapped['sku'];
         }
 
-        // EIDOS upsertItemSchema requires price to be non-negative when provided
         if ($mapped['price'] > 0) {
             $payload['price'] = $mapped['price'];
+        }
+
+        if (!empty($mapped['imageUrl'])) {
+            $payload['imageUrl'] = $mapped['imageUrl'];
         }
 
         return $payload;
     }
 
-    /**
-     * Очищает строку от HTML-тегов, декодирует сущности и обрезает до $maxLength символов UTF-8.
-     * Безопасно работает даже если расширение ext-mbstring отсутствует на хостинге.
-     */
     public function cleanPlainText(string $input, int $maxLength = self::MAX_DESCRIPTION_LENGTH): string
     {
         if ($input === '') {
             return '';
         }
 
-        // Заменяем закрывающие блочные теги пробелами, чтобы слова не слипались после strip_tags
         $spaced = preg_replace('/<\/(p|div|li|tr|h[1-6]|br)\s*>/i', ' ', $input) ?? $input;
         $spacedBr = preg_replace('/<br\s*\/?>/i', ' ', $spaced) ?? $spaced;
         $stripped = strip_tags($spacedBr);
@@ -253,7 +224,7 @@ class Mapper
             return $this->sanitizeUrl((string) $picture['SRC']);
         }
 
-        if (is_numeric($picture) && function_exists('CFile::GetPath')) {
+        if (is_numeric($picture) && class_exists('CFile') && is_callable(['CFile', 'GetPath'])) {
             /** @phpstan-ignore-next-line */
             $path = \CFile::GetPath((int) $picture);
             return is_string($path) && $path !== '' ? $this->sanitizeUrl($path) : null;
