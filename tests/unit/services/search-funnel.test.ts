@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { SearchFunnelService } from '../../../apps/api/src/services/search-funnel';
-import { buildServer } from '../../../apps/api/src/server';
+import { buildServer } from '../../../apps/api/src/server'
+import { DEMO_CATALOG } from '../../../apps/api/src/demo/demo-catalog';
 
 describe('Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regression', () => {
   let app: FastifyInstance;
@@ -96,6 +97,7 @@ describe('Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regr
   it('5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel', async () => {
     app.funnelService.clear();
     await app.inject({ method: 'POST', url: '/v1/demo/load' });
+    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
 
     const sRes = await app.inject({
       method: 'POST',

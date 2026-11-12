@@ -461,8 +461,7 @@ export async function searchRoutes(
       const simpleCategoryGate = rawSimpleCategoryGate ?? rankingDefaults.simpleCategoryGate;
       const alpha = rawAlpha ?? rankingDefaults.defaultAlpha;
       const minSimilarity = rawMinSimilarity ?? rankingDefaults.minSimilarity;
-      const minScore =
-        rawMinScore ?? (rankingDefaults.minScore !== 0.09 ? rankingDefaults.minScore : undefined);
+      const minScore = rawMinScore ?? rankingDefaults.minScore ?? 0.09;
 
       const rawSanitized = securityScan.sanitizedInput;
       const layoutInfo = normalizeQueryWithLayoutRecovery(rawSanitized);

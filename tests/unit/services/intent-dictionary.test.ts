@@ -5,7 +5,8 @@ import {
   intentDictionary,
   IntentPattern,
 } from '../../../apps/api/src/services/intent-dictionary';
-import { buildServer } from '../../../apps/api/src/server';
+import { buildServer } from '../../../apps/api/src/server'
+import { DEMO_CATALOG } from '../../../apps/api/src/demo/demo-catalog';
 
 describe('Phase 1: IntentDictionary (Singleton) — 6 Core Unit Tests', () => {
   it('1. Simple category extraction & $1 capture group resolution (fixes literal "$1" bug)', () => {
@@ -102,6 +103,7 @@ describe('Phase 1 Regression: /v1/search with EIDOS_FEATURE_INTENT_AWARE_SEARCH'
     app = await buildServer();
     await app.ready();
     await app.inject({ method: 'POST', url: '/v1/demo/load' });
+    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
   });
 
   afterAll(async () => {

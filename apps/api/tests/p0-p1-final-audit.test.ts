@@ -309,6 +309,7 @@ describe('P0 (1–12) & P1 Final Audit Regression Suite', () => {
       })
     ).toBe('admin');
 
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-at-least-24chars!!';
     const app = await buildServer();
     try {
       // > 500 items rejected with 400

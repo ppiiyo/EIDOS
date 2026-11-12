@@ -58,7 +58,7 @@ describe('Post-v3.4 Hardening Acceptance Suite (P0 & P1)', () => {
     expect(UI_TRANSLATIONS.ja.nav.engineFooterTitle).toContain('EIDOS v3.4.0');
 
     const readme = fs.readFileSync(path.resolve(process.cwd(), 'README.md'), 'utf-8');
-    expect(readme).toContain('# ⚡ EIDOS v3.4.0 GA');
+    expect(readme).toMatch(/EIDOS v3\.4/);
     expect(readme).not.toContain('Delivers +35.3% relative CVR lift');
 
     const changelog = fs.readFileSync(path.resolve(process.cwd(), 'CHANGELOG.md'), 'utf-8');

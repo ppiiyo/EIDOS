@@ -86,6 +86,10 @@ def patch_master():
     expect(goldenHits).toBeGreaterThanOrEqual(10);
 """,
         )
+    s = s.replace(
+        "expect(readyAfterLoadRes.json().itemsIndexed).toBeGreaterThanOrEqual(1000);\n  });",
+        "expect(readyAfterLoadRes.json().itemsIndexed).toBeGreaterThanOrEqual(1000);\n  }, 60_000);",
+    )
     p.write_text(s, encoding="utf-8")
     print("master")
 

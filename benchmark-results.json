@@ -1,0 +1,14 @@
+{
+  "version": "3.2.0",
+  "timestamp": "2026-11-12T17:31:44.145Z",
+  "corpusSize": 1000,
+  "dimension": 384,
+  "hybridSearch": {
+    "totalRequests": 300,
+    "concurrency": 15,
+    "rps": 1956,
+    "p50Ms": 6.374,
+    "p95Ms": 11.687,
+    "p99Ms": 18.139
+  }
+}

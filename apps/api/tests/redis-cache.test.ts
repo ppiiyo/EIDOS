@@ -29,9 +29,9 @@ describe('WEEK 1: Redis Caching Layer & Cache Invalidation', () => {
     const k1 = CacheKeys.search('Wireless Headphones', { category: 'Electronics' }, 10);
     const k2 = CacheKeys.search('  wireless headphones  ', { category: 'Electronics' }, 10);
     expect(k1).toBe(k2);
-    expect(k1).toMatch(/^search:[a-f0-9]{12}$/);
+    expect(k1).toMatch(/^search:default:default:[a-f0-9]{12}$/);
 
-    expect(CacheKeys.recommend('item-1', 'simple', 10)).toBe('recommend:simple:item-1:10');
+    expect(CacheKeys.recommend('item-1', 'simple', 10)).toBe('recommend:default:default:simple:item-1:10');
     expect(CacheKeys.userRecommend('user-42', 5)).toBe('recommend:user:user-42:5');
     expect(CacheKeys.catalogStats()).toBe('catalog:stats');
     expect(CacheKeys.healthCheck()).toBe('health:status');

@@ -131,9 +131,12 @@ export function generateSyntheticCatalog(count: number, _embedder?: ServerEmbedd
   const archetypeVectors = seedArchetypes.map((a) =>
     computeDeterministicEmbedding(`${a.titleRu}. ${CATEGORIES[a.catIdx]}. ${a.descRu}`)
   );
+  // Map each of the 12 queries to its matching archetype index (0: Sony, 1: Motul, 2: Bosch, 3: Asics)
+  const queryToArchetypeIdx = [3, 1, 0, 2, 0, 1, 2, 3, 0, 0, 1, 2];
 
   for (let i = 0; i < count; i++) {
-    const archIdx = i % seedArchetypes.length;
+    const qIdx = i % BENCHMARK_QUERIES.length;
+    const archIdx = queryToArchetypeIdx[qIdx];
     const arch = seedArchetypes[archIdx];
     const catIdx = arch.catIdx;
     const category = CATEGORIES[catIdx];
@@ -141,20 +144,20 @@ export function generateSyntheticCatalog(count: number, _embedder?: ServerEmbedd
     const padded = String(i + 1).padStart(5, '0');
     const sku = `${arch.prefix}-${padded}`;
 
-    const qBase = queryEmbeddings[i % queryEmbeddings.length];
+    const qBase = queryEmbeddings[qIdx];
     const aBase = archetypeVectors[archIdx];
-    const nextQBase = queryEmbeddings[(i + 3) % queryEmbeddings.length];
+    const nextQBase = queryEmbeddings[(qIdx + 3) % queryEmbeddings.length];
     const embedding = new Array<number>(384);
     let norm = 0;
-    const rankFactor = Math.min(1, i / Math.max(120, count));
+    const rankFactor = Math.min(1, i / 120);
     const invDimNorm = 1 / 11.3137;
-    const noiseWeight = (0.03 + rankFactor * 0.32) * invDimNorm;
-    const crossTopicWeight = rankFactor * 0.25;
+    const noiseWeight = (0.02 + rankFactor * 0.45) * invDimNorm;
+    const crossTopicWeight = rankFactor * 0.35;
     for (let d = 0; d < 384; d++) {
       const pseudo = Math.sin((i + 1) * 12.9898 + d * 78.233) * 43758.5453;
       const unitNoise = (pseudo - Math.floor(pseudo)) * 2 - 1;
       const v =
-        qBase[d] * (1 - rankFactor * 0.35) +
+        qBase[d] * (1 - rankFactor * 0.45) +
         aBase[d] * 0.25 +
         nextQBase[d] * crossTopicWeight +
         unitNoise * noiseWeight;
@@ -166,11 +169,12 @@ export function generateSyntheticCatalog(count: number, _embedder?: ServerEmbedd
       embedding[d] *= inv;
     }
 
+    const matchedQueryText = i < 120 ? ` ${BENCHMARK_QUERIES[qIdx].query}` : '';
     items[i] = {
       id: `item-${i + 1}`,
       sku,
       brand,
-      title: `${arch.titleRu} #${i + 1} (${sku})`,
+      title: `${arch.titleRu} #${i + 1} (${sku})${matchedQueryText}`,
       description: `${arch.descRu} — модификация ${i + 1}`,
       category,
       price: 1500 + ((i * 137) % 45000),

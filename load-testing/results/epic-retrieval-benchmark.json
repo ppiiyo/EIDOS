@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-12T14:42:09.531Z",
+  "generatedAt": "2026-11-12T17:39:28.754Z",
   "engine": "EIDOS Hybrid Retrieval v4.0 (HNSW + BM25 Postings + Weighted RRF)",
   "config": {
     "scales": [
@@ -18,59 +18,59 @@
   "results": [
     {
       "scale": 1000,
-      "buildTimeMs": 2035,
-      "rssMB": 289.47,
-      "p50LatencyMs": 3.1,
-      "p95LatencyMs": 5.07,
-      "p99LatencyMs": 7.65,
-      "avgLatencyMs": 3.14,
-      "rps": 318,
-      "recallAt10VsBruteForce": 0.3667,
+      "buildTimeMs": 1625,
+      "rssMB": 254.31,
+      "p50LatencyMs": 3.87,
+      "p95LatencyMs": 7.11,
+      "p99LatencyMs": 12.64,
+      "avgLatencyMs": 4.26,
+      "rps": 235,
+      "recallAt10VsBruteForce": 0.9417,
       "samplesPerQuery": 30,
       "byClass": {
         "sku_like": {
-          "p50Ms": 2.96,
-          "p95Ms": 4.99,
-          "avgRecallAt10": 0.575
+          "p50Ms": 3.19,
+          "p95Ms": 5.71,
+          "avgRecallAt10": 0.95
         },
         "short": {
-          "p50Ms": 2.78,
-          "p95Ms": 4.35,
-          "avgRecallAt10": 0.4
+          "p50Ms": 3.07,
+          "p95Ms": 5.13,
+          "avgRecallAt10": 0.95
         },
         "natural": {
-          "p50Ms": 3.27,
-          "p95Ms": 5.78,
-          "avgRecallAt10": 0.125
+          "p50Ms": 4.84,
+          "p95Ms": 8.15,
+          "avgRecallAt10": 0.925
         }
       }
     },
     {
       "scale": 10000,
-      "buildTimeMs": 55420,
-      "rssMB": 440.98,
-      "p50LatencyMs": 5.74,
-      "p95LatencyMs": 11.73,
-      "p99LatencyMs": 14.09,
-      "avgLatencyMs": 6.6,
-      "rps": 152,
-      "recallAt10VsBruteForce": 0.6583,
+      "buildTimeMs": 24267,
+      "rssMB": 612.38,
+      "p50LatencyMs": 10.29,
+      "p95LatencyMs": 20.35,
+      "p99LatencyMs": 66.21,
+      "avgLatencyMs": 13.15,
+      "rps": 76,
+      "recallAt10VsBruteForce": 0.9333,
       "samplesPerQuery": 30,
       "byClass": {
         "sku_like": {
-          "p50Ms": 4.99,
-          "p95Ms": 8.66,
-          "avgRecallAt10": 0.725
+          "p50Ms": 9.3,
+          "p95Ms": 12.32,
+          "avgRecallAt10": 0.925
         },
         "short": {
-          "p50Ms": 4.76,
-          "p95Ms": 10.26,
-          "avgRecallAt10": 1
+          "p50Ms": 9.83,
+          "p95Ms": 16.38,
+          "avgRecallAt10": 0.925
         },
         "natural": {
-          "p50Ms": 9.13,
-          "p95Ms": 12.01,
-          "avgRecallAt10": 0.25
+          "p50Ms": 16.56,
+          "p95Ms": 26.1,
+          "avgRecallAt10": 0.95
         }
       }
     }

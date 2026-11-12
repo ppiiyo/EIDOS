@@ -46,15 +46,18 @@ if p.exists():
 p2 = ROOT / "apps/api/tests/p0-p1-final-audit.test.ts"
 if p2.exists():
     s2 = p2.read_text(encoding="utf-8")
+    changed2 = False
     if "eidos_jwt_secret" in s2:
         s2 = s2.replace("'eidos_jwt_secret'", f"process.env.JWT_SECRET || '{TEST_JWT}'")
-        if "JWT_SECRET" not in s2[:1200]:
-            s2 = s2.replace(
-                "beforeAll(async () => {",
-                f"beforeAll(async () => {{\n    process.env.JWT_SECRET = process.env.JWT_SECRET || '{TEST_JWT}';",
-                1,
-            )
+        changed2 = True
+    target_call = "    const app = await buildServer();\n    try {\n      // > 500 items rejected with 400"
+    injected_call = f"    process.env.JWT_SECRET = process.env.JWT_SECRET || '{TEST_JWT}';\n    const app = await buildServer();\n    try {{\n      // > 500 items rejected with 400"
+    if target_call in s2 and f"process.env.JWT_SECRET = process.env.JWT_SECRET || '{TEST_JWT}';" not in s2:
+        s2 = s2.replace(target_call, injected_call, 1)
+        changed2 = True
+    if changed2:
         p2.write_text(s2, encoding="utf-8")
         print("p0-p1 fixed")
     else:
         print("p0-p1 ok")
+

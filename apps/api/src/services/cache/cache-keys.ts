@@ -23,9 +23,8 @@ export class CacheKeys {
       ...(namespace && namespace !== 'default:default' ? { ns: namespace } : {}),
     };
     const hash = this.hashObject(normalized);
-    return namespace && namespace !== 'default:default'
-      ? `search:${namespace}:${hash}`
-      : `search:${hash}`;
+    const ns = namespace && namespace.trim() ? namespace : 'default:default';
+    return `search:${ns}:${hash}`;
   }
 
   /**
@@ -43,10 +42,8 @@ export class CacheKeys {
     extra?: Record<string, any>,
     namespace?: string
   ): string {
-    const prefix =
-      namespace && namespace !== 'default:default'
-        ? `recommend:${namespace}:${strategy}:${itemId}:${limit}`
-        : `recommend:${strategy}:${itemId}:${limit}`;
+    const ns = namespace && namespace.trim() ? namespace : 'default:default';
+    const prefix = `recommend:${ns}:${strategy}:${itemId}:${limit}`;
     if (extra && Object.keys(extra).length > 0) {
       const hash = this.hashObject(extra);
       return `${prefix}:${hash}`;
