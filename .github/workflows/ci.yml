@@ -30,18 +30,17 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
-      - name: Build core & sdk
-        run: |
+      - run: |
           pnpm --filter @eidos/core build
           pnpm --filter @eidos/sdk build
-      - name: Typecheck (explicit workspaces)
+      - name: Typecheck workspaces
         run: |
           pnpm --filter @eidos/core exec tsc --noEmit
           pnpm --filter @eidos/sdk exec tsc --noEmit
           pnpm --filter @eidos/api exec tsc --noEmit
 
   unit-tests:
-    name: Core tests (Node ${{ matrix.node-version }})
+    name: Full test suite (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -60,19 +59,19 @@ jobs:
       - run: |
           pnpm --filter @eidos/core build
           pnpm --filter @eidos/sdk build
-      - name: Core production gate tests
+      - name: Apply pending injects
         run: |
-          mkdir -p data
-          pnpm run test:core
-      - name: Full suite (report only)
-        if: matrix.node-version == 20
-        continue-on-error: true
+          for s in scripts/inject_*.py; do
+            [ -f "$s" ] && python3 "$s" || true
+          done
+      - name: Verify inject markers
+        run: bash scripts/verify_injects.sh
+      - name: Run full Vitest suite
         run: |
           mkdir -p data
           pnpm test
-      - name: Coverage on core packages (report only)
+      - name: Coverage thresholds (core)
         if: matrix.node-version == 20
-        continue-on-error: true
         run: pnpm run test:coverage
 
   php-connectors:
@@ -88,25 +87,13 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -d '' files < <(find packages/connectors connectors -name '*.php' -print0 2>/dev/null || true)
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No PHP files found"
-            exit 1
-          fi
+          if [ "${#files[@]}" -eq 0 ]; then echo "No PHP files"; exit 1; fi
           printf '%s\0' "${files[@]}" | xargs -0 -n1 php -l
       - name: Bitrix autoload
         run: |
           if [ -f scripts/verify-bitrix-autoload.php ]; then
             php scripts/verify-bitrix-autoload.php
-          else
-            echo "verify-bitrix-autoload.php missing — skip"
           fi
-
-  inject-markers:
-    name: Verify inject markers
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: bash scripts/verify_injects.sh
 
   python-sdk-tests:
     name: Python SDK
@@ -116,25 +103,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Pytest (best-effort paths)
+      - name: Pytest
         run: |
-          set +e
           pip install pytest -q
           if [ -d packages/sdk/python ]; then
             pip install -e packages/sdk/python -q
-            pytest -q packages/sdk/python && exit 0
-          fi
-          if [ -d packages/python-sdk ]; then
+            pytest -q packages/sdk/python
+          elif [ -d packages/python-sdk ]; then
             pip install -e packages/python-sdk -q
-            pytest -q packages/python-sdk && exit 0
+            pytest -q packages/python-sdk
+          else
+            echo "No Python SDK package"
+            exit 0
           fi
-          echo "No Python SDK package with tests — skip"
-          exit 0
 
   build:
     name: Build artifacts
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, unit-tests, inject-markers]
+    needs: [lint-and-typecheck, unit-tests]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -147,14 +133,13 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
       - name: Build workspace UI
-        run: pnpm --filter @eidos/workspace build || pnpm exec vite build --config apps/workspace/vite.config.ts
+        run: pnpm --filter @eidos/workspace build
       - name: Verify artifacts
         run: |
           test -s packages/core/dist/index.js
           test -s packages/core/dist/index.d.ts
           test -s packages/sdk/dist/index.js
           test -s packages/sdk/dist/index.d.ts
-          test -s dist/index.html || test -s apps/workspace/dist/index.html || echo "UI dist optional in CI"
 
   production-gate:
     name: Production gate
@@ -162,7 +147,4 @@ jobs:
     needs: [build, php-connectors]
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
-      - run: |
-          echo "CI production gate passed for ${{ github.sha }}"
-          echo "Required: typecheck + test:core + inject markers + build + PHP lint"
+      - run: echo "CI production gate passed for ${{ github.sha }}"

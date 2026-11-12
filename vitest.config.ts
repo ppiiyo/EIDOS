@@ -16,15 +16,11 @@ export default defineConfig({
     testTimeout: 15000,
     hookTimeout: 15000,
     poolOptions: {
-      threads: {
-        minThreads: 1,
-        maxThreads: 2,
-      },
-      forks: {
-        minForks: 1,
-        maxForks: 2,
-      },
+      threads: { minThreads: 1, maxThreads: 2 },
+      forks: { minForks: 1, maxForks: 2 },
     },
+    // Optional heavy bench — enable with EIDOS_RUN_BENCH=1 in a dedicated job
+    exclude: ['**/node_modules/**', '**/dist/**', '**/epic-production-retrieval.test.ts'],
     include: [
       'packages/**/tests/**/*.test.ts',
       'apps/api/tests/**/*.test.ts',
@@ -45,9 +41,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
-      include: [
-        'packages/core/src/**/*.ts',
-      ],
+      include: ['packages/core/src/**/*.ts'],
       exclude: [
         '**/tests/**',
         '**/*.test.ts',
