@@ -1,9 +1,9 @@
-id,title,category,price,sku,brand,description,tags
-custom-1,"Беспроводные наушники Sony WH-1000XM5",Аудио,29990,SNY-WH1000XM5,Sony,"Флагманские наушники с активным шумоподавлением ANC, 30 часов автономной работы, LDAC Bluetooth","наушники;sony;anc;bluetooth;музыка"
-custom-2,"Механическая клавиатура Keychron Q1 Pro",Периферия,16900,KCH-Q1PRO,Keychron,"Алюминиевый корпус CNC, беспроводная QMK/VIA клавиатура, переключатели Gateron, Hot-Swap","клавиатура;keychron;механика;гейминг;офис"
-custom-3,"Игровой монитор LG UltraGear 27 OLED 240Hz",Мониторы,64990,LG-27GR95QE,LG,"OLED-матрица 2560x1440, время отклика 0.03 мс, частота 240 Гц, G-Sync и HDR10 для киберспорта","монитор;oled;240hz;гейминг;lg"
-custom-4,"Умные часы Garmin Fenix 7X Sapphire Solar",Гаджеты,72990,GRM-FENIX7X,Garmin,"Мультиспортивные GPS-часы с солнечной зарядкой, сапфировым стеклом, картами и пульсоксиметром","часы;garmin;спорт;бег;gps"
-custom-5,"Кофемашина DeLonghi Magnifica Evo",Техника для дома,44990,DLG-ECAM290,DeLonghi,"Автоматическая зерновая кофемашина с капучинатором LatteCrema для эспрессо, капучино и латте","кофемашина;delonghi;дом;кухня;кофе"
-custom-6,"Ноутбук Apple MacBook Air 15 M3 16/512GB",Ноутбуки,139990,APL-MBA15M3,Apple,"Тонкий и бесшумный ноутбук с чипом M3, дисплеем Liquid Retina 15.3 дюйма и 18 часами работы","ноутбук;macbook;apple;работа;программирование"
-custom-7,"Беговые кроссовки Nike ZoomX Vaporfly Next%",Спорт и обувь,19990,NKE-ZMXVP,Nike,"Ультралегкие марафонские кроссовки с карбоновой пластиной и пеной ZoomX для бега и тренировок","кроссовки;бег;спорт;nike;марафон"
-custom-8,"Эргономичное кресло Herman Miller Aeron",Мебель и офис,119000,HM-AERON-B,Herman Miller,"Дышащая сетка Pellicle, поддержка поясницы PostureFit SL для долгой работы за компьютером","кресло;офис;работа;эргономика;дом"
+id,sku,brand,title,description,category,price,inStock,tags
+sku-001,SKU-001,Sony,Wireless Headphones Pro,Bluetooth ANC headphones,Наушники и аудио,9990,true,"наушники,bluetooth"
+sku-002,SKU-002,Nike,Running Shoes X,Lightweight road runners,Обувь и кроссовки,7990,true,"бег,кроссовки"
+sku-003,SKU-003,Samsung,Smartphone 256GB,OLED display phone,Смартфоны и гаджеты,29990,true,"смартфон,oled"
+sku-004,SKU-004,Bosch,Drill 18V,Cordless drill kit,Инструменты и ремонт,12990,true,"дрель,инструмент"
+sku-005,SKU-005,LG,TV 55 4K,QLED television,Телевизоры,45990,true,"телевизор,4k"
+sku-006,SKU-006,Apple,Watch GPS,Smartwatch for running,Гаджеты,24990,true,"часы,бег"
+sku-007,SKU-007,Dyson,Vacuum V15,Cordless vacuum,Бытовая техника,59990,true,"пылесос"
+sku-008,SKU-008,Lego,Constructor Set,Kids building blocks,Детские товары,4990,true,"конструктор,дети"

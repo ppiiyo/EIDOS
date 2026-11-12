@@ -27,16 +27,14 @@ export class ApiQueryCache {
   }
 
   public static invalidateNamespace(namespace?: string): void {
-    if (!namespace || namespace === 'default:default') {
-      ApiQueryCache.getInstance().invalidatePrefix('search:default:default:');
-      ApiQueryCache.getInstance().invalidatePrefix('recommend:default:default:');
-      getCache().invalidateNamespaceSync('default:default');
-    } else {
-      ApiQueryCache.getInstance().invalidatePrefix(`search:${namespace}:`);
-      ApiQueryCache.getInstance().invalidatePrefix(`recommend:${namespace}:`);
-      getCache().invalidateNamespaceSync(namespace);
+    const ns = !namespace || namespace === 'default:default' ? 'default:default' : namespace;
+    ApiQueryCache.getInstance().invalidatePrefix(`search:${ns}:`);
+    ApiQueryCache.getInstance().invalidatePrefix(`recommend:${ns}:`);
+    if (ns === 'default:default') {
+      ApiQueryCache.getInstance().invalidatePrefix('search:');
+      ApiQueryCache.getInstance().invalidatePrefix('recommend:');
     }
+    getCache().invalidateNamespaceSync(ns);
     ApiQueryCache.syncMetrics();
   }
 }
-
