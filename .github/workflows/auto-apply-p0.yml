@@ -15,24 +15,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Ensure whenReady on VectorStore
+      - name: Surgical injects (whenReady, JWT, embedder flags)
         run: |
           set -e
-          if grep -q "public whenReady()" apps/api/src/services/vector-store.ts; then
-            echo "whenReady already present"
-          else
-            if [ -f patches/vector-store.p0.diff ]; then
-              git apply --check patches/vector-store.p0.diff || true
-              git apply patches/vector-store.p0.diff || true
-            fi
-            if [ -f scripts/apply_master_p0.py ]; then
-              python3 scripts/apply_master_p0.py || true
-            fi
-          fi
-          if ! grep -q "public whenReady()" apps/api/src/services/vector-store.ts; then
-            python3 scripts/inject_when_ready.py
-          fi
-          grep -n "whenReady\|wasEmptyBeforeRestore" apps/api/src/services/vector-store.ts | head -10
+          if [ -f scripts/inject_when_ready.py ]; then python3 scripts/inject_when_ready.py; fi
+          if [ -f scripts/inject_jwt_dev_secret.py ]; then python3 scripts/inject_jwt_dev_secret.py; fi
+          if [ -f scripts/inject_embedder_onnx_flag.py ]; then python3 scripts/inject_embedder_onnx_flag.py; fi
+          if [ -f scripts/apply_master_p0.py ]; then python3 scripts/apply_master_p0.py || true; fi
+          grep -n "whenReady\|wasEmptyBeforeRestore" apps/api/src/services/vector-store.ts | head -8 || true
+          grep -n "getDevJwtSecret\|isOnnxEmbedderEnabled" apps/api/src/middleware/auth.ts apps/api/src/services/embedder.ts | head -10 || true
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.4
@@ -44,6 +35,8 @@ jobs:
       - run: pnpm --filter @eidos/core build
       - name: typecheck api
         run: pnpm --filter @eidos/api exec tsc --noEmit
+      - name: unit tests
+        run: pnpm test
       - name: commit if dirty
         run: |
           if git diff --quiet; then
@@ -53,5 +46,5 @@ jobs:
           git config user.name eidos-ci
           git config user.email ci@eidos.local
           git add -A
-          git commit -m "fix(phase0): VectorStore whenReady + wasEmptyBeforeRestore (CI auto-apply)"
+          git commit -m "fix(phase0-4): whenReady + JWT ephemeral + ONNX flag unify (CI inject)"
           git push

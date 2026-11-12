@@ -1,45 +1,40 @@
 # EIDOS multi-phase execution status
 
-Updated: 2026-11-12
+Updated: 2026-11-12 (continue)
 
 ## Phase 0 — Revive main
 | Item | Status |
 |------|--------|
-| resolveRequestStore | **DONE** `b2546b7` |
-| whenReady on VectorStore | **CI auto-apply** workflow `auto-apply-p0.yml` + `scripts/inject_when_ready.py` |
-| fail-closed embedding space | **DONE** |
-| Remove hotfix scripts | After whenReady lands in tree |
-
-**Action:** Open Actions → *Auto-apply VectorStore P0 on push* → ensure green commit with `whenReady`.
+| resolveRequestStore | **DONE** |
+| whenReady / wasEmptyBeforeRestore | **ON MAIN** (git show origin/main) |
+| await whenReady in search/catalog | **DONE** |
+| Typecheck workflow | **success** on main |
+| Full CI unit tests | **failing** (coverage gate / suite) — investigate next |
 
 ## Phase 1 — Persistence
-OPEN. WAL truncate-after-callback structure OK if `saveSnapshotAsync` fully awaits write (verify next).
+OPEN (WAL order structurally OK if snapshot callback awaits full write)
 
 ## Phase 2 — Honest search
-PARTIAL: `HeuristicReranker` alias added; ONNX default + concept-cluster cleanup still OPEN.
-
-## Phase 3 — Cache/pagination
-OPEN.
+| Item | Status |
+|------|--------|
+| HeuristicReranker alias | done earlier |
+| ONNX env flag unify | **inject script** `inject_embedder_onnx_flag.py` |
+| Prod default real model | OPEN |
 
 ## Phase 4 — Security
 | Item | Status |
 |------|--------|
-| CORS without ai.studio default | **DONE** `08e4998` |
-| CORP cross-origin for /widget.js | **DONE** `08e4998` |
-| JWT no fixed dev secret | local patch ready (auth.ts) — push pending size |
-| Demo endpoints feature-flag | OPEN |
+| CORP widget.js | DONE |
+| CORS no ai.studio | DONE |
+| JWT ephemeral dev | **inject script** |
+| REDIS compose | **DONE** `31011f5` |
 
-## Phase 5 — Bitrix / widget
-| Item | Status |
-|------|--------|
-| Mapper CFile class_exists + is_callable | **DONE** `5a9c396` |
-| Drop __eidos_* meta tags from tags | **DONE** `5a9c396` |
-| widget data-product-url-template | local |
-| dual widget.js | OPEN |
-| delete hooks / reconcile | OPEN |
+## Phase 5 — Bitrix
+| Mapper CFile + no __eidos tags | DONE |
+| Delete hooks | OPEN |
 
-## Phases 6–9
-Not started until Phase 0 typecheck green.
-
-## Honest readiness
-**Not production-ready for client pilots yet.** Blocking: whenReady on main, green `pnpm test`, crash-recovery, Bitrix delete sync, honest embedder path.
+## Blockers for pilot
+1. Green `pnpm test` in main CI (not only typecheck)
+2. Phase 1 crash-recovery verified
+3. Bitrix delete sync
+4. Honest README
