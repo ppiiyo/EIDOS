@@ -61,5 +61,30 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
   await fastify.register(rateLimit, {
     max: Number(process.env.RATE_LIMIT_MAX || 300),
     timeWindow: process.env.RATE_LIMIT_WINDOW || '1 minute',
+    keyGenerator: (req) => {
+      const apiKey = req.headers['x-api-key'];
+      if (typeof apiKey === 'string' && apiKey.trim()) return `k:${apiKey.trim()}`;
+      return req.ip || 'anon';
+    },
+  });
+
+  // Guarantee baseline security headers even if a downstream plugin skips onSend.
+  fastify.addHook('onSend', async (request, reply, payload) => {
+    if (!reply.getHeader('content-security-policy')) {
+      reply.header(
+        'content-security-policy',
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:"
+      );
+    }
+    if (!reply.getHeader('x-content-type-options')) reply.header('x-content-type-options', 'nosniff');
+    if (!reply.getHeader('x-frame-options')) reply.header('x-frame-options', 'SAMEORIGIN');
+    if (!reply.getHeader('referrer-policy')) reply.header('referrer-policy', 'no-referrer');
+    if (!reply.getHeader('cross-origin-opener-policy')) reply.header('cross-origin-opener-policy', 'same-origin');
+    if (!reply.getHeader('strict-transport-security')) {
+      reply.header('strict-transport-security', 'max-age=15552000; includeSubDomains');
+    }
+    return payload;
   });
 }
+
+(securityPlugin as any)[Symbol.for('skip-override')] = true;

@@ -122,6 +122,10 @@ export class StoreRegistry {
   public setDefaultStore(store: VectorStore): void {
     const key = StoreRegistry.makeKey('default', 'default');
     const existing = this.stores.get(key);
+    // Second buildServer() in tests must not wipe a populated default catalog with an empty store.
+    if (existing && existing.store.count() > 0 && store.count() === 0) {
+      return;
+    }
     this.stores.set(key, {
       tenantId: 'default', name: 'default', dimension: existing?.dimension ?? 384,
       quantization: existing?.quantization ?? 'int8', M: existing?.M ?? 16,
