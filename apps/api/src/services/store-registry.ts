@@ -28,7 +28,14 @@ export class StoreError extends Error {
     Object.setPrototypeOf(this, StoreError.prototype);
   }
   public toJSON(): Record<string, unknown> {
-    return { statusCode: this.statusCode, error: 'Store Error', code: this.code, message: this.message, ...(this.details ? { details: this.details } : {}) };
+    const httpError =
+      this.statusCode === 404 ? 'Not Found' :
+      this.statusCode === 409 ? 'Conflict' :
+      this.statusCode === 429 ? 'Too Many Requests' :
+      this.statusCode === 504 ? 'Gateway Timeout' :
+      this.statusCode >= 500 ? 'Internal Server Error' :
+      'Bad Request';
+    return { statusCode: this.statusCode, error: httpError, code: this.code, message: this.message, ...(this.details ? { details: this.details } : {}) };
   }
 }
 

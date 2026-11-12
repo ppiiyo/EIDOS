@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildServer } from '../../apps/api/src/server';
+import { DEMO_CATALOG } from '../../apps/api/src/demo/demo-catalog';
 
 describe('Critical API Routes Integration Tests', () => {
   let app: FastifyInstance;
@@ -39,6 +40,8 @@ describe('Critical API Routes Integration Tests', () => {
         method: 'POST',
         url: '/v1/demo/load',
       });
+      // Protected /v1/search and /v1/recommend use default:default — seed it too.
+      await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
     });
 
     it('POST /v1/demo/search should return 200 and results', async () => {

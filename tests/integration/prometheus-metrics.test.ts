@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify';
 import { Metrics, HistogramMetric } from '@eidos/core';
 import { buildServer } from '../../apps/api/src/server';
 import { StoreRegistry } from '../../apps/api/src/services/store-registry';
+import { DEMO_CATALOG } from '../../apps/api/src/demo/demo-catalog';
 
 describe('PHASE 3: Prometheus Metrics & Observability Integration Suite', () => {
   let app: FastifyInstance;
@@ -31,11 +32,12 @@ describe('PHASE 3: Prometheus Metrics & Observability Integration Suite', () => 
     expect(initialHealthRes.json().itemsIndexed).toBe(0);
     expect(initialHealthRes.json().initializedEmpty).toBe(true);
 
-    // Load demo catalog for recommend test
+    // Load demo catalog into demo + default stores (recommend hits default:default)
     await app.inject({
       method: 'POST',
       url: '/v1/demo/load',
     });
+    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
 
     Metrics.reset();
 
@@ -74,7 +76,7 @@ describe('PHASE 3: Prometheus Metrics & Observability Integration Suite', () => 
         'content-type': 'application/json',
         'x-api-key': 'eidos_test_key_1',
       },
-      payload: { item_id: 'item_1', strategy: 'simple', limit: 5 },
+      payload: { item_id: '1', strategy: 'simple', limit: 5 },
     });
     expect(recRes.statusCode).toBe(200);
 

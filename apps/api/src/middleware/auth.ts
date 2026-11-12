@@ -454,6 +454,18 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     }
   }
 
+  // Optional role demotion for admin/master (x-eidos-role header) — never escalate.
+  if (resolvedRole === 'master' || resolvedRole === 'admin') {
+    const raw = String(request.headers['x-eidos-role'] || '').trim().toLowerCase();
+    const allowed = new Set(['viewer', 'search', 'editor', 'admin', 'master']);
+    if (raw && allowed.has(raw) && raw !== 'master') {
+      const rank: Record<string, number> = { viewer: 1, search: 2, editor: 3, admin: 4, master: 5 };
+      if ((rank[raw] || 0) <= (rank[resolvedRole] || 0)) {
+        resolvedRole = raw as ApiKeyScopeRole;
+      }
+    }
+  }
+
   if (!resolvedRole) {
     request.log.warn({
       event: 'auth_failed',
