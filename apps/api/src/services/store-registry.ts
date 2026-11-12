@@ -5,9 +5,6 @@ import { VectorStore } from './vector-store';
 
 export type QuantizationMode = 'fp32' | 'fp16' | 'int8' | 'binary';
 
-// See full file in scripts/restore_store_registry_p0.py if this is incomplete — rebuild from c3fda3d + P0 patch.
-// CRITICAL P0: snapshot await then WAL inside ready promise.
-
 export type StoreErrorCode =
   | 'STORE_NOT_FOUND'
   | 'STORE_ALREADY_EXISTS'
@@ -104,7 +101,7 @@ export class StoreRegistry {
 
   private static getStorePersistencePaths(tenantId: string, indexName: string): { walPath?: string; snapshotPath?: string } {
     if (tenantId === 'demo') {
-      const dir = path.join(os.tmpdir(), `eidos-demo-${process.pid}`, indexName);
+      const dir = path.join(os.tmpdir(), 'eidos-demo', indexName);
       return { walPath: path.join(dir, 'catalog.wal.jsonl'), snapshotPath: path.join(dir, 'catalog.snapshot.json') };
     }
     const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
@@ -302,5 +299,27 @@ export class StoreRegistry {
       if (typeof queryIndex === 'string' && queryIndex.trim().length > 0) return StoreRegistry.validateIndexName(queryIndex);
     }
     return 'default';
+  }
+
+  public resolveRequestStore(
+    request?:
+      | FastifyRequest
+      | {
+          headers?: Record<string, unknown>;
+          tenantId?: string;
+          body?: unknown;
+          query?: unknown;
+        },
+    options?: { createIfMissing?: boolean }
+  ): { store: VectorStore; tenantId: string; indexName: string; metadata: IndexMetadata } {
+    const tenantId = this.resolveTenantId(request);
+    const indexName = this.resolveIndexName(request);
+    const metadata = this.getMetadata(tenantId, indexName, options);
+    return {
+      store: metadata.store,
+      tenantId: metadata.tenantId,
+      indexName: metadata.name,
+      metadata,
+    };
   }
 }
