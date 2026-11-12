@@ -99,11 +99,29 @@ export default defineConfig(() => {
     },
     plugins: [react(), tailwindcss(), aistudioMediaPlugin(), silenceHmrWebsocketErrorPlugin()],
     resolve: {
+      dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
       alias: {
         '@': path.resolve(__dirname),
         '@eidos/core': path.resolve(__dirname, '../../packages/core/src/index.ts'),
         '@eidos/sdk': path.resolve(__dirname, '../../packages/sdk/src/index.ts'),
+        react: path.resolve(__dirname, '../../node_modules/react'),
+        'react-dom': path.resolve(__dirname, '../../node_modules/react-dom'),
       },
+    },
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'lucide-react',
+        'recharts',
+        'three',
+        'idb-keyval',
+        '@xenova/transformers',
+      ],
+      holdUntilCrawlEnd: true,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

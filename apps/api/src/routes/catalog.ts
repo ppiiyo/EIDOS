@@ -722,31 +722,55 @@ export async function catalogRoutes(
     const items = parseYmlOrCommerceMl(xmlText, maxItemsCap);
 
     let indexedCount = 0;
+    let usedWorkerThread = false;
     if (body.autoIndex && items.length > 0) {
       const { store, tenantId, indexName } = await resolveStore(request);
       storeRegistry.assertItemQuota(tenantId, indexName, items.length);
 
-      const BATCH_SIZE = 100;
+      const BATCH_SIZE = 200;
+      const allPrepared: Array<{
+        id: string;
+        sku?: string;
+        brand?: string;
+        title: string;
+        description: string;
+        category: string;
+        price: number;
+        inStock: boolean;
+        url?: string;
+        imageUrl?: string | null;
+        tags: string[];
+        embedding: number[];
+      }> = [];
+
       for (let offset = 0; offset < items.length; offset += BATCH_SIZE) {
         const chunk = items.slice(offset, offset + BATCH_SIZE);
         const texts = chunk.map((it) => `${it.title}. ${it.category}. ${it.description}`);
         const vectors = await opts.embedder.embedBatch(texts);
-        const batchPrepared = chunk.map((it, i) => ({
-          id: it.id,
-          sku: it.sku,
-          brand: it.brand,
-          title: it.title,
-          description: it.description,
-          category: it.category,
-          price: it.price,
-          inStock: it.inStock,
-          url: it.url,
-          imageUrl: it.imageUrl,
-          tags: it.tags,
-          embedding: Array.from(vectors[i]),
-        }));
-        indexedCount += store.upsertBatch(batchPrepared);
+        for (let i = 0; i < chunk.length; i++) {
+          const it = chunk[i];
+          allPrepared.push({
+            id: it.id,
+            sku: it.sku,
+            brand: it.brand,
+            title: it.title,
+            description: it.description,
+            category: it.category,
+            price: it.price,
+            inStock: it.inStock,
+            url: it.url,
+            imageUrl: it.imageUrl,
+            tags: it.tags,
+            embedding: Array.from(vectors[i]),
+          });
+        }
       }
+
+      // Offload HNSW graph construction to worker_threads with O(1) ArrayBuffer transfer
+      const { indexedCount: count, workerBuild } = await store.upsertBatchInWorker(allPrepared);
+      indexedCount = count;
+      usedWorkerThread = workerBuild.usedWorkerThread;
+
       await invalidateCatalogCaches(tenantId, indexName);
       await store.saveSnapshotAsync();
     }
@@ -756,6 +780,7 @@ export async function catalogRoutes(
       parsedCount: items.length,
       importedCount: body.autoIndex ? indexedCount : items.length,
       indexedCount,
+      usedWorkerThread,
       items,
       durationMs: Date.now() - start,
     });

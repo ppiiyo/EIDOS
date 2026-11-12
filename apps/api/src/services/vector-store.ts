@@ -38,6 +38,7 @@ import { StoredItem } from '../types';
 import { CatalogItem } from '../demo/demo-catalog';
 import { ServerEmbedder, computeDeterministicEmbedding } from './embedder';
 import { ApiQueryCache } from './query-cache';
+import { buildHnswGraphInWorker, WorkerHnswBuildResult } from './hnsw-worker-builder';
 import { getCache, CacheKeys, getSemanticCache } from './cache';
 
 export class EmbeddingSpaceMismatchError extends Error {
@@ -368,6 +369,123 @@ export class VectorStore {
   }
 
   /**
+   * Builds the HNSW graph off the main event loop in a worker_threads Worker,
+   * receives the HNSWIndexSerializer.serialize() binary buffer in O(1) via ArrayBuffer/SharedArrayBuffer transfer,
+   * and hydrates items + BM25 on the main thread.
+   */
+  public async upsertBatchInWorker(
+    items: StoredItem[],
+    options?: { useSharedOutput?: boolean }
+  ): Promise<{ indexedCount: number; workerBuild: WorkerHnswBuildResult }> {
+    if (items.length === 0) {
+      return {
+        indexedCount: 0,
+        workerBuild: {
+          serializedHnsw: this.exportBinarySnapshot(),
+          usedWorkerThread: false,
+          buildDurationMs: 0,
+          nodeCount: this.items.size,
+        },
+      };
+    }
+
+    const mergedMap = new Map<string, { id: string; vector: Float32Array | number[] }>();
+    for (const [existingId, existingItem] of this.items.entries()) {
+      mergedMap.set(existingId, {
+        id: existingId,
+        vector: existingItem.normalizedVector || existingItem.embedding,
+      });
+    }
+    for (const item of items) {
+      const id = String(item.id);
+      mergedMap.set(id, {
+        id,
+        vector: item.normalizedVector || item.embedding,
+      });
+    }
+
+    const workerNodes = Array.from(mergedMap.values());
+    const hnswConfig = this.hnsw.getConfig();
+    const workerBuild = await buildHnswGraphInWorker(workerNodes, hnswConfig, options);
+    const indexedCount = this.bulkIngestWithBinaryHnsw(items, workerBuild.serializedHnsw);
+
+    return { indexedCount, workerBuild };
+  }
+
+  /**
+   * Hydrates the store with items + BM25 and restores the pre-built HNSW graph from a serialized binary buffer.
+   */
+  public bulkIngestWithBinaryHnsw(items: StoredItem[], serializedHnsw: Uint8Array): number {
+    if (items.length === 0) return 0;
+    this.explicitlyCleared = false;
+    if (!this.isSeedingDemo) {
+      this.hasProductionItems = true;
+    }
+    this.bumpCatalogVersion();
+
+    this.hnsw = HNSWIndexSerializer.deserialize(serializedHnsw);
+    this.hybrid = new HybridSearch(this.hnsw, this.bm25);
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const id = String(item.id);
+      const sku = item.sku && String(item.sku).trim() !== '' ? String(item.sku).trim() : id;
+      const rawUrl = item.url && String(item.url).trim() !== '' ? String(item.url).trim() : '';
+      const url = VectorStore.isSafeCatalogUrl(rawUrl)
+        ? rawUrl
+        : `/product/${encodeURIComponent(id)}`;
+      const rawImg = item.imageUrl && String(item.imageUrl).trim() !== '' ? String(item.imageUrl).trim() : '';
+      const imageUrl = rawImg && VectorStore.isSafeCatalogUrl(rawImg) ? rawImg : null;
+
+      const normalized =
+        item.normalizedVector ||
+        (item.embedding instanceof Float32Array
+          ? item.embedding
+          : new Float32Array(item.embedding));
+
+      const existedBefore = this.items.has(id);
+
+      this.items.set(id, {
+        ...item,
+        id,
+        sku,
+        url,
+        imageUrl,
+        normalizedVector: normalized,
+      });
+
+      const docText = `${item.title} ${sku} ${item.brand || ''} ${item.description} ${item.category} ${(item.tags || []).join(' ')}`;
+      this.bm25.addDocument(id, docText);
+
+      if (!this.isSeedingDemo) {
+        this.wal.append({
+          type: existedBefore ? 'UPDATE_NODE' : 'INSERT_NODE',
+          nodeId: id,
+          vector: normalized,
+          metadata: {
+            id,
+            sku,
+            brand: item.brand,
+            title: item.title,
+            description: item.description || '',
+            category: item.category || 'General',
+            price: typeof item.price === 'number' ? item.price : 0,
+            stock: item.stock,
+            inStock: typeof item.inStock === 'boolean' ? item.inStock : true,
+            tags: Array.isArray(item.tags) ? item.tags : [],
+            url,
+            imageUrl,
+          },
+        });
+      }
+    }
+
+    Metrics.vectorStoreSize.set(this.items.size);
+    this.invalidateStoreCache();
+    return items.length;
+  }
+
+  /**
    * Bulk-seeds catalog items using full HNSW multi-layer construction + BM25 indexing (including SKU and brand).
    */
   public bulkSeed(items: StoredItem[]): void {
@@ -488,6 +606,7 @@ export class VectorStore {
    */
   public importBinarySnapshot(snapshot: Uint8Array): void {
     this.hnsw = HNSWIndexSerializer.deserialize(snapshot);
+    this.hybrid = new HybridSearch(this.hnsw, this.bm25);
   }
 
   public getSnapshotPath(customPath?: string): string {

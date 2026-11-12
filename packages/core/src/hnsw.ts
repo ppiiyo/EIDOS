@@ -197,7 +197,7 @@ export class HNSWIndex {
   private idToInternal = new Map<string, number>();
   private internalToId: string[] = [];
   private internalToNode: (HNSWNode | undefined)[] = [];
-  private reverseLinks: Array<Array<Set<number>>> = [];
+  private reverseLinks: Array<Int32Array[]> = [];
   private freeInternalIds: number[] = [];
   private nextInternalId = 0;
   private entryPointId: string | null = null;
@@ -251,27 +251,64 @@ export class HNSWIndex {
     return internalId;
   }
 
+  /**
+   * Returns compact Int32Array incoming reverse links per level for a node ID.
+   */
+  public getReverseLinksForId(id: string): Int32Array[] {
+    const intId = this.idToInternal.get(id);
+    if (intId === undefined) return [];
+    return this.reverseLinks[intId] || [];
+  }
+
   private addReverseLink(targetIntId: number, level: number, sourceIntId: number): void {
     let byLevel = this.reverseLinks[targetIntId];
     if (!byLevel) {
       byLevel = [];
       this.reverseLinks[targetIntId] = byLevel;
     }
-    let set = byLevel[level];
-    if (!set) {
-      set = new Set<number>();
-      byLevel[level] = set;
+    const existing = byLevel[level];
+    if (!existing || existing.length === 0) {
+      byLevel[level] = new Int32Array([sourceIntId]);
+      return;
     }
-    set.add(sourceIntId);
+    // Linear search over compact Int32Array (average incoming degree is bounded by M0 = 32)
+    for (let i = 0; i < existing.length; i++) {
+      if (existing[i] === sourceIntId) return;
+    }
+    const next = new Int32Array(existing.length + 1);
+    next.set(existing);
+    next[existing.length] = sourceIntId;
+    byLevel[level] = next;
   }
 
   private removeReverseLink(targetIntId: number, level: number, sourceIntId: number): void {
     const byLevel = this.reverseLinks[targetIntId];
     if (!byLevel) return;
-    const set = byLevel[level];
-    if (set) {
-      set.delete(sourceIntId);
+    const existing = byLevel[level];
+    if (!existing || existing.length === 0) return;
+
+    let foundIdx = -1;
+    for (let i = 0; i < existing.length; i++) {
+      if (existing[i] === sourceIntId) {
+        foundIdx = i;
+        break;
+      }
     }
+    if (foundIdx === -1) return;
+
+    if (existing.length === 1) {
+      byLevel[level] = new Int32Array(0);
+      return;
+    }
+
+    const next = new Int32Array(existing.length - 1);
+    if (foundIdx > 0) {
+      next.set(existing.subarray(0, foundIdx), 0);
+    }
+    if (foundIdx < existing.length - 1) {
+      next.set(existing.subarray(foundIdx + 1), foundIdx);
+    }
+    byLevel[level] = next;
   }
 
   /**
@@ -384,14 +421,38 @@ export class HNSWIndex {
     const prev = node.friendsInt32[level];
     if (prev && prev.length > 0) {
       for (let i = 0; i < prev.length; i++) {
-        this.removeReverseLink(prev[i], level, node.intId);
+        const oldId = prev[i];
+        let stillPresent = false;
+        for (let j = 0; j < friendIntIds.length; j++) {
+          if (friendIntIds[j] === oldId) {
+            stillPresent = true;
+            break;
+          }
+        }
+        if (!stillPresent) {
+          this.removeReverseLink(oldId, level, node.intId);
+        }
+      }
+      for (let j = 0; j < friendIntIds.length; j++) {
+        const newId = friendIntIds[j];
+        let wasPresent = false;
+        for (let i = 0; i < prev.length; i++) {
+          if (prev[i] === newId) {
+            wasPresent = true;
+            break;
+          }
+        }
+        if (!wasPresent) {
+          this.addReverseLink(newId, level, node.intId);
+        }
+      }
+    } else {
+      for (let i = 0; i < friendIntIds.length; i++) {
+        this.addReverseLink(friendIntIds[i], level, node.intId);
       }
     }
     node.friendsInt32[level] = new Int32Array(friendIntIds);
     node.friends[level] = friendIntIds.map((intId) => this.internalToId[intId] || '');
-    for (let i = 0; i < friendIntIds.length; i++) {
-      this.addReverseLink(friendIntIds[i], level, node.intId);
-    }
   }
 
   /**
@@ -557,7 +618,8 @@ export class HNSWIndex {
       if (!candNode) continue;
 
       let diverseEnough = true;
-      for (let j = 0; j < selectedNodes.length; j++) {
+      const checkLimit = Math.min(selectedNodes.length, 6);
+      for (let j = 0; j < checkLimit; j++) {
         const distBetween = this.getDistance(candNode.vector, candNode.quantized, selectedNodes[j]);
         if (distBetween < cand.dist) {
           diverseEnough = false;
@@ -581,7 +643,7 @@ export class HNSWIndex {
   }
 
   /**
-   * Prunes connections of a node at layer l using HNSW neighbor diversity heuristic.
+   * Prunes connections of a node at layer l while preserving closest neighbors and 2 long-range bridge links in O(maxM log maxM).
    */
   private pruneNeighbors(node: HNSWNode, level: number, maxM: number): void {
     const neighbors = node.friendsInt32[level];
@@ -597,7 +659,23 @@ export class HNSWIndex {
     }
 
     scored.sort((a, b) => a.dist - b.dist);
-    const pruned = this.selectNeighborsHeuristic(scored, maxM);
+    if (scored.length <= maxM) {
+      this.setNodeFriends(
+        node,
+        level,
+        scored.map((s) => s.intId)
+      );
+      return;
+    }
+    const bridgeCount = Math.min(2, Math.floor(maxM / 8));
+    const coreCount = maxM - bridgeCount;
+    const pruned: number[] = [];
+    for (let i = 0; i < coreCount; i++) {
+      pruned.push(scored[i].intId);
+    }
+    for (let i = scored.length - bridgeCount; i < scored.length; i++) {
+      pruned.push(scored[i].intId);
+    }
     this.setNodeFriends(node, level, pruned);
   }
 
@@ -715,13 +793,15 @@ export class HNSWIndex {
       }
     }
 
-    // 2. Clean up incoming references from neighbors in O(deg * levels) using reverseLinks
+    // 2. Clean up incoming references from neighbors in O(deg * levels) using compact Int32Array reverseLinks
     const incomingByLevel = this.reverseLinks[intId];
     if (incomingByLevel) {
       for (let l = 0; l < incomingByLevel.length; l++) {
-        const incomingSet = incomingByLevel[l];
-        if (!incomingSet || incomingSet.size === 0) continue;
-        for (const sourceIntId of Array.from(incomingSet)) {
+        const incomingArr = incomingByLevel[l];
+        if (!incomingArr || incomingArr.length === 0) continue;
+        const snapshot = new Int32Array(incomingArr);
+        for (let k = 0; k < snapshot.length; k++) {
+          const sourceIntId = snapshot[k];
           const other = this.internalToNode[sourceIntId];
           if (!other) continue;
           const friends = other.friendsInt32[l];
@@ -731,10 +811,11 @@ export class HNSWIndex {
             if (friends[i] !== intId) filtered.push(friends[i]);
           }
           if (filtered.length !== friends.length) {
-            this.setNodeFriends(other, l, filtered);
+            other.friendsInt32[l] = new Int32Array(filtered);
+            other.friends[l] = filtered.map((fid) => this.internalToId[fid] || '');
           }
         }
-        incomingSet.clear();
+        incomingByLevel[l] = new Int32Array(0);
       }
       this.reverseLinks[intId] = [];
     }

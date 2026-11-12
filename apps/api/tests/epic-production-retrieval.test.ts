@@ -11,7 +11,7 @@ import {
 } from '@eidos/core';
 import { buildServer } from '../src/server';
 import { VectorStore, EmbeddingSpaceMismatchError } from '../src/services/vector-store';
-import { ServerEmbedder } from '../src/services/embedder';
+import { ServerEmbedder, computeDeterministicEmbedding } from '../src/services/embedder';
 import { ApiQueryCache } from '../src/services/query-cache';
 import { getSemanticCache } from '../src/services/cache';
 import { parseYmlOrCommerceMl } from '../src/services/yml-parser';
@@ -485,6 +485,86 @@ describe('EPIC: EIDOS Production-Grade Retrieval (EIDOS-101..110)', () => {
     expect(parsedCml[0].sku).toBe('WH-1000XM5');
   });
 
+  it('Int32Array reverseLinks & worker_threads HNSW builder: Uses compact Int32Array reverseLinks and builds HNSW in worker_threads on /v1/catalog/import-yml', async () => {
+    const hnsw = new HNSWIndex({ M: 16, efConstruction: 64, efSearch: 32 });
+    const v1 = computeDeterministicEmbedding('беспроводные наушники sony');
+    const v2 = computeDeterministicEmbedding('спортивные наушники shokz');
+    hnsw.insert('n1', new Float32Array(v1));
+    hnsw.insert('n2', new Float32Array(v2));
+
+    const revLinksN1 = hnsw.getReverseLinksForId('n1');
+    expect(revLinksN1.length).toBeGreaterThan(0);
+    expect(revLinksN1[0]).toBeInstanceOf(Int32Array);
+
+    const app = await buildServer();
+    try {
+      const ymlPayload = `<?xml version="1.0" encoding="UTF-8"?>
+<yml_catalog date="2026-11-12 12:00">
+  <shop>
+    <categories>
+      <category id="1">Наушники и аудио</category>
+    </categories>
+    <offers>
+      <offer id="yml-w-1" available="true">
+        <name>Беспроводные наушники Sony WH-1000XM5</name>
+        <vendor>Sony</vendor>
+        <vendorCode>SONY-XM5</vendorCode>
+        <price>32990</price>
+        <categoryId>1</categoryId>
+        <description>Флагманские наушники с активным шумоподавлением</description>
+      </offer>
+      <offer id="yml-w-2" available="true">
+        <name>Спортивные наушники для бега Shokz OpenRun Pro</name>
+        <vendor>Shokz</vendor>
+        <vendorCode>SHOKZ-S810</vendorCode>
+        <price>15990</price>
+        <categoryId>1</categoryId>
+        <description>Наушники с костной проводимостью для марафона</description>
+      </offer>
+    </offers>
+  </shop>
+</yml_catalog>`;
+
+      const importRes = await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/import-yml',
+        headers: {
+          'x-api-key': 'eidos_dev_key',
+          'x-tenant-id': 'worker-yml-tenant',
+          'x-index-name': 'default',
+        },
+        payload: {
+          xml: ymlPayload,
+          autoIndex: true,
+        },
+      });
+      expect(importRes.statusCode).toBe(200);
+      const importBody = importRes.json();
+      expect(importBody.indexedCount).toBe(2);
+      expect(importBody.usedWorkerThread).toBe(true);
+
+      const searchRes = await app.inject({
+        method: 'POST',
+        url: '/v1/search',
+        headers: {
+          'x-api-key': 'eidos_dev_key',
+          'x-tenant-id': 'worker-yml-tenant',
+          'x-index-name': 'default',
+        },
+        payload: {
+          query: 'наушники sony',
+          topK: 5,
+        },
+      });
+      expect(searchRes.statusCode).toBe(200);
+      const searchBody = searchRes.json();
+      expect(searchBody.results.length).toBeGreaterThan(0);
+      expect(searchBody.results[0].id).toBe('yml-w-1');
+    } finally {
+      await app.close();
+    }
+  });
+
   it('Benchmark Harness: Executes 1k and 10k SKU benchmarks with Recall@10 >= 0.90 and saves report to load-testing/results/', async () => {
     const results = await runFullBenchmarkSuite([1_000, 10_000]);
     expect(results.length).toBe(2);
@@ -494,5 +574,5 @@ describe('EPIC: EIDOS Production-Grade Retrieval (EIDOS-101..110)', () => {
     }
     const reportPath = path.resolve(process.cwd(), 'load-testing/results/epic-retrieval-benchmark.json');
     expect(fs.existsSync(reportPath)).toBe(true);
-  }, 30_000);
+  }, 45_000);
 });

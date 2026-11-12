@@ -98,7 +98,7 @@ export const DemoMode: React.FC<DemoModeProps> = ({
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     async function initDemoOnServer() {
       setLoadError(null);
