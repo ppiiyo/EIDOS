@@ -21,11 +21,18 @@ export interface ScaleBenchmarkResult {
   avgLatencyMs: number;
   rps: number;
   recallAt10VsBruteForce: number;
+  samplesPerQuery: number;
   byClass: Record<
     'sku_like' | 'short' | 'natural',
     { p50Ms: number; p95Ms: number; avgRecallAt10: number }
   >;
 }
+
+/** EIDOS-101/102: scales including 50k/100k */
+const SCALES = [1_000, 10_000, 50_000, 100_000];
+/** ≥30 measurements per query → meaningful p95 */
+const REPEATS = 30;
+const WARMUP = 3;
 
 const BENCHMARK_QUERIES: BenchmarkQuerySpec[] = [
   { query: 'SKU-AUTO-00042', lang: 'en', queryClass: 'sku_like' },
@@ -74,6 +81,19 @@ function createDeterministicVector(seed: number, categoryIdx: number): number[] 
   return vec;
 }
 
+/** Wider lexical window for sku_like — improves hybrid recall on article queries (EIDOS-101). */
+function searchOptionsForClass(queryClass: BenchmarkQuerySpec['queryClass']) {
+  const base = { simpleCategoryGate: 'off' as const };
+  if (queryClass === 'sku_like') {
+    return {
+      ...base,
+      channelWindows: { lexical: 120, dense: 50 },
+      fieldImportance: { sku: 6, title: 3, brand: 2, description: 1 },
+    };
+  }
+  return base;
+}
+
 export function generateSyntheticCatalog(count: number, _embedder?: ServerEmbedder): CatalogItem[] {
   const items: CatalogItem[] = new Array(count);
   const seedArchetypes = [
@@ -107,7 +127,6 @@ export function generateSyntheticCatalog(count: number, _embedder?: ServerEmbedd
     },
   ];
 
-  // Precompute query embeddings and archetype embeddings in the unified ServerEmbedder space
   const queryEmbeddings = BENCHMARK_QUERIES.map((q) => computeDeterministicEmbedding(q.query));
   const archetypeVectors = seedArchetypes.map((a) =>
     computeDeterministicEmbedding(`${a.titleRu}. ${CATEGORIES[a.catIdx]}. ${a.descRu}`)
@@ -127,7 +146,6 @@ export function generateSyntheticCatalog(count: number, _embedder?: ServerEmbedd
     const nextQBase = queryEmbeddings[(i + 3) % queryEmbeddings.length];
     const embedding = new Array<number>(384);
     let norm = 0;
-    // Smooth distance gradient from query centroids in 384-D space (normalize noise by sqrt(384/3) ≈ 11.3137)
     const rankFactor = Math.min(1, i / Math.max(120, count));
     const invDimNorm = 1 / 11.3137;
     const noiseWeight = (0.03 + rankFactor * 0.32) * invDimNorm;
@@ -196,50 +214,52 @@ export async function runBenchmarkAtScale(scale: number): Promise<ScaleBenchmark
     natural: [],
   };
 
-  // Warmup HNSW JIT paths
-  const warmupVec = await embedder.embed(BENCHMARK_QUERIES[0].query);
-  store.hybridSearch(BENCHMARK_QUERIES[0].query, warmupVec, 10);
+  const catalogById = new Map(catalog.map((it) => [it.id, it]));
 
   for (const spec of BENCHMARK_QUERIES) {
     const qVec = await embedder.embed(spec.query);
+    const opts = searchOptionsForClass(spec.queryClass);
 
-    // Measure cold hybridSearch (no API cache layer)
-    const start = performance.now();
-    const results = store.hybridSearch(spec.query, qVec, 10, 0.5, 0.5, undefined, {
-      simpleCategoryGate: 'off',
-    });
-    const elapsed = performance.now() - start;
-    latencies.push(elapsed);
-    byClassLatencies[spec.queryClass].push(elapsed);
-
-    // Measure pure HNSW ANN recall@10 against exact brute-force cosine top-10 (with epsilon tie tolerance 1e-3)
-    const ef = Math.max(96, Math.ceil(Math.sqrt(scale) * 1.5));
-    const hnswTop10 = store.getHNSW().search(qVec, 10, ef);
-
-    const exactScores: Array<{ id: string; sim: number }> = [];
-    for (const item of catalog) {
-      if (!item.embedding) continue;
-      exactScores.push({
-        id: item.id,
-        sim: cosineSimilarity(qVec, item.embedding),
-      });
+    for (let w = 0; w < WARMUP; w++) {
+      store.hybridSearch(spec.query, qVec, 10, 0.5, 0.5, undefined, opts);
     }
-    exactScores.sort((a, b) => b.sim - a.sim);
-    const bruteTop10 = exactScores.slice(0, 10);
-    const bruteIds = new Set(bruteTop10.map((b) => b.id));
-    const tenthThreshold = (bruteTop10[bruteTop10.length - 1]?.sim ?? 0) - 1e-3;
-    const matchedCount = hnswTop10.filter(
-      (h) => bruteIds.has(h.id) || h.score >= tenthThreshold
-    ).length;
-    const recall10 = matchedCount / Math.max(1, bruteTop10.length);
 
-    if (results.length > 0) {
-      recalls.push(recall10);
-      byClassRecalls[spec.queryClass].push(recall10);
+    for (let r = 0; r < REPEATS; r++) {
+      const start = performance.now();
+      const results = store.hybridSearch(spec.query, qVec, 10, 0.5, 0.5, undefined, opts);
+      const elapsed = performance.now() - start;
+      latencies.push(elapsed);
+      byClassLatencies[spec.queryClass].push(elapsed);
+
+      // EIDOS-101: recall@10 on FINAL hybrid ranking vs brute-force cosine top-10 (not pure ANN)
+      if (r === 0) {
+        const hybridIds = results.slice(0, 10).map((x: any) => x.item?.id ?? x.id);
+        const exactScores: Array<{ id: string; sim: number }> = [];
+        for (const item of catalog) {
+          if (!item.embedding) continue;
+          exactScores.push({
+            id: item.id,
+            sim: cosineSimilarity(qVec, item.embedding),
+          });
+        }
+        exactScores.sort((a, b) => b.sim - a.sim);
+        const bruteTop10 = exactScores.slice(0, 10);
+        const bruteIds = new Set(bruteTop10.map((b) => b.id));
+        const tenthThreshold = (bruteTop10[bruteTop10.length - 1]?.sim ?? 0) - 1e-3;
+        const matchedCount = hybridIds.filter((id: string) => {
+          if (bruteIds.has(id)) return true;
+          const it = catalogById.get(id);
+          if (!it?.embedding) return false;
+          return cosineSimilarity(qVec, it.embedding) >= tenthThreshold;
+        }).length;
+        const recall10 = matchedCount / Math.max(1, bruteTop10.length);
+        recalls.push(recall10);
+        byClassRecalls[spec.queryClass].push(recall10);
+      }
     }
   }
 
-  const sorted = latencies.slice().sort((a, b) => a - b);
+  const sorted = [...latencies].sort((a, b) => a - b);
   const avgLatencyMs = Number(
     (latencies.reduce((s, v) => s + v, 0) / Math.max(1, latencies.length)).toFixed(2)
   );
@@ -274,6 +294,7 @@ export async function runBenchmarkAtScale(scale: number): Promise<ScaleBenchmark
     avgLatencyMs,
     rps,
     recallAt10VsBruteForce,
+    samplesPerQuery: REPEATS,
     byClass: {
       sku_like: summarizeClass('sku_like'),
       short: summarizeClass('short'),
@@ -282,9 +303,12 @@ export async function runBenchmarkAtScale(scale: number): Promise<ScaleBenchmark
   };
 }
 
-export async function runFullBenchmarkSuite(scales = [1_000, 10_000]): Promise<ScaleBenchmarkResult[]> {
+export async function runFullBenchmarkSuite(
+  scales: number[] = SCALES
+): Promise<ScaleBenchmarkResult[]> {
   const results: ScaleBenchmarkResult[] = [];
   for (const scale of scales) {
+    console.log(`[bench] scale=${scale} repeats=${REPEATS} warmup=${WARMUP}`);
     results.push(await runBenchmarkAtScale(scale));
   }
 
@@ -297,6 +321,12 @@ export async function runFullBenchmarkSuite(scales = [1_000, 10_000]): Promise<S
       {
         generatedAt: new Date().toISOString(),
         engine: 'EIDOS Hybrid Retrieval v4.0 (HNSW + BM25 Postings + Weighted RRF)',
+        config: { scales, REPEATS, WARMUP, recallMode: 'hybrid_vs_brute_cosine' },
+        acceptance: {
+          p95_ms_at_50k: 30,
+          p95_ms_at_100k: 50,
+          recall_at_10_min: 0.95,
+        },
         results,
       },
       null,
@@ -308,12 +338,19 @@ export async function runFullBenchmarkSuite(scales = [1_000, 10_000]): Promise<S
   const mdLines = [
     '# EIDOS Production Retrieval Benchmark Report',
     '',
-    '| Scale (SKU) | Build (ms) | p50 (ms) | p95 (ms) | p99 (ms) | RPS | Recall@10 vs Brute-Force | RSS (MB) |',
+    `Config: repeats=${REPEATS}, warmup=${WARMUP}, recall=hybrid vs brute-force cosine@10`,
+    '',
+    '| Scale (SKU) | Build (ms) | p50 (ms) | p95 (ms) | p99 (ms) | RPS | Recall@10 (hybrid) | RSS (MB) |',
     '|---:|---:|---:|---:|---:|---:|---:|---:|',
     ...results.map(
       (r) =>
         `| ${r.scale.toLocaleString('en-US')} | ${r.buildTimeMs} | ${r.p50LatencyMs} | ${r.p95LatencyMs} | ${r.p99LatencyMs} | ${r.rps} | ${(r.recallAt10VsBruteForce * 100).toFixed(1)}% | ${r.rssMB} |`
     ),
+    '',
+    '## Acceptance (EIDOS-101/102)',
+    '- p95 ≤ 30 ms at 50k SKU',
+    '- p95 ≤ 50 ms at 100k SKU',
+    '- recall@10 (hybrid vs brute) ≥ 0.95',
     '',
   ];
   fs.writeFileSync(path.join(outDir, 'epic-retrieval-benchmark.md'), mdLines.join('\n'), 'utf8');
@@ -322,9 +359,22 @@ export async function runFullBenchmarkSuite(scales = [1_000, 10_000]): Promise<S
 }
 
 if (require.main === module) {
-  runFullBenchmarkSuite([1_000, 10_000, 50_000])
+  const envScales = process.env.EIDOS_BENCH_SCALES;
+  const scales = envScales
+    ? envScales.split(',').map((s) => Number(s.trim())).filter((n) => n > 0)
+    : SCALES;
+  runFullBenchmarkSuite(scales)
     .then((res) => {
-      console.table(res);
+      console.table(
+        res.map((r) => ({
+          scale: r.scale,
+          p50: r.p50LatencyMs,
+          p95: r.p95LatencyMs,
+          p99: r.p99LatencyMs,
+          recallAt10: r.recallAt10VsBruteForce,
+          rssMB: r.rssMB,
+        }))
+      );
     })
     .catch((err) => {
       console.error(err);
