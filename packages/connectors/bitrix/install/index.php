@@ -1,42 +1,60 @@
 <?php
 
-use Bitrix\Main\ModuleManager;
+declare(strict_types=1);
 
+use Bitrix\Main\Localization\Loc;
+
+if (class_exists('\Bitrix\Main\Localization\Loc')) {
+    Loc::loadMessages(__FILE__);
+}
+
+/**
+ * Установщик модуля eidos.connector для 1С-Битрикс.
+ * Регистрирует модуль, копирует компонент eidos:search.page, обработчик /bitrix/tools/eidos_feedback.php
+ * и регистрирует ежечасный агент CAgent для инкрементальной синхронизации (syncDelta).
+ */
 class eidos_connector extends CModule
 {
     public $MODULE_ID = 'eidos.connector';
     public $MODULE_VERSION;
     public $MODULE_VERSION_DATE;
-    public $MODULE_NAME;
-    public $MODULE_DESCRIPTION;
-    public $PARTNER_NAME;
-    public $PARTNER_URI;
+    public $MODULE_NAME = 'EIDOS: Гибридный поиск и рекомендации';
+    public $MODULE_DESCRIPTION = 'Коннектор гибридного поиска и рекомендаций EIDOS (BM25 + векторный поиск + переранжирование) с автоматическим fallback на поиск 1С-Битрикс.';
+    public $PARTNER_NAME = 'EIDOS';
+    public $PARTNER_URI = 'https://github.com/ppiiyo/EIDOS';
 
     public function __construct()
     {
         $arModuleVersion = [];
         include __DIR__ . '/version.php';
+
         $this->MODULE_VERSION = $arModuleVersion['VERSION'] ?? '1.0.0';
-        $this->MODULE_VERSION_DATE = $arModuleVersion['VERSION_DATE'] ?? '';
-        $this->MODULE_NAME = 'EIDOS Search Connector';
-        $this->MODULE_DESCRIPTION = 'Hybrid search connector for EIDOS (HNSW + BM25)';
-        $this->PARTNER_NAME = 'EIDOS';
-        $this->PARTNER_URI = 'https://github.com/ppiiyo/EIDOS';
+        $this->MODULE_VERSION_DATE = $arModuleVersion['VERSION_DATE'] ?? '2026-10-26 12:00:00';
     }
 
-    public function DoInstall()
+    public function DoInstall(): bool
     {
-        ModuleManager::registerModule($this->MODULE_ID);
+        if (function_exists('RegisterModule')) {
+            RegisterModule($this->MODULE_ID);
+        }
+
+        $this->InstallFiles();
         $this->InstallEvents();
         $this->InstallAgents();
+
         return true;
     }
 
-    public function DoUninstall()
+    public function DoUninstall(): bool
     {
         $this->UnInstallAgents();
         $this->UnInstallEvents();
-        ModuleManager::unRegisterModule($this->MODULE_ID);
+        $this->UnInstallFiles();
+
+        if (function_exists('UnRegisterModule')) {
+            UnRegisterModule($this->MODULE_ID);
+        }
+
         return true;
     }
 
@@ -116,5 +134,46 @@ class eidos_connector extends CModule
         if (class_exists('\CAgent')) {
             \CAgent::RemoveModuleAgents($this->MODULE_ID);
         }
+    }
+
+    public function InstallFiles(): bool
+    {
+        $docRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+        if ($docRoot === '' || !function_exists('CopyDirFiles')) {
+            return true;
+        }
+
+        $moduleRoot = dirname(__DIR__);
+
+        CopyDirFiles(
+            $moduleRoot . '/components',
+            $docRoot . '/bitrix/components',
+            true,
+            true
+        );
+
+        CopyDirFiles(
+            $moduleRoot . '/tools',
+            $docRoot . '/bitrix/tools',
+            true,
+            true
+        );
+
+        return true;
+    }
+
+    public function UnInstallFiles(): bool
+    {
+        $docRoot = rtrim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+        if ($docRoot === '') {
+            return true;
+        }
+
+        $feedbackTool = $docRoot . '/bitrix/tools/eidos_feedback.php';
+        if (is_file($feedbackTool)) {
+            @unlink($feedbackTool);
+        }
+
+        return true;
     }
 }
