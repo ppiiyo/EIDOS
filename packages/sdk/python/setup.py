@@ -2,14 +2,16 @@ from setuptools import setup, find_packages
 
 setup(
     name="eidos-client",
-    version="3.0.0",
-    description="Official Python client SDK for Eidos Semantic Recommendation & Vector Search Engine",
+    version="4.0.0",
+    description="Python client SDK for Eidos Semantic Recommendation Engine",
     author="Eidos Engineering Team",
-    packages=find_packages(include=["eidos", "eidos.*"]),
+    packages=find_packages(),
     python_requires=">=3.8",
-    install_requires=[],
+    install_requires=[
+        "requests>=2.28.0",
+    ],
     extras_require={
-        "dev": ["pytest>=7.0"],
+        "dev": ["pytest>=8.0"],
     },
     classifiers=[
         "Programming Language :: Python :: 3",

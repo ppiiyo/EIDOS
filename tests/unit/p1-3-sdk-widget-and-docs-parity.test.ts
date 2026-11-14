@@ -156,7 +156,7 @@ describe('P1-3 — Storefront Widget i18n/urlTemplate, SDK Parity, WooCommerce P
     expect(pySdkLegacy).toContain('headers["x-index-name"]');
   });
 
-  it('4. connectors/woocommerce/pack.sh packages canonical packages/connectors/woocommerce and README.md has no stale inject references', () => {
+  it('4. connectors/woocommerce/pack.sh packages canonical packages/connectors/woocommerce, CI workflows are valid, and README.md/package.json have zero inject references', () => {
     const wooPackShPath = path.resolve(process.cwd(), 'connectors/woocommerce/pack.sh');
     const wooPackSh = fs.readFileSync(wooPackShPath, 'utf8');
     expect(wooPackSh).toContain('packages/connectors/woocommerce');
@@ -165,6 +165,22 @@ describe('P1-3 — Storefront Widget i18n/urlTemplate, SDK Parity, WooCommerce P
     const outZip = path.resolve(process.cwd(), 'dist/eidos-woocommerce-plugin.zip');
     expect(fs.existsSync(outZip)).toBe(true);
     expect(fs.statSync(outZip).size).toBeGreaterThan(1000);
+
+    const pkgJson = fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8');
+    expect(pkgJson).not.toContain('verify_injects');
+    expect(pkgJson).not.toContain('verify:injects');
+
+    const ciYml = fs.readFileSync(path.resolve(process.cwd(), '.github/workflows/ci.yml'), 'utf8');
+    expect(ciYml).toContain('packages/connectors/bitrix');
+    expect(ciYml).not.toContain('cd ../woocommerce && composer install');
+    expect(ciYml).toContain('pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build');
+
+    const pyToml = fs.readFileSync(
+      path.resolve(process.cwd(), 'packages/sdk/python/pyproject.toml'),
+      'utf8'
+    );
+    expect(pyToml).toContain('[project.optional-dependencies]');
+    expect(pyToml).toContain('pytest');
 
     const readme = fs.readFileSync(path.resolve(process.cwd(), 'README.md'), 'utf8');
     expect(readme).not.toContain('verify:injects');

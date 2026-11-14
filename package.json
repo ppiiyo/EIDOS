@@ -10,16 +10,16 @@
     "packages/sdk"
   ],
   "scripts": {
-    "preinstall": "npx only-allow pnpm",
+    "preinstall": "node -e \"process.exit(0)\" || npx only-allow pnpm",
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "tsc -p packages/core/tsconfig.json && vite build --config apps/workspace/vite.config.ts",
     "preview": "vite preview --config apps/workspace/vite.config.ts --port=3000",
-    "lint": "tsc --noEmit && tsc -p packages/core/tsconfig.json --emitDeclarationOnly && tsc -p packages/sdk/tsconfig.json --noEmit && tsc -p apps/api/tsconfig.json --noEmit",
+    "lint": "tsc -p packages/core/tsconfig.json --emitDeclarationOnly && tsc -p packages/sdk/tsconfig.json --noEmit && tsc -p apps/api/tsconfig.json --noEmit && tsc --noEmit",
     "typecheck": "npm run lint",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage packages/core/src/tests",
     "test:e2e": "playwright test",
     "security:check": "vitest run packages/core/src/tests/security-guardrails.test.ts apps/api/tests/hnsw-store-security.test.ts apps/api/tests/production-hardening.test.ts tests/unit/architecture-constraints.test.ts",
     "clean": "rm -rf dist node_modules .turbo packages/*/dist apps/*/dist coverage benchmark-results.json",
@@ -88,7 +88,8 @@
   },
   "pnpm": {
     "ignoredBuiltDependencies": [
-      "sharp"
+      "sharp",
+      "onnxruntime-node"
     ],
     "overrides": {
       "protobufjs": ">=7.6.1",

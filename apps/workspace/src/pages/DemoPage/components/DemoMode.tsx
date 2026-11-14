@@ -26,6 +26,7 @@ import {
   PLATFORM_DOMAIN_PRESETS,
 } from '../../../data/domainDatabases';
 import { EmbeddingEngineState } from '../../../lib/embeddings';
+import { buildAuthHeaders } from '../../../lib/apiClient';
 import { UiLanguage } from '../../../i18n/uiTranslations';
 import { SearchView } from '../../../components/SearchView';
 import { RecommendationsView } from '../../../components/RecommendationsView';
@@ -297,7 +298,7 @@ export const DemoMode: React.FC<DemoModeProps> = ({
       setDemoClicksCount((c) => c + 1);
       void fetch(`${apiBaseUrl}/v1/analytics/funnel/event`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders({ 'x-tenant-id': 'demo' }, { allowPublicDemoKey: true }),
         body: JSON.stringify({ type: 'click', itemId: String(item.id), sessionId: 'demo-session' }),
       }).catch(() => {});
       setSubView('recommendations');
@@ -319,7 +320,7 @@ export const DemoMode: React.FC<DemoModeProps> = ({
       if (type === 'purchase') setDemoPurchasesCount((c) => c + 1);
       void fetch(`${apiBaseUrl}/v1/analytics/funnel/event`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders({ 'x-tenant-id': 'demo' }, { allowPublicDemoKey: true }),
         body: JSON.stringify({ type, itemId: String(item.id), sessionId: 'demo-session' }),
       }).catch(() => {});
     },

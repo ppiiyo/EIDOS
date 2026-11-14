@@ -18,13 +18,11 @@ Last verified locally: **2026-11-12**
 | bitrix-and-all-in-one-docker | 8/8 |
 | **Total** | **60/60** (+ v35 already counted) |
 
-`scripts/smoke.sh` → **All 6 live HTTP smoke checks passed.**
-
 ## Product invariants (fixed)
 
 1. Snapshot → WAL ordering + `whenReady` / `setReadyPromise`
 2. Demo tenant **ephemeral** (no disk) — no false `DEMO_DISABLED` 409
-3. `/metrics` public for Prometheus scrapers
+3. `/metrics` authenticated in production (`EIDOS_REQUIRE_METRICS_AUTH=true`)
 4. `StoreError.toJSON` uses real HTTP error names (`Not Found`, …)
 5. RBAC: admin/master demote via `x-eidos-role` (never escalate); roles `viewer`/`editor`
 6. Health/ready: Redis optional
@@ -57,8 +55,8 @@ Import catalog → connect Bitrix (`packages/connectors/bitrix`) or Woo or embed
 
 | Workflow | Role |
 |----------|------|
-| `ci.yml` | Full build, lint, test, coverage, PHPUnit, and Python SDK gate |
-| `php-connectors.yml` | PHP 8.2 syntax + Bitrix autoload verification |
+| `ci.yml` | Typecheck, full test suite (Node 20 & 22), core coverage, PHPUnit, Python SDK |
+| `php-connectors.yml` | PHP syntax lint and Bitrix autoload check |
 
 ```bash
 bash scripts/smoke.sh

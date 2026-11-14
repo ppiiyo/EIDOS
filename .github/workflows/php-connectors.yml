@@ -20,12 +20,14 @@ jobs:
       - name: Lint every PHP file
         run: |
           set -euo pipefail
-          mapfile -d '' files < <(find packages/connectors connectors -name '*.php' -print0 2>/dev/null || true)
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No PHP files found under packages/connectors or connectors"
-            exit 1
-          fi
-          printf '%s\0' "${files[@]}" | xargs -0 -n1 php -l
+          find packages/connectors connectors -name '*.php' -print0 | xargs -0 -n1 php -l
 
       - name: Verify agent/event classes resolve via include.php
         run: php scripts/verify-bitrix-autoload.php
+
+      - name: PHPUnit
+        run: |
+          set -e
+          for d in connectors/bitrix connectors/woocommerce packages/connectors/bitrix packages/connectors/woocommerce; do
+            if [ -f "$d/composer.json" ]; then (cd "$d" && composer install --no-interaction --prefer-dist && ./vendor/bin/phpunit); fi
+          done

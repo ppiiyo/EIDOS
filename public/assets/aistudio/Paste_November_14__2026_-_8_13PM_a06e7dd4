@@ -1,0 +1,477 @@
+иже — готовый промт для coding-агента, заточенный под текущее состояние репозитория (проверенный main 542da09): он не повторяет уже сделанное, а закрывает все оставшиеся ❌/⚠️ из верификации и доводит план до конца. Код — стартовые реализации; агент обязан сверить сигнатуры с текущим HEAD и адаптировать. Вставляйте целиком, выполняйте поблочно (R1 → R12), один блок = один PR.
+
+═══════════════════ НАЧАЛО ПРОМТА ═══════════════════
+
+ЗАДАЧА: финальная реализация EIDOS — зелёный CI + закрытие всех оставшихся пробелов аудита
+
+0. Контекст и текущее состояние (проверено по main 542da09)
+Ты — senior TypeScript/Node.js инженер в монорепозитории EIDOS (pnpm): Fastify 4 (apps/api), React 19 + Vite (apps/workspace), ядро packages/core, PHP-коннекторы, SDK. Предыдущие итерации уже сделали: удалены scripts/inject_*.py и verify_injects.sh; добавлена машина состояний apiInitError/503 в корневом server.ts; pilot-витрина включена (EIDOS_ENABLE_DEMO_MUTATIONS=${…:-true}); мультиязычный эмбеддер Xenova/paraphrase-multilingual-MiniLM-L12-v2 с режимами onnx/lexical-only/deterministic и EIDOS_EMBEDDER_STRICT_ONNX; NDJSON-снапшоты с sha256 и bounded WAL; install.sh с umask 077/chmod 600/раздельными ключами; /metrics и funnel под auth; scripts/smoke.sh; CORS Vary: Origin; jti-отзыв JWT.
+
+Осталось (это твоя работа):
+
+CI «EIDOS CI Pipeline» КРАСНЫЙ: Build, Lint, Test & Coverage падает на Setup pnpm; PHP PHPUnit-сьюты падают; Python SDK install/test падает; Deploy Pages падает.
+
+package.json: висячий verify:injects; preinstall: node -e "process.exit(0)" || npx only-allow pnpm (проверка отключена); onnxruntime-node в pnpm.ignoredBuiltDependencies.
+
+server.ts: нет валидации env-порта, нет uncaughtException/unhandledRejection, MIME без .wasm/.woff2/.webp/.map, force-таймаут shutdown не подтверждён.
+
+Статика: sendFile-декоратор удалён из routes.ts, но @fastify/static не подключён; Docker-CMD запускает API-only сервер → риск: контейнер не отдаёт /admin, /public-demo, /widget.js.
+
+Эмбеддер: модель не запечена в Docker (runtime-зависимость от сети), дефолтный режим в prod не подтверждён.
+
+Снапшоты: NDJSON opt-in (дефолт может быть legacy JSON одной строкой → потолок V8), атомарность пары/манифест не подтверждены.
+
+Rate-limit: isRecognizedApiKey может быть префиксным (обход ротацией eidos_pk_<random>).
+
+JWT-отзыв: реестр Map cap 1024 с вытеснением (может «разотозвать» живой токен), in-memory (теряется при рестарте), нет iss/aud, не на jose.
+
+CORS: осталась строка ACAO = origins[0] — нужна проверка ветки.
+
+Не закрыты: P1-4 allowlist каталога, P1-5 полнота кэш-ключа, P1-6 SAX YML, P1-7 дедупликация SDK/Bitrix (вероятная причина падения PHPUnit), P1-8 widget i18n (заявлено — проверить), P1-9 router/code-splitting, P1-10 semantic cache off, P2 (честный README, eval, e2e, consent).
+
+1. Жёсткие правила
+Не ослаблять тесты (ассерты, SLA, skip, посев в обход API). Чини продукт. Любое изменение теста — только добавление/починка setup через публичное API; приложи red→green доказательство.
+
+Никаких inject/patch-скриптов в CI. Запрещено возвращать патчинг кода перед тестами.
+
+Публичный API-контракт сохраняется; несовместимости — только через MIGRATION.md + флаг.
+
+Один блок = ветка fix/rN-… = один PR. Перед правкой читай файл целиком; если факт из ТЗ разошёлся с HEAD — зафиксируй в отчёте и адаптируй.
+
+Новые зависимости минимально, версии пинить. Секреты только env, в логах маскировать.
+
+DoD после каждого блока:
+
+Bash
+corepack enable && corepack pnpm install --frozen-lockfile
+pnpm lint && pnpm test && pnpm build
+docker compose -f docker-compose.pilot.yml up -d --build
+bash scripts/smoke.sh
+Не переходи дальше с красным CI.
+
+R1. Зелёный CI + чистка package.json (БЛОКЕР ВСЕГО)
+1.1. package.json (корень):
+
+Diff
+- "verify:injects": "bash scripts/verify_injects.sh"
+- "preinstall": "node -e \"process.exit(0)\" || npx only-allow pnpm"
++ "preinstall": "npx only-allow pnpm"
++ "packageManager": "pnpm@9.15.4"
+  "pnpm": {
+-   "ignoredBuiltDependencies": ["onnxruntime-node", "sharp", ...]
++   "ignoredBuiltDependencies": ["sharp", ...]
+  }
+(убери только onnxruntime-node; sharp оставь). Удали все упоминания verify_injects из доков/скриптов.
+
+1.2. Причина «Setup pnpm»: конфликт pnpm/action-setup (без version) с packageManager/corepack. Пинь версию явно и синхронизируй packageManager. Замени .github/workflows/ci.yml:
+
+Yaml
+name: EIDOS CI Pipeline
+on:
+  push: { branches: [main, master] }
+  pull_request:
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  JWT_SECRET: test-jwt-secret-at-least-24chars!!
+  VITEST: '1'
+  NODE_ENV: test
+  EIDOS_EMBEDDING_MODE: deterministic   # быстро и детерминированно для unit
+  CORS_ORIGIN: http://localhost:3000
+jobs:
+  build-lint-test:
+    name: Build, Lint, Test & Coverage
+    runs-on: ubuntu-latest
+    strategy: { fail-fast: false, matrix: { node-version: [20, 22] } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ matrix.node-version }}', cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
+      - run: pnpm lint
+      - run: mkdir -p data && pnpm test
+      - name: Coverage (core)
+        if: matrix.node-version == 20
+        run: pnpm exec vitest run --coverage packages/core/src/tests
+      - run: pnpm --filter @eidos/workspace build
+  php-connectors:
+    name: PHP 8.2 Connectors (Syntax + Autoload + PHPUnit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.2', coverage: none, tools: composer:v2 }
+      - run: find packages/connectors connectors -name '*.php' -print0 | xargs -0 -n1 php -l
+      - run: php scripts/verify-bitrix-autoload.php
+      - name: PHPUnit
+        run: |
+          set -e
+          for d in connectors/bitrix connectors/woocommerce packages/connectors/bitrix packages/connectors/woocommerce; do
+            if [ -f "$d/composer.json" ]; then (cd "$d" && composer install --no-interaction --prefer-dist && ./vendor/bin/phpunit); fi
+          done
+          if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ]; then composer install --no-interaction && ./vendor/bin/phpunit; fi
+  python-sdk:
+    name: Python 3.11 SDK Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: python -m pip install -U pip pytest
+      - run: pip install -e packages/sdk/python
+      - run: pytest -q packages/sdk/python
+  production-gate:
+    runs-on: ubuntu-latest
+    needs: [build-lint-test, php-connectors, python-sdk]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - run: echo "CI gate passed for ${{ github.sha }}"
+1.3. PHPUnit и Python SDK: скачай логи (gh run view <id> --log-failed), почини продукт/пути (вероятно рассинхрон после дедупликации коннекторов/SDK), не ассерты. Если тест ссылается на удалённый дубль — переведи на канонический путь (R8), не удаляй тест.
+
+Критерии: все job'ы «EIDOS CI Pipeline» зелёные на чистом checkout; grep -rn "inject_\|verify_injects" .github scripts package.json → пусто; pnpm install --frozen-lockfile проходит.
+
+R2. Завершение server.ts (порт, сигналы, MIME, shutdown)
+В корневом server.ts (сохрани уже добавленные apiInitError/apiUnavailable):
+
+Ts
+function parsePort(raw: string | undefined, source: string): number | null {
+  if (!raw) return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) {
+    console.error(`[EIDOS] Invalid port "${raw}" from ${source}; ignoring`);
+    return null;
+  }
+  return n;
+}
+function resolvePort(): number {
+  const i = process.argv.indexOf('--port');
+  if (i !== -1) { const p = parsePort(process.argv[i + 1], '--port'); if (p) return p; }
+  return parsePort(process.env.EIDOS_PORT, 'EIDOS_PORT')
+      ?? parsePort(process.env.DEFAULT_APP_PORT, 'DEFAULT_APP_PORT')
+      ?? (process.env.PORT !== process.env.NGINX_PORT ? parsePort(process.env.PORT, 'PORT') : null)
+      ?? 3000;
+}
+Дополни MIME_TYPES:
+
+Ts
+'.wasm': 'application/wasm', '.woff': 'font/woff', '.woff2': 'font/woff2',
+'.webp': 'image/webp', '.map': 'application/json', '.avif': 'image/avif',
+В startUnifiedServer() замени shutdown и добавь process-хендлеры:
+
+Ts
+let shuttingDown = false;
+const gracefulShutdown = async (signal: string) => {
+  if (shuttingDown) return; shuttingDown = true;
+  console.log(`[EIDOS] ${signal}: draining...`);
+  const force = setTimeout(() => { console.error('[EIDOS] forced exit after 10s'); process.exit(1); }, 10_000);
+  force.unref();
+  try {
+    await new Promise<void>((r) => server.close(() => r()));
+    if (fastifyApp) await fastifyApp.close(); // onClose сам сохранит снапшот/WAL
+    clearTimeout(force); process.exit(0);
+  } catch (e) { console.error('[EIDOS] shutdown error:', e); process.exit(1); }
+};
+process.once('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+process.once('SIGINT', () => void gracefulShutdown('SIGINT'));
+process.on('unhandledRejection', (r) => console.error('[EIDOS] unhandledRejection:', r));
+process.on('uncaughtException', (e) => { console.error('[EIDOS] uncaughtException:', e); void gracefulShutdown('uncaughtException'); });
+Убери дубль снапшота на SIGTERM в apps/api/src/server.ts (ensureProcessShutdownSnapshotHooks), если он ещё есть — сохранение живёт в onClose.
+
+Тесты: EIDOS_PORT=abc → старт на 3000 с warn; sabotage buildServer → /v1/search 503 < 1 с, /v1/health failed, live 200; .wasm отдаётся с application/wasm.
+
+R3. Единый статик-сервер (устранить регрессию UI в Docker)
+Решение: статика живёт в Fastify (@fastify/static + @fastify/compress), Docker-CMD остаётся node apps/api/dist/server.js и теперь отдаёт SPA. Корневой server.ts в prod делегирует не-API запросы в Fastify (кастомную статику удалить).
+
+Bash
+pnpm --filter @eidos/api add @fastify/static@^7 @fastify/compress@^7
+Новый файл apps/api/src/plugins/static-spa.ts:
+
+Ts
+import fp from 'fastify-plugin';
+import fastifyStatic from '@fastify/static';
+import compress from '@fastify/compress';
+import * as fs from 'fs';
+import * as path from 'path';
+
+function resolveDistDir(): string | null {
+  const candidates = [
+    process.env.EIDOS_STATIC_DIR,
+    path.resolve(process.cwd(), 'dist'),
+    path.resolve(process.cwd(), 'apps/workspace/dist'),
+  ].filter(Boolean) as string[];
+  return candidates.find((d) => fs.existsSync(path.join(d, 'index.html'))) ?? null;
+}
+
+export const staticSpaPlugin = fp(async (fastify) => {
+  const dist = resolveDistDir();
+  if (!dist) { fastify.log.warn('[EIDOS] SPA dist not found — UI disabled'); return; }
+  await fastify.register(compress, { encodings: ['br', 'gzip'] });
+  await fastify.register(fastifyStatic, {
+    root: dist,
+    wildcard: false,
+    setHeaders(res, filePath) {
+      const rel = path.relative(dist, filePath).replace(/\\/g, '/');
+      if (rel.startsWith('assets/')) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      else if (rel.endsWith('.html') || rel === 'widget.js') res.setHeader('Cache-Control', 'no-cache');
+      if (filePath.endsWith('.wasm')) res.setHeader('Content-Type', 'application/wasm');
+    },
+  });
+  // SPA-fallback только для путей без расширения; отсутствующий ассет — честный 404
+  fastify.setNotFoundHandler((req, reply) => {
+    const p = req.url.split('?')[0];
+    const hasExt = path.extname(p) !== '';
+    if ((req.method === 'GET' || req.method === 'HEAD') && !hasExt && !p.startsWith('/v1/') && p !== '/metrics') {
+      return reply.type('text/html').sendFile('index.html');
+    }
+    return reply.status(404).send({ statusCode: 404, error: 'Not Found' });
+  });
+});
+В apps/api/src/server.ts после регистрации остальных плагинов: await fastify.register(staticSpaPlugin);. В корневом server.ts prod-ветку статики замени на:
+
+Ts
+if (isProduction) { await apiPromise; if (fastifyApp) return fastifyApp.routing(req, res); return apiUnavailable(res); }
+(в dev оставь Vite middleware как есть).
+
+Тесты: в контейнере curl -I :3001/admin → 200 text/html; /assets/missing.js → 404; .wasm → application/wasm; /widget.js → no-cache; /v1/nope → 404 JSON.
+
+R4. Эмбеддер production-grade (запекание модели, offline, strict)
+4.1. scripts/download-model.mjs:
+
+Js
+import { pipeline, env } from '@xenova/transformers';
+const dir = process.env.EIDOS_MODEL_DIR || './models';
+const model = process.env.EIDOS_EMBEDDING_MODEL || 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
+env.cacheDir = dir; env.localModelPath = dir; env.allowRemoteModels = true;
+await pipeline('feature-extraction', model, { quantized: true });
+console.log(`✅ baked ${model} into ${dir}`);
+4.2. Dockerfile: в builder после COPY исходников — RUN node scripts/download-model.mjs; в runner:
+
+Dockerfile
+COPY --from=builder --chown=eidos:nodejs /app/models ./models
+ENV EIDOS_MODEL_DIR=/app/models
+ENV EIDOS_EMBEDDING_MODE=onnx
+ENV EIDOS_EMBEDDER_STRICT_ONNX=true
+4.3. В embedder.ts при старте (до pipeline):
+
+Ts
+if (process.env.EIDOS_MODEL_DIR) {
+  env.cacheDir = process.env.EIDOS_MODEL_DIR;
+  env.localModelPath = process.env.EIDOS_MODEL_DIR;
+  env.allowRemoteModels = false;
+}
+Проверь дефолт режима: если EIDOS_EMBEDDING_MODE не задан — должно быть onnx (не lexical-only/deterministic). В docker-compose.prod.yml добавь EIDOS_EMBEDDING_MODE=onnx, EIDOS_EMBEDDER_STRICT_ONNX=true, EIDOS_MODEL_DIR=/app/models. В /v1/health выводи embeddingMode и model.
+
+Тесты: offline + strict → падение на старте с понятной ошибкой; RU-синонимный интеграционный тест (мини-каталог 20 SKU, «беспроводные наушники для спорта» → top-5 содержит «TWS гарнитура … бег» без лексического пересечения); снапшот старого space отклоняется EmbeddingSpaceMismatchError; MIGRATION.md описывает реиндекс.
+
+R5. Снапшоты v2 по умолчанию + атомарная пара + манифест
+Сделай NDJSON дефолтом (EIDOS_SNAPSHOT_FORMAT по умолчанию 'ndjson'; legacy JSON только при явном =json). Новый модуль apps/api/src/services/snapshot-io.ts:
+
+Ts
+import * as fs from 'fs'; import * as path from 'path'; import * as crypto from 'crypto';
+export interface SnapshotManifest {
+  formatVersion: 2; createdAt: string; itemCount: number;
+  embeddingSpaceId: string; catalogVersion: number;
+  files: { items: { name: string; sha256: string }; hnsw: { name: string; sha256: string } };
+}
+const sha = (b: Buffer) => crypto.createHash('sha256').update(b).digest('hex');
+
+export function writeSnapshotPairSync(basePath: string, items: Iterable<Record<string, unknown>>,
+  hnsw: Uint8Array, meta: { embeddingSpaceId: string; catalogVersion: number; itemCount: number }): void {
+  const dir = path.dirname(basePath), stem = path.basename(basePath);
+  const tmp = path.join(dir, `.snap-tmp-${process.pid}-${Date.now()}`);
+  fs.mkdirSync(tmp, { recursive: true });
+  const fd = fs.openSync(path.join(tmp, 'items.ndjson'), 'w');
+  const h = crypto.createHash('sha256'); let count = 0;
+  try { for (const it of items) { const line = Buffer.from(JSON.stringify(it) + '\n'); fs.writeSync(fd, line); h.update(line); count++; } }
+  finally { fs.closeSync(fd); }
+  if (count !== meta.itemCount) throw new Error(`snapshot count mismatch ${count}!=${meta.itemCount}`);
+  fs.writeFileSync(path.join(tmp, 'hnsw.bin'), hnsw);
+  const manifest: SnapshotManifest = {
+    formatVersion: 2, createdAt: new Date().toISOString(), itemCount: count,
+    embeddingSpaceId: meta.embeddingSpaceId, catalogVersion: meta.catalogVersion,
+    files: { items: { name: 'items.ndjson', sha256: h.digest('hex') }, hnsw: { name: 'hnsw.bin', sha256: sha(Buffer.from(hnsw)) } },
+  };
+  fs.writeFileSync(path.join(tmp, 'manifest.json'), JSON.stringify(manifest));
+  for (const n of ['items.ndjson', 'hnsw.bin']) fs.renameSync(path.join(tmp, n), path.join(dir, `${stem}.${n}`));
+  fs.renameSync(path.join(tmp, 'manifest.json'), `${basePath}.manifest.json`); // маркер завершённости — последним
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+export function readSnapshotPairSync(basePath: string) {
+  const mp = `${basePath}.manifest.json`;
+  if (!fs.existsSync(mp)) return null; // legacy-путь
+  const manifest = JSON.parse(fs.readFileSync(mp, 'utf8')) as SnapshotManifest;
+  const dir = path.dirname(basePath), stem = path.basename(basePath);
+  const itemsBuf = fs.readFileSync(path.join(dir, `${stem}.${manifest.files.items.name}`));
+  const hnsw = fs.readFileSync(path.join(dir, `${stem}.${manifest.files.hnsw.name}`));
+  if (sha(itemsBuf) !== manifest.files.items.sha256 || sha(hnsw) !== manifest.files.hnsw.sha256)
+    throw new Error('[EIDOS] Snapshot integrity FAILED (sha256) — refusing to load');
+  const items: Record<string, unknown>[] = []; let start = 0;
+  for (let i = 0; i < itemsBuf.length; i++) if (itemsBuf[i] === 0x0a) {
+    if (i > start) items.push(JSON.parse(itemsBuf.toString('utf8', start, i))); start = i + 1;
+  }
+  if (items.length !== manifest.itemCount) throw new Error('[EIDOS] Snapshot item count mismatch');
+  return { items, hnsw, manifest };
+}
+Интегрируй в writeSnapshotFilesSync/Async и loadSnapshotFromDisk (сначала пара+манифест, проверка embeddingSpaceId → существующий EmbeddingSpaceMismatchError; иначе legacy JSON → после загрузки пересохрани в v2). Async-запись — через createWriteStream построчно.
+
+Тесты: 300k items без RangeError в дефолтном режиме; удаление манифеста после записи → битая пара не подхватывается; подмена байта в hnsw → fail-closed; legacy мигрирует.
+
+R6. Security closeout (rate-limit, JWT-отзыв, CORS)
+6.1. isRecognizedApiKey — по реестру, не по префиксу (security.ts):
+
+Ts
+import { ApiKeyManager } from '../services/api-key-manager';
+function isRecognizedApiKey(key: string): boolean {
+  if (!key) return false;
+  const km = ApiKeyManager.getInstance();
+  if (km.isValid(key)) return true;                    // зарегистрированный ключ
+  const envKeys = [process.env.EIDOS_MASTER_KEY, process.env.EIDOS_ADMIN_KEY,
+    process.env.EIDOS_SEARCH_KEY, process.env.EIDOS_API_KEY].filter(Boolean) as string[];
+  return envKeys.some((k) => k.split(',').map((s) => s.trim()).includes(key));
+}
+// keyGenerator: isRecognizedApiKey(k) ? `k:${k}` : `ip:${req.ip}`
+Тест: 100 запросов с eidos_pk_<random> с одного IP → 429 после лимита.
+
+6.2. JWT-отзыв (auth.ts): вытеснять только истёкшие; при переполнении — не терять живые отзывы (персист/отказ с ошибкой); персист через PersistenceStore (адаптируй API); добавить iss/aud. Рекомендовано перейти на jose:
+
+Ts
+import { SignJWT, jwtVerify, createSecretKey } from 'jose';
+const key = createSecretKey(Buffer.from(secret, 'utf8'));
+const { payload } = await jwtVerify(token, key, { algorithms: ['HS256'], issuer: 'eidos', audience: 'eidos-api' });
+// sign: new SignJWT({...}).setProtectedHeader({alg:'HS256'}).setIssuer('eidos').setAudience('eidos-api')
+//   .setJti(crypto.randomUUID()).setExpirationTime(exp).sign(key)
+Реестр:
+
+Ts
+function evictExpired(nowSec: number) { for (const [jti, exp] of registry) if (exp <= nowSec) registry.delete(jti); }
+function revoke(jti: string, expSec: number) {
+  evictExpired(Math.floor(Date.now() / 1000));
+  if (registry.size >= MAX && expSec > nowSec) throw new Error('revocation registry full — persist before evicting live entries');
+  registry.set(jti, expSec); persist(); // PersistenceStore
+}
+Legacy-токены без iss/aud принимай только при EIDOS_JWT_LEGACY=true (задокументируй в MIGRATION). Тесты: отозванный jti → 401 после рестарта и при >1024 отзывов; чужой aud → 401; alg=none → 401.
+
+6.3. CORS: ACAO = origins[0] допустим только при отсутствии заголовка Origin; иначе убрать:
+
+Ts
+fastify.addHook('onSend', async (req, reply, payload) => {
+  reply.header('vary', 'Origin');
+  const o = req.headers.origin;
+  if (isWildcardOrigin) { if (!reply.getHeader('access-control-allow-origin')) reply.header('access-control-allow-origin', '*'); }
+  else if (typeof o === 'string' && origins.includes(o)) {
+    reply.header('access-control-allow-origin', o);
+    reply.header('access-control-allow-credentials', 'true');
+  } // неизвестный Origin → ACAO не выставляем
+  return payload;
+});
+Тест: Origin: https://evil.example → нет ACAO; разрешённый → ACAO+Vary.
+
+R7. P1-4 каталог + P1-5 кэш-ключ
+7.1. auth.ts → isSearchOrPublicReadRoute: замени startsWith('/v1/catalog') на:
+
+Ts
+if (method === 'GET' && (cleanPath === '/v1/catalog/stats'
+  || /^\/v1\/catalog\/items\/[^/]+$/.test(cleanPath) || cleanPath === '/v1/indexes')) return true;
+Тест: search-ключ на листинг GET /v1/catalog/items?page=1 → 403; export остаётся admin.
+
+7.2. search.ts: собери все влияющие на выдачу параметры и передай в CacheKeys.search через filters:
+
+Ts
+const rankingParams = { alpha, mode, fusionMode, fieldImportance, channelWindows,
+  queryShapeBias, minScore, constraints, highlights, facets, diversity, sort, catalogVersion };
+const cacheKey = CacheKeys.search(safeQuery, { ...normalizedFilters, rankingParams }, limit, cacheNamespace);
+Регресс-тест: два запроса, различающиеся только alpha, → второй x-cache: MISS.
+
+R8. P1-6 SAX YML + P1-7 дедупликация (чинит PHPUnit/Python)
+8.1. Если yml-parser.ts всё ещё regex — замени на sax (pnpm --filter @eidos/api add sax), стриминг:
+
+Ts
+import sax from 'sax';
+export function parseYmlStream(stream: NodeJS.ReadableStream, onOffer: (o: CatalogItem) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const s = sax.createStream(true, { trim: true });
+    let cur: any = null, tag = '', text = '';
+    s.on('opentag', (n: any) => { tag = n.name; text = ''; if (n.name === 'offer') cur = { id: n.attributes.id, available: n.attributes.available === 'true', params: {} }; });
+    s.on('text', (t) => { text += t; }); s.on('cdata', (t) => { text += t; });
+    s.on('closetag', (name) => {
+      if (!cur) return;
+      if (name === 'offer') { onOffer(mapOffer(cur)); cur = null; return; }
+      if (['name','vendor','model','description','price','currencyId','categoryId','vendorCode','picture'].includes(name)) cur[name] = text;
+      if (name === 'param') cur.params[text] = true;
+    });
+    s.on('end', resolve); s.on('error', reject); stream.pipe(s);
+  });
+}
+Сохрани SSRF-обёртку safe-fetch и лимит размера. Тесты: &#1089;, CDATA, вложенные param, разный порядок атрибутов; битый XML → ошибка со строкой.
+
+8.2. Канонические пути: Python SDK — packages/sdk/python (legacy packages/python-sdk → deprecated re-export или удалить, обнови CI/доки); Bitrix — connectors/bitrix/eidos.search единственный источник, packages/connectors/bitrix синкай скриптом pack:bitrix или удали. Обнови пути в PHPUnit/CI. Тест: diff -r источников после синка пуст; PHPUnit зелёный.
+
+R9. Widget i18n + router/chunks + semantic cache
+9.1. public/widget.js: проверь заявленное i18n; если нет — добавь data-locale/data-currency, таблицу строк ru/en, цену через Intl.NumberFormat(locale, {style:'currency', currency}); синхронизируй комментарий и ALLOWED_PUBLIC_PREFIXES (судьба eidos_sk_). Тест jsdom: en/USD → $1,299.00.
+
+9.2. UI: react-router-dom (/, /admin, /public-demo, /onboarding, *→Studio), страницы через React.lazy; в vite.config.ts:
+
+Ts
+build: { rollupOptions: { output: { manualChunks: { three: ['three'], transformers: ['@xenova/transformers'], charts: ['recharts'] } } } }
+Критерии: initial JS Studio < 500 КБ gzip; deep-link /admin после refresh работает.
+
+9.3. EIDOS_SEMANTIC_CACHE по умолчанию false; включать только после eval (R10) с доказанным отсутствием cross-query ошибок; в ключ — embeddingSpaceId.
+
+R10. P2 минимум (честность и качество)
+README: «Neural Cross-Encoder» → HeuristicReranker (переименуй класс, оставь alias) или реальная модель под флагом; кластер → experimental, in-process simulation + бейдж «SIMULATION» в ClusterTopologyView; цифры тестов/покрытия из CI-артефакта; сайзинг из реального k6; Caddy в prod-compose добавь или убери из README.
+
+Eval-harness: расширь scripts/eval_golden.ts до ≥200 RU/EN запросов (синонимы, опечатки, SKU, zero-result), метрики nDCG@10/Recall@100/zero-result-rate/p95; nightly CI job с артефактом; регресс nDCG > 2 п.п. → fail.
+
+Playwright job в CI: pilot-стек + сценарии (login админки, demo load, поиск витрины, widget на тестовой HTML, X-Ray); trace/скриншоты при падении.
+
+Consent: кинетика/хроно — opt-in баннер; widget телеметрия data-telemetry="off" по умолчанию для ЕС-конфига; docs/PRIVACY.md.
+
+R11. Финальная приёмка
+Обнови scripts/smoke.sh (добавь проверки):
+
+Bash
+expect 200 "$BASE/admin"                       # SPA в контейнере
+expect 404 "$BASE/assets/missing.js"
+expect 401 "$BASE/metrics"                     # prod без ключа
+expect 401 -X POST "$BASE/v1/analytics/funnel/event" -H 'content-type: application/json' -d '{"type":"click"}'
+expect 403 "$BASE/v1/catalog/export?format=csv" -H "x-api-key: $KEY"
+expect 200 "$BASE/v1/catalog/export?format=csv" -H "x-api-key: $ADMIN"
+Финальный чек-лист (всё истинно):
+
+
+CI полностью зелёный на чистом checkout (включая PHPUnit/Python)
+
+pnpm test зелёный без патчей; ни один ассерт не ослаблен
+
+Sabotage: 503 < 1 с; порт-валидация; uncaught/unhandled логируются; shutdown с force-таймаутом
+
+Контейнер отдаёт /admin, /public-demo, /widget.js; .wasm MIME; ассеты 404
+
+Модель запечена, offline+strict ведёт себя предсказуемо; RU-синонимный тест проходит
+
+NDJSON по умолчанию; 300k без RangeError; битая пара отклоняется; legacy мигрирует
+
+Мусорные ключи → 429; отозванный JWT → 401 после рестарта и при >1024; CORS без чужого ACAO
+
+grep -rn "inject_\|verify_injects" .github scripts package.json → пусто
+
+MIGRATION.md/README без оверклеймов
+12. Порядок и отчётность
+Порядок: R1 → R2 → R3 → R6 → R4 → R5 → R7 → R8 → R9 → R10 → R11. (R4/R5 после R3/R6, т.к. меняют данные и требуют реиндекса.)
+После каждого блока:
+
+Code
+Блок: RN | Ветка: fix/rN-… | Файлы: … | Тесты: N added (red→green)
+DoD: lint ✅ test ✅ build ✅ docker ✅ smoke ✅
+Риски/несовместимости: … (MIGRATION.md)
+Расхождения ТЗ с HEAD: …
+Начни с R1: приложи логи упавших job'ов, причину «Setup pnpm» и дифф фикса. Не переходи дальше с красным DoD.
+
+═══════════════════ КОНЕЦ ПРОМТА ═══════════════════
+
+Как использовать: вставьте целиком в агента с доступом к репо; требуйте выполнения по одному блоку. Самые рискованные — R4/R5 (смена пространства эмбеддингов и формата снапшотов): отдельный PR, прогон на копии данных, реиндекс через POST /v1/admin/reindex. Если агент начнёт «чинить» тесты вместо продукта — возвращайте к правилу №1 и требуйте red→green. Могу afterwards отревьюить первые PR по этому промту или расписать eval-датасет для R10

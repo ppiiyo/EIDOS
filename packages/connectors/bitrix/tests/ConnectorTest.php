@@ -84,19 +84,16 @@ final class ConnectorTest extends AbstractConnectorContractTest
 
                 if ($path === '/v1/catalog/upsert' && $method === 'POST' && $body !== null) {
                     if (isset($body['items']) && is_array($body['items'])) {
-                        $upsertedCount = 0;
-                        foreach ($body['items'] as $batchItem) {
-                            if (is_array($batchItem) && isset($batchItem['id'])) {
-                                $itemId = (string) $batchItem['id'];
-                                $this->eidosIndexedStore[$itemId] = $batchItem;
-                                $upsertedCount++;
+                        foreach ($body['items'] as $item) {
+                            if (is_array($item) && isset($item['id'])) {
+                                $this->eidosIndexedStore[(string) $item['id']] = $item;
                             }
                         }
                         return [
                             'status' => 200,
                             'body' => [
                                 'success' => true,
-                                'upserted' => $upsertedCount,
+                                'upserted' => count($body['items']),
                                 'failed' => 0,
                             ],
                             'error' => null,
@@ -105,14 +102,11 @@ final class ConnectorTest extends AbstractConnectorContractTest
                     }
 
                     $id = (string) ($body['id'] ?? '');
-                    if ($id !== '') {
-                        $this->eidosIndexedStore[$id] = $body;
-                    }
+                    $this->eidosIndexedStore[$id] = $body;
                     return [
                         'status' => 200,
                         'body' => [
                             'success' => true,
-                            'upserted' => $id !== '' ? 1 : 0,
                             'item' => [
                                 'id' => $id,
                                 'title' => $body['title'] ?? '',

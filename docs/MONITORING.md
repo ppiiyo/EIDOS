@@ -38,8 +38,8 @@ Configs:
 
 | Workflow | Trigger | Role |
 |----------|---------|------|
-| `ci.yml` | push / PR to `main` | Build, lint, unit & integration tests (Node 20 & 22), PHPUnit, Python SDK |
-| `php-connectors.yml` | push / PR | PHP 8.2 syntax lint & Bitrix autoload verification |
+| `ci.yml` | push / pull_request | Build, typecheck, full unit/integration test suite, coverage gate, PHP connectors, Python SDK |
+| `php-connectors.yml` | push / pull_request | PHP syntax lint and Bitrix autoload verification |
 
 Local smoke check:
 

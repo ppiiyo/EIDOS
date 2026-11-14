@@ -173,6 +173,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
           );
           const alreadyReady = Boolean(currentReady?.searchReady) && initialItems >= 1000;
 
+          let loadedCountFromSeed = 0;
           if (!alreadyReady && !demoBootCompletedRef.current) {
             setVitrinePhase('loading_catalog');
             setIsIndexingDemo(true);
@@ -185,6 +186,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                 body: JSON.stringify({ scale: '1000' }),
               });
               const loadJson = loadRes.ok ? await loadRes.json().catch(() => null) : null;
+              loadedCountFromSeed = Number(loadJson?.itemsLoaded ?? 0);
 
               const deadline = Date.now() + 15000;
               while (Date.now() < deadline && !signal?.aborted) {
@@ -201,7 +203,7 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
                 const polledItems = Math.max(
                   Number(currentReady?.itemsIndexed ?? 0),
                   Number(st?.itemsIndexed ?? 0),
-                  Number(loadJson?.itemsLoaded ?? 0)
+                  loadedCountFromSeed
                 );
                 if (Boolean(currentReady?.searchReady) && polledItems > 0) {
                   break;
@@ -232,7 +234,8 @@ export const EidosAdminConsole: React.FC<EidosAdminConsoleProps> = ({
 
           const resolvedItems = Math.max(
             Number(currentReady?.itemsIndexed ?? 0),
-            Number(st?.itemsIndexed ?? 0)
+            Number(st?.itemsIndexed ?? 0),
+            loadedCountFromSeed
           );
 
           // Synchronize BOTH readyPayload and catalogSummary so searchReady is never stale

@@ -4,9 +4,9 @@
 
 | Job | Command | Notes |
 |-----|---------|--------|
-| Typecheck | `pnpm lint` | required |
+| Typecheck | `pnpm lint` (`tsc` core / sdk / api / workspace) | required |
 | Full suite | `pnpm test` | required (Node 20 + 22) |
-| Coverage | `vitest run --coverage packages/core/src/tests` | core thresholds ≥80% lines, ≥75% branches |
+| Coverage | `pnpm exec vitest run --coverage packages/core/src/tests` | core thresholds ≥80% lines, ≥75% branches |
 | PHP | lint + autoload + PHPUnit | required |
 | Python SDK | `pytest -q packages/sdk/python` | required |
 | Build | core + sdk + workspace | required |
