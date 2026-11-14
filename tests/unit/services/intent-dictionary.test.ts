@@ -103,7 +103,12 @@ describe('Phase 1 Regression: /v1/search with EIDOS_FEATURE_INTENT_AWARE_SEARCH'
     app = await buildServer();
     await app.ready();
     await app.inject({ method: 'POST', url: '/v1/demo/load' });
-    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
+    await app.inject({
+      method: 'POST',
+      url: '/v1/catalog/upsert',
+      headers: { 'x-api-key': 'eidos_dev_key' },
+      payload: { items: DEMO_CATALOG },
+    });
   });
 
   afterAll(async () => {

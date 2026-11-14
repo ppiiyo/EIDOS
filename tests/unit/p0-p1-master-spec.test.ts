@@ -43,14 +43,23 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
     app = await buildServer();
     await app.ready();
 
-    // Seed the 1,048 SKU catalog into default store via /v1/demo/load
+    // Seed the 1,048 SKU catalog into demo and default stores via public HTTP API
     const loadRes = await app.inject({
       method: 'POST',
       url: '/v1/demo/load',
       payload: {},
     });
     expect(loadRes.statusCode).toBe(200);
-    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG_1000);
+    for (let i = 0; i < DEMO_CATALOG_1000.length; i += 500) {
+      const batch = DEMO_CATALOG_1000.slice(i, i + 500);
+      const upRes = await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': ADMIN_KEY },
+        payload: { items: batch },
+      });
+      expect(upRes.statusCode).toBe(200);
+    }
   }, 60_000);
 
   afterAll(async () => {
@@ -89,7 +98,6 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
     expect(shortRes.statusCode).toBe(200);
     expect(shortRes.json().results).toEqual([]);
 
-    let goldenHits = 0;
     for (const q of GOLDEN_20_QUERIES) {
       const [searchRes, suggestRes] = await Promise.all([
         app.inject({
@@ -113,14 +121,10 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
       const suggestBody = suggestRes.json();
       const suggestIds = suggestBody.results.map((r: any) => r.id);
 
+      expect(searchIds.length).toBeGreaterThan(0);
       expect(suggestIds).toEqual(searchIds);
-      if (searchIds.length === 0) {
-        continue;
-      }
-      goldenHits += 1;
       expect(suggestBody.results[0].url).toBeTruthy();
     }
-    expect(goldenHits).toBeGreaterThanOrEqual(10);
   });
 
   it('3. normalize.layout & light typo: layoutConvert(yfeiybrb)->наушники and перфоратр->перфоратор with humanExplanation prefix', async () => {
@@ -181,11 +185,13 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
     expect(res.statusCode).toBe(200);
     const results = res.json().results;
     expect(results.length).toBeGreaterThan(0);
-    const headphoneHits = results.filter((item: any) => {
+    for (const item of results) {
       const text = `${item.title} ${item.category}`.toLowerCase();
-      return text.includes('наушник') || text.includes('аудио') || text.includes('headphone');
-    });
-    expect(headphoneHits.length).toBeGreaterThanOrEqual(Math.min(3, results.length));
+      expect(text).not.toContain('кроссовк');
+      expect(
+        text.includes('наушник') || text.includes('аудио') || text.includes('headphone')
+      ).toBe(true);
+    }
   });
 
   it('6. synonym.roundtrip: POST /v1/admin/dictionaries/synonyms + test preview + search rewrite', async () => {
@@ -390,7 +396,16 @@ describe('EIDOS Master Spec (P0 + P1) Automated Acceptance Suite', () => {
       payload: {},
     });
     expect(reloadRes.statusCode).toBe(200);
-    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG_1000);
+    for (let i = 0; i < DEMO_CATALOG_1000.length; i += 500) {
+      const batch = DEMO_CATALOG_1000.slice(i, i + 500);
+      const upRes = await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': ADMIN_KEY },
+        payload: { items: batch },
+      });
+      expect(upRes.statusCode).toBe(200);
+    }
 
     const readyAfterLoadRes = await app.inject({
       method: 'GET',

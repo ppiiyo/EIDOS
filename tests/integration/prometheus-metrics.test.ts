@@ -32,12 +32,17 @@ describe('PHASE 3: Prometheus Metrics & Observability Integration Suite', () => 
     expect(initialHealthRes.json().itemsIndexed).toBe(0);
     expect(initialHealthRes.json().initializedEmpty).toBe(true);
 
-    // Load demo catalog into demo + default stores (recommend hits default:default)
+    // Load demo catalog into demo + default stores via public HTTP API
     await app.inject({
       method: 'POST',
       url: '/v1/demo/load',
     });
-    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
+    await app.inject({
+      method: 'POST',
+      url: '/v1/catalog/upsert',
+      headers: { 'x-api-key': process.env.EIDOS_API_KEY || 'eidos_dev_key' },
+      payload: { items: DEMO_CATALOG },
+    });
 
     Metrics.reset();
 

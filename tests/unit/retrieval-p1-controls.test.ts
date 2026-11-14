@@ -99,27 +99,21 @@ describe('EIDOS Engine P1 — High-ROI Retrieval Controls (PR1–PR5 & Golden G1
       });
       expect(defaultRes.statusCode).toBe(200);
       const defaultBody = defaultRes.json();
-      expect(defaultBody.results.length).toBeGreaterThanOrEqual(2);
+      expect(defaultBody.results.length).toBe(3);
       const ids = defaultBody.results.map((r: { id: string }) => r.id);
-      expect(ids).toContain('item-title-match');
-      expect(ids).toContain('item-desc-only');
-      expect(ids.indexOf('item-title-match')).toBeLessThan(ids.indexOf('item-desc-only'));
-      if (ids.includes('item-sku-match')) {
-        expect(ids[0]).toBe('item-sku-match');
-      }
+      expect(ids).toEqual(['item-sku-match', 'item-title-match', 'item-desc-only']);
 
       const topHit = defaultBody.results[0];
+      expect(topHit.id).toBe('item-sku-match');
       expect(Array.isArray(topHit.explanation.lexicalFieldContributions)).toBe(true);
       expect(topHit.explanation.lexicalFieldContributions.length).toBeGreaterThan(0);
-      if (topHit.id === 'item-sku-match') {
-        const skuContrib = topHit.explanation.lexicalFieldContributions.find(
-          (c: { field: string }) => c.field === 'sku'
-        );
-        expect(skuContrib).toBeDefined();
-        expect(skuContrib.boost).toBe(DEFAULT_FIELD_BOOSTS.sku);
-        expect(skuContrib.contribution).toBeGreaterThan(0);
-        expect(topHit.humanExplanation.ru).toContain('Сильное совпадение по артикулу/названию');
-      }
+      const skuContrib = topHit.explanation.lexicalFieldContributions.find(
+        (c: { field: string }) => c.field === 'sku'
+      );
+      expect(skuContrib).toBeDefined();
+      expect(skuContrib.boost).toBe(DEFAULT_FIELD_BOOSTS.sku);
+      expect(skuContrib.contribution).toBeGreaterThan(0);
+      expect(topHit.humanExplanation.ru).toContain('Сильное совпадение по артикулу/названию');
 
       // 2. Flip ranking with fieldBoosts: { description: 15, title: 1, sku: 0.5 }
       const flippedRes = await app.inject({
@@ -839,10 +833,31 @@ describe('EIDOS Engine P1 — High-ROI Retrieval Controls (PR1–PR5 & Golden G1
     });
 
     it('K1: caches identical query (cacheHit: true) and invalidates cache on catalog upsert (catalogVersion++)', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': ADMIN_KEY },
+        payload: {
+          items: [
+            {
+              id: 'cache-seed-shoe-0',
+              sku: 'SHOE-CB-0',
+              brand: 'Asics',
+              title: 'Беговые кроссовки Asics Gel-Kayano',
+              description: 'Амортизирующие кроссовки для бега',
+              category: 'Обувь и кроссовки',
+              price: 8990,
+              inStock: true,
+            },
+          ],
+        },
+      });
+
       const qPayload = { query: 'беговые кроссовки', limit: 5 };
       const first = await app.inject({
         method: 'POST',
-        url: '/v1/demo/search',
+        url: '/v1/search',
+        headers: { 'x-api-key': PUBLIC_KEY },
         payload: qPayload,
       });
       expect(first.statusCode).toBe(200);
@@ -851,7 +866,8 @@ describe('EIDOS Engine P1 — High-ROI Retrieval Controls (PR1–PR5 & Golden G1
 
       const second = await app.inject({
         method: 'POST',
-        url: '/v1/demo/search',
+        url: '/v1/search',
+        headers: { 'x-api-key': PUBLIC_KEY },
         payload: qPayload,
       });
       expect(second.statusCode).toBe(200);
@@ -859,24 +875,31 @@ describe('EIDOS Engine P1 — High-ROI Retrieval Controls (PR1–PR5 & Golden G1
       expect(secondJson.meta.cacheHit).toBe(true);
       expect(secondJson.meta.catalogVersion).toBe(firstJson.meta.catalogVersion);
 
-      const demoStore = app.storeRegistry.getOrCreateStore('demo', 'demo');
-      demoStore.upsert({
-        id: 'cache-bust-shoe-1',
-        sku: 'SHOE-CB-1',
-        brand: 'Asics',
-        title: 'Беговые кроссовки Asics CloudSpeed',
-        description: 'Cache bust fixture',
-        category: 'Обувь и кроссовки',
-        price: 7990,
-        inStock: true,
-        tags: ['кроссовки'],
-        url: '/product/cache-bust-shoe-1',
-        embedding: new Array(384).fill(0.01),
+      const upsertRes = await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': ADMIN_KEY },
+        payload: {
+          items: [
+            {
+              id: 'cache-bust-shoe-1',
+              sku: 'SHOE-CB-1',
+              brand: 'Asics',
+              title: 'Беговые кроссовки Asics CloudSpeed',
+              description: 'Cache bust fixture',
+              category: 'Обувь и кроссовки',
+              price: 7990,
+              inStock: true,
+            },
+          ],
+        },
       });
+      expect(upsertRes.statusCode).toBe(200);
 
       const third = await app.inject({
         method: 'POST',
-        url: '/v1/demo/search',
+        url: '/v1/search',
+        headers: { 'x-api-key': PUBLIC_KEY },
         payload: qPayload,
       });
       expect(third.statusCode).toBe(200);

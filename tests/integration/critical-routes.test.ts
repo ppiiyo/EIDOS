@@ -40,8 +40,12 @@ describe('Critical API Routes Integration Tests', () => {
         method: 'POST',
         url: '/v1/demo/load',
       });
-      // Protected /v1/search and /v1/recommend use default:default — seed it too.
-      await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
+      await app.inject({
+        method: 'POST',
+        url: '/v1/catalog/upsert',
+        headers: { 'x-api-key': process.env.EIDOS_API_KEY || 'eidos_dev_key' },
+        payload: { items: DEMO_CATALOG },
+      });
     });
 
     it('POST /v1/demo/search should return 200 and results', async () => {

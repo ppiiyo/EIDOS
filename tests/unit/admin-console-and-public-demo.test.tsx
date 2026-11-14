@@ -637,7 +637,7 @@ describe('EIDOS Admin Console + Public Demo Acceptance Suite (v3.4.0)', () => {
 
     const passRate = passedCount / pilotMatrix.length;
     expect(passRate).toBeGreaterThanOrEqual(0.8);
-    expect(passedCount).toBeGreaterThanOrEqual(12);
+    expect(passedCount).toBe(15);
   });
 
   it('13. Verifies UI Reconstruction Spec (Product Shell v1): Studio badge, Admin Key login gate, and Storefront 3-item IA', () => {

@@ -224,7 +224,16 @@ export async function catalogRoutes(
         for (let i = 0; i < validItems.length; i++) {
           const it = validItems[i];
           if (!it.embedding || it.embedding.length === 0) {
-            const text = `${it.title}. ${it.category}. ${it.tags.join(', ')}. ${it.description}`;
+            const text = [
+              it.title,
+              it.sku,
+              it.brand,
+              it.category,
+              it.tags.join(', '),
+              it.description,
+            ]
+              .filter(Boolean)
+              .join('. ');
             needingEmbeddings.push({ index: i, text });
           }
         }
@@ -325,7 +334,16 @@ export async function catalogRoutes(
 
       let embedding = validated.embedding;
       if (!embedding || embedding.length === 0) {
-        const text = `${cleanTitle}. ${validated.category}. ${validated.tags.join(', ')}. ${cleanDesc}`;
+        const text = [
+          cleanTitle,
+          validated.sku,
+          validated.brand,
+          validated.category,
+          validated.tags.join(', '),
+          cleanDesc,
+        ]
+          .filter(Boolean)
+          .join('. ');
         const vec = await withTimeout(opts.embedder.embed(text), 5_000, 'catalog.upsertEmbed');
         embedding = Array.from(vec);
       }

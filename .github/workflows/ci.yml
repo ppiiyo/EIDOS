@@ -1,154 +1,99 @@
-name: CI
+name: EIDOS CI Pipeline
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  JWT_SECRET: test-jwt-secret-at-least-24chars!!
-  VITEST: '1'
-  NODE_ENV: test
-  EIDOS_ONNX_EMBEDDER: 'false'
-  CORS_ORIGIN: http://localhost:3000
-
 jobs:
-  lint-and-typecheck:
-    name: Lint & Typecheck
+  verify:
+    name: Build, Lint, Test & Coverage
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - run: |
-          pnpm --filter @eidos/core build
-          pnpm --filter @eidos/sdk build
-      - name: Typecheck workspaces
-        run: |
-          pnpm --filter @eidos/core exec tsc --noEmit
-          pnpm --filter @eidos/sdk exec tsc --noEmit
-          pnpm --filter @eidos/api exec tsc --noEmit
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      NODE_ENV: test
+      EIDOS_API_KEY: ci-test-secret-key-at-least-32-chars-long
+      JWT_SECRET: ci-jwt-secret-key-at-least-32-chars-long
 
-  unit-tests:
-    name: Full test suite (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [20, 22]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 9.15.4
-      - uses: actions/setup-node@v4
+          version: 9
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - run: |
-          pnpm --filter @eidos/core build
-          pnpm --filter @eidos/sdk build
-      - name: Apply product + acceptance injects
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify zero Python mutation scripts in scripts/
         run: |
-          set -euo pipefail
-          for s in scripts/inject_*.py; do
-            echo "=== $s ==="
-            python3 "$s"
-          done
-      - name: Verify inject markers
-        run: bash scripts/verify_injects.sh
-      - name: Run full Vitest suite
-        run: |
-          mkdir -p data
-          pnpm test
-      - name: Coverage thresholds (packages/core only)
-        if: matrix.node-version == 20
-        run: |
-          mkdir -p data
-          pnpm exec vitest run --coverage packages/core/src/tests
+          if ls scripts/*.py 2>/dev/null; then
+            echo "FATAL: CI mutation scripts in scripts/ are forbidden."
+            exit 1
+          fi
+
+      - name: Typecheck & Lint
+        run: pnpm run lint
+
+      - name: Verify UI hardcoded API keys guard
+        run: bash scripts/check-ui-keys.sh
+
+      - name: Build all workspaces (@eidos/core, @eidos/sdk, @eidos/api, @eidos/workspace)
+        run: pnpm run build
+
+      - name: Run Unit, Integration & Security Tests
+        run: pnpm test
+
+      - name: Run @eidos/core Coverage Gate
+        run: pnpm run test:coverage
 
   php-connectors:
-    name: PHP connectors lint
+    name: PHP 8.2 Connectors (Syntax + Autoload + PHPUnit)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          coverage: none
-      - name: Lint PHP
+          tools: composer, phpunit
+      - name: Lint all PHP files
         run: |
-          set -euo pipefail
-          mapfile -d '' files < <(find packages/connectors connectors -name '*.php' -print0 2>/dev/null || true)
-          if [ "${#files[@]}" -eq 0 ]; then echo "No PHP files"; exit 1; fi
-          printf '%s\0' "${files[@]}" | xargs -0 -n1 php -l
-      - name: Bitrix autoload
+          find connectors packages/connectors -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Verify Bitrix include.php autoload
+        run: php scripts/verify-bitrix-autoload.php
+      - name: Run Bitrix & WooCommerce PHPUnit suites
         run: |
-          if [ -f scripts/verify-bitrix-autoload.php ]; then
-            php scripts/verify-bitrix-autoload.php
-          fi
+          cd connectors/bitrix && composer install --no-interaction && vendor/bin/phpunit
+          cd ../woocommerce && composer install --no-interaction && vendor/bin/phpunit
 
-  python-sdk-tests:
-    name: Python SDK
+  python-sdk:
+    name: Python 3.11 SDK Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Pytest
+      - name: Install & Test Python SDK
         run: |
-          pip install pytest -q
-          if [ -d packages/sdk/python ]; then
-            pip install -e packages/sdk/python -q
-            pytest -q packages/sdk/python
-          elif [ -d packages/python-sdk ]; then
-            pip install -e packages/python-sdk -q
-            pytest -q packages/python-sdk
-          else
-            echo "No Python SDK package"
-            exit 0
-          fi
-
-  build:
-    name: Build artifacts
-    runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, unit-tests]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
-      - name: Build workspace UI
-        run: pnpm --filter @eidos/workspace build
-      - name: Verify artifacts
-        run: |
-          test -s packages/core/dist/index.js
-          test -s packages/core/dist/index.d.ts
-          test -s packages/sdk/dist/index.js
-          test -s packages/sdk/dist/index.d.ts
-
-  production-gate:
-    name: Production gate
-    runs-on: ubuntu-latest
-    needs: [build, php-connectors]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - run: echo "CI production gate passed for ${{ github.sha }}"
+          pip install -e "./packages/sdk/python[dev]"
+          pytest packages/sdk/python/tests

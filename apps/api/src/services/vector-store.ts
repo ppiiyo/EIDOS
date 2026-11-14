@@ -1525,15 +1525,39 @@ export class VectorStore {
         }
       }
 
-      // High-selectivity filter fallback (e.g. 0.1% filter selectivity) or small catalog exact completion
+      // High-selectivity filter fallback (e.g. 0.1% filter selectivity), Category Hard Gate pre-fill, or small catalog exact completion
       const targetMinDense = Math.min(effectiveDenseWindow, candidatesAfterFilter);
+      const matchingCatDenseCount =
+        gateMode === 'hard' && headIntent.hasHeadCategoryIntent
+          ? denseCandidates.filter(
+              (c) =>
+                evaluateCandidateCategoryGate(
+                  headIntent,
+                  c.item,
+                  gateMode,
+                  activeCustomFamilies
+                ).passesHardGate
+            ).length
+          : denseCandidates.length;
+
       if (
-        denseCandidates.length < targetMinDense &&
-        (filteredItems !== null || candidatesBeforeFilter <= 250)
+        (denseCandidates.length < targetMinDense &&
+          (filteredItems !== null || candidatesBeforeFilter <= 250)) ||
+        (gateMode === 'hard' &&
+          headIntent.hasHeadCategoryIntent &&
+          matchingCatDenseCount < Math.min(effectiveDenseWindow, 15))
       ) {
         const poolToScan = filteredItems ?? Array.from(this.items.values());
         for (const stored of poolToScan) {
           if (denseScoredById.has(stored.id)) continue;
+          if (
+            gateMode === 'hard' &&
+            headIntent.hasHeadCategoryIntent &&
+            !evaluateCandidateCategoryGate(headIntent, stored, gateMode, activeCustomFamilies)
+              .passesHardGate
+          ) {
+            continue;
+          }
           const vec = stored.normalizedVector || stored.embedding;
           const exactDense = Math.max(0, cosineSimilarity(qVec, vec));
           denseScoredById.set(stored.id, exactDense);
@@ -1545,6 +1569,21 @@ export class VectorStore {
     }
 
     denseCandidates.sort((a, b) => {
+      if (gateMode === 'hard' && headIntent.hasHeadCategoryIntent) {
+        const aPass = evaluateCandidateCategoryGate(
+          headIntent,
+          a.item,
+          gateMode,
+          activeCustomFamilies
+        ).passesHardGate;
+        const bPass = evaluateCandidateCategoryGate(
+          headIntent,
+          b.item,
+          gateMode,
+          activeCustomFamilies
+        ).passesHardGate;
+        if (aPass !== bPass) return aPass ? -1 : 1;
+      }
       if (Math.abs(b.exactDense - a.exactDense) > 1e-9) {
         return b.exactDense - a.exactDense;
       }
@@ -1740,7 +1779,19 @@ export class VectorStore {
       if (denseWeight === 0 && sparseScore <= 0 && guardrail.totalLexicalMatchCount === 0) {
         passesGate = false;
       }
-      if (minScoreThreshold > 0 && rawScore < minScoreThreshold && exactDense < minScoreThreshold) {
+      const calibratedFloorScore =
+        rawScore +
+        (isSingleChannelOrPureRrf
+          ? normSparseShare *
+              (guardrail.consistencyBoost * 0.08 + Math.min(0.06, sparseScore * 0.008)) +
+            normDenseShare * (exactDense * 0.16)
+          : 0);
+      if (
+        minScoreThreshold > 0 &&
+        calibratedFloorScore < minScoreThreshold &&
+        exactDense < minScoreThreshold &&
+        !(sparseScore > 0 && guardrail.totalLexicalMatchCount > 0 && minScoreThreshold <= 0.15)
+      ) {
         passesGate = false;
       }
 

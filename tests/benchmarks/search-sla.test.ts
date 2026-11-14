@@ -213,7 +213,7 @@ describe('Phase 3 Task 3.1: Performance Benchmarks & SLA Verification', () => {
     expect(p99).toBeLessThan(15);
   });
 
-  it('meets Batch Indexing SLA (< 3s for 1K documents on CI CPU)', () => {
+  it('@perf meets Batch Indexing SLA (< 3s for 1K documents on CI CPU, see docs/perf-budgets.md)', () => {
     const batchItems = Array.from({ length: BATCH_INDEX_SIZE }, (_, idx) => ({
       id: `batch-sla-${idx}`,
       vector: createDeterministicVector(idx + 90_000),

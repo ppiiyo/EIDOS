@@ -97,7 +97,12 @@ describe('Phase 2: SearchFunnelService & /v1/analytics/funnel — 5 Tests + Regr
   it('5. Regression: /v1/search and /v1/feedback preserve all existing response fields while feeding funnel', async () => {
     app.funnelService.clear();
     await app.inject({ method: 'POST', url: '/v1/demo/load' });
-    await app.storeRegistry.getOrCreateStore('default', 'default').loadDemoCatalog(DEMO_CATALOG);
+    await app.inject({
+      method: 'POST',
+      url: '/v1/catalog/upsert',
+      headers: { 'x-api-key': 'eidos_dev_key' },
+      payload: { items: DEMO_CATALOG },
+    });
 
     const sRes = await app.inject({
       method: 'POST',

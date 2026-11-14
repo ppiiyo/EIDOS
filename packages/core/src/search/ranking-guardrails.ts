@@ -288,7 +288,28 @@ export const PRODUCT_CATEGORY_FAMILIES: ReadonlyArray<CategoryFamilySpec> = [
     canonicalRu: 'бытовая техника',
     canonicalEn: 'home appliances',
     queryStems: ['пылесос', 'робот-пылесос', 'уборк', 'стиральн', 'холодильник', 'аэрогриль', 'блендер'],
-    itemStems: ['пылесос', 'робот-пылесос', 'бытовая техника', 'уборк', 'dreame', 'roborock', 'dyson', 'delonghi'],
+    itemStems: ['пылесос', 'робот-пылесос', 'бытовая техника', 'уборк', 'dreame', 'roborock', 'dyson', 'delonghi', 'блендер', 'braun'],
+  },
+  {
+    id: 'backpacks',
+    canonicalRu: 'рюкзаки и сумки',
+    canonicalEn: 'backpacks & bags',
+    queryStems: ['рюкзак', 'сумк', 'чемодан', 'backpack'],
+    itemStems: ['рюкзак', 'сумк', 'чемодан', 'backpack', 'bobby', 'thule'],
+  },
+  {
+    id: 'dashcams',
+    canonicalRu: 'видеорегистраторы',
+    canonicalEn: 'dashcams',
+    queryStems: ['видеорегистратор', 'регистратор', 'dashcam'],
+    itemStems: ['видеорегистратор', 'регистратор', '70mai', 'dashcam'],
+  },
+  {
+    id: 'cosmetics',
+    canonicalRu: 'красота и уход',
+    canonicalEn: 'beauty & skincare',
+    queryStems: ['крем', 'сыворотк', 'гиалуронов', 'увлажняющ'],
+    itemStems: ['крем', 'сыворотк', 'гиалуронов', 'увлажняющ', 'cerave', 'красота'],
   },
   {
     id: 'tools',
@@ -582,6 +603,29 @@ export function normalizeQueryWithLayoutRecovery(rawQuery: string): NormalizedQu
  * Automatically derives CategoryFamilySpec entries from an arbitrary client catalog's actual categories
  * using token frequency analysis and morphological stem extraction (zero hardcoded demo words).
  */
+const DYNAMIC_CATEGORY_GENERIC_STOPWORDS = new Set([
+  'товар',
+  'товары',
+  'товаров',
+  'детск',
+  'детские',
+  'детский',
+  'детская',
+  'мужск',
+  'мужские',
+  'женск',
+  'женские',
+  'бытов',
+  'бытовая',
+  'техник',
+  'техника',
+  'аксессуар',
+  'аксессуары',
+  'проч',
+  'разн',
+  'общ',
+]);
+
 export function buildDynamicCategoryFamiliesFromCatalog(
   items: ReadonlyArray<{ category?: string; title?: string; tags?: string[] }>
 ): CategoryFamilySpec[] {
@@ -598,34 +642,76 @@ export function buildDynamicCategoryFamiliesFromCatalog(
     const rawTokens = cleanLower
       .split(/[\s,_\-—/()&+]+/)
       .map((t) => t.trim())
-      .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+      .filter(
+        (t) =>
+          t.length >= 3 &&
+          !STOPWORDS.has(t) &&
+          !DYNAMIC_CATEGORY_GENERIC_STOPWORDS.has(t)
+      );
     if (rawTokens.length === 0) continue;
 
-    const stems = new Set<string>();
-    stems.add(cleanLower);
+    const queryStems = new Set<string>();
+    const itemStems = new Set<string>();
+    itemStems.add(cleanLower);
     for (const tok of rawTokens) {
-      stems.add(tok);
+      if (!DYNAMIC_CATEGORY_GENERIC_STOPWORDS.has(tok)) {
+        queryStems.add(tok);
+      }
+      itemStems.add(tok);
       if (tok.length >= 5) {
-        stems.add(tok.slice(0, tok.length - 1));
+        const s1 = tok.slice(0, tok.length - 1);
+        if (!DYNAMIC_CATEGORY_GENERIC_STOPWORDS.has(s1)) queryStems.add(s1);
+        itemStems.add(s1);
       }
       if (tok.length >= 6) {
-        stems.add(tok.slice(0, tok.length - 2));
+        const s2 = tok.slice(0, tok.length - 2);
+        if (!DYNAMIC_CATEGORY_GENERIC_STOPWORDS.has(s2)) queryStems.add(s2);
+        itemStems.add(s2);
       }
     }
 
     const id = `dyn_${cleanLower.replace(/[^a-zа-яё0-9]+/gi, '_').replace(/^_|_$/g, '')}`;
-    const stemArr = Array.from(stems).filter((s) => s.length >= 3);
-    if (stemArr.length > 0) {
+    const qStemArr = Array.from(queryStems).filter((s) => s.length >= 3);
+    const iStemArr = Array.from(itemStems).filter((s) => s.length >= 3);
+    if (qStemArr.length > 0) {
       families.push({
         id,
         canonicalRu: catName,
         canonicalEn: catName,
-        queryStems: stemArr,
-        itemStems: stemArr,
+        queryStems: qStemArr,
+        itemStems: iStemArr,
       });
     }
   }
   return families;
+}
+
+function mergeCategoryFamilies(
+  customFamilies?: ReadonlyArray<CategoryFamilySpec>
+): {
+  primaryFamilies: ReadonlyArray<CategoryFamilySpec>;
+  dynamicFamilies: ReadonlyArray<CategoryFamilySpec>;
+  allFamilies: ReadonlyArray<CategoryFamilySpec>;
+} {
+  if (!customFamilies || customFamilies.length === 0) {
+    return {
+      primaryFamilies: PRODUCT_CATEGORY_FAMILIES,
+      dynamicFamilies: [],
+      allFamilies: PRODUCT_CATEGORY_FAMILIES,
+    };
+  }
+  const explicitCustom = customFamilies.filter((f) => !f.id.startsWith('dyn_'));
+  const dynamicCustom = customFamilies.filter((f) => f.id.startsWith('dyn_'));
+  const primaryFamilies =
+    explicitCustom.length > 0
+      ? [...explicitCustom, ...PRODUCT_CATEGORY_FAMILIES]
+      : PRODUCT_CATEGORY_FAMILIES;
+  const allFamilies = [...primaryFamilies, ...dynamicCustom];
+  return {
+    primaryFamilies,
+    dynamicFamilies: dynamicCustom,
+    allFamilies,
+  };
 }
 
 /**
@@ -639,11 +725,7 @@ export function extractHeadCategoryIntent(
 ): HeadCategoryIntent {
   const qInfo = normalizeQueryWithLayoutRecovery(rawQuery);
   const lower = qInfo.normalizedQuery.toLowerCase();
-  // EIDOS-104: prefer caller families.
-  const activeFamilies: ReadonlyArray<CategoryFamilySpec> =
-    customFamilies && customFamilies.length > 0
-      ? customFamilies
-      : PRODUCT_CATEGORY_FAMILIES;
+  const { primaryFamilies, dynamicFamilies } = mergeCategoryFamilies(customFamilies);
 
   const isBudgetIntent = qInfo.isBudgetIntent;
   const isPremiumIntent = /(премиум|премиальн|флагман|дорог|топов|люкс|premium|flagship|luxury|high-end)/i.test(lower);
@@ -656,9 +738,36 @@ export function extractHeadCategoryIntent(
   else if (isBudgetIntent) maxPrice = 15000;
   if (minMatch) minPrice = Number(minMatch[1]);
 
-  // 1. Check headTokens first (tokens BEFORE "для"/"под"/"for") so head noun wins over use-case
+  // 1a. Check headTokens against primary (canonical + explicit custom) families first
   for (const hTok of qInfo.headTokens) {
-    for (const fam of activeFamilies) {
+    for (const fam of primaryFamilies) {
+      if (
+        fam.queryStems.some(
+          (stem) => hTok.includes(stem) || (hTok.length >= 6 && stem.startsWith(hTok))
+        )
+      ) {
+        return {
+          hasHeadCategoryIntent: true,
+          familyId: fam.id,
+          familyKey: fam.id,
+          canonicalCategoryRu: fam.canonicalRu,
+          canonicalCategoryEn: fam.canonicalEn,
+          confidence: 0.9,
+          headTokens: qInfo.headTokens,
+          modifierTokens: qInfo.modifierTokens,
+          familyStems: fam.itemStems,
+          isBudgetIntent,
+          isPremiumIntent,
+          maxPrice,
+          minPrice,
+        };
+      }
+    }
+  }
+
+  // 1b. Check headTokens against dynamically derived catalog families if no canonical family matched
+  for (const hTok of qInfo.headTokens) {
+    for (const fam of dynamicFamilies) {
       if (
         fam.queryStems.some(
           (stem) => hTok.includes(stem) || (hTok.length >= 6 && stem.startsWith(hTok))
@@ -686,7 +795,7 @@ export function extractHeadCategoryIntent(
   // 2. If no head token matched (e.g. inverted word order "для бега наушники"), check modifier tokens
   //    for explicit product nouns (excluding pure use-case words like "бег"/"спорт"/"игр")
   for (const mTok of qInfo.modifierTokens) {
-    for (const fam of activeFamilies) {
+    for (const fam of [...primaryFamilies, ...dynamicFamilies]) {
       if (fam.id === 'sneakers' && /^бег/i.test(mTok)) continue;
       if (fam.id === 'games' && /^игр/i.test(mTok)) continue;
       if (fam.queryStems.some((stem) => mTok.includes(stem))) {
@@ -747,11 +856,7 @@ export function evaluateCandidateCategoryGate(
     };
   }
 
-  // EIDOS-104: prefer caller families.
-  const activeFamilies: ReadonlyArray<CategoryFamilySpec> =
-    customFamilies && customFamilies.length > 0
-      ? customFamilies
-      : PRODUCT_CATEGORY_FAMILIES;
+  const { allFamilies: activeFamilies } = mergeCategoryFamilies(customFamilies);
 
   const primaryFields = `${candidate.title || ''} ${candidate.category || ''} ${(candidate.tags || []).join(' ')}`.toLowerCase();
   const fullText = `${primaryFields} ${candidate.description || ''}`.toLowerCase();
