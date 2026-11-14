@@ -197,6 +197,8 @@ function isSearchOrPublicReadRoute(method: string, cleanPath: string): boolean {
     cleanPath.startsWith('/v1/recommend/') ||
     cleanPath === '/v1/feedback' ||
     cleanPath === '/v1/funnel/event' ||
+    cleanPath === '/v1/analytics/funnel/event' ||
+    cleanPath === '/v1/analytics/funnel-event' ||
     cleanPath === '/v1/optimize/pareto' ||
     cleanPath === '/v1/telemetry/kinetic'
   ) {
@@ -208,6 +210,41 @@ function isSearchOrPublicReadRoute(method: string, cleanPath: string): boolean {
   ) {
     return true;
   }
+  return false;
+}
+
+export function isRecognizedApiKey(rawKey?: string | null): boolean {
+  if (!rawKey || typeof rawKey !== 'string') return false;
+  const token = rawKey.trim();
+  if (!token) return false;
+
+  const keyManager = ApiKeyManager.getInstance();
+  if (keyManager && !keyManager.isRevokedOrExpired(token) && keyManager.isValid(token)) {
+    return true;
+  }
+
+  const configuredKeys = [
+    process.env.EIDOS_MASTER_KEY,
+    process.env.MASTER_KEY,
+    process.env.EIDOS_ADMIN_KEY,
+    process.env.EIDOS_SEARCH_KEY,
+    process.env.EIDOS_API_KEY,
+    process.env.EIDOS_PUBLIC_DEMO_KEY,
+  ]
+    .map((k) => (k || '').trim())
+    .filter((k) => k.length > 0 && k !== 'your_secret_key');
+
+  if (configuredKeys.some((k) => timingSafeEqual(token, k))) {
+    return true;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    const devKeys = ['eidos_dev_key', 'eidos_test_key_1', 'test-key'];
+    if (devKeys.some((k) => timingSafeEqual(token, k))) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -285,6 +322,8 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     cleanPath === '/v1/suggest' ||
     cleanPath === '/v1/recommend' ||
     cleanPath === '/v1/events' ||
+    cleanPath === '/v1/analytics/funnel/event' ||
+    cleanPath === '/v1/analytics/funnel-event' ||
     (request.method === 'GET' && cleanPath.startsWith('/v1/catalog'));
 
   const configuredDemoKey = (process.env.EIDOS_PUBLIC_DEMO_KEY || '').trim();

@@ -34,13 +34,30 @@ export function maskApiKey(rawKey?: string | null): string {
 }
 
 /**
- * Computes a short deterministic hash and safe preview of a search query.
+ * Computes a short deterministic hash and safe summary of a search query.
+ * Raw query text is redacted by default (`[REDACTED]`) to prevent logging PII unless `EIDOS_LOG_RAW_QUERIES=true`.
  */
-export function summarizeQueryForLog(query: string): { queryHash: string; queryPreview: string } {
+export function summarizeQueryForLog(query: string): {
+  queryHash: string;
+  queryPreview: string;
+  queryLength: number;
+  tokenCount: number;
+} {
   const clean = (query || '').trim();
   const queryHash = crypto.createHash('sha256').update(clean.toLowerCase()).digest('hex').slice(0, 12);
-  const queryPreview = clean.length > 48 ? `${clean.slice(0, 48)}...` : clean;
-  return { queryHash, queryPreview };
+  const tokenCount = clean ? clean.split(/\s+/).filter(Boolean).length : 0;
+  const allowRaw = process.env.EIDOS_LOG_RAW_QUERIES === 'true';
+  const queryPreview = allowRaw
+    ? clean.length > 48
+      ? `${clean.slice(0, 48)}...`
+      : clean
+    : '[REDACTED]';
+  return {
+    queryHash,
+    queryPreview,
+    queryLength: clean.length,
+    tokenCount,
+  };
 }
 
 /**

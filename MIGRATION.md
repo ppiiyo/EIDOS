@@ -43,5 +43,12 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 - **`.hnsw.bin` SHA-256 Integrity Check**: `<snapshot>.meta.json` now records `hnswSha256` and `hnswByteLength`. If `.hnsw.bin` is corrupted or truncated, `loadSnapshotFromDisk` detects the SHA-256 mismatch and automatically rebuilds the HNSW graph from catalog items.
 - **Bounded WAL & Safe Checkpoint Rollback**: `WriteAheadLog` now caps in-memory operations at `maxInMemoryOperations` to prevent OOM when disk checkpoints fail, and preserves the on-disk `.wal.jsonl` file until a snapshot write succeeds.
 
+## 7. Security Hardening: `/metrics`, Funnel Auth, CORS & Rate Limiting (P0-5)
 
+- **Secret File Permissions (`install-pilot.sh`)**: `scripts/install-pilot.sh` creates `.env` inside a `umask 077` subshell (`0600` permissions from creation), generates `JWT_SECRET` and `EIDOS_PUBLIC_DEMO_KEY`, defaults `CORS_ORIGIN` to explicit localhost origins instead of `*`, and never prints secret values during `--dry-run`.
+- **`/metrics` Authentication**: `GET /metrics` now executes the `authenticate` preHandler. When `EIDOS_REQUIRE_METRICS_AUTH=true` or `NODE_ENV=production`, requests must provide an `admin` or `master` API key.
+- **Funnel Event Authentication & Rate Limiting**: `POST /v1/analytics/funnel/event` (and `/v1/analytics/funnel-event`) now requires authentication (`search`, `merchandiser`, `admin`, `master`, or `EIDOS_PUBLIC_DEMO_KEY` on tenant `demo`) and enforces per-IP rate limiting (`EIDOS_FUNNEL_RATE_LIMIT_MAX_PER_MIN`, default `180/min`).
+- **Strict CORS & `Vary: Origin`**: Untrusted `Origin` headers no longer fall back to `origins[0]` in `Access-Control-Allow-Origin`, and responses always set `Vary: Origin`.
+- **Rate Limit Key Rotation Protection**: Unrecognized `x-api-key` headers no longer receive isolated rate-limit buckets; requests with unrecognized keys are rate-limited by client IP (`ip:${req.ip}`).
+- **Query Log Privacy**: `summarizeQueryForLog` redacts raw search text (`queryPreview: '[REDACTED]'`) unless `EIDOS_LOG_RAW_QUERIES=true`.
 

@@ -50,6 +50,7 @@ generate_secret_key() {
 
 ENV_FILE="${PILOT_DIR}/.env"
 if [[ -f "${ENV_FILE}" ]]; then
+  chmod 600 "${ENV_FILE}" || true
   echo "ℹ️  Найден существующий файл ${ENV_FILE} — используем сохранённые ключи."
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
@@ -57,9 +58,14 @@ else
   EIDOS_MASTER_KEY="$(generate_secret_key "eidos_mk")"
   EIDOS_ADMIN_KEY="$(generate_secret_key "eidos_ak")"
   EIDOS_SEARCH_KEY="$(generate_secret_key "eidos_pk")"
+  EIDOS_PUBLIC_DEMO_KEY="$(generate_secret_key "eidos_demo")"
+  JWT_SECRET="$(generate_secret_key "eidos_jwt")"
   PORT="${PORT:-3001}"
+  CORS_ORIGIN="${CORS_ORIGIN:-http://localhost:${PORT},http://127.0.0.1:${PORT}}"
 
-  cat > "${ENV_FILE}" <<EOF
+  (
+    umask 077
+    cat > "${ENV_FILE}" <<EOF
 # EIDOS v3.4.0 Pilot Environment (Auto-generated — DO NOT COMMIT)
 NODE_ENV=production
 PORT=${PORT}
@@ -67,21 +73,22 @@ EIDOS_STRICT_PROD_BOOT=true
 EIDOS_MASTER_KEY=${EIDOS_MASTER_KEY}
 EIDOS_ADMIN_KEY=${EIDOS_ADMIN_KEY}
 EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY}
-CORS_ORIGIN=*
+EIDOS_PUBLIC_DEMO_KEY=${EIDOS_PUBLIC_DEMO_KEY}
+JWT_SECRET=${JWT_SECRET}
+CORS_ORIGIN=${CORS_ORIGIN}
 REDIS_URL=redis://redis:6379
 EIDOS_SNAPSHOT_PATH=/app/data/snapshots/catalog.snapshot.json
 EIDOS_SNAPSHOT_INTERVAL_MS=300000
 EIDOS_AUTO_RESTORE_SNAPSHOT=true
 EIDOS_RATE_LIMIT_MAX=600
 EOF
+  )
   chmod 600 "${ENV_FILE}" || true
-  echo "✅ Сгенерированы криптостойкие ключи (>= 32 символов) в ${ENV_FILE}"
+  echo "✅ Сгенерированы криптостойкие ключи (>= 32 символов, права 0600) в ${ENV_FILE}"
 fi
 
 if [[ "${DRY_RUN}" == "true" ]]; then
-  echo "✅ [DRY-RUN] Проверка конфигурации завершена успешно."
-  echo "   EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY}"
-  echo "   EIDOS_ADMIN_KEY=${EIDOS_ADMIN_KEY}"
+  echo "✅ [DRY-RUN] Проверка конфигурации завершена успешно (права 0600)."
   exit 0
 fi
 

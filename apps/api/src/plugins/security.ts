@@ -2,6 +2,7 @@ import rateLimit from '@fastify/rate-limit';
 import cors from '@fastify/cors';
 import helmet from './helmet-shim';
 import { FastifyInstance } from 'fastify';
+import { isRecognizedApiKey } from '../middleware/auth';
 
 export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
   const rawCorsOrigins = process.env.CORS_ORIGIN || process.env.CORS_ALLOWED_ORIGINS || '';
@@ -22,18 +23,42 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
     credentials: !isWildcardOrigin,
   });
 
-  // Ensure all 3 CORS headers are always emitted even on direct curl requests without Origin header
+  // Emit Vary: Origin and never fall back to origins[0] when an untrusted Origin header is present
   fastify.addHook('onSend', async (request, reply, payload) => {
     const reqOrigin = request.headers.origin;
-    const matchedOrigin = isWildcardOrigin
-      ? '*'
-      : reqOrigin && origins.includes(reqOrigin)
-        ? reqOrigin
-        : origins[0];
-
-    if (!reply.getHeader('access-control-allow-origin')) {
-      reply.header('access-control-allow-origin', matchedOrigin);
+    if (!isWildcardOrigin) {
+      const existingVary = String(reply.getHeader('vary') || '');
+      if (!existingVary.toLowerCase().includes('origin')) {
+        reply.header('vary', existingVary ? `${existingVary}, Origin` : 'Origin');
+      }
     }
+
+    if (reqOrigin) {
+      if (isWildcardOrigin) {
+        if (!reply.getHeader('access-control-allow-origin')) {
+          reply.header('access-control-allow-origin', '*');
+        }
+      } else if (origins.includes(reqOrigin)) {
+        if (!reply.getHeader('access-control-allow-origin')) {
+          reply.header('access-control-allow-origin', reqOrigin);
+        }
+        if (!reply.getHeader('access-control-allow-credentials')) {
+          reply.header('access-control-allow-credentials', 'true');
+        }
+      } else {
+        reply.removeHeader('access-control-allow-origin');
+        reply.removeHeader('access-control-allow-credentials');
+      }
+    } else {
+      // Non-browser direct probe without Origin header
+      if (!reply.getHeader('access-control-allow-origin')) {
+        reply.header('access-control-allow-origin', isWildcardOrigin ? '*' : origins[0]);
+      }
+      if (!isWildcardOrigin && !reply.getHeader('access-control-allow-credentials')) {
+        reply.header('access-control-allow-credentials', 'true');
+      }
+    }
+
     if (!reply.getHeader('access-control-allow-methods')) {
       reply.header('access-control-allow-methods', allowedMethods.join(', '));
     }
@@ -63,8 +88,10 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
     timeWindow: process.env.RATE_LIMIT_WINDOW || '1 minute',
     keyGenerator: (req) => {
       const apiKey = req.headers['x-api-key'];
-      if (typeof apiKey === 'string' && apiKey.trim()) return `k:${apiKey.trim()}`;
-      return req.ip || 'anon';
+      if (typeof apiKey === 'string' && apiKey.trim() && isRecognizedApiKey(apiKey)) {
+        return `k:${apiKey.trim()}`;
+      }
+      return `ip:${req.ip || 'anon'}`;
     },
   });
 
