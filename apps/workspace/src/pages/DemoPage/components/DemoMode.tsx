@@ -84,12 +84,12 @@ export const DemoMode: React.FC<DemoModeProps> = ({
     FULL_DEMO_CATALOG[0] || DEFAULT_CATALOG[0] || null
   );
 
-  // Живые метрики воронки и производительности в демо-режиме
-  const [demoSearchesCount, setDemoSearchesCount] = useState(18);
-  const [demoClicksCount, setDemoClicksCount] = useState(11);
-  const [demoCartCount, setDemoCartCount] = useState(5);
-  const [demoPurchasesCount, setDemoPurchasesCount] = useState(3);
-  const [lastQueryLatencyMs, setLastQueryLatencyMs] = useState(1.4);
+  // Честные счётчики текущей интерактивной сессии (0 при старте, растут при реальных действиях)
+  const [demoSearchesCount, setDemoSearchesCount] = useState(0);
+  const [demoClicksCount, setDemoClicksCount] = useState(0);
+  const [demoCartCount, setDemoCartCount] = useState(0);
+  const [demoPurchasesCount, setDemoPurchasesCount] = useState(0);
+  const [lastQueryLatencyMs, setLastQueryLatencyMs] = useState(0);
 
   useEffect(() => {
     onStatusChange?.(demoStatus);
@@ -105,6 +105,8 @@ export const DemoMode: React.FC<DemoModeProps> = ({
       try {
         const res = await fetch(`${apiBaseUrl}/v1/demo/load`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scale: '48' }),
           signal: controller.signal,
         });
         if (!res.ok && active) {
@@ -126,9 +128,6 @@ export const DemoMode: React.FC<DemoModeProps> = ({
       active = false;
       clearTimeout(timeoutId);
       controller.abort();
-      void fetch(`${apiBaseUrl}/v1/demo/reset`, {
-        method: 'POST',
-      }).catch(() => {});
     };
   }, [apiBaseUrl]);
 

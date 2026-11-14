@@ -1,9 +1,10 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import type { buildServer as BuildServerFn } from './apps/api/src/server';
 
-function resolvePort(): number {
+export function resolvePort(): number {
   const portArgIdx = process.argv.indexOf('--port');
   if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
     const cliPort = Number(process.argv[portArgIdx + 1]);
@@ -41,7 +42,7 @@ const MIME_TYPES: Record<string, string> = {
   '.xml': 'application/xml; charset=utf-8',
 };
 
-function isApiOrTelemetryRoute(url: string): boolean {
+export function isApiOrTelemetryRoute(url: string): boolean {
   const cleanUrl = url.split('?')[0];
   return (
     cleanUrl === '/v1' ||
@@ -59,35 +60,86 @@ function isApiOrTelemetryRoute(url: string): boolean {
   );
 }
 
-async function startUnifiedServer() {
-  let fastifyApp: Awaited<ReturnType<typeof BuildServerFn>> | null = null;
-  let viteMiddlewares: ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void) | null = null;
+export interface UnifiedHandlerOptions {
+  isProduction?: boolean;
+  buildServerOverride?: () => Promise<Awaited<ReturnType<typeof BuildServerFn>>>;
+  viteMiddlewaresOverride?:
+    | ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void)
+    | null;
+}
 
-  const server = http.createServer(async (req, res) => {
-    if (req.url && (req.url === '/api/v1' || req.url.startsWith('/api/v1/') || req.url.startsWith('/api/v1?'))) {
+export function createUnifiedServerLifecycle(options: UnifiedHandlerOptions = {}) {
+  const prodMode = options.isProduction ?? isProduction;
+  let fastifyApp: Awaited<ReturnType<typeof BuildServerFn>> | null = null;
+  let apiInitError: Error | null = null;
+  let viteMiddlewares:
+    | ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void)
+    | null = options.viteMiddlewaresOverride ?? null;
+
+  let resolveViteReady: () => void = () => {};
+  const vitePromise = new Promise<void>((resolve) => {
+    resolveViteReady = resolve;
+  });
+
+  let resolveApiReady: () => void = () => {};
+  const apiPromise = new Promise<void>((resolve) => {
+    resolveApiReady = resolve;
+  });
+
+  const sendApiInitError = (res: http.ServerResponse) => {
+    const message =
+      apiInitError instanceof Error
+        ? apiInitError.message
+        : 'Fastify API failed to initialize';
+    if (!res.headersSent) {
+      res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+    }
+    res.end(
+      JSON.stringify({
+        ok: false,
+        status: 'error',
+        code: 'API_INIT_FAILED',
+        error: 'Service Unavailable',
+        message,
+        timestamp: new Date().toISOString(),
+      })
+    );
+  };
+
+  const requestHandler = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    if (
+      req.url &&
+      (req.url === '/api/v1' || req.url.startsWith('/api/v1/') || req.url.startsWith('/api/v1?'))
+    ) {
       req.url = req.url.slice(4);
     }
     const url = req.url || '/';
     const cleanUrl = url.split('?')[0];
 
-    // Fast-path readiness check for HEAD probes before Vite/Fastify finish cold-start
-    if (req.method === 'HEAD' && !isApiOrTelemetryRoute(url) && !viteMiddlewares && !isProduction) {
+    // Fast-path readiness check for HEAD probes on frontend root before Vite finishes cold-start
+    if (
+      req.method === 'HEAD' &&
+      !isApiOrTelemetryRoute(url) &&
+      !viteMiddlewares &&
+      !prodMode
+    ) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end();
       return;
     }
 
-    // Fast-path /health probe if Fastify is still hydrating
-    if ((cleanUrl === '/health' || cleanUrl === '/api/health' || cleanUrl === '/v1/health') && !fastifyApp) {
+    // Liveness probe (/live, /v1/health/live) reports process liveness while Fastify boots
+    if (
+      (cleanUrl === '/live' || cleanUrl === '/v1/health/live') &&
+      !fastifyApp &&
+      !apiInitError
+    ) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(
         JSON.stringify({
-          ok: true,
-          status: 'healthy',
-          itemsIndexed: 0,
-          itemsCount: 0,
-          initialItemsIndexed: 0,
-          initializedEmpty: true,
+          status: 'starting',
+          alive: true,
+          draining: false,
           timestamp: new Date().toISOString(),
         })
       );
@@ -95,7 +147,7 @@ async function startUnifiedServer() {
     }
 
     // In production mode, serve static files from dist/ immediately without blocking on API hydration
-    if (isProduction && !isApiOrTelemetryRoute(url)) {
+    if (prodMode && !isApiOrTelemetryRoute(url)) {
       const distDir = path.resolve(process.cwd(), 'dist');
       let decodedPath = cleanUrl;
       try {
@@ -136,17 +188,19 @@ async function startUnifiedServer() {
       }
     }
 
-    // Route all /v1/*, /health, /api/health, /docs*, and /metrics requests through Fastify API
+    // Route all /v1/*, /health, /api/health, /ready, /docs*, and /metrics requests through real Fastify API
     if (isApiOrTelemetryRoute(url)) {
       await apiPromise;
-      if (fastifyApp) {
-        fastifyApp.routing(req, res);
+      if (apiInitError || !fastifyApp) {
+        sendApiInitError(res);
         return;
       }
+      fastifyApp.routing(req, res);
+      return;
     }
 
     // In development mode, delegate frontend assets & SPA routes to Vite middleware without waiting for HNSW seed
-    if (!isProduction) {
+    if (!prodMode) {
       await vitePromise;
       if (viteMiddlewares) {
         viteMiddlewares(req, res, () => {
@@ -158,12 +212,75 @@ async function startUnifiedServer() {
     }
 
     await apiPromise;
-    if (fastifyApp) {
-      fastifyApp.routing(req, res);
+    if (apiInitError || !fastifyApp) {
+      sendApiInitError(res);
+      return;
     }
+    fastifyApp.routing(req, res);
+  };
+
+  const init = async (httpServer?: http.Server) => {
+    const viteInit = (async () => {
+      try {
+        if (!prodMode && !options.viteMiddlewaresOverride) {
+          const { createServer: createViteServer } = await import('vite');
+          const vite = await createViteServer({
+            configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
+            server: {
+              middlewareMode: true,
+              hmr:
+                process.env.DISABLE_HMR === 'true'
+                  ? false
+                  : httpServer
+                  ? { server: httpServer }
+                  : true,
+              watch: null,
+            },
+            appType: 'spa',
+          });
+          viteMiddlewares = vite.middlewares;
+        }
+      } finally {
+        resolveViteReady();
+      }
+    })();
+
+    const apiInit = (async () => {
+      try {
+        await viteInit;
+        if (options.buildServerOverride) {
+          fastifyApp = await options.buildServerOverride();
+        } else {
+          await new Promise<void>((resolve) => setTimeout(resolve, 25));
+          const { buildServer } = await import('./apps/api/src/server');
+          fastifyApp = await buildServer();
+        }
+        await fastifyApp.ready();
+      } catch (err) {
+        apiInitError = err instanceof Error ? err : new Error(String(err));
+        console.error('Error initializing Fastify API inside unified server:', err);
+      } finally {
+        resolveApiReady();
+      }
+    })();
+
+    await Promise.all([viteInit, apiInit]);
+  };
+
+  return {
+    requestHandler,
+    init,
+    getFastifyApp: () => fastifyApp,
+    getApiInitError: () => apiInitError,
+  };
+}
+
+export async function startUnifiedServer() {
+  const lifecycle = createUnifiedServerLifecycle();
+  const server = http.createServer((req, res) => {
+    void lifecycle.requestHandler(req, res);
   });
 
-  // Bind immediately (<50ms) so readiness checks pass without waiting for module imports or catalog seed
   server.listen(PORT, '0.0.0.0', () => {
     console.log(
       `🚀 Eidos Unified Server (Fastify API /v1/* + Studio UI) listening on http://0.0.0.0:${PORT}`
@@ -173,6 +290,7 @@ async function startUnifiedServer() {
   const gracefulShutdown = async (signal: string) => {
     console.log(`Received ${signal}. Closing unified server and saving catalog snapshot...`);
     try {
+      const fastifyApp = lifecycle.getFastifyApp();
       if (fastifyApp) {
         await fastifyApp.close();
       }
@@ -186,38 +304,25 @@ async function startUnifiedServer() {
   process.once('SIGTERM', () => void gracefulShutdown('SIGTERM'));
   process.once('SIGINT', () => void gracefulShutdown('SIGINT'));
 
-  const vitePromise = (async () => {
-    if (!isProduction) {
-      const { createServer: createViteServer } = await import('vite');
-      const vite = await createViteServer({
-        configFile: path.resolve(process.cwd(), 'apps/workspace/vite.config.ts'),
-        server: {
-          middlewareMode: true,
-          hmr: process.env.DISABLE_HMR === 'true' ? false : { server },
-          watch: null,
-        },
-        appType: 'spa',
-      });
-      viteMiddlewares = vite.middlewares;
-    }
-  })();
-
-  const apiPromise = (async () => {
-    try {
-      await vitePromise;
-      await new Promise<void>((resolve) => setTimeout(resolve, 25));
-      const { buildServer } = await import('./apps/api/src/server');
-      fastifyApp = await buildServer();
-      await fastifyApp.ready();
-    } catch (err) {
-      console.error('Error initializing Fastify API inside unified server:', err);
-    }
-  })();
-
-  await Promise.all([vitePromise, apiPromise]);
+  await lifecycle.init(server);
 }
 
-startUnifiedServer().catch((err) => {
-  console.error('Failed to start Eidos unified server:', err);
-  process.exit(1);
-});
+const isMainModule = (() => {
+  if (process.env.EIDOS_SKIP_AUTO_START === 'true' || process.env.VITEST) {
+    return false;
+  }
+  try {
+    const currentFile = fileURLToPath(import.meta.url);
+    const entryFile = process.argv[1] ? path.resolve(process.argv[1]) : '';
+    return currentFile === entryFile || entryFile.endsWith('/server.ts');
+  } catch {
+    return true;
+  }
+})();
+
+if (isMainModule) {
+  startUnifiedServer().catch((err) => {
+    console.error('Failed to start Eidos unified server:', err);
+    process.exit(1);
+  });
+}

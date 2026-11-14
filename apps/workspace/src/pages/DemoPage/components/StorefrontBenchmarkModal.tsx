@@ -61,7 +61,9 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
   uiLang = 'ru',
 }) => {
   const isRu = uiLang === 'ru';
-  const [clientSearchUrl, setClientSearchUrl] = useState('https://your-bitrix-shop.ru/catalog/?q={query}');
+  const [clientSearchUrl, setClientSearchUrl] = useState('');
+  const [comparisonSource, setComparisonSource] = useState<'simulated_sql_like' | 'external_url'>('simulated_sql_like');
+  const [externalUrlWarning, setExternalUrlWarning] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [rows, setRows] = useState<BenchmarkRow[]>([]);
   const [activePacks, setActivePacks] = useState<IndustrySynonymPackId[]>(getActiveSynonymPacks());
@@ -79,19 +81,64 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
   const runBenchmarkSuite = async () => {
     if (catalog.length === 0) return;
     setIsRunning(true);
+    setExternalUrlWarning(null);
 
-    // Optional server-side URL comparison call
-    if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
-      void window
-        .fetch('/v1/benchmark/compare-url', {
+    const trimmedUrl = clientSearchUrl.trim();
+    const isRealExternalUrl =
+      trimmedUrl.length > 0 &&
+      /^https?:\/\//i.test(trimmedUrl) &&
+      !trimmedUrl.includes('your-bitrix-shop.ru') &&
+      !trimmedUrl.includes('your-store.ru');
+
+    let serverExternalMap: Map<string, { titles: string[]; status: string }> | null = null;
+
+    if (isRealExternalUrl && typeof window !== 'undefined' && typeof window.fetch === 'function') {
+      try {
+        const res = await window.fetch('/v1/benchmark/compare-url', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }) },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': getActiveApiKey({ allowPublicDemoKey: true }),
+          },
           body: JSON.stringify({
-            searchUrlTemplate: clientSearchUrl,
+            searchUrlTemplate: trimmedUrl,
             queries: DEFAULT_BENCHMARK_SCENARIOS.map((s) => s.query),
           }),
-        })
-        .catch(() => {});
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.comparisons)) {
+            serverExternalMap = new Map();
+            let anyFetched = false;
+            for (const c of data.comparisons) {
+              if (c.externalStatus === 'fetched') anyFetched = true;
+              serverExternalMap.set(String(c.query), {
+                titles: Array.isArray(c.externalTop3) ? c.externalTop3 : [],
+                status: String(c.externalStatus || 'simulated_sql_like'),
+              });
+            }
+            setComparisonSource(anyFetched ? 'external_url' : 'simulated_sql_like');
+            if (!anyFetched) {
+              setExternalUrlWarning(
+                isRu
+                  ? 'Внешний URL не вернул парсируемую HTML-выдачу (или недоступен) — показана честная симуляция SQL LIKE по текущему каталогу.'
+                  : 'External URL did not return parseable HTML results — showing exact SQL LIKE simulation over the active catalog.'
+              );
+            }
+          }
+        } else {
+          setComparisonSource('simulated_sql_like');
+          setExternalUrlWarning(
+            isRu
+              ? `Проверка внешнего URL требует ключ администратора (HTTP ${res.status}) — показана локальная симуляция SQL LIKE.`
+              : `External URL comparison requires admin key (HTTP ${res.status}) — showing local SQL LIKE simulation.`
+          );
+        }
+      } catch {
+        setComparisonSource('simulated_sql_like');
+      }
+    } else {
+      setComparisonSource('simulated_sql_like');
     }
 
     const computed: BenchmarkRow[] = [];
@@ -100,11 +147,19 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
       const kw = simulateKeywordSearch(sc.query, catalog);
       const eidos = await onHybridSearch(sc.query, 0.7, 3);
       const elapsed = Math.max(0.3, Math.round((performance.now() - t0) * 10) / 10);
+      const extEntry = serverExternalMap?.get(sc.query);
+      const legacyTitles =
+        extEntry && extEntry.status === 'fetched'
+          ? extEntry.titles.slice(0, 2)
+          : kw.slice(0, 2).map((k) => k.item.title);
+      const legacyCount =
+        extEntry && extEntry.status === 'fetched' ? extEntry.titles.length : kw.length;
+
       computed.push({
         query: sc.query,
         tag: sc.tag,
-        legacyCount: kw.length,
-        legacyTitles: kw.slice(0, 2).map((k) => k.item.title),
+        legacyCount,
+        legacyTitles,
         eidosCount: eidos.length,
         eidosTopTitles: eidos.slice(0, 2).map((h) => ({
           title: h.item.title,
@@ -139,7 +194,16 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
   };
 
   const legacyZeroCount = rows.filter((r) => r.legacyCount === 0).length;
+  const legacySolvedCount = rows.length - legacyZeroCount;
   const eidosSolvedCount = rows.filter((r) => r.eidosCount > 0).length;
+  const avgLatencyMs =
+    rows.length > 0
+      ? Math.round((rows.reduce((sum, r) => sum + r.latencyMs, 0) / rows.length) * 10) / 10
+      : 0;
+  const recallLiftPct =
+    rows.length > 0
+      ? Math.max(0, Math.round(((eidosSolvedCount - legacySolvedCount) / rows.length) * 100))
+      : 0;
 
   return (
     <div
@@ -264,7 +328,7 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
         </div>
 
         {/* Section 2: Target Storefront URL Input & Benchmark Trigger */}
-        <div className="flex flex-wrap items-center gap-2.5 mb-4">
+        <div className="flex flex-wrap items-center gap-2.5 mb-2">
           <div className="relative flex-1 min-w-[260px]">
             <Globe size={15} className="absolute left-3 top-2.5 text-zinc-400" />
             <input
@@ -272,7 +336,7 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
               data-testid="benchmark-url-input"
               value={clientSearchUrl}
               onChange={(e) => setClientSearchUrl(e.target.value)}
-              placeholder="https://your-store.ru/search?q={query}"
+              placeholder="https://your-store.ru/search?q={query} (опционально — без URL используется локальная SQL LIKE симуляция)"
               className="w-full pl-9 pr-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white mono"
             />
           </div>
@@ -286,6 +350,30 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
             {isRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             <span>{isRu ? 'Запустить стресс-тест (5 запросов)' : 'Run 5-Query Stress Benchmark'}</span>
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 text-[11px]">
+          <span
+            data-testid="benchmark-comparison-source"
+            className={`px-2 py-0.5 rounded font-mono ${
+              comparisonSource === 'external_url'
+                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+            }`}
+          >
+            {comparisonSource === 'external_url'
+              ? isRu
+                ? 'Источник базовой линии: Live-запрос к внешнему URL (/v1/benchmark/compare-url)'
+                : 'Baseline source: Live external URL check (/v1/benchmark/compare-url)'
+              : isRu
+                ? 'Источник базовой линии: Локальная симуляция SQL LIKE по демо-каталогу'
+                : 'Baseline source: Local SQL LIKE simulation over demo catalog'}
+          </span>
+          {externalUrlWarning && (
+            <span data-testid="benchmark-url-warning" className="text-amber-400">
+              {externalUrlWarning}
+            </span>
+          )}
         </div>
 
         {/* Summary KPI Strip */}
@@ -308,9 +396,11 @@ export const StorefrontBenchmarkModal: React.FC<StorefrontBenchmarkModalProps> =
           </div>
           <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
             <div className="text-xs text-indigo-300 mb-0.5">
-              {isRu ? 'Прирост конверсии из поиска' : 'Estimated Search Conversion Lift'}
+              {isRu ? 'Прирост полноты выдачи и задержка' : 'Measured Recall Lift & Latency'}
             </div>
-            <div className="text-lg font-bold text-indigo-300 mono tabular-nums">+24.5% CR · &lt; 5 мс</div>
+            <div data-testid="benchmark-measured-kpi" className="text-lg font-bold text-indigo-300 mono tabular-nums">
+              +{recallLiftPct}% полнота · {avgLatencyMs > 0 ? `${avgLatencyMs} мс` : '—'}
+            </div>
           </div>
         </div>
 

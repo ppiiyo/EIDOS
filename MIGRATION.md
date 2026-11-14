@@ -24,3 +24,10 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 
 - HNSW leaf-shortcut (`fastInsertLeaf`) has been removed to guarantee full multi-layer graph connectivity.
 - After upgrading to v4.0, run a one-time snapshot rebuild (`POST /v1/demo/load` for demo or re-import your YML feed via `POST /v1/admin/yml-sync/run`) so any legacy single-layer nodes are re-indexed across all HNSW layers.
+
+## 4. Unified Server Health Delegation & Demo Lifecycle (P0-2)
+
+- **No Fake Fast-Path `/health`**: `server.ts` no longer returns a synthetic `200 OK` (`itemsIndexed: 0`) on `/health` before Fastify has initialized. Instead, `/health` and `/ready` await Fastify initialization and delegate to `healthRoutes`. Use `/live` or `/v1/health/live` for container liveness probes during cold start.
+- **Explicit HTTP 503 on API Startup Failure**: If `buildServer()` fails during startup, all `/v1/*`, `/health`, `/ready`, and `/metrics` endpoints immediately return HTTP `503` with `code: "API_INIT_FAILED"` instead of hanging client connections.
+- **Demo Seed Singleflight & Status**: `POST /v1/demo/load` now deduplicates concurrent seed requests (`deduplicated: true`) and returns immediately when the requested scale is already loaded (`idempotent: true`). Use `GET /v1/demo/status` to poll `'idle' | 'seeding' | 'ready' | 'error'`.
+

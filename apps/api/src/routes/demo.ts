@@ -143,9 +143,38 @@ function assertDemoMutationsAllowed(reply: FastifyReply): boolean {
     existing.count += 1;
   };
 
+  let demoSeedState: 'idle' | 'seeding' | 'ready' | 'error' = 'idle';
+  let lastLoadedScale: '48' | '1000' | null = null;
+  let demoLoadInFlight: Promise<{ itemsLoaded: number; scale: '48' | '1000' }> | null = null;
+
+  /**
+   * GET /v1/demo/status
+   * Reports honest current state of the isolated `demo:demo` index ('idle' | 'seeding' | 'ready' | 'error').
+   */
+  fastify.get('/v1/demo/status', async () => {
+    const demoStore = getDemoStore(fastify);
+    const count = demoStore.size();
+    const status =
+      demoSeedState === 'seeding'
+        ? 'seeding'
+        : demoSeedState === 'error'
+        ? 'error'
+        : count > 0
+        ? 'ready'
+        : 'idle';
+    return {
+      ok: status !== 'error',
+      status,
+      tenantId: DEMO_TENANT_ID,
+      indexName: DEMO_INDEX_NAME,
+      itemsIndexed: count,
+      scale: lastLoadedScale ?? (count >= 1000 ? '1000' : count > 0 ? '48' : null),
+    };
+  });
+
   /**
    * POST /v1/demo/load
-   * Loads demo catalog strictly into the isolated `demo:demo` store.
+   * Loads demo catalog strictly into the isolated `demo:demo` store with singleflight deduplication.
    * NEVER mutates the default production store.
    */
   fastify.post(
@@ -158,23 +187,81 @@ function assertDemoMutationsAllowed(reply: FastifyReply): boolean {
         return reply.status(409).send({ error: 'DEMO_DISABLED_FOR_PRODUCTION_CATALOG' });
       }
 
-      const body = (request.body as { scale?: string | number; size?: string | number }) || {};
-      const query = (request.query as { scale?: string | number; size?: string | number }) || {};
-      const requestedScale = String(body.scale ?? body.size ?? query.scale ?? query.size ?? '1000');
-      const scale = requestedScale === '48' ? '48' : '1000';
+      const body =
+        (request.body as { scale?: string | number; size?: string | number; force?: boolean }) ||
+        {};
+      const query =
+        (request.query as { scale?: string | number; size?: string | number; force?: string }) ||
+        {};
+      const requestedScale = String(
+        body.scale ?? body.size ?? query.scale ?? query.size ?? '1000'
+      );
+      const scale: '48' | '1000' = requestedScale === '48' ? '48' : '1000';
+      const forceReload = body.force === true || query.force === 'true';
       const itemsToLoad = scale === '48' ? DEMO_CATALOG : DEMO_CATALOG_1000;
 
-      await demoStore.loadDemoCatalog(itemsToLoad, opts.embedder);
+      // Idempotent fast-return if the requested demo catalog scale is already indexed
+      if (!forceReload && !demoLoadInFlight && demoStore.size() === itemsToLoad.length) {
+        demoSeedState = 'ready';
+        lastLoadedScale = scale;
+        const adminStore = getAdminConsoleStore();
+        seedDemoAnalyticsIfEmpty(adminStore);
+        return {
+          ok: true,
+          status: 'ready',
+          idempotent: true,
+          tenantId: DEMO_TENANT_ID,
+          indexName: DEMO_INDEX_NAME,
+          itemsLoaded: demoStore.size(),
+          scale,
+        };
+      }
 
-      const adminStore = getAdminConsoleStore();
-      seedDemoAnalyticsIfEmpty(adminStore);
+      // Singleflight deduplication for concurrent /v1/demo/load calls
+      if (demoLoadInFlight) {
+        const result = await demoLoadInFlight;
+        if (result.scale === scale) {
+          return {
+            ok: true,
+            status: 'ready',
+            deduplicated: true,
+            tenantId: DEMO_TENANT_ID,
+            indexName: DEMO_INDEX_NAME,
+            itemsLoaded: result.itemsLoaded,
+            scale: result.scale,
+          };
+        }
+      }
+
+      demoSeedState = 'seeding';
+      const task = (async () => {
+        try {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          await demoStore.loadDemoCatalog(itemsToLoad, opts.embedder);
+          const adminStore = getAdminConsoleStore();
+          seedDemoAnalyticsIfEmpty(adminStore);
+          demoSeedState = 'ready';
+          lastLoadedScale = scale;
+          return { itemsLoaded: itemsToLoad.length, scale };
+        } catch (err) {
+          demoSeedState = 'error';
+          throw err;
+        } finally {
+          demoLoadInFlight = null;
+        }
+      })();
+
+      demoLoadInFlight = task;
+      const completed = await task;
 
       return {
         ok: true,
+        status: 'ready',
+        idempotent: false,
         tenantId: DEMO_TENANT_ID,
         indexName: DEMO_INDEX_NAME,
-        itemsLoaded: itemsToLoad.length,
-        scale,
+        itemsLoaded: completed.itemsLoaded,
+        scale: completed.scale,
       };
     }
   );
@@ -238,8 +325,11 @@ function assertDemoMutationsAllowed(reply: FastifyReply): boolean {
         return reply.status(409).send({ error: 'DEMO_DISABLED_FOR_PRODUCTION_CATALOG' });
       }
       await demoStore.clear();
+      demoSeedState = 'idle';
+      lastLoadedScale = null;
       return reply.status(200).send({
         ok: true,
+        status: 'idle',
         tenantId: DEMO_TENANT_ID,
         indexName: DEMO_INDEX_NAME,
       });
