@@ -18,7 +18,7 @@ Last verified locally: **2026-11-12**
 | bitrix-and-all-in-one-docker | 8/8 |
 | **Total** | **60/60** (+ v35 already counted) |
 
-`scripts/verify_injects.sh` → **All inject markers present.**
+`scripts/smoke.sh` → **All 6 live HTTP smoke checks passed.**
 
 ## Product invariants (fixed)
 
@@ -53,15 +53,15 @@ docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 
 Import catalog → connect Bitrix (`packages/connectors/bitrix`) or Woo or embed `widget.js`.
 
-## CI / auto-apply
+## CI & Smoke Verification
 
 | Workflow | Role |
 |----------|------|
-| `auto-apply-p0.yml` | Apply injects on script changes; typecheck; core tests; commit |
-| `verify-injects-daily.yml` | Daily marker check |
+| `ci.yml` | Full build, lint, test, coverage, PHPUnit, and Python SDK gate |
+| `php-connectors.yml` | PHP 8.2 syntax + Bitrix autoload verification |
 
 ```bash
-bash scripts/verify_injects.sh
+bash scripts/smoke.sh
 ```
 
 ## Still open (non-blocking for pilot)

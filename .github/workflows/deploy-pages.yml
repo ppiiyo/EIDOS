@@ -36,7 +36,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install -r --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build Core, SDK & Verify Workspace Constraints
         run: |
@@ -54,6 +54,8 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

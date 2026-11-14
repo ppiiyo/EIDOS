@@ -34,18 +34,15 @@ Configs:
 - `deploy/eidos-alerts.yml` — API down, search p95, 5xx, cache
 - `deploy/grafana/provisioning/` — datasource + overview dashboard
 
-## CI: auto-apply patches + verification
+## CI & Smoke Verification
 
 | Workflow | Trigger | Role |
 |----------|---------|------|
-| `auto-apply-p0.yml` | push to `scripts/inject_*.py` or manual | Apply injects, typecheck, core tests, commit if dirty |
-| `verify-injects-daily.yml` | daily 06:00 UTC + manual | Assert inject markers still present |
+| `ci.yml` | push / PR to `main` | Build, lint, unit & integration tests (Node 20 & 22), PHPUnit, Python SDK |
+| `php-connectors.yml` | push / PR | PHP 8.2 syntax lint & Bitrix autoload verification |
 
-Local check:
+Local smoke check:
 
 ```bash
-bash scripts/verify_injects.sh
-for s in scripts/inject_*.py; do python3 "$s"; done
+bash scripts/smoke.sh
 ```
-
-Loop protection: commits whose message contains `apply pending injects` do not re-trigger auto-apply.

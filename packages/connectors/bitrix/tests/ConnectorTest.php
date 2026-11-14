@@ -83,15 +83,39 @@ final class ConnectorTest extends AbstractConnectorContractTest
                 }
 
                 if ($path === '/v1/catalog/upsert' && $method === 'POST' && $body !== null) {
-                    $id = (string) $body['id'];
-                    $this->eidosIndexedStore[$id] = $body;
+                    if (isset($body['items']) && is_array($body['items'])) {
+                        $upsertedCount = 0;
+                        foreach ($body['items'] as $batchItem) {
+                            if (is_array($batchItem) && isset($batchItem['id'])) {
+                                $itemId = (string) $batchItem['id'];
+                                $this->eidosIndexedStore[$itemId] = $batchItem;
+                                $upsertedCount++;
+                            }
+                        }
+                        return [
+                            'status' => 200,
+                            'body' => [
+                                'success' => true,
+                                'upserted' => $upsertedCount,
+                                'failed' => 0,
+                            ],
+                            'error' => null,
+                            'latencyMs' => 2.1,
+                        ];
+                    }
+
+                    $id = (string) ($body['id'] ?? '');
+                    if ($id !== '') {
+                        $this->eidosIndexedStore[$id] = $body;
+                    }
                     return [
                         'status' => 200,
                         'body' => [
                             'success' => true,
+                            'upserted' => $id !== '' ? 1 : 0,
                             'item' => [
                                 'id' => $id,
-                                'title' => $body['title'],
+                                'title' => $body['title'] ?? '',
                                 'category' => $body['category'] ?? 'General',
                             ],
                         ],

@@ -4,12 +4,11 @@
 
 | Job | Command | Notes |
 |-----|---------|--------|
-| Typecheck | `tsc` core / sdk / api | required |
-| Injects | all `scripts/inject_*.py` | must exit 0 |
-| Markers | `scripts/verify_injects.sh` | required |
+| Typecheck | `pnpm lint` | required |
 | Full suite | `pnpm test` | required (Node 20 + 22) |
-| Coverage | `vitest run --coverage packages/core/src/tests` | core thresholds 65% |
-| PHP | lint + autoload | required |
+| Coverage | `vitest run --coverage packages/core/src/tests` | core thresholds ≥80% lines, ≥75% branches |
+| PHP | lint + autoload + PHPUnit | required |
+| Python SDK | `pytest -q packages/sdk/python` | required |
 | Build | core + sdk + workspace | required |
 
 ## Local verification (this session)

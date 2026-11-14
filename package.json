@@ -10,7 +10,7 @@
     "packages/sdk"
   ],
   "scripts": {
-    "preinstall": "node -e \"process.exit(0)\" || npx only-allow pnpm",
+    "preinstall": "npx only-allow pnpm",
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "tsc -p packages/core/tsconfig.json && vite build --config apps/workspace/vite.config.ts",
@@ -38,8 +38,7 @@
     "pack:woo": "bash connectors/woocommerce/pack.sh",
     "pack:bitrix": "bash connectors/bitrix/pack.sh",
     "check:ui-keys": "bash scripts/check-ui-keys.sh",
-    "test:core": "vitest run apps/api/tests/phase1-api-hardening.test.ts apps/api/tests/p0-registry-restart.test.ts apps/api/tests/v35-production-gate.test.ts apps/api/tests/production-hardening.test.ts tests/integration/critical-routes.test.ts tests/integration/prometheus-metrics.test.ts tests/security/p0-regression.test.ts tests/unit/store-registry.test.ts tests/multi-tenancy/tenant-isolation.test.ts tests/connectors/bitrix-and-all-in-one-docker.test.ts packages/core/src/tests",
-    "verify:injects": "bash scripts/verify_injects.sh"
+    "test:core": "vitest run apps/api/tests/phase1-api-hardening.test.ts apps/api/tests/p0-registry-restart.test.ts apps/api/tests/v35-production-gate.test.ts apps/api/tests/production-hardening.test.ts tests/integration/critical-routes.test.ts tests/integration/prometheus-metrics.test.ts tests/security/p0-regression.test.ts tests/unit/store-registry.test.ts tests/multi-tenancy/tenant-isolation.test.ts tests/connectors/bitrix-and-all-in-one-docker.test.ts packages/core/src/tests"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",
@@ -89,8 +88,7 @@
   },
   "pnpm": {
     "ignoredBuiltDependencies": [
-      "sharp",
-      "onnxruntime-node"
+      "sharp"
     ],
     "overrides": {
       "protobufjs": ">=7.6.1",
