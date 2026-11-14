@@ -37,4 +37,11 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 - **Explicit `EIDOS_EMBEDDER_MODE=lexical-only`**: For air-gapped or CPU-constrained environments without ONNX weights, set `EIDOS_EMBEDDER_MODE=lexical-only` to run pure BM25+ lexical retrieval (`weightsEffective = { lexical: 1, semantic: 0 }`) without synthetic hash vectors.
 - **Snapshot Model Verification (`.meta.json`)**: Snapshots now record `embeddingSpaceId`, `embeddingModel`, and `embeddingMode` in `<snapshot>.meta.json`. Switching models throws `EmbeddingSpaceMismatchError` (fail-closed) until `POST /v1/admin/reindex` is executed.
 
+## 6. Streaming Snapshots, `.hnsw.bin` SHA-256 Verification & Bounded WAL (P0-4)
+
+- **Streaming Snapshot Read/Write**: Snapshots are now written in 250-item chunks (`json-lines-array` or `.ndjson` when `EIDOS_SNAPSHOT_FORMAT=ndjson`) and read line-by-line via `readline`, eliminating V8 `RangeError: Invalid string length` on 100k+ SKU catalogs while remaining backward-compatible with legacy single-line `.json` snapshots.
+- **`.hnsw.bin` SHA-256 Integrity Check**: `<snapshot>.meta.json` now records `hnswSha256` and `hnswByteLength`. If `.hnsw.bin` is corrupted or truncated, `loadSnapshotFromDisk` detects the SHA-256 mismatch and automatically rebuilds the HNSW graph from catalog items.
+- **Bounded WAL & Safe Checkpoint Rollback**: `WriteAheadLog` now caps in-memory operations at `maxInMemoryOperations` to prevent OOM when disk checkpoints fail, and preserves the on-disk `.wal.jsonl` file until a snapshot write succeeds.
+
+
 

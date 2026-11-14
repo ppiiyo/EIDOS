@@ -21,15 +21,22 @@ export interface WALOperation {
 export class WriteAheadLog {
   private operations: WALOperation[] = [];
   private readonly maxOperationsBeforeCheckpoint: number;
+  private readonly maxInMemoryOperations: number;
   private checkpointCallback?: () => Promise<void> | void;
   private readonly walFilePath?: string;
+  private checkpointInFlight: Promise<void> | null = null;
+  private failedCheckpointsCount = 0;
+  private droppedInMemoryCount = 0;
 
   constructor(
     maxOperationsBeforeCheckpoint: number = 5000,
     checkpointCallback?: () => Promise<void> | void,
-    walFilePath?: string
+    walFilePath?: string,
+    maxInMemoryOperations?: number
   ) {
     this.maxOperationsBeforeCheckpoint = maxOperationsBeforeCheckpoint;
+    this.maxInMemoryOperations =
+      maxInMemoryOperations ?? Math.max(maxOperationsBeforeCheckpoint * 2, 20_000);
     this.checkpointCallback = checkpointCallback;
     this.walFilePath = walFilePath || process.env.EIDOS_WAL_PATH;
   }
@@ -45,6 +52,11 @@ export class WriteAheadLog {
     };
 
     this.operations.push(record);
+    if (this.operations.length > this.maxInMemoryOperations) {
+      const overflow = this.operations.length - this.maxInMemoryOperations;
+      this.operations.splice(0, overflow);
+      this.droppedInMemoryCount += overflow;
+    }
 
     if (this.walFilePath) {
       try {
@@ -60,31 +72,59 @@ export class WriteAheadLog {
       }
     }
 
-    if (this.operations.length >= this.maxOperationsBeforeCheckpoint) {
-      void this.triggerCheckpoint();
+    if (this.operations.length >= this.maxOperationsBeforeCheckpoint && !this.checkpointInFlight) {
+      void this.triggerCheckpoint().catch(() => {
+        // Error is tracked in failedCheckpointsCount and operations are retained
+      });
     }
 
     return record;
   }
 
   /**
-   * Triggers a checkpoint: executes persistence callback and truncates log.
+   * Triggers a checkpoint: executes persistence callback and truncates log only on success.
    */
   public async triggerCheckpoint(): Promise<void> {
-    const opsToCommit = [...this.operations];
-    this.operations = [];
-    if (this.checkpointCallback) {
-      try {
-        await this.checkpointCallback();
-        if (this.walFilePath && fs.existsSync(this.walFilePath)) {
-          fs.writeFileSync(this.walFilePath, '', 'utf8');
-        }
-      } catch (err) {
-        // Rollback uncheckpointed operations on failure
-        this.operations = [...opsToCommit, ...this.operations];
-        throw err;
-      }
+    if (this.checkpointInFlight) {
+      return this.checkpointInFlight;
     }
+
+    const run = async () => {
+      const opsToCommit = [...this.operations];
+      this.operations = [];
+      if (this.checkpointCallback) {
+        try {
+          await this.checkpointCallback();
+          if (this.walFilePath && fs.existsSync(this.walFilePath)) {
+            fs.writeFileSync(this.walFilePath, '', 'utf8');
+          }
+        } catch (err) {
+          this.failedCheckpointsCount += 1;
+          const restored = [...opsToCommit, ...this.operations];
+          if (restored.length > this.maxInMemoryOperations) {
+            const overflow = restored.length - this.maxInMemoryOperations;
+            this.droppedInMemoryCount += overflow;
+            this.operations = restored.slice(overflow);
+          } else {
+            this.operations = restored;
+          }
+          throw err;
+        }
+      }
+    };
+
+    this.checkpointInFlight = run().finally(() => {
+      this.checkpointInFlight = null;
+    });
+    return this.checkpointInFlight;
+  }
+
+  public getFailedCheckpointsCount(): number {
+    return this.failedCheckpointsCount;
+  }
+
+  public getDroppedInMemoryCount(): number {
+    return this.droppedInMemoryCount;
   }
 
   /**

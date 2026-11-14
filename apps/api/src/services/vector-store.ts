@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
+import * as readline from 'readline';
 import {
   cosineSimilarity,
   HNSWIndex,
@@ -133,7 +135,11 @@ export class VectorStore {
       process.env.EIDOS_WAL_PATH ||
       (!isTestEnv ? path.resolve(process.cwd(), './data/catalog.wal.jsonl') : undefined);
     this.snapshotPath = options?.snapshotPath;
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotSync(), this.walPath);
+    this.wal = new WriteAheadLog(
+      10000,
+      () => this.writeSnapshotFilesAsync(this.getSnapshotPath()),
+      this.walPath
+    );
   }
 
   public getNamespace(): string {
@@ -265,7 +271,11 @@ export class VectorStore {
     });
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
-    this.wal = new WriteAheadLog(10000, () => this.saveSnapshotSync(), this.walPath);
+    this.wal = new WriteAheadLog(
+      10000,
+      () => this.writeSnapshotFilesAsync(this.getSnapshotPath()),
+      this.walPath
+    );
 
     Metrics.vectorStoreSize.set(0);
     this.invalidateStoreCache();
@@ -629,26 +639,37 @@ export class VectorStore {
     return `${this.getSnapshotPath(customPath)}.hnsw.bin`;
   }
 
+  private toSnapshotItem(item: StoredItem): SnapshotCatalogItem {
+    return {
+      id: String(item.id),
+      sku: typeof item.sku === 'string' && item.sku ? item.sku : undefined,
+      brand: typeof item.brand === 'string' && item.brand ? item.brand : undefined,
+      title: item.title,
+      description: item.description || '',
+      category: item.category || 'General',
+      price: typeof item.price === 'number' ? item.price : 0,
+      stock: typeof item.stock === 'number' ? item.stock : undefined,
+      inStock: typeof item.inStock === 'boolean' ? item.inStock : true,
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      url: typeof item.url === 'string' ? item.url : '',
+      imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : null,
+      ...(item.variantGroup ? { variantGroup: item.variantGroup } : {}),
+    };
+  }
+
   public toSnapshotArray(): SnapshotCatalogItem[] {
     const out: SnapshotCatalogItem[] = [];
     for (const item of this.items.values()) {
-      out.push({
-        id: String(item.id),
-        sku: typeof item.sku === 'string' && item.sku ? item.sku : undefined,
-        brand: typeof item.brand === 'string' && item.brand ? item.brand : undefined,
-        title: item.title,
-        description: item.description || '',
-        category: item.category || 'General',
-        price: typeof item.price === 'number' ? item.price : 0,
-        stock: typeof item.stock === 'number' ? item.stock : undefined,
-        inStock: typeof item.inStock === 'boolean' ? item.inStock : true,
-        tags: Array.isArray(item.tags) ? item.tags : [],
-        url: typeof item.url === 'string' ? item.url : '',
-        imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : null,
-        ...(item.variantGroup ? { variantGroup: item.variantGroup } : {}),
-      });
+      out.push(this.toSnapshotItem(item));
     }
     return out;
+  }
+
+  private isNdjsonTarget(targetPath: string): boolean {
+    return (
+      targetPath.endsWith('.ndjson') ||
+      (process.env.EIDOS_SNAPSHOT_FORMAT || '').trim().toLowerCase() === 'ndjson'
+    );
   }
 
   private async writeSnapshotFilesAsync(targetPath: string): Promise<void> {
@@ -656,28 +677,66 @@ export class VectorStore {
     await fs.promises.mkdir(dir, { recursive: true });
     const nowTag = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const tempPath = `${targetPath}.tmp-${nowTag}`;
-    const payload = JSON.stringify(this.toSnapshotArray());
-    await fs.promises.writeFile(tempPath, payload, 'utf8');
-    await fs.promises.rename(tempPath, targetPath);
+    const ndjsonMode = this.isNdjsonTarget(targetPath);
 
-    const metaPath = `${targetPath}.meta.json`;
-    const activeEmbedder = ServerEmbedder.getInstance();
-    const metaPayload = JSON.stringify({
-      version: 2,
-      dimension: 384,
-      embeddingSpaceId: this.getEmbeddingSpaceId(),
-      embeddingModel: activeEmbedder.getActiveModelName(),
-      embeddingMode: activeEmbedder.getEmbeddingMode(),
-      itemCount: this.items.size,
-      savedAt: new Date().toISOString(),
-    });
-    await fs.promises.writeFile(metaPath, metaPayload, 'utf8');
+    // Stream items in small batches (never building a giant single string in V8)
+    const fh = await fs.promises.open(tempPath, 'w');
+    try {
+      if (!ndjsonMode) {
+        await fh.write('[\n', null, 'utf8');
+      }
+      const total = this.items.size;
+      let idx = 0;
+      let chunkLines: string[] = [];
+      for (const item of this.items.values()) {
+        idx++;
+        const serialized = JSON.stringify(this.toSnapshotItem(item));
+        if (ndjsonMode) {
+          chunkLines.push(`${serialized}\n`);
+        } else {
+          chunkLines.push(idx < total ? `${serialized},\n` : `${serialized}\n`);
+        }
+        if (chunkLines.length >= 250) {
+          await fh.write(chunkLines.join(''), null, 'utf8');
+          chunkLines = [];
+        }
+      }
+      if (chunkLines.length > 0) {
+        await fh.write(chunkLines.join(''), null, 'utf8');
+      }
+      if (!ndjsonMode) {
+        await fh.write(']\n', null, 'utf8');
+      }
+    } finally {
+      await fh.close();
+    }
+    await fs.promises.rename(tempPath, targetPath);
 
     const binPath = `${targetPath}.hnsw.bin`;
     const tempBinPath = `${binPath}.tmp-${nowTag}`;
     const binPayload = Buffer.from(this.exportBinarySnapshot());
+    const hnswSha256 = crypto.createHash('sha256').update(binPayload).digest('hex');
     await fs.promises.writeFile(tempBinPath, binPayload);
     await fs.promises.rename(tempBinPath, binPath);
+
+    const metaPath = `${targetPath}.meta.json`;
+    const tempMetaPath = `${metaPath}.tmp-${nowTag}`;
+    const activeEmbedder = ServerEmbedder.getInstance();
+    const metaPayload = JSON.stringify({
+      version: 2,
+      dimension: 384,
+      format: ndjsonMode ? 'ndjson' : 'json-lines-array',
+      embeddingSpaceId: this.getEmbeddingSpaceId(),
+      embeddingModel: activeEmbedder.getActiveModelName(),
+      embeddingMode: activeEmbedder.getEmbeddingMode(),
+      itemCount: this.items.size,
+      hnswSha256,
+      hnswByteLength: binPayload.byteLength,
+      savedAt: new Date().toISOString(),
+    });
+    await fs.promises.writeFile(tempMetaPath, metaPayload, 'utf8');
+    await fs.promises.rename(tempMetaPath, metaPath);
+
     this.wal.truncateDisk();
   }
 
@@ -686,28 +745,65 @@ export class VectorStore {
     fs.mkdirSync(dir, { recursive: true });
     const nowTag = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const tempPath = `${targetPath}.tmp-${nowTag}`;
-    const payload = JSON.stringify(this.toSnapshotArray());
-    fs.writeFileSync(tempPath, payload, 'utf8');
-    fs.renameSync(tempPath, targetPath);
+    const ndjsonMode = this.isNdjsonTarget(targetPath);
 
-    const metaPath = `${targetPath}.meta.json`;
-    const activeEmbedder = ServerEmbedder.getInstance();
-    const metaPayload = JSON.stringify({
-      version: 2,
-      dimension: 384,
-      embeddingSpaceId: this.getEmbeddingSpaceId(),
-      embeddingModel: activeEmbedder.getActiveModelName(),
-      embeddingMode: activeEmbedder.getEmbeddingMode(),
-      itemCount: this.items.size,
-      savedAt: new Date().toISOString(),
-    });
-    fs.writeFileSync(metaPath, metaPayload, 'utf8');
+    const fd = fs.openSync(tempPath, 'w');
+    try {
+      if (!ndjsonMode) {
+        fs.writeSync(fd, '[\n', undefined, 'utf8');
+      }
+      const total = this.items.size;
+      let idx = 0;
+      let chunkLines: string[] = [];
+      for (const item of this.items.values()) {
+        idx++;
+        const serialized = JSON.stringify(this.toSnapshotItem(item));
+        if (ndjsonMode) {
+          chunkLines.push(`${serialized}\n`);
+        } else {
+          chunkLines.push(idx < total ? `${serialized},\n` : `${serialized}\n`);
+        }
+        if (chunkLines.length >= 250) {
+          fs.writeSync(fd, chunkLines.join(''), undefined, 'utf8');
+          chunkLines = [];
+        }
+      }
+      if (chunkLines.length > 0) {
+        fs.writeSync(fd, chunkLines.join(''), undefined, 'utf8');
+      }
+      if (!ndjsonMode) {
+        fs.writeSync(fd, ']\n', undefined, 'utf8');
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tempPath, targetPath);
 
     const binPath = `${targetPath}.hnsw.bin`;
     const tempBinPath = `${binPath}.tmp-${nowTag}`;
     const binPayload = Buffer.from(this.exportBinarySnapshot());
+    const hnswSha256 = crypto.createHash('sha256').update(binPayload).digest('hex');
     fs.writeFileSync(tempBinPath, binPayload);
     fs.renameSync(tempBinPath, binPath);
+
+    const metaPath = `${targetPath}.meta.json`;
+    const tempMetaPath = `${metaPath}.tmp-${nowTag}`;
+    const activeEmbedder = ServerEmbedder.getInstance();
+    const metaPayload = JSON.stringify({
+      version: 2,
+      dimension: 384,
+      format: ndjsonMode ? 'ndjson' : 'json-lines-array',
+      embeddingSpaceId: this.getEmbeddingSpaceId(),
+      embeddingModel: activeEmbedder.getActiveModelName(),
+      embeddingMode: activeEmbedder.getEmbeddingMode(),
+      itemCount: this.items.size,
+      hnswSha256,
+      hnswByteLength: binPayload.byteLength,
+      savedAt: new Date().toISOString(),
+    });
+    fs.writeFileSync(tempMetaPath, metaPayload, 'utf8');
+    fs.renameSync(tempMetaPath, metaPath);
+
     this.wal.truncateDisk();
   }
 
@@ -818,12 +914,13 @@ export class VectorStore {
     }
 
     try {
+      const activeSpaceId =
+        this.options?.embeddingSpaceId || ServerEmbedder.getInstance().getEmbeddingSpaceId();
+      let expectedHnswSha256: string | null = null;
       const metaPath = `${targetPath}.meta.json`;
       if (fs.existsSync(metaPath)) {
         const metaRaw = fs.readFileSync(metaPath, 'utf8');
         const metaObj = JSON.parse(metaRaw);
-        const activeSpaceId =
-          this.options?.embeddingSpaceId || ServerEmbedder.getInstance().getEmbeddingSpaceId();
         if (
           metaObj &&
           typeof metaObj.embeddingSpaceId === 'string' &&
@@ -832,57 +929,17 @@ export class VectorStore {
         ) {
           throw new EmbeddingSpaceMismatchError(metaObj.embeddingSpaceId, activeSpaceId);
         }
-      }
-
-      const raw = fs.readFileSync(targetPath, 'utf8');
-      const parsedJson = JSON.parse(raw);
-      if (
-        parsedJson &&
-        !Array.isArray(parsedJson) &&
-        typeof parsedJson === 'object' &&
-        typeof parsedJson.embeddingSpaceId === 'string'
-      ) {
-        const activeSpaceId =
-          this.options?.embeddingSpaceId || ServerEmbedder.getInstance().getEmbeddingSpaceId();
-        if (parsedJson.embeddingSpaceId !== activeSpaceId) {
-          throw new EmbeddingSpaceMismatchError(parsedJson.embeddingSpaceId, activeSpaceId);
-        }
-      }
-      const parsed = Array.isArray(parsedJson)
-        ? parsedJson
-        : Array.isArray(parsedJson?.items)
-        ? parsedJson.items
-        : [];
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        return 0;
-      }
-
-      // Check for paired binary HNSW snapshot (.hnsw.bin) for zero-recompute cold start
-      const binPath = `${targetPath}.hnsw.bin`;
-      const binaryVectors = new Map<string, Float32Array>();
-      let restoredHnsw: HNSWIndex | null = null;
-      if (fs.existsSync(binPath)) {
-        try {
-          const binBuf = fs.readFileSync(binPath);
-          const binUint8 = new Uint8Array(binBuf.buffer, binBuf.byteOffset, binBuf.byteLength);
-          restoredHnsw = HNSWIndexSerializer.deserialize(binUint8);
-          for (const node of restoredHnsw.getAllNodes()) {
-            binaryVectors.set(String(node.id), node.vector);
-          }
-        } catch {
-          restoredHnsw = null;
-          binaryVectors.clear();
+        if (metaObj && typeof metaObj.hnswSha256 === 'string' && metaObj.hnswSha256.trim()) {
+          expectedHnswSha256 = metaObj.hnswSha256.trim();
         }
       }
 
-      const toEmbed: Array<{ item: SnapshotCatalogItem; text: string }> = [];
       const validSnapItems: SnapshotCatalogItem[] = [];
       const snapshotIds = new Set<string>();
-      let loadedCount = 0;
 
-      for (const entry of parsed) {
+      const pushValidEntry = (entry: any) => {
         if (!entry || typeof entry.id !== 'string' || typeof entry.title !== 'string') {
-          continue;
+          return;
         }
         snapshotIds.add(String(entry.id));
         const snapItem: SnapshotCatalogItem = {
@@ -901,7 +958,108 @@ export class VectorStore {
           variantGroup: typeof entry.variantGroup === 'string' ? entry.variantGroup : undefined,
         };
         validSnapItems.push(snapItem);
+      };
+
+      // Stream snapshot file line-by-line (supports NDJSON, multi-line JSON array, and legacy single-line JSON)
+      const fileStream = fs.createReadStream(targetPath, { encoding: 'utf8' });
+      const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity,
+      });
+
+      let multiLineFallbackBuffer: string[] | null = null;
+      for await (const rawLine of rl) {
+        const trimmed = rawLine.trim();
+        if (!trimmed || trimmed === '[' || trimmed === ']') {
+          continue;
+        }
+        if (multiLineFallbackBuffer !== null) {
+          multiLineFallbackBuffer.push(rawLine);
+          continue;
+        }
+        const candidate = trimmed.endsWith(',') ? trimmed.slice(0, -1).trim() : trimmed;
+        try {
+          const parsedLine = JSON.parse(candidate);
+          if (Array.isArray(parsedLine)) {
+            for (const entry of parsedLine) pushValidEntry(entry);
+          } else if (parsedLine && typeof parsedLine === 'object') {
+            if (
+              typeof parsedLine.embeddingSpaceId === 'string' &&
+              parsedLine.embeddingSpaceId !== activeSpaceId
+            ) {
+              throw new EmbeddingSpaceMismatchError(parsedLine.embeddingSpaceId, activeSpaceId);
+            }
+            if (Array.isArray(parsedLine.items)) {
+              for (const entry of parsedLine.items) pushValidEntry(entry);
+            } else {
+              pushValidEntry(parsedLine);
+            }
+          }
+        } catch (err) {
+          if (err instanceof EmbeddingSpaceMismatchError) {
+            throw err;
+          }
+          // Pretty-printed multi-line JSON fallback for hand-crafted test fixtures
+          multiLineFallbackBuffer = [rawLine];
+        }
       }
+
+      if (multiLineFallbackBuffer !== null) {
+        const raw = fs.readFileSync(targetPath, 'utf8');
+        const parsedJson = JSON.parse(raw);
+        if (
+          parsedJson &&
+          !Array.isArray(parsedJson) &&
+          typeof parsedJson === 'object' &&
+          typeof parsedJson.embeddingSpaceId === 'string' &&
+          parsedJson.embeddingSpaceId !== activeSpaceId
+        ) {
+          throw new EmbeddingSpaceMismatchError(parsedJson.embeddingSpaceId, activeSpaceId);
+        }
+        const parsedList = Array.isArray(parsedJson)
+          ? parsedJson
+          : Array.isArray(parsedJson?.items)
+          ? parsedJson.items
+          : [];
+        for (const entry of parsedList) pushValidEntry(entry);
+      }
+
+      if (validSnapItems.length === 0) {
+        return 0;
+      }
+
+      // Check for paired binary HNSW snapshot (.hnsw.bin) with SHA-256 verification
+      const binPath = `${targetPath}.hnsw.bin`;
+      const binaryVectors = new Map<string, Float32Array>();
+      let restoredHnsw: HNSWIndex | null = null;
+      if (fs.existsSync(binPath)) {
+        try {
+          const binBuf = fs.readFileSync(binPath);
+          if (expectedHnswSha256) {
+            const actualSha256 = crypto.createHash('sha256').update(binBuf).digest('hex');
+            if (actualSha256 !== expectedHnswSha256) {
+              throw new Error(
+                `Binary HNSW SHA-256 mismatch (expected ${expectedHnswSha256}, got ${actualSha256})`
+              );
+            }
+          }
+          const binUint8 = new Uint8Array(binBuf.buffer, binBuf.byteOffset, binBuf.byteLength);
+          restoredHnsw = HNSWIndexSerializer.deserialize(binUint8);
+          for (const node of restoredHnsw.getAllNodes()) {
+            binaryVectors.set(String(node.id), node.vector);
+          }
+        } catch (binErr) {
+          console.warn(
+            '[EIDOS] Binary HNSW snapshot corrupted or mismatched; rebuilding HNSW graph from catalog items:',
+            binErr instanceof Error ? binErr.message : binErr
+          );
+          restoredHnsw = null;
+          binaryVectors.clear();
+        }
+      }
+
+      const toEmbed: Array<{ item: SnapshotCatalogItem; text: string }> = [];
+      let loadedCount = 0;
 
       // Fast path: if store is empty and binary HNSW graph contains all snapshot IDs, restore without re-embedding
       const canUseFullBinaryRestore =
