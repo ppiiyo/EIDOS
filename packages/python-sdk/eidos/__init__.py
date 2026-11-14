@@ -31,11 +31,18 @@ class EidosClient:
         base_url: str = "http://localhost:8080",
         api_key: Optional[str] = None,
         timeout: float = 5.0,
+        tenant_id: Optional[str] = None,
+        index_name: Optional[str] = None,
     ):
         self.base_url = base_url.rstrip("/")
+        headers: Dict[str, str] = {"x-api-key": api_key or "", "Accept": "application/json"}
+        if tenant_id:
+            headers["x-tenant-id"] = tenant_id
+        if index_name:
+            headers["x-index-name"] = index_name
         self.client = httpx.Client(
             base_url=self.base_url,
-            headers={"x-api-key": api_key or "", "Accept": "application/json"},
+            headers=headers,
             timeout=timeout,
         )
 
@@ -90,6 +97,11 @@ class EidosClient:
         r.raise_for_status()
         return [Recommendation(**item) for item in r.json()["results"]]
 
+    def suggest(self, query: str, limit: int = 8) -> Dict[str, Any]:
+        r = self.client.post("/v1/suggest", json={"query": query, "limit": limit})
+        r.raise_for_status()
+        return r.json()
+
     def upsert_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         r = self.client.post("/v1/catalog/upsert", json=item)
         r.raise_for_status()
@@ -135,6 +147,11 @@ class EidosClient:
 
     def health(self) -> Dict[str, Any]:
         r = self.client.get("/v1/health")
+        r.raise_for_status()
+        return r.json()
+
+    def ready(self) -> Dict[str, Any]:
+        r = self.client.get("/v1/ready")
         r.raise_for_status()
         return r.json()
 

@@ -81,7 +81,7 @@ public/widget.js  Storefront embed (kept in sync with workspace copy)
 
 **Persistence:** snapshot + WAL (snapshot applied before WAL replay). Demo tenant is **ephemeral** (does not touch production `default:default`).
 
-**Security:** API keys / roles (`master`, `admin`, `search`, `viewer`, `editor`), rate limits, CSP, SSRF guards on URL imports. `/metrics` is public for Prometheus; mutating routes require keys.
+**Security:** API keys / roles (`master`, `admin`, `merchandiser`, `search`), JWT revocation (`POST /v1/admin/jwt/revoke`), per-IP rate limits, strict CORS with `Vary: Origin`, CSP, XXE-safe linear YML parser, and SSRF guards on URL imports. `/metrics` requires `admin` or `master` authentication in production (`EIDOS_REQUIRE_METRICS_AUTH=true`).
 
 ---
 
@@ -91,23 +91,22 @@ public/widget.js  Storefront embed (kept in sync with workspace copy)
 corepack enable && pnpm install
 pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
 pnpm dev                    # unified server
-pnpm run test:core          # CI gate suite (must stay green)
-pnpm test                   # full suite (some UI/SLA acceptance tests may still fail)
-pnpm run verify:injects     # production inject markers
+pnpm lint                   # typecheck all workspaces
+pnpm test                   # full test suite (zero CI patches)
+bash scripts/smoke.sh       # live HTTP smoke verification
 ```
 
 ### CI
 
 | Job | Required |
 |-----|----------|
-| Typecheck (`core` / `sdk` / `api`) | yes |
-| `pnpm run test:core` (Node 20 & 22) | yes |
-| Inject markers | yes |
-| PHP connector lint | yes |
-| Full `pnpm test` / coverage | report only |
-| Build artifacts | yes |
+| Typecheck (`pnpm lint`) | yes |
+| Full `pnpm test` (Node 20 & 22) | yes |
+| `@eidos/core` coverage gate (≥80% lines, ≥75% branches) | yes |
+| PHP connector syntax & PHPUnit | yes |
+| Build & Docker smoke (`scripts/smoke.sh`) | yes |
 
-Workflows: `.github/workflows/ci.yml`, `auto-apply-p0.yml`, `verify-injects-daily.yml`, `php-connectors.yml`.
+Workflows: `.github/workflows/ci.yml`, `php-connectors.yml`.
 
 ---
 

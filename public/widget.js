@@ -155,6 +155,55 @@
     document.head.appendChild(style);
   }
 
+  var WIDGET_I18N = {
+    ru: {
+      foundPrefix: 'Найдено: ',
+      noMatches: 'Нет совпадений',
+      msUnit: ' мс · EIDOS',
+      emptyQuery: function (q) {
+        return 'По запросу «' + q + '» ничего не найдено';
+      },
+    },
+    en: {
+      foundPrefix: 'Found: ',
+      noMatches: 'No matches',
+      msUnit: ' ms · EIDOS',
+      emptyQuery: function (q) {
+        return 'No results found for "' + q + '"';
+      },
+    },
+  };
+
+  function resolveLocaleKey(rawLocale) {
+    var norm = String(rawLocale || 'ru').trim().toLowerCase();
+    if (norm.indexOf('en') === 0) return 'en';
+    return 'ru';
+  }
+
+  function formatPrice(price, locale, currency) {
+    var num = Number(price);
+    if (!isFinite(num) || num <= 0) return '';
+    var lang = resolveLocaleKey(locale);
+    var curr = String(currency || (lang === 'en' ? 'USD' : 'RUB')).trim().toUpperCase();
+    var intlLocale = lang === 'en' ? 'en-US' : 'ru-RU';
+    if (curr === 'RUB' && lang === 'ru') {
+      return num.toLocaleString('ru-RU') + ' ₽';
+    }
+    try {
+      if (typeof Intl !== 'undefined' && typeof Intl.NumberFormat === 'function') {
+        return new Intl.NumberFormat(intlLocale, {
+          style: 'currency',
+          currency: curr,
+          maximumFractionDigits: num % 1 === 0 ? 0 : 2,
+        }).format(num);
+      }
+    } catch (_e) {
+      // Fallback if currency code is non-standard
+    }
+    var symbol = curr === 'USD' ? '$' : curr === 'EUR' ? '€' : curr === 'RUB' ? '₽' : curr;
+    return num.toLocaleString(intlLocale) + ' ' + symbol;
+  }
+
   function mountWidget(config) {
     var apiUrl = String(config.apiUrl || window.location.origin).replace(/\/+$/, '');
     var apiKey = String(config.apiKey || '').trim();
@@ -163,6 +212,10 @@
     var selector = config.inputSelector || 'input[type="search"], input[name="q"], input[name="s"]';
     var minChars = Math.max(1, Number(config.minChars) || 2);
     var limit = Math.min(20, Math.max(1, Number(config.limit) || 6));
+    var locale = resolveLocaleKey(config.locale || 'ru');
+    var currency = String(config.currency || (locale === 'en' ? 'USD' : 'RUB')).trim().toUpperCase();
+    var urlTemplate = String(config.urlTemplate || '').trim();
+    var i18n = WIDGET_I18N[locale] || WIDGET_I18N.ru;
 
     if (isForbiddenKey(apiKey)) {
       console.error(
@@ -266,10 +319,10 @@
       header.className = 'eidos-widget-header';
       var leftSpan = document.createElement('span');
       var totalCount = (data && typeof data.total === 'number') ? data.total : results.length;
-      leftSpan.textContent = results.length > 0 ? ('Найдено: ' + totalCount) : 'Нет совпадений';
+      leftSpan.textContent = results.length > 0 ? (i18n.foundPrefix + totalCount) : i18n.noMatches;
       var rightSpan = document.createElement('span');
       var lat = data && data.meta && typeof data.meta.latencyMs === 'number' ? data.meta.latencyMs : data.latencyMs;
-      rightSpan.textContent = typeof lat === 'number' ? (lat.toFixed(1) + ' мс · EIDOS') : 'EIDOS Hybrid';
+      rightSpan.textContent = typeof lat === 'number' ? (lat.toFixed(1) + i18n.msUnit) : 'EIDOS Hybrid';
       header.appendChild(leftSpan);
       header.appendChild(rightSpan);
       dropdown.appendChild(header);
@@ -277,7 +330,7 @@
       if (results.length === 0) {
         var empty = document.createElement('div');
         empty.className = 'eidos-widget-empty';
-        empty.textContent = 'По запросу «' + queryText + '» ничего не найдено';
+        empty.textContent = i18n.emptyQuery(queryText);
         dropdown.appendChild(empty);
         openDropdown();
         return;
@@ -291,7 +344,7 @@
           a.className = 'eidos-widget-item';
           a.setAttribute('role', 'option');
           a.setAttribute('aria-selected', 'false');
-          a.href = safeUrl(item.url, item.id);
+          a.href = resolveProductUrl(item, urlTemplate);
 
           if (item.imageUrl) {
             var imgSrc = safeUrl(item.imageUrl, '');
@@ -332,7 +385,7 @@
           if (typeof item.price === 'number' && item.price > 0) {
             var priceEl = document.createElement('div');
             priceEl.className = 'eidos-widget-price';
-            priceEl.textContent = item.price.toLocaleString('ru-RU') + ' ₽';
+            priceEl.textContent = formatPrice(item.price, locale, currency);
             a.appendChild(priceEl);
           }
 
@@ -416,7 +469,7 @@
         e.preventDefault();
         var chosen = currentItems[activeIndex];
         sendEvent('click', chosen, input.value);
-        window.location.assign(safeUrl(chosen.url, chosen.id));
+        window.location.assign(resolveProductUrl(chosen, urlTemplate));
       } else if (e.key === 'Escape') {
         e.preventDefault();
         closeDropdown();
@@ -461,6 +514,9 @@
         indexName: s.getAttribute('data-index-name') || '',
         inputSelector: inputSel,
         limit: limit,
+        locale: s.getAttribute('data-locale') || 'ru',
+        currency: s.getAttribute('data-currency') || '',
+        urlTemplate: s.getAttribute('data-url-template') || '',
       });
     }
   }
@@ -473,6 +529,7 @@
     safeUrl: safeUrl,
     resolveProductUrl: resolveProductUrl,
     renderHighlightedTitle: renderHighlightedTitle,
+    formatPrice: formatPrice,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

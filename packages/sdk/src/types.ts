@@ -2,6 +2,8 @@ export interface EidosClientConfig {
   baseUrl?: string;
   apiKey: string;
   timeoutMs?: number;
+  tenantId?: string;
+  indexName?: string;
 }
 
 export interface RecommendationRequest {
@@ -16,6 +18,8 @@ export interface RecommendationRequest {
   diversityFactor?: number;
   excludeIds?: string[];
   filterCategory?: string;
+  tenantId?: string;
+  indexName?: string;
 }
 
 export interface SearchRequest {
@@ -29,6 +33,16 @@ export interface SearchRequest {
   rerank?: boolean;
   minSimilarity?: number;
   filterCategory?: string;
+  simpleCategoryGate?: 'off' | 'soft' | 'hard';
+  tenantId?: string;
+  indexName?: string;
+}
+
+export interface SuggestRequest {
+  query: string;
+  limit?: number;
+  tenantId?: string;
+  indexName?: string;
 }
 
 export interface RecommendationItem {
@@ -58,6 +72,20 @@ export interface SearchResponse {
   latencyMs: number;
 }
 
+export interface SuggestResponse {
+  query: string;
+  suggestions?: string[];
+  results: RecommendationItem[];
+  total?: number;
+  latencyMs?: number;
+}
+
+export interface ReadyResponse {
+  ready: boolean;
+  status: string;
+  itemsIndexed?: number;
+}
+
 export interface CatalogItemInput {
   id: string;
   title: string;
@@ -74,5 +102,6 @@ export interface CatalogItemInput {
 export interface IngestResponse {
   success: boolean;
   indexedCount: number;
+  upserted?: number;
   durationMs: number;
 }

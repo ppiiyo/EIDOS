@@ -63,20 +63,28 @@ class EidosClient:
         self,
         base_url: str = "http://localhost:8080",
         api_key: Optional[str] = None,
-        timeout: int = 30
+        timeout: int = 30,
+        tenant_id: Optional[str] = None,
+        index_name: Optional[str] = None,
     ):
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
         self.timeout = timeout
+        self.tenant_id = tenant_id
+        self.index_name = index_name
 
     def _request(self, method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{self.base_url}{path}"
         headers = {
             "Content-Type": "application/json",
-            "User-Agent": "eidos-python-sdk/3.0.0",
+            "User-Agent": "eidos-python-sdk/4.0.0",
         }
         if self.api_key:
             headers["x-api-key"] = self.api_key
+        if self.tenant_id:
+            headers["x-tenant-id"] = self.tenant_id
+        if self.index_name:
+            headers["x-index-name"] = self.index_name
 
         data_bytes = json.dumps(payload).encode('utf-8') if payload is not None else None
         req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method)
@@ -99,6 +107,14 @@ class EidosClient:
     def health(self) -> Dict[str, Any]:
         """Check API service health and vector index statistics."""
         return self._request("GET", "/v1/health")
+
+    def ready(self) -> Dict[str, Any]:
+        """Check API readiness probe (/v1/ready)."""
+        return self._request("GET", "/v1/ready")
+
+    def suggest(self, query: str, limit: int = 8) -> Dict[str, Any]:
+        """Low-latency autocomplete / typeahead search (/v1/suggest)."""
+        return self._request("POST", "/v1/suggest", {"query": query, "limit": limit})
 
     def search(
         self,
@@ -219,6 +235,10 @@ class EidosClient:
             for r in data.get("recommendations", [])
         ]
 
+    def upsert_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        """Upsert a single item dictionary into /v1/catalog/upsert."""
+        return self._request("POST", "/v1/catalog/upsert", item)
+
     def ingest_item(
         self,
         item_id: str,
@@ -226,7 +246,7 @@ class EidosClient:
         description: str,
         category: str,
         tags: Optional[List[str]] = None,
-        price: Optional[str] = None,
+        price: Optional[Union[str, float, int]] = None,
         embedding: Optional[List[float]] = None,
     ) -> Dict[str, Any]:
         """Index a single product into the vector catalog and BM25 index."""
@@ -237,12 +257,12 @@ class EidosClient:
             "category": category,
             "tags": tags or [],
         }
-        if price:
+        if price is not None:
             payload["price"] = price
         if embedding:
             payload["embedding"] = embedding
 
-        return self._request("POST", "/v1/catalog/items", payload)
+        return self._request("POST", "/v1/catalog/upsert", payload)
 
     def ingest_batch(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Batch ingestion for high-throughput product indexing (chunks of up to 500 items)."""

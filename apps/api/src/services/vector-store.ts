@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import * as readline from 'readline';
+import { StringDecoder } from 'string_decoder';
 import {
   cosineSimilarity,
   HNSWIndex,
@@ -960,22 +960,16 @@ export class VectorStore {
         validSnapItems.push(snapItem);
       };
 
-      // Stream snapshot file line-by-line (supports NDJSON, multi-line JSON array, and legacy single-line JSON)
-      const fileStream = fs.createReadStream(targetPath, { encoding: 'utf8' });
-      const rl = readline.createInterface({
-        input: fileStream,
-        crlfDelay: Infinity,
-      });
-
+      // Stream snapshot file in 64KB chunks line-by-line (supports NDJSON, multi-line JSON array, and legacy single-line JSON without full-file string allocation)
       let multiLineFallbackBuffer: string[] | null = null;
-      for await (const rawLine of rl) {
+      const processRawLine = (rawLine: string) => {
         const trimmed = rawLine.trim();
         if (!trimmed || trimmed === '[' || trimmed === ']') {
-          continue;
+          return;
         }
         if (multiLineFallbackBuffer !== null) {
           multiLineFallbackBuffer.push(rawLine);
-          continue;
+          return;
         }
         const candidate = trimmed.endsWith(',') ? trimmed.slice(0, -1).trim() : trimmed;
         try {
@@ -1002,6 +996,30 @@ export class VectorStore {
           // Pretty-printed multi-line JSON fallback for hand-crafted test fixtures
           multiLineFallbackBuffer = [rawLine];
         }
+      };
+
+      const fd = fs.openSync(targetPath, 'r');
+      try {
+        const chunkBuf = Buffer.allocUnsafe(64 * 1024);
+        const decoder = new StringDecoder('utf8');
+        let carry = '';
+        let bytesRead = 0;
+        while ((bytesRead = fs.readSync(fd, chunkBuf, 0, chunkBuf.length, null)) > 0) {
+          carry += decoder.write(chunkBuf.subarray(0, bytesRead));
+          let nlIdx = carry.indexOf('\n');
+          while (nlIdx !== -1) {
+            const line = carry.slice(0, nlIdx);
+            carry = carry.slice(nlIdx + 1);
+            processRawLine(line);
+            nlIdx = carry.indexOf('\n');
+          }
+        }
+        carry += decoder.end();
+        if (carry.trim().length > 0) {
+          processRawLine(carry);
+        }
+      } finally {
+        fs.closeSync(fd);
       }
 
       if (multiLineFallbackBuffer !== null) {

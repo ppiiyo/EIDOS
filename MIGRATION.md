@@ -65,3 +65,9 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 - **Cluster Status Truth (`GET /v1/cluster/status`)**: `ClusterStateCoordinator.getClusterStatus()` explicitly reports `deploymentMode: 'single-node'` when `CLUSTER_MODE !== 'true'` and `'clustered'` when `CLUSTER_MODE=true`.
 - **Pilot Bootstrap & Smoke Script (`deploy/pilot/install.sh`, `docker-compose.pilot.yml`, `scripts/smoke.sh`)**: `deploy/pilot/install.sh` creates `.env.pilot` with `0600` permissions (`umask 077`), generates `JWT_SECRET` and `EIDOS_PUBLIC_DEMO_KEY`, enables `EIDOS_ENABLE_DEMO_MUTATIONS=true`, and replaces `CORS_ORIGIN=*` with explicit localhost origins. Added `scripts/smoke.sh` for end-to-end smoke verification.
 
+## 10. Storefront Widget i18n, SDK & Connector Parity (P1-3)
+
+- **Storefront Widget (`public/widget.js`) i18n & Currency Formatting**: `EidosSearchWidget.init` and `<script data-*>` attributes now support `locale` (`'ru' | 'en'`, `data-locale`), `currency` (`'RUB' | 'USD' | 'EUR'`, `data-currency`), and `urlTemplate` (`data-url-template`, wired into both item `href` and keyboard Enter navigation via `resolveProductUrl`).
+- **TypeScript & Python SDK Parity**: `@eidos/sdk` (`packages/sdk`) and both Python SDKs (`packages/sdk/python` and `packages/python-sdk`) now support `tenantId` / `indexName` (`x-tenant-id` / `x-index-name` headers), `suggest()` (`POST /v1/suggest`), `ready()` (`GET /v1/ready`), and `upsertItem` / `upsertBatch` (`POST /v1/catalog/upsert`). Fixed `packages/sdk/python` `ingest_item` to target `/v1/catalog/upsert` instead of nonexistent `/v1/catalog/items`.
+- **Canonical WooCommerce Packager (`connectors/woocommerce/pack.sh`)**: `connectors/woocommerce/pack.sh` now packages `dist/eidos-woocommerce-plugin.zip` directly from the canonical `packages/connectors/woocommerce` module (matching `connectors/bitrix/pack.sh`).
+
