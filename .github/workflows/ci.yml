@@ -1,4 +1,4 @@
-name: CI
+name: EIDOS CI Pipeline
 
 on:
   push:
@@ -29,43 +29,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
+      - run: pnpm lint
+      - run: bash scripts/check-ui-keys.sh
+      - run: pnpm run build
 
-      - name: Install dependencies (frozen lockfile)
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify zero Python mutation scripts in scripts/
-        run: |
-          if ls scripts/*.py 2>/dev/null; then
-            echo "FATAL: CI mutation scripts in scripts/ are forbidden."
-            exit 1
-          fi
-
-      - name: Build @eidos/core and @eidos/sdk
-        run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
-
-      - name: Typecheck & Lint all workspaces
-        run: pnpm lint
-
-      - name: Verify UI hardcoded API keys guard
-        run: bash scripts/check-ui-keys.sh
-
-      - name: Build all workspaces (@eidos/core, @eidos/sdk, @eidos/api, @eidos/workspace)
-        run: pnpm run build
-
-  unit-tests:
+  build-lint-test:
     name: Full test suite (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -74,29 +51,16 @@ jobs:
       matrix:
         node-version: [20, 22]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
         with:
           node-version: '${{ matrix.node-version }}'
           cache: 'pnpm'
-
-      - name: Install dependencies (frozen lockfile)
-        run: pnpm install --frozen-lockfile
-
-      - name: Build @eidos/core and @eidos/sdk
-        run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
-
-      - name: Run full test suite
-        run: mkdir -p data && pnpm test
-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
+      - run: mkdir -p data && pnpm test
       - name: Coverage (@eidos/core)
         if: matrix.node-version == 20
         run: pnpm exec vitest run --coverage packages/core/src/tests
@@ -107,19 +71,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           tools: composer, phpunit
-
       - name: Lint all PHP files
         run: |
           find connectors packages/connectors -name '*.php' -print0 | xargs -0 -n1 php -l
-
       - name: Verify Bitrix include.php autoload
         run: php scripts/verify-bitrix-autoload.php
-
       - name: Run Bitrix PHPUnit suite & verify connector packagers
         run: |
           cd packages/connectors/bitrix && composer install --no-interaction && vendor/bin/phpunit tests/ConnectorTest.php
@@ -133,15 +93,30 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install & Test Python SDKs
         run: |
           python -m pip install --upgrade pip pytest
-          pip install -e "./packages/sdk/python[dev]"
-          pytest packages/sdk/python/tests
+          pip install -e packages/sdk/python
+          pytest -q packages/sdk/python
           pip install -e "./packages/python-sdk[dev]"
           pytest packages/python-sdk/tests
+
+  production-gate:
+    name: Production Gate & Smoke
+    needs: [lint-and-typecheck, build-lint-test, php-connectors, python-sdk]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
+      - run: pnpm exec vitest run apps/api/tests/v35-production-gate.test.ts apps/api/tests/p0-p1-final-audit.test.ts

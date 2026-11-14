@@ -785,6 +785,11 @@ export async function searchRoutes(
           typeof cachedResponse.total === 'number'
             ? cachedResponse.total
             : formattedCachedResults.length;
+        const cachedTotalIsApproximate = Boolean(
+          cachedResponse.totalIsApproximate ??
+            cachedMeta.totalIsApproximate ??
+            activeStore.count() > Math.max(resolvedRankWindow.lexical, resolvedRankWindow.dense) * 2
+        );
         return {
           ...restCached,
           query: safeQuery,
@@ -798,6 +803,7 @@ export async function searchRoutes(
           results: formattedCachedResults,
           count: formattedCachedResults.length,
           total: cachedTotal,
+          totalIsApproximate: cachedTotalIsApproximate,
           offset,
           limit,
           hasMore: Boolean(
@@ -834,6 +840,7 @@ export async function searchRoutes(
             channelWindows: resolvedRankWindow,
             rankWindow: resolvedRankWindow,
             rankConstant: resolvedRankConstant,
+            totalIsApproximate: cachedTotalIsApproximate,
             pipelineStages: EIDOS_RETRIEVAL_PIPELINE_STAGES,
           },
           ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
@@ -955,6 +962,15 @@ export async function searchRoutes(
             }
             const { extractedIntent: _semIntent, ...restSem } = semHit.response;
             const semMeta = (semHit.response.meta as Record<string, any>) || {};
+            const semTotal =
+              typeof semHit.response.total === 'number'
+                ? Math.max(semHit.response.total, formattedSemResults.length)
+                : formattedSemResults.length;
+            const semTotalIsApproximate = Boolean(
+              semHit.response.totalIsApproximate ??
+                semMeta.totalIsApproximate ??
+                activeStore.count() > Math.max(resolvedRankWindow.lexical, resolvedRankWindow.dense) * 2
+            );
             return {
               ...restSem,
               alpha: appliedAlpha,
@@ -963,7 +979,8 @@ export async function searchRoutes(
               rewriteApplied: wasRewritten,
               results: formattedSemResults,
               count: formattedSemResults.length,
-              total: formattedSemResults.length,
+              total: semTotal,
+              totalIsApproximate: semTotalIsApproximate,
               ...(semHit.response.facets ? { facets: semHit.response.facets } : {}),
               meta: {
                 latencyMs: semLatencyMs,
@@ -995,6 +1012,7 @@ export async function searchRoutes(
                 channelWindows: resolvedRankWindow,
                 rankWindow: resolvedRankWindow,
                 rankConstant: resolvedRankConstant,
+                totalIsApproximate: semTotalIsApproximate,
                 pipelineStages: EIDOS_RETRIEVAL_PIPELINE_STAGES,
               },
               ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
@@ -1396,6 +1414,9 @@ export async function searchRoutes(
       const slicedFresh = freshResults.slice(0, limit).map(formatResultForView);
       const resolvedTotal = Math.max(totalHolder.total, offset + slicedFresh.length);
       const resolvedHasMore = offset + slicedFresh.length < resolvedTotal;
+      const resolvedTotalIsApproximate = Boolean(
+        activeStore.count() > Math.max(resolvedRankWindow.lexical, resolvedRankWindow.dense) * 2
+      );
 
       const fullCachePayload = {
         query: safeQuery,
@@ -1412,6 +1433,7 @@ export async function searchRoutes(
         results: freshResults,
         count: slicedFresh.length,
         total: resolvedTotal,
+        totalIsApproximate: resolvedTotalIsApproximate,
         offset,
         limit,
         hasMore: resolvedHasMore,
@@ -1440,6 +1462,7 @@ export async function searchRoutes(
           channelWindows: resolvedRankWindow,
           rankWindow: resolvedRankWindow,
           rankConstant: resolvedRankConstant,
+          totalIsApproximate: resolvedTotalIsApproximate,
           embeddingMode: activeEmbeddingMode,
           embeddingSpaceId: opts.embedder.getEmbeddingSpaceId(),
           pipelineStages: EIDOS_RETRIEVAL_PIPELINE_STAGES,
@@ -1458,6 +1481,7 @@ export async function searchRoutes(
         results: slicedFresh,
         count: slicedFresh.length,
         total: resolvedTotal,
+        totalIsApproximate: resolvedTotalIsApproximate,
         offset,
         limit,
         hasMore: resolvedHasMore,

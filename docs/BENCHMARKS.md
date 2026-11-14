@@ -38,12 +38,12 @@ Comparison of sentence transformer models evaluated for retrieval accuracy, memo
 
 | Model Identifier | Parameter Count | Embedding Dimensions | Memory Footprint (FP32) | CPU Embedding Time (1 query) |
 | :--- | :--- | :--- | :--- | :--- |
-| **`all-MiniLM-L6-v2` (Default)** | 22.7 M | 384 | ~90 MB | ~12 ms |
-| **`intfloat/e5-small-v2`** | 33.0 M | 384 | ~130 MB | ~19 ms |
-| **`intfloat/e5-base-v2`** | 109.0 M | 768 | ~435 MB | ~54 ms |
+| **`Xenova/paraphrase-multilingual-MiniLM-L12-v2` (Server ONNX Default, RU+EN+50 langs)** | 118.0 M | 384 | ~450 MB (or ~120 MB INT8 quantized) | ~16 ms |
+| **`Xenova/all-MiniLM-L6-v2` (English / Browser WASM)** | 22.7 M | 384 | ~90 MB | ~12 ms |
+| **`intfloat/multilingual-e5-small`** | 118.0 M | 384 | ~450 MB | ~19 ms |
 | **`bge-small-en-v1.5`** | 33.5 M | 384 | ~133 MB | ~18 ms |
 
-*Assessment:* `all-MiniLM-L6-v2` delivers the optimal trade-off for real-time recommendation servers and client-side browser execution, yielding p50 ~14ms / p99 ~28ms inference with high semantic clustering coherence.
+*Assessment:* `Xenova/paraphrase-multilingual-MiniLM-L12-v2` is the default server-side ONNX model (`EIDOS_EMBEDDER_MODE=onnx`) for Russian + English e-commerce catalogs, while `EIDOS_EMBEDDER_MODE=lexical-only` provides zero-overhead BM25+ lexical retrieval on constrained CPU instances. HNSW `Recall@K` is measured via `HNSWIndex.evaluateRecallAtK()` against exact Float32 cosine brute-force ground truth (`HNSWIndex.searchExact()`).
 
 ---
 

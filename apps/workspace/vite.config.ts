@@ -87,6 +87,33 @@ function silenceHmrWebsocketErrorPlugin(): Plugin {
   };
 }
 
+function syncStorefrontWidgetPlugin(): Plugin {
+  const syncWidget = () => {
+    try {
+      const canonicalWidget = path.resolve(__dirname, '../../public/widget.js');
+      const workspaceWidget = path.resolve(__dirname, './public/widget.js');
+      if (fs.existsSync(canonicalWidget)) {
+        const srcBuf = fs.readFileSync(canonicalWidget);
+        if (!fs.existsSync(workspaceWidget) || !srcBuf.equals(fs.readFileSync(workspaceWidget))) {
+          fs.mkdirSync(path.dirname(workspaceWidget), { recursive: true });
+          fs.writeFileSync(workspaceWidget, srcBuf);
+        }
+      }
+    } catch {
+      // Non-fatal in read-only filesystems
+    }
+  };
+  return {
+    name: 'vite-plugin-sync-eidos-widget',
+    buildStart() {
+      syncWidget();
+    },
+    configureServer() {
+      syncWidget();
+    },
+  };
+}
+
 export default defineConfig(() => {
   return {
     root: path.resolve(__dirname),
@@ -97,7 +124,13 @@ export default defineConfig(() => {
       outDir: path.resolve(__dirname, '../../dist'),
       emptyOutDir: true,
     },
-    plugins: [react(), tailwindcss(), aistudioMediaPlugin(), silenceHmrWebsocketErrorPlugin()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      syncStorefrontWidgetPlugin(),
+      aistudioMediaPlugin(),
+      silenceHmrWebsocketErrorPlugin(),
+    ],
     resolve: {
       dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
       alias: {

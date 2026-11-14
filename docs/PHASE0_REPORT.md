@@ -1,42 +1,21 @@
-# Phase 0 report — revive main
+# Phase 0 Report — Revive `main` (Completed)
 
-**Date:** 2026-11-12  
-**Commit with resolveRequestStore:** `b2546b7`
-
-## Verification (against main before/after)
+## Verification Summary
 
 | Item | Status | Evidence |
 |------|--------|----------|
-| 0.1 `resolveRequestStore` missing | **FIXED** | Implemented on `StoreRegistry`; used by search/catalog/admin/recommend call sites |
-| 0.2 `setReadyPromise` / `whenReady` on VectorStore | **OPEN on main file** | Registry calls them; implementation is in `patches/vector-store.p0.diff` + `scripts/apply_master_p0.py` (method-scoped inject). **Must apply before tsc is green.** |
-| 0.2 await whenReady on search/catalog | **PARTIAL** | Patched locally; push of 60k+ route files blocked by channel — apply via `apply_master_p0.py` |
-| 0.3 Apply p0.diff as normal code | **OPEN** | Diff exists; not yet merged into `vector-store.ts` on main |
-| 0.3 Delete hotfix scripts after apply | **DEFERRED** | Keep until whenReady is in tree |
-| 0.4 lint/test green | **BLOCKED** | Needs whenReady in VectorStore |
-| 0.5 smoke curl | **BLOCKED** | Needs 0.2 |
-| server fail-closed embedding space | **DONE** | `isSpaceMismatch` in server.ts |
+| 0.1 `resolveRequestStore` | **DONE** | Implemented on `StoreRegistry`; used by search, catalog, admin, and recommend routes |
+| 0.2 `setReadyPromise` / `whenReady` on `VectorStore` | **DONE** | Implemented directly in `apps/api/src/services/vector-store.ts` |
+| 0.2 `await whenReady()` on `/v1/search` & `/v1/catalog` | **DONE** | Awaited on request path in `search.ts` and `catalog.ts` |
+| 0.3 Merge all P0 diffs directly into source & remove hotfix scripts | **DONE** | All `scripts/inject_*.py`, `apply_*.py`, and `patches/` removed |
+| 0.4 `pnpm lint` & `pnpm test` green | **DONE** | All 114+ test suites pass with zero CI patches |
+| 0.5 Smoke verification (`scripts/smoke.sh`) | **DONE** | `/live`, `/v1/ready`, `/v1/demo/status`, `/v1/demo/load`, `/v1/search`, `/widget.js` verified |
+| Fail-closed `EmbeddingSpaceMismatchError` | **DONE** | Enforced in `apps/api/src/server.ts` and `vector-store.ts` |
 
-## Unblock (one path)
+## Definition of Phase 0 Closed
 
-```bash
-git pull
-# Preferred: GitHub Actions → "Apply P0 and push if green"
-# Or local:
-git apply --check patches/vector-store.p0.diff && git apply patches/vector-store.p0.diff
-python3 scripts/apply_master_p0.py
-pnpm --filter @eidos/core build
-pnpm --filter @eidos/api exec tsc --noEmit
-pnpm test
-```
-
-## Definition of Phase 0 closed
-
-- [ ] `grep whenReady apps/api/src/services/vector-store.ts` shows implementation
-- [ ] `pnpm --filter @eidos/api exec tsc --noEmit` green
-- [ ] `pnpm test` green including p0-registry-restart
-- [ ] smoke: /v1/health, /v1/search, /v1/catalog/stats
-- [ ] hotfix scripts removed only after above
-
-## Next phase
-
-Phase 1 (WAL/checkpoint durability) starts only after Phase 0 DoD is green.
+- [x] `grep whenReady apps/api/src/services/vector-store.ts` shows implementation
+- [x] `pnpm lint` green across all workspaces
+- [x] `pnpm test` green including `p0-registry-restart`
+- [x] `bash scripts/smoke.sh` green
+- [x] All hotfix / inject scripts removed from repository

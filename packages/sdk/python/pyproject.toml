@@ -29,3 +29,7 @@ dev = ["pytest>=8.0"]
 Homepage = "https://github.com/ppiiyo/Eidos"
 Repository = "https://github.com/ppiiyo/Eidos.git"
 Documentation = "https://github.com/ppiiyo/Eidos#readme"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["eidos*"]

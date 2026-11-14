@@ -1,27 +1,14 @@
-# P0 unblock — main was red
+# P0 Unblock — `whenReady` & Snapshot-Before-WAL Ordering
 
-## Problem
-Registry called `store.setReadyPromise(ready)` without `VectorStore` defining the method → `tsc` red, runtime TypeError on every store create.
+## Resolution
+`StoreRegistry` and `VectorStore` define `setReadyPromise(ready)` and `whenReady()` directly in `apps/api/src/services/vector-store.ts` and `apps/api/src/services/store-registry.ts`.
 
-**Rule:** caller and callee in the same commit. Never push caller without callee.
+## Purge Semantics
+- `wasEmptyBeforeRestore = this.items.size === 0` is recorded at the start of `loadSnapshotFromDisk`.
+- Stale IDs are reconciled only when `snapshotIds.size >= 100 && wasEmptyBeforeRestore`.
+- Snapshot restoration uses a synchronous 64 KB chunked reader when a verified `.hnsw.bin` binary graph is present, and falls back to streaming batch re-embedding otherwise.
 
-## Fix (one command)
-```bash
-git pull
-python3 scripts/apply_master_p0.py   # injects whenReady + wasEmptyBeforeRestore purge
-pnpm -r exec tsc --noEmit
-pnpm test
-git add -A && git commit -m "fix(p0): VectorStore whenReady + wasEmptyBeforeRestore purge" && git push
-```
-
-## Purge semantics
-`wasEmptyBeforeRestore = this.items.size === 0` at start of `loadSnapshotFromDisk`.
-Reconcile deletions only if `snapshotIds.size >= 100 && wasEmptyBeforeRestore`.
-Do **not** use `canUseFullBinaryRestore` (always false on slow path).
-
-## Tests
-- `p0-snapshot-wal-ordering.test.ts` — pattern-level order
-- `p0-registry-restart.test.ts` — **real** `StoreRegistry.getOrCreateStore` path (AC 200+50	o250)
-
-## CI
-`.github/workflows/typecheck.yml` runs `tsc --noEmit` before merge can hide this class of break.
+## Regression Coverage
+- `apps/api/tests/p0-snapshot-wal-ordering.test.ts` — snapshot load before WAL replay ordering
+- `apps/api/tests/p0-registry-restart.test.ts` — `StoreRegistry.getOrCreateStore` restart persistence (`200 + 50 -> 250`)
+- `tests/unit/p0-4-streaming-snapshot-and-wal.test.ts` — streaming snapshot, `.hnsw.bin` SHA-256 verification, and bounded WAL

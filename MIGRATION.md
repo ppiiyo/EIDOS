@@ -71,3 +71,10 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 - **TypeScript & Python SDK Parity**: `@eidos/sdk` (`packages/sdk`) and both Python SDKs (`packages/sdk/python` and `packages/python-sdk`) now support `tenantId` / `indexName` (`x-tenant-id` / `x-index-name` headers), `suggest()` (`POST /v1/suggest`), `ready()` (`GET /v1/ready`), and `upsertItem` / `upsertBatch` (`POST /v1/catalog/upsert`). Fixed `packages/sdk/python` `ingest_item` to target `/v1/catalog/upsert` instead of nonexistent `/v1/catalog/items`.
 - **Canonical WooCommerce Packager (`connectors/woocommerce/pack.sh`)**: `connectors/woocommerce/pack.sh` now packages `dist/eidos-woocommerce-plugin.zip` directly from the canonical `packages/connectors/woocommerce` module (matching `connectors/bitrix/pack.sh`).
 
+## 11. Architectural De-duplication, Widget Build Sync & Honest Search Totals (P2)
+
+- **Category Families Separation (`EIDOS-104`)**: Default category family definitions (`PRODUCT_CATEGORY_FAMILIES`, `CategoryFamilySpec`) are extracted to `packages/core/src/search/demo-product-category-families.ts` and re-exported from `ranking-guardrails.ts` for backward compatibility, keeping core ranking guardrails modular while supporting per-tenant `customFamilies` and dynamic catalog family extraction (`buildDynamicCategoryFamiliesFromCatalog`).
+- **Honest `total` & `totalIsApproximate` (`EIDOS-105`)**: `POST /v1/search` now returns `totalIsApproximate: boolean` (`activeStore.count() > rankWindow * 2`) at both top-level and `meta.totalIsApproximate`, and preserves full `total` counts across exact and semantic cache hits.
+- **Automatic Storefront Widget Sync (`vite-plugin-sync-eidos-widget`)**: `apps/workspace/vite.config.ts` automatically synchronizes `public/widget.js` to `apps/workspace/public/widget.js` during `dev` and `build`, preventing drift between copies.
+- **Zero Repository Patch Scripts**: Removed legacy root hotfix scripts and diff directories after verifying all product fixes directly in TypeScript and PHP sources.
+

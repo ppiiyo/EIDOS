@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="eidos-client",
-    version="4.0.0",
+    version="3.0.0",
     description="Python client SDK for Eidos Semantic Recommendation Engine",
     author="Eidos Engineering Team",
     packages=find_packages(),
