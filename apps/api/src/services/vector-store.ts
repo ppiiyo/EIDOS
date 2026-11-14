@@ -103,6 +103,7 @@ export class VectorStore {
   private tenantId: string;
   private indexName: string;
   private embeddingSpaceId: string;
+  private snapshotMismatchError: string | null = null;
   private explicitlyCleared = false;
   private hasProductionItems = false;
   private isSeedingDemo = false;
@@ -145,6 +146,14 @@ export class VectorStore {
 
   public setEmbeddingSpaceId(spaceId: string): void {
     this.embeddingSpaceId = spaceId;
+  }
+
+  public getSnapshotMismatchError(): string | null {
+    return this.snapshotMismatchError;
+  }
+
+  public setSnapshotMismatchError(err: string | null): void {
+    this.snapshotMismatchError = err;
   }
 
   public invalidateStoreCache(): void {
@@ -652,10 +661,13 @@ export class VectorStore {
     await fs.promises.rename(tempPath, targetPath);
 
     const metaPath = `${targetPath}.meta.json`;
+    const activeEmbedder = ServerEmbedder.getInstance();
     const metaPayload = JSON.stringify({
       version: 2,
       dimension: 384,
       embeddingSpaceId: this.getEmbeddingSpaceId(),
+      embeddingModel: activeEmbedder.getActiveModelName(),
+      embeddingMode: activeEmbedder.getEmbeddingMode(),
       itemCount: this.items.size,
       savedAt: new Date().toISOString(),
     });
@@ -679,10 +691,13 @@ export class VectorStore {
     fs.renameSync(tempPath, targetPath);
 
     const metaPath = `${targetPath}.meta.json`;
+    const activeEmbedder = ServerEmbedder.getInstance();
     const metaPayload = JSON.stringify({
       version: 2,
       dimension: 384,
       embeddingSpaceId: this.getEmbeddingSpaceId(),
+      embeddingModel: activeEmbedder.getActiveModelName(),
+      embeddingMode: activeEmbedder.getEmbeddingMode(),
       itemCount: this.items.size,
       savedAt: new Date().toISOString(),
     });
@@ -1035,6 +1050,7 @@ export class VectorStore {
       return loadedCount;
     } catch (err) {
       if (err instanceof EmbeddingSpaceMismatchError) {
+        this.snapshotMismatchError = err.message;
         throw err;
       }
       console.error('[EIDOS] Failed to load catalog snapshot from disk:', err);
@@ -1058,6 +1074,7 @@ export class VectorStore {
         ? embedder.getEmbeddingSpaceId()
         : ServerEmbedder.getInstance().getEmbeddingSpaceId();
     this.embeddingSpaceId = newSpaceId;
+    this.snapshotMismatchError = null;
 
     this.hnsw = new HNSWIndex({
       M: this.options?.M ?? 16,

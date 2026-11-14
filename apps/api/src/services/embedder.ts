@@ -119,9 +119,35 @@ function createFallbackPipeline(dim: number = 384): FeatureExtractionPipeline {
   return fn as unknown as FeatureExtractionPipeline;
 }
 
-/** Single source of truth for ONNX embedder flag (accepts legacy EIDOS_USE_ONNX alias). */
-function isOnnxEmbedderEnabled(): boolean {
-  return process.env.EIDOS_USE_ONNX_EMBEDDER === 'true' || process.env.EIDOS_USE_ONNX === 'true';
+export type EmbeddingMode = 'onnx' | 'lexical-only' | 'deterministic';
+
+export const DEFAULT_MULTILINGUAL_ONNX_MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
+
+/** Single source of truth for active embedder mode (`onnx` | `lexical-only` | `deterministic`). */
+export function resolveEmbeddingMode(): EmbeddingMode {
+  const rawMode = (process.env.EIDOS_EMBEDDER_MODE || '').trim().toLowerCase();
+  if (rawMode === 'lexical-only' || rawMode === 'lexical' || rawMode === 'bm25-only') {
+    return 'lexical-only';
+  }
+  if (rawMode === 'onnx') {
+    return 'onnx';
+  }
+  if (rawMode === 'deterministic' || rawMode === 'deterministic-hash' || rawMode === 'hash') {
+    return 'deterministic';
+  }
+  if (process.env.EIDOS_USE_ONNX_EMBEDDER === 'true' || process.env.EIDOS_USE_ONNX === 'true') {
+    return 'onnx';
+  }
+  return 'deterministic';
+}
+
+export function resolveOnnxModelId(): string {
+  const configured = (
+    process.env.EIDOS_ONNX_MODEL ||
+    process.env.EIDOS_EMBEDDING_MODEL ||
+    ''
+  ).trim();
+  return configured || DEFAULT_MULTILINGUAL_ONNX_MODEL;
 }
 
 export class ServerEmbedder {
@@ -129,7 +155,7 @@ export class ServerEmbedder {
   private pipe: FeatureExtractionPipeline | null = null;
   private initPromise: Promise<void> | null = null;
   private cache = new Map<string, Float32Array>();
-  private readonly modelName = 'Xenova/all-MiniLM-L6-v2';
+  private degradedReason: string | null = null;
 
   public static getInstance(): ServerEmbedder {
     if (!ServerEmbedder.instance) {
@@ -138,13 +164,33 @@ export class ServerEmbedder {
     return ServerEmbedder.instance;
   }
 
+  public static resetForTests(): void {
+    ServerEmbedder.instance = null;
+  }
+
   public isInitialized(): boolean {
-    return this.pipe !== null;
+    return this.pipe !== null || this.getEmbeddingMode() === 'lexical-only';
+  }
+
+  public isDegraded(): boolean {
+    return this.degradedReason !== null;
+  }
+
+  public getDegradedReason(): string | null {
+    return this.degradedReason;
+  }
+
+  public setDegradedForTest(reason: string | null): void {
+    this.degradedReason = reason;
+  }
+
+  public clearCache(): void {
+    this.cache.clear();
   }
 
   public setCachedEmbedding(text: string, vector: Float32Array): void {
-    const key = text.trim().toLowerCase();
-    if (!key) return;
+    const key = `${this.getEmbeddingSpaceId()}::${text.trim().toLowerCase()}`;
+    if (!text.trim()) return;
     if (this.cache.size >= 500) {
       const oldest = this.cache.keys().next().value;
       if (oldest !== undefined) this.cache.delete(oldest);
@@ -153,18 +199,32 @@ export class ServerEmbedder {
   }
 
   public async init(): Promise<void> {
+    const mode = this.getEmbeddingMode();
+    if (mode === 'lexical-only') {
+      this.degradedReason = null;
+      this.pipe = null;
+      return;
+    }
     if (this.pipe) return;
-    if (!isOnnxEmbedderEnabled()) {
+    if (mode !== 'onnx') {
+      this.degradedReason = null;
       this.pipe = createFallbackPipeline(384);
       return;
     }
+    const targetModel = resolveOnnxModelId();
     const maxAttempts = 2;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        this.pipe = await pipeline('feature-extraction', this.modelName);
+        this.pipe = await pipeline('feature-extraction', targetModel);
+        this.degradedReason = null;
         return;
-      } catch {
+      } catch (err) {
         if (attempt === maxAttempts) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (process.env.EIDOS_EMBEDDER_STRICT_ONNX === 'true') {
+            throw new Error(`Failed to initialize ONNX model "${targetModel}": ${errMsg}`);
+          }
+          this.degradedReason = `ONNX model "${targetModel}" unavailable (${errMsg}); degraded fallback active`;
           this.pipe = createFallbackPipeline(384);
         }
       }
@@ -172,6 +232,9 @@ export class ServerEmbedder {
   }
 
   public async ensureInitialized(): Promise<void> {
+    if (this.getEmbeddingMode() === 'lexical-only') {
+      return;
+    }
     if (!this.pipe) {
       if (!this.initPromise) {
         this.initPromise = this.init().catch((err) => {
@@ -186,9 +249,16 @@ export class ServerEmbedder {
   public async embed(text: string): Promise<Float32Array> {
     const startHr = performance.now();
     const cleanText = text.trim();
-    if (!cleanText) return new Float32Array(384);
+    const mode = this.getEmbeddingMode();
 
-    const cacheKey = cleanText.toLowerCase();
+    if (!cleanText || mode === 'lexical-only') {
+      const zeroVec = new Float32Array(384);
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: mode === 'lexical-only' ? 'lexical_noop' : 'single' }, elapsedSec);
+      return zeroVec;
+    }
+
+    const cacheKey = `${this.getEmbeddingSpaceId()}::${cleanText.toLowerCase()}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
       const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
@@ -199,7 +269,7 @@ export class ServerEmbedder {
 
     await this.ensureInitialized();
 
-    if (!this.pipe || !isOnnxEmbedderEnabled()) {
+    if (!this.pipe || mode !== 'onnx') {
       const vec = computeDeterministicEmbedding(cleanText, 384);
       this.setCachedEmbedding(cleanText, vec);
       const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
@@ -230,13 +300,22 @@ export class ServerEmbedder {
     if (texts.length === 0) return [];
 
     const startHr = performance.now();
+    const mode = this.getEmbeddingMode();
+    if (mode === 'lexical-only') {
+      const zeroVectors = texts.map(() => new Float32Array(384));
+      const elapsedSec = Math.max(0, (performance.now() - startHr) / 1000);
+      Metrics.embeddingLatency.observe({ mode: 'lexical_noop' }, elapsedSec);
+      return zeroVectors;
+    }
+
     await this.ensureInitialized();
 
-    if (!this.pipe || !isOnnxEmbedderEnabled()) {
+    if (!this.pipe || mode !== 'onnx') {
+      const spacePrefix = `${this.getEmbeddingSpaceId()}::`;
       const vectors = texts.map((t) => {
         const clean = t.trim();
         if (!clean) return new Float32Array(384);
-        const cached = this.cache.get(clean.toLowerCase());
+        const cached = this.cache.get(`${spacePrefix}${clean.toLowerCase()}`);
         if (cached) return new Float32Array(cached);
         const vec = computeDeterministicEmbedding(clean, 384);
         this.setCachedEmbedding(clean, vec);
@@ -286,20 +365,32 @@ export class ServerEmbedder {
     return 384;
   }
 
-  public getEmbeddingMode(): 'onnx' | 'deterministic' {
-    return isOnnxEmbedderEnabled() ? 'onnx' : 'deterministic';
+  public getEmbeddingMode(): EmbeddingMode {
+    return resolveEmbeddingMode();
   }
 
   public getActiveModelName(): string {
-    return this.getEmbeddingMode() === 'onnx' ? 'all-MiniLM-L6-v2' : 'eidos-deterministic-384-v1';
+    const mode = this.getEmbeddingMode();
+    if (mode === 'lexical-only') {
+      return 'lexical-bm25-only';
+    }
+    if (mode === 'onnx') {
+      return resolveOnnxModelId().replace(/^Xenova\//i, '');
+    }
+    return 'eidos-deterministic-384-v1';
   }
 
   public getEmbeddingSpaceId(): string {
     if (process.env.EIDOS_EMBEDDING_SPACE_ID && process.env.EIDOS_EMBEDDING_SPACE_ID.trim()) {
       return process.env.EIDOS_EMBEDDING_SPACE_ID.trim();
     }
-    return this.getEmbeddingMode() === 'onnx'
-      ? 'onnx:all-MiniLM-L6-v2:384:v1'
-      : 'deterministic:eidos-384:v1';
+    const mode = this.getEmbeddingMode();
+    if (mode === 'lexical-only') {
+      return 'lexical:bm25-only:v1';
+    }
+    if (mode === 'onnx') {
+      return `onnx:${this.getActiveModelName()}:384:v1`;
+    }
+    return 'deterministic:eidos-384:v1';
   }
 }

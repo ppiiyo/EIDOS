@@ -31,3 +31,10 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 - **Explicit HTTP 503 on API Startup Failure**: If `buildServer()` fails during startup, all `/v1/*`, `/health`, `/ready`, and `/metrics` endpoints immediately return HTTP `503` with `code: "API_INIT_FAILED"` instead of hanging client connections.
 - **Demo Seed Singleflight & Status**: `POST /v1/demo/load` now deduplicates concurrent seed requests (`deduplicated: true`) and returns immediately when the requested scale is already loaded (`idempotent: true`). Use `GET /v1/demo/status` to poll `'idle' | 'seeding' | 'ready' | 'error'`.
 
+## 5. Multilingual ONNX Embedder, Lexical-Only Mode & Snapshot Model Verification (P0-3)
+
+- **Multilingual ONNX Model Default**: When ONNX mode is enabled (`EIDOS_EMBEDDER_MODE=onnx` or `EIDOS_USE_ONNX_EMBEDDER=true`), the default model is now `Xenova/paraphrase-multilingual-MiniLM-L12-v2` (384-d, RU+EN+50 languages) instead of English-only `all-MiniLM-L6-v2`. Override via `EIDOS_ONNX_MODEL`.
+- **Explicit `EIDOS_EMBEDDER_MODE=lexical-only`**: For air-gapped or CPU-constrained environments without ONNX weights, set `EIDOS_EMBEDDER_MODE=lexical-only` to run pure BM25+ lexical retrieval (`weightsEffective = { lexical: 1, semantic: 0 }`) without synthetic hash vectors.
+- **Snapshot Model Verification (`.meta.json`)**: Snapshots now record `embeddingSpaceId`, `embeddingModel`, and `embeddingMode` in `<snapshot>.meta.json`. Switching models throws `EmbeddingSpaceMismatchError` (fail-closed) until `POST /v1/admin/reindex` is executed.
+
+

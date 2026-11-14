@@ -17,6 +17,21 @@ async function checkVectorStore(
     const itemCount = vectorStore.size();
     const hnswSize = vectorStore.getHNSW().size();
     const initializedEmpty = initialItemsIndexed === 0;
+    const mismatchErr = vectorStore.getSnapshotMismatchError();
+    if (mismatchErr) {
+      return {
+        status: 'degraded',
+        code: 'INDEX_MODEL_MISMATCH',
+        itemCount,
+        itemsCount: itemCount,
+        itemsIndexed: itemCount,
+        initialItemsIndexed,
+        initializedEmpty,
+        hnswIndexedCount: hnswSize,
+        embeddingSpaceId: vectorStore.getEmbeddingSpaceId(),
+        message: mismatchErr,
+      };
+    }
     return {
       status: 'ok',
       itemCount,
@@ -25,6 +40,7 @@ async function checkVectorStore(
       initialItemsIndexed,
       initializedEmpty,
       hnswIndexedCount: hnswSize,
+      embeddingSpaceId: vectorStore.getEmbeddingSpaceId(),
       message:
         itemCount > 0
           ? `Indexed ${itemCount} items`
@@ -61,13 +77,18 @@ async function checkEmbeddingModel(embedder?: ServerEmbedder): Promise<Component
     const activeModel = instance.getActiveModelName();
     const mode = instance.getEmbeddingMode();
     const embeddingSpaceId = instance.getEmbeddingSpaceId();
+    const degraded = instance.isDegraded();
+    const degradedReason = instance.getDegradedReason();
     return {
-      status: dim === 384 ? 'ok' : 'degraded',
+      status: dim === 384 && !degraded ? 'ok' : 'degraded',
       model: activeModel,
       mode,
       embeddingSpaceId,
       dimension: dim,
-      message: `Embedding model loaded (${mode}: ${activeModel})`,
+      ...(degradedReason ? { degradedReason } : {}),
+      message: degradedReason
+        ? degradedReason
+        : `Embedding model loaded (${mode}: ${activeModel})`,
     };
   } catch (err) {
     return {

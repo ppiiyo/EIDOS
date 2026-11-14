@@ -498,7 +498,10 @@ export async function searchRoutes(
         queryShapeBiasEnabled &&
         (!hasExplicitRequestWeights || rawQueryShapeBias?.enabled === true);
 
-      const weightsEffective = shouldApplyBiasToFusion
+      const activeEmbeddingMode = opts.embedder.getEmbeddingMode();
+      const isLexicalOnlyEmbedder = activeEmbeddingMode === 'lexical-only' && mode !== 'dense';
+
+      const baseWeightsEffective = shouldApplyBiasToFusion
         ? applyQueryShapeBias(
             {
               lexical: rrfWeights.lexicalWeight,
@@ -511,13 +514,23 @@ export async function searchRoutes(
             semantic: rrfWeights.denseWeight,
           };
 
-      const denseW = shouldApplyBiasToFusion
+      const weightsEffective = isLexicalOnlyEmbedder
+        ? { lexical: 1, semantic: 0 }
+        : baseWeightsEffective;
+
+      const denseW = isLexicalOnlyEmbedder
+        ? 0
+        : shouldApplyBiasToFusion
         ? weightsEffective.semantic
         : rrfWeights.denseWeight;
-      const sparseW = shouldApplyBiasToFusion
+      const sparseW = isLexicalOnlyEmbedder
+        ? 1
+        : shouldApplyBiasToFusion
         ? weightsEffective.lexical
         : rrfWeights.lexicalWeight;
-      const appliedAlpha = shouldApplyBiasToFusion
+      const appliedAlpha = isLexicalOnlyEmbedder
+        ? 0
+        : shouldApplyBiasToFusion
         ? weightsEffective.semantic
         : rrfWeights.effectiveAlpha;
 
@@ -892,7 +905,7 @@ export async function searchRoutes(
         );
         queryVectorForSemCache = queryVector;
 
-        if (keySafe && !cognitiveContext) {
+        if (keySafe && !cognitiveContext && !isLexicalOnlyEmbedder) {
           const semHit = semanticCache.lookup(queryVector, filterKey);
           if (semHit.hit && semHit.response) {
             const semLatencyMs = Math.round((performance.now() - startTime) * 100) / 100;
@@ -1427,6 +1440,8 @@ export async function searchRoutes(
           channelWindows: resolvedRankWindow,
           rankWindow: resolvedRankWindow,
           rankConstant: resolvedRankConstant,
+          embeddingMode: activeEmbeddingMode,
+          embeddingSpaceId: opts.embedder.getEmbeddingSpaceId(),
           pipelineStages: EIDOS_RETRIEVAL_PIPELINE_STAGES,
         },
         ...(isIntentAwareEnabled && extractedIntent ? { extractedIntent } : {}),
@@ -1509,7 +1524,7 @@ export async function searchRoutes(
         const adaptiveTtl = CacheKeys.getAdaptiveTTL(safeQuery);
         await redisCache.set(cacheKey, cacheEntry, adaptiveTtl, 'search');
         l1Cache.set(cacheKey, cacheEntry);
-        if (queryVectorForSemCache && !cognitiveContext) {
+        if (queryVectorForSemCache && !cognitiveContext && !isLexicalOnlyEmbedder) {
           semanticCache.store(safeQuery, queryVectorForSemCache, filterKey, cacheEntry, adaptiveTtl);
         }
       }
