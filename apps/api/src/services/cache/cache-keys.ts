@@ -55,15 +55,24 @@ export class CacheKeys {
    * Generate cache key for user-based recommendations
    * @param userId User ID
    * @param limit Number of recommendations
+   * @param namespace Optional tenant/index namespace
    */
-  static userRecommend(userId: string, limit: number = 10): string {
+  static userRecommend(userId: string, limit: number = 10, namespace?: string): string {
+    const ns = namespace && namespace.trim() ? namespace.trim() : '';
+    if (ns && ns !== 'default:default') {
+      return `recommend:${ns}:user:${userId}:${limit}`;
+    }
     return `recommend:user:${userId}:${limit}`;
   }
 
   /**
    * Generate cache key for catalog stats
    */
-  static catalogStats(): string {
+  static catalogStats(namespace?: string): string {
+    const ns = namespace && namespace.trim() ? namespace.trim() : '';
+    if (ns && ns !== 'default:default') {
+      return `catalog:stats:${ns}`;
+    }
     return 'catalog:stats';
   }
 

@@ -59,3 +59,9 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 - **Streaming Admin Snapshots (`POST /v1/snapshots`)**: Admin snapshot creation now delegates to `store.saveSnapshotAsync(absPath)` (streaming chunked write + `.hnsw.bin` + `.meta.json`) and computes SHA-256 via file stream instead of single-string `JSON.stringify`.
 - **XXE-Safe Linear YML Parser**: `parseYmlOrCommerceMl` and `POST /v1/catalog/import-yml` reject `<!ENTITY` / `<!DOCTYPE ... [` payloads with `400 XML_ENTITY_FORBIDDEN`, decode numeric XML character references, and index `<param name="...">` attributes.
 
+## 9. Multi-Tenant Cache Isolation, Honest Cluster Status & Pilot Bootstrap Hardening (P1-2)
+
+- **Tenant & Index Cache Isolation (`CacheKeys` & `recommend.ts` / `indexes.ts`)**: `CacheKeys.recommend`, `CacheKeys.userRecommend`, and `CacheKeys.catalogStats` now scope keys by `tenantId:indexName`, and `POST /v1/indexes/:name/documents` invalidates only the affected `tenantId:indexName` namespace without flushing other tenants' caches.
+- **Cluster Status Truth (`GET /v1/cluster/status`)**: `ClusterStateCoordinator.getClusterStatus()` explicitly reports `deploymentMode: 'single-node'` when `CLUSTER_MODE !== 'true'` and `'clustered'` when `CLUSTER_MODE=true`.
+- **Pilot Bootstrap & Smoke Script (`deploy/pilot/install.sh`, `docker-compose.pilot.yml`, `scripts/smoke.sh`)**: `deploy/pilot/install.sh` creates `.env.pilot` with `0600` permissions (`umask 077`), generates `JWT_SECRET` and `EIDOS_PUBLIC_DEMO_KEY`, enables `EIDOS_ENABLE_DEMO_MUTATIONS=true`, and replaces `CORS_ORIGIN=*` with explicit localhost origins. Added `scripts/smoke.sh` for end-to-end smoke verification.
+

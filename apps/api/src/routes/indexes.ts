@@ -203,12 +203,13 @@ export async function indexRoutes(
           indexed++;
         }
 
-        // Invalidate caches so newly indexed documents are immediately visible to search & recommend
-        ApiQueryCache.invalidateAll();
-        getSemanticCache().clear();
+        // Invalidate caches for this tenant:index namespace so newly indexed documents are immediately visible without wiping other tenants
+        const ns = `${meta.tenantId}:${meta.name}`;
+        ApiQueryCache.invalidateNamespace(ns);
+        getSemanticCache().invalidateNamespace(ns);
         await Promise.all([
-          getCache().invalidate('search:*'),
-          getCache().invalidate('recommend:*'),
+          getCache().invalidate(`search:${ns}:*`),
+          getCache().invalidate(`recommend:${ns}:*`),
         ]);
 
         return reply.status(200).send({

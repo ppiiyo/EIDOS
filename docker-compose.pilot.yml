@@ -21,6 +21,9 @@ services:
       - EIDOS_API_KEY=${EIDOS_ADMIN_KEY:-${ADMIN_KEY}}
       - ADMIN_KEY=${ADMIN_KEY:-${EIDOS_ADMIN_KEY}}
       - SEARCH_KEY=${SEARCH_KEY:-${EIDOS_SEARCH_KEY}}
+      - EIDOS_PUBLIC_DEMO_KEY=${EIDOS_PUBLIC_DEMO_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - EIDOS_ENABLE_DEMO_MUTATIONS=${EIDOS_ENABLE_DEMO_MUTATIONS:-true}
       - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
       - REDIS_URL=redis://redis:6379
       - EIDOS_SNAPSHOT_PATH=/var/lib/eidos/snapshots/catalog.snapshot.json

@@ -747,17 +747,20 @@ export async function recommendRoutes(
     }
     if (!AILManager.isEnabled() && data.strategy !== 'simple') extraCacheParams.ailDisabled = true;
 
+    const namespace = `${tenantId}:${indexName}`;
     const cacheKey =
       data.strategy === 'user'
         ? CacheKeys.userRecommend(
             `${resolvedUserId}${Object.keys(extraCacheParams).length ? ':' + JSON.stringify(extraCacheParams) : ''}`,
-            data.limit
+            data.limit,
+            namespace
           )
         : CacheKeys.recommend(
             resolvedItemId,
             data.strategy,
             data.limit,
-            Object.keys(extraCacheParams).length > 0 ? extraCacheParams : undefined
+            Object.keys(extraCacheParams).length > 0 ? extraCacheParams : undefined,
+            namespace
           );
 
     const l1Cache = ApiQueryCache.getInstance();

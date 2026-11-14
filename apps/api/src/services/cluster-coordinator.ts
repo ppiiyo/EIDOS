@@ -192,6 +192,7 @@ export class ClusterStateCoordinator {
       nodeId: this.nodeId,
       role: this.role,
       clusterMode: this.clusterMode,
+      deploymentMode: this.clusterMode ? ('clustered' as const) : ('single-node' as const),
       draining: this.draining,
       catalogVersion: this.getCatalogVersion(),
       circuitBreakerState: this.circuitBreaker.getState(),
