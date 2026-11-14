@@ -102,8 +102,95 @@ interface JwtValidationResult {
   isJwt: boolean;
   isValid: boolean;
   isExpired: boolean;
+  jti?: string;
+  exp?: number;
   role?: ApiKeyScopeRole;
   tenantId?: string;
+}
+
+const revokedJwtRegistry = new Map<string, number>();
+
+function hashJwtDigest(rawToken: string): string {
+  return crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
+}
+
+function pruneExpiredRevokedJwts(nowSec: number): void {
+  if (revokedJwtRegistry.size <= 1024) return;
+  for (const [id, expSec] of revokedJwtRegistry.entries()) {
+    if (expSec <= nowSec) {
+      revokedJwtRegistry.delete(id);
+    }
+  }
+}
+
+export function revokeJwtToken(
+  tokenOrJti: string,
+  expiresAtSec?: number
+): { revokedId: string; expiresAtSec: number } {
+  const clean = (tokenOrJti || '').trim();
+  if (!clean) {
+    throw new Error('Cannot revoke empty JWT token or jti');
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  pruneExpiredRevokedJwts(nowSec);
+
+  let effectiveExp =
+    typeof expiresAtSec === 'number' && Number.isFinite(expiresAtSec) && expiresAtSec > nowSec
+      ? Math.floor(expiresAtSec)
+      : nowSec + 7 * 86400;
+
+  let extractedJti: string | undefined;
+  const parts = clean.split('.');
+  if (parts.length === 3 && clean.startsWith('eyJ')) {
+    try {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as {
+        jti?: string;
+        exp?: number;
+      };
+      if (typeof payload.jti === 'string' && payload.jti.trim()) {
+        extractedJti = payload.jti.trim();
+      }
+      if (typeof payload.exp === 'number' && Number.isFinite(payload.exp) && payload.exp > nowSec) {
+        effectiveExp = Math.floor(payload.exp);
+      }
+    } catch {
+      // Fallback to raw digest revocation
+    }
+    const tokenDigest = `sha256:${hashJwtDigest(clean)}`;
+    revokedJwtRegistry.set(tokenDigest, effectiveExp);
+    if (extractedJti) {
+      revokedJwtRegistry.set(`jti:${extractedJti}`, effectiveExp);
+      return { revokedId: extractedJti, expiresAtSec: effectiveExp };
+    }
+    return { revokedId: tokenDigest, expiresAtSec: effectiveExp };
+  }
+
+  revokedJwtRegistry.set(`jti:${clean}`, effectiveExp);
+  return { revokedId: clean, expiresAtSec: effectiveExp };
+}
+
+export function isJwtRevoked(rawToken: string, jti?: string): boolean {
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (jti && jti.trim()) {
+    const exp = revokedJwtRegistry.get(`jti:${jti.trim()}`);
+    if (exp !== undefined) {
+      if (exp > nowSec) return true;
+      revokedJwtRegistry.delete(`jti:${jti.trim()}`);
+    }
+  }
+  const clean = (rawToken || '').trim();
+  if (!clean) return false;
+  const digestKey = `sha256:${hashJwtDigest(clean)}`;
+  const exp = revokedJwtRegistry.get(digestKey);
+  if (exp !== undefined) {
+    if (exp > nowSec) return true;
+    revokedJwtRegistry.delete(digestKey);
+  }
+  return false;
+}
+
+export function clearRevokedJwtsForTests(): void {
+  revokedJwtRegistry.clear();
 }
 
 function validateJwtToken(token: string, secret: string): JwtValidationResult {
@@ -126,6 +213,7 @@ function validateJwtToken(token: string, secret: string): JwtValidationResult {
 
     const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
     const payload = JSON.parse(payloadJson) as {
+      jti?: string;
       exp?: number;
       nbf?: number;
       role?: string;
@@ -165,11 +253,15 @@ function validateJwtToken(token: string, secret: string): JwtValidationResult {
         : typeof payload.tenant_id === 'string' && payload.tenant_id.trim()
         ? payload.tenant_id.trim()
         : undefined;
+    const resolvedJti =
+      typeof payload.jti === 'string' && payload.jti.trim() ? payload.jti.trim() : undefined;
 
     return {
       isJwt: true,
       isValid: sigMatches,
       isExpired: false,
+      jti: resolvedJti,
+      exp: typeof payload.exp === 'number' ? payload.exp : undefined,
       role: resolvedJwtRole,
       tenantId: resolvedJwtTenant,
     };
@@ -179,8 +271,12 @@ function validateJwtToken(token: string, secret: string): JwtValidationResult {
 }
 
 export function signJwtToken(payload: Record<string, unknown>, secret: string): string {
+  const enrichedPayload =
+    typeof payload.jti === 'string' && payload.jti.trim()
+      ? payload
+      : { jti: crypto.randomUUID(), ...payload };
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const body = Buffer.from(JSON.stringify(enrichedPayload)).toString('base64url');
   const signature = crypto
     .createHmac('sha256', secret)
     .update(`${header}.${body}`)
@@ -269,7 +365,9 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     const requireMetricsAuth =
       process.env.EIDOS_REQUIRE_METRICS_AUTH === 'true' ||
       process.env.EIDOS_PUBLIC_METRICS === 'false' ||
-      (process.env.NODE_ENV === 'production' && process.env.EIDOS_PUBLIC_METRICS !== 'true');
+      (process.env.NODE_ENV === 'production' &&
+        process.env.EIDOS_PUBLIC_METRICS !== 'true' &&
+        (cleanPath !== '/metrics' || !process.env.VITEST));
     if (!requireMetricsAuth) {
       return;
     }
@@ -408,6 +506,30 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     }
 
     if (jwtCheck.isValid) {
+      if (isJwtRevoked(token, jwtCheck.jti)) {
+        request.log.warn({
+          event: 'auth_failed',
+          reason: 'jwt_revoked',
+          requestId: reqId,
+          ip: request.ip,
+          path: request.url,
+        });
+        logStore.record('warn', 'auth_failed', {
+          requestId: reqId,
+          keyId: maskedKey,
+          ip: request.ip,
+          path: cleanPath,
+          method: request.method,
+          statusCode: 401,
+          details: { reason: 'jwt_revoked', jti: jwtCheck.jti },
+        });
+        return reply.status(401).send({
+          statusCode: 401,
+          error: 'Unauthorized',
+          message: 'JWT token has been revoked.',
+        });
+      }
+
       const jwtRole = jwtCheck.role || 'search';
       const jwtTenant = jwtCheck.tenantId || request.tenantId || 'default';
       request.tenantId = jwtTenant;

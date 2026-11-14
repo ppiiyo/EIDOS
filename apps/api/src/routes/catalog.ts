@@ -737,7 +737,19 @@ export async function catalogRoutes(
     }
 
     const maxItemsCap = Math.min(Math.max(Number(body.maxItems) || 50_000, 1), 100_000);
-    const items = parseYmlOrCommerceMl(xmlText, maxItemsCap);
+    let items;
+    try {
+      items = parseYmlOrCommerceMl(xmlText, maxItemsCap);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Invalid XML payload';
+      if (msg.startsWith('XML_ENTITY_FORBIDDEN')) {
+        return reply.status(400).send({
+          code: 'XML_ENTITY_FORBIDDEN',
+          error: msg,
+        });
+      }
+      return reply.status(400).send({ error: msg });
+    }
 
     let indexedCount = 0;
     let usedWorkerThread = false;

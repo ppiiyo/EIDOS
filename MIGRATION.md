@@ -52,3 +52,10 @@ Hardcoded fallback demo keys (`eidos_demo_key`, `eidos_public_demo_key`, `eidos_
 - **Rate Limit Key Rotation Protection**: Unrecognized `x-api-key` headers no longer receive isolated rate-limit buckets; requests with unrecognized keys are rate-limited by client IP (`ip:${req.ip}`).
 - **Query Log Privacy**: `summarizeQueryForLog` redacts raw search text (`queryPreview: '[REDACTED]'`) unless `EIDOS_LOG_RAW_QUERIES=true`.
 
+## 8. Honest HNSW Recall@K Benchmark, JWT Revocation & Hardened YML Parser (P1-1)
+
+- **Brute-Force Ground Truth & Recall@K (`HNSWIndex.searchExact` / `evaluateRecallAtK`)**: `HNSWIndex` and `scripts/benchmark.ts` (`runRecallAndLatencyBenchmark`) now measure true `recallAtK` against exact Float32 cosine brute-force ground truth alongside `p50/p95/p99` latency and memory stats.
+- **JWT Revocation (`POST /v1/admin/jwt/revoke`)**: `signJwtToken` automatically embeds a unique `jti` claim. Administrators can immediately revoke active JWTs by `jti` or raw token via `POST /v1/admin/jwt/revoke`; revoked tokens return `401 Unauthorized`.
+- **Streaming Admin Snapshots (`POST /v1/snapshots`)**: Admin snapshot creation now delegates to `store.saveSnapshotAsync(absPath)` (streaming chunked write + `.hnsw.bin` + `.meta.json`) and computes SHA-256 via file stream instead of single-string `JSON.stringify`.
+- **XXE-Safe Linear YML Parser**: `parseYmlOrCommerceMl` and `POST /v1/catalog/import-yml` reject `<!ENTITY` / `<!DOCTYPE ... [` payloads with `400 XML_ENTITY_FORBIDDEN`, decode numeric XML character references, and index `<param name="...">` attributes.
+

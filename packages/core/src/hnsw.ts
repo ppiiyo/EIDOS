@@ -756,6 +756,107 @@ export class HNSWIndex {
     });
   }
 
+  /**
+   * Computes exact brute-force K nearest neighbors using full Float32 cosine distance.
+   * Used as ground truth for Recall@K evaluation.
+   */
+  public searchExact(query: Float32Array, k = 10): HNSWSearchResult[] {
+    if (!Number.isFinite(k) || k < 1) {
+      throw new RangeError(`HNSW searchExact k must be >= 1, got ${k}`);
+    }
+    assertFiniteFloat32Vector(query, 'HNSW exact query vector');
+    if (this.dimension !== null && query.length !== this.dimension) {
+      throw new RangeError(
+        `HNSW exact query dimension mismatch: expected ${this.dimension}, got ${query.length}`
+      );
+    }
+    if (this.nodes.size === 0) {
+      return [];
+    }
+
+    const normQuery = normalizeL2(query);
+    const scored: Array<{ id: string; dist: number }> = [];
+    for (const node of this.nodes.values()) {
+      const dist = cosineDistance(normQuery, node.vector);
+      scored.push({ id: node.id, dist });
+    }
+    scored.sort((a, b) => a.dist - b.dist || a.id.localeCompare(b.id));
+
+    return scored.slice(0, k).map((c) => ({
+      id: c.id,
+      score: Math.max(-1.0, Math.min(1.0, 1.0 - c.dist)),
+      distance: c.dist,
+    }));
+  }
+
+  /**
+   * Evaluates honest Recall@K and latency percentiles of HNSW approximate search
+   * against exact brute-force cosine ground truth.
+   */
+  public evaluateRecallAtK(
+    queries: ReadonlyArray<Float32Array>,
+    k = 10,
+    efSearch?: number
+  ): {
+    recallAtK: number;
+    meanLatencyMs: number;
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    queriesEvaluated: number;
+  } {
+    if (queries.length === 0 || this.nodes.size === 0) {
+      return {
+        recallAtK: 1,
+        meanLatencyMs: 0,
+        p50Ms: 0,
+        p95Ms: 0,
+        p99Ms: 0,
+        queriesEvaluated: 0,
+      };
+    }
+
+    const effectiveK = Math.min(k, this.nodes.size);
+    let totalRecall = 0;
+    const latencies: number[] = [];
+
+    for (const q of queries) {
+      const exactHits = this.searchExact(q, effectiveK);
+      const exactSet = new Set(exactHits.map((h) => h.id));
+
+      const t0 = performance.now();
+      const approxHits = this.search(q, effectiveK, efSearch);
+      const elapsed = performance.now() - t0;
+      latencies.push(elapsed);
+
+      let overlap = 0;
+      for (const hit of approxHits) {
+        if (exactSet.has(hit.id)) {
+          overlap++;
+        }
+      }
+      totalRecall += exactSet.size > 0 ? overlap / exactSet.size : 1;
+    }
+
+    latencies.sort((a, b) => a - b);
+    const pct = (p: number) =>
+      Number(
+        (latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * p))] ?? 0).toFixed(3)
+      );
+    const meanLatencyMs = Number(
+      (latencies.reduce((acc, v) => acc + v, 0) / latencies.length).toFixed(3)
+    );
+
+    return {
+      recallAtK: Number((totalRecall / queries.length).toFixed(4)),
+      meanLatencyMs,
+      p50Ms: pct(0.5),
+      p95Ms: pct(0.95),
+      p99Ms: pct(0.99),
+      queriesEvaluated: queries.length,
+    };
+  }
+
   public size(): number {
     return this.nodes.size;
   }

@@ -45,42 +45,144 @@ export async function runLoadTest(
   };
 }
 
-async function runCliBenchmark(): Promise<void> {
-  const hnsw = new HNSWIndex({ M: 16, efConstruction: 64, efSearch: 24, useQuantization: true });
-  const bm25 = new BM25Index(1.5, 0.75);
-  const dim = 384;
+export interface RecallBenchmarkResult {
+  corpusSize: number;
+  dimension: number;
+  k: number;
+  efSearch: number;
+  buildTimeMs: number;
+  recallAtK: number;
+  hnswLatency: {
+    meanLatencyMs: number;
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    queriesEvaluated: number;
+  };
+  memoryStats: {
+    nodeCount: number;
+    estimatedBytes: number;
+    internalIdCount: number;
+  };
+  hybridSearch: BenchmarkReport;
+}
 
-  for (let i = 0; i < 1000; i++) {
+export async function runRecallAndLatencyBenchmark(options?: {
+  corpusSize?: number;
+  queryCount?: number;
+  dimension?: number;
+  k?: number;
+  efSearch?: number;
+}): Promise<RecallBenchmarkResult> {
+  const corpusSize = options?.corpusSize ?? 1000;
+  const queryCount = options?.queryCount ?? 50;
+  const dim = options?.dimension ?? 384;
+  const k = options?.k ?? 10;
+  const efSearch = options?.efSearch ?? 64;
+
+  const hnsw = new HNSWIndex({
+    M: 16,
+    M0: 32,
+    efConstruction: 96,
+    efSearch,
+    useQuantization: false,
+  });
+  const bm25 = new BM25Index(1.5, 0.75);
+
+  const clusterCount = 16;
+  const centroids: Float32Array[] = [];
+  for (let c = 0; c < clusterCount; c++) {
+    const center = new Float32Array(dim);
+    let norm = 0;
+    for (let d = 0; d < dim; d++) {
+      const v = Math.sin((c + 1) * 1.37 + (d + 1) * 0.11);
+      center[d] = v;
+      norm += v * v;
+    }
+    const inv = 1 / (Math.sqrt(norm) || 1);
+    for (let d = 0; d < dim; d++) center[d] *= inv;
+    centroids.push(center);
+  }
+
+  const buildStart = performance.now();
+  const sampleVectors: Float32Array[] = [];
+  for (let i = 0; i < corpusSize; i++) {
+    const base = centroids[i % clusterCount];
     const vec = new Float32Array(dim);
     let norm = 0;
     for (let d = 0; d < dim; d++) {
-      const v = Math.sin((i + 1) * 0.13 + d * 0.07);
+      const jitter = Math.cos((i + 1) * 0.31 + (d + 1) * 0.17) * 0.18;
+      const v = base[d] + jitter;
       vec[d] = v;
       norm += v * v;
     }
     const inv = 1 / (Math.sqrt(norm) || 1);
     for (let d = 0; d < dim; d++) vec[d] *= inv;
     hnsw.insert(`bench-${i}`, vec);
-    bm25.addDocument(`bench-${i}`, `quantum neural wireless audio headphones series ${i}`);
+    bm25.addDocument(`bench-${i}`, `quantum neural wireless audio headphones series ${i} cluster ${i % clusterCount}`);
+    if (sampleVectors.length < queryCount) {
+      sampleVectors.push(vec);
+    }
   }
+  const buildTimeMs = Number((performance.now() - buildStart).toFixed(2));
 
+  const queryVectors: Float32Array[] = sampleVectors.map((base, idx) => {
+    const q = new Float32Array(dim);
+    let norm = 0;
+    for (let d = 0; d < dim; d++) {
+      const v = base[d] + Math.sin((idx + 1) * 0.23 + d * 0.05) * 0.04;
+      q[d] = v;
+      norm += v * v;
+    }
+    const inv = 1 / (Math.sqrt(norm) || 1);
+    for (let d = 0; d < dim; d++) q[d] *= inv;
+    return q;
+  });
+
+  const recallStats = hnsw.evaluateRecallAtK(queryVectors, k, efSearch);
   const hybrid = new HybridSearch(hnsw, bm25);
-  const queryVec = new Float32Array(dim).fill(1 / Math.sqrt(dim));
+  const queryVec = queryVectors[0] || new Float32Array(dim).fill(1 / Math.sqrt(dim));
 
   const report = await runLoadTest(
     async () => {
-      hybrid.search('quantum wireless headphones', queryVec, { limit: 10 });
+      hybrid.search('quantum wireless headphones', queryVec, { limit: k });
     },
-    300,
+    200,
     15
   );
 
-  const output = {
-    version: '3.2.0',
-    timestamp: new Date().toISOString(),
-    corpusSize: 1000,
+  return {
+    corpusSize,
     dimension: dim,
+    k,
+    efSearch,
+    buildTimeMs,
+    recallAtK: recallStats.recallAtK,
+    hnswLatency: {
+      meanLatencyMs: recallStats.meanLatencyMs,
+      p50Ms: recallStats.p50Ms,
+      p95Ms: recallStats.p95Ms,
+      p99Ms: recallStats.p99Ms,
+      queriesEvaluated: recallStats.queriesEvaluated,
+    },
+    memoryStats: hnsw.getMemoryStats(),
     hybridSearch: report,
+  };
+}
+
+async function runCliBenchmark(): Promise<void> {
+  const result = await runRecallAndLatencyBenchmark({
+    corpusSize: 1000,
+    queryCount: 50,
+    dimension: 384,
+    k: 10,
+    efSearch: 64,
+  });
+
+  const output = {
+    version: '4.0.0',
+    timestamp: new Date().toISOString(),
+    ...result,
   };
 
   const outPath = path.resolve(process.cwd(), 'benchmark-results.json');

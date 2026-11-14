@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { z } from 'zod';
 import { Metrics } from '@eidos/core';
-import { authenticate } from '../middleware/auth';
+import { authenticate, revokeJwtToken } from '../middleware/auth';
 import { VectorStore } from '../services/vector-store';
 import { ServerEmbedder } from '../services/embedder';
 import { StoreRegistry } from '../services/store-registry';
@@ -41,6 +41,28 @@ const rotateAdminKeySchema = z.object({
   key_hash: z.string().length(64),
   grace_period_seconds: z.number().int().min(0).max(86400 * 7).default(300),
 });
+
+const revokeJwtSchema = z
+  .object({
+    token: z.string().min(1).max(4096).optional(),
+    jti: z.string().min(1).max(256).optional(),
+    expires_in_seconds: z.number().int().min(1).max(86400 * 365).optional(),
+  })
+  .refine((data) => Boolean(data.token || data.jti), {
+    message: 'Either "token" or "jti" must be provided to revoke a JWT.',
+  });
+
+async function computeFileSha256AndSize(filePath: string): Promise<{ sha256: string; sizeBytes: number }> {
+  const stat = await fs.promises.stat(filePath);
+  const hash = crypto.createHash('sha256');
+  await new Promise<void>((resolve, reject) => {
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve());
+    stream.on('error', reject);
+  });
+  return { sha256: hash.digest('hex'), sizeBytes: stat.size };
+}
 
 export async function adminRoutes(
   fastify: FastifyInstance,
@@ -256,6 +278,40 @@ export async function adminRoutes(
   );
 
   /**
+   * POST /v1/admin/jwt/revoke
+   * Immediately revokes a signed JWT by its jti claim or raw token digest.
+   */
+  fastify.post('/v1/admin/jwt/revoke', { preHandler: authenticate }, async (request, reply) => {
+    if (!requireAdminRole(request, reply)) return reply;
+    const parsed = revokeJwtSchema.safeParse(request.body || {});
+    if (!parsed.success) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: parsed.error.issues.map((i) => i.message).join('; '),
+      });
+    }
+
+    const target = (parsed.data.token || parsed.data.jti || '').trim();
+    const expiresAtSec = parsed.data.expires_in_seconds
+      ? Math.floor(Date.now() / 1000) + parsed.data.expires_in_seconds
+      : undefined;
+    const result = revokeJwtToken(target, expiresAtSec);
+
+    logStore.record('info', 'admin.jwt_revoked', {
+      requestId: request.headers['x-request-id'] as string,
+      keyId: request.apiKeyContext?.keyId,
+      details: { revokedId: result.revokedId, expiresAtSec: result.expiresAtSec },
+    });
+
+    return {
+      success: true,
+      revokedId: result.revokedId,
+      expiresAtSec: result.expiresAtSec,
+    };
+  });
+
+  /**
    * POST /v1/admin/reindex & POST /v1/admin/optimize
    * Rebuilds and compacts the HNSW graph + BM25 index for the resolved store (re-embedding on /reindex) and flushes stale caches.
    */
@@ -341,7 +397,7 @@ export async function adminRoutes(
 
   /**
    * POST /v1/snapshots
-   * Triggers an immediate atomic disk snapshot of the catalog & index state.
+   * Triggers an immediate atomic disk snapshot of the catalog & index state using streaming write.
    */
   fastify.post('/v1/snapshots', { preHandler: authenticate }, async (request, reply) => {
     if (!requireAdminRole(request, reply)) return reply;
@@ -354,26 +410,20 @@ export async function adminRoutes(
       body.path || path.join(defaultDir, `${tenantId}_${indexName}_${snapshotId}.json`);
     const absPath = store.getSnapshotPath(relativeTarget);
 
-    await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
-    const snapshotArray = store.toSnapshotArray();
-    const payload = JSON.stringify(snapshotArray, null, 2);
-    const tmpPath = `${absPath}.tmp-${Date.now()}`;
-    await fs.promises.writeFile(tmpPath, payload, 'utf8');
-    await fs.promises.rename(tmpPath, absPath);
+    await store.saveSnapshotAsync(absPath);
 
     // Also update primary snapshot file if EIDOS_SNAPSHOT_PATH is configured
-    if (process.env.EIDOS_SNAPSHOT_PATH) {
+    if (process.env.EIDOS_SNAPSHOT_PATH && store.getSnapshotPath(process.env.EIDOS_SNAPSHOT_PATH) !== absPath) {
       await store.saveSnapshotAsync(process.env.EIDOS_SNAPSHOT_PATH);
     }
 
-    const checksumSha256 = crypto.createHash('sha256').update(payload).digest('hex');
-    const sizeBytes = Buffer.byteLength(payload, 'utf8');
+    const { sha256: checksumSha256, sizeBytes } = await computeFileSha256AndSize(absPath);
     const meta: SnapshotMetadata = {
       snapshotId,
       tenantId,
       indexName,
       path: absPath,
-      itemsCount: snapshotArray.length,
+      itemsCount: store.count(),
       sizeBytes,
       checksumSha256,
       createdAt: new Date().toISOString(),

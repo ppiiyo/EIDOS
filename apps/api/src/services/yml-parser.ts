@@ -16,12 +16,60 @@ function cleanXmlText(raw: string): string {
   return raw
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&#(\d+);/g, (_m, dec) => {
+      const code = parseInt(dec, 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
+    })
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => {
+      const code = parseInt(hex, 16);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
+    })
     .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, '&')
+    .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function extractAttrValue(attrs: string, attrName: string): string | null {
+  const lower = attrs.toLowerCase();
+  const needle = attrName.toLowerCase();
+  let pos = 0;
+  while (pos < lower.length) {
+    const idx = lower.indexOf(needle, pos);
+    if (idx === -1) return null;
+    const before = idx > 0 ? lower.charAt(idx - 1) : ' ';
+    if (before !== ' ' && before !== '\t' && before !== '\n' && before !== '\r') {
+      pos = idx + needle.length;
+      continue;
+    }
+    let eqPos = idx + needle.length;
+    while (eqPos < lower.length && (lower.charAt(eqPos) === ' ' || lower.charAt(eqPos) === '\t')) {
+      eqPos++;
+    }
+    if (lower.charAt(eqPos) !== '=') {
+      pos = eqPos;
+      continue;
+    }
+    let quotePos = eqPos + 1;
+    while (
+      quotePos < lower.length &&
+      (lower.charAt(quotePos) === ' ' || lower.charAt(quotePos) === '\t')
+    ) {
+      quotePos++;
+    }
+    const quoteChar = attrs.charAt(quotePos);
+    if (quoteChar !== '"' && quoteChar !== "'") {
+      pos = quotePos;
+      continue;
+    }
+    const endQuote = attrs.indexOf(quoteChar, quotePos + 1);
+    if (endQuote === -1) return null;
+    return cleanXmlText(attrs.slice(quotePos + 1, endQuote));
+  }
+  return null;
 }
 
 function extractTag(block: string, tags: string[]): string {
@@ -33,7 +81,13 @@ function extractTag(block: string, tags: string[]): string {
       const idx = block.indexOf(openNeedle, pos);
       if (idx === -1) break;
       const afterTagChar = block.charAt(idx + openNeedle.length);
-      if (afterTagChar !== '>' && afterTagChar !== ' ' && afterTagChar !== '\t' && afterTagChar !== '\n' && afterTagChar !== '\r') {
+      if (
+        afterTagChar !== '>' &&
+        afterTagChar !== ' ' &&
+        afterTagChar !== '\t' &&
+        afterTagChar !== '\n' &&
+        afterTagChar !== '\r'
+      ) {
         pos = idx + openNeedle.length;
         continue;
       }
@@ -53,6 +107,42 @@ function extractTag(block: string, tags: string[]): string {
   return '';
 }
 
+function extractOfferParams(block: string): Array<{ name: string; value: string }> {
+  const params: Array<{ name: string; value: string }> = [];
+  let pos = 0;
+  while (pos < block.length && params.length < 32) {
+    const idx = block.indexOf('<param', pos);
+    if (idx === -1) break;
+    const afterChar = block.charAt(idx + 6);
+    if (
+      afterChar !== '>' &&
+      afterChar !== ' ' &&
+      afterChar !== '\t' &&
+      afterChar !== '\n' &&
+      afterChar !== '\r'
+    ) {
+      pos = idx + 6;
+      continue;
+    }
+    const tagEnd = block.indexOf('>', idx + 6);
+    if (tagEnd === -1) break;
+    if (block.charAt(tagEnd - 1) === '/') {
+      pos = tagEnd + 1;
+      continue;
+    }
+    const closeIdx = block.indexOf('</param>', tagEnd + 1);
+    if (closeIdx === -1) break;
+    const attrs = block.slice(idx + 6, tagEnd);
+    const paramName = extractAttrValue(attrs, 'name') || '';
+    const paramVal = cleanXmlText(block.slice(tagEnd + 1, closeIdx));
+    if (paramVal) {
+      params.push({ name: paramName, value: paramVal });
+    }
+    pos = closeIdx + 8;
+  }
+  return params;
+}
+
 function parsePriceValue(raw: string): number {
   if (!raw) return 0;
   const normalized = raw.replace(/\s+/g, '').replace(',', '.').replace(/[^\d.]/g, '');
@@ -61,12 +151,47 @@ function parsePriceValue(raw: string): number {
 }
 
 export function parseYmlOrCommerceMl(xmlText: string, maxItems = 50_000): ParsedYmlItem[] {
+  // Reject XML Entity declarations (XXE / Billion Laughs)
+  if (/<!ENTITY\b/i.test(xmlText) || /<!DOCTYPE[^>]*\[/i.test(xmlText)) {
+    throw new Error(
+      'XML_ENTITY_FORBIDDEN: External or internal XML entities (DOCTYPE/ENTITY) are forbidden'
+    );
+  }
+
   const cap = Math.min(Math.max(maxItems, 1), 100_000);
   const categoryMap = new Map<string, string>();
-  const catRegex = /<category\s+[^>]*id=["']([^"']+)["'][^>]*>([\s\S]*?)<\/category>/gi;
-  let catMatch: RegExpExecArray | null;
-  while ((catMatch = catRegex.exec(xmlText)) !== null) {
-    categoryMap.set(catMatch[1].trim(), cleanXmlText(catMatch[2]));
+
+  // Linear non-backtracking scan for <category id="...">...</category>
+  let catPos = 0;
+  while (catPos < xmlText.length) {
+    const cStart = xmlText.indexOf('<category', catPos);
+    if (cStart === -1) break;
+    const nextChar = xmlText.charAt(cStart + 9);
+    if (
+      nextChar !== '>' &&
+      nextChar !== ' ' &&
+      nextChar !== '\t' &&
+      nextChar !== '\n' &&
+      nextChar !== '\r'
+    ) {
+      catPos = cStart + 9;
+      continue;
+    }
+    const cOpenEnd = xmlText.indexOf('>', cStart + 9);
+    if (cOpenEnd === -1) break;
+    if (xmlText.charAt(cOpenEnd - 1) === '/') {
+      catPos = cOpenEnd + 1;
+      continue;
+    }
+    const cClose = xmlText.indexOf('</category>', cOpenEnd + 1);
+    if (cClose === -1) break;
+    const cAttrs = xmlText.slice(cStart + 9, cOpenEnd);
+    const catId = extractAttrValue(cAttrs, 'id');
+    const catName = cleanXmlText(xmlText.slice(cOpenEnd + 1, cClose));
+    if (catId && catName) {
+      categoryMap.set(catId, catName);
+    }
+    catPos = cClose + 11;
   }
 
   const items: ParsedYmlItem[] = [];
@@ -78,7 +203,13 @@ export function parseYmlOrCommerceMl(xmlText: string, maxItems = 50_000): Parsed
     const offerStart = xmlText.indexOf('<offer', searchPos);
     if (offerStart === -1) break;
     const nextChar = xmlText.charAt(offerStart + 6);
-    if (nextChar !== '>' && nextChar !== ' ' && nextChar !== '\t' && nextChar !== '\n' && nextChar !== '\r') {
+    if (
+      nextChar !== '>' &&
+      nextChar !== ' ' &&
+      nextChar !== '\t' &&
+      nextChar !== '\n' &&
+      nextChar !== '\r'
+    ) {
       searchPos = offerStart + 6;
       continue;
     }
@@ -92,11 +223,11 @@ export function parseYmlOrCommerceMl(xmlText: string, maxItems = 50_000): Parsed
     searchPos = offerClose + 8;
 
     idx++;
-    const idAttr = /id=["']([^"']+)["']/i.exec(attrs);
-    const availableAttr = /available=["'](true|false)["']/i.exec(attrs);
-    const inStock = availableAttr ? availableAttr[1].toLowerCase() !== 'false' : true;
+    const idAttr = extractAttrValue(attrs, 'id');
+    const availableAttr = extractAttrValue(attrs, 'available');
+    const inStock = availableAttr ? availableAttr.toLowerCase() !== 'false' : true;
 
-    const id = (idAttr ? idAttr[1] : extractTag(bodyXml, ['id', 'vendorCode'])) || `yml-${idx}`;
+    const id = idAttr || extractTag(bodyXml, ['id', 'vendorCode']) || `yml-${idx}`;
     const name = extractTag(bodyXml, ['name', 'model', 'title']);
     const vendor = extractTag(bodyXml, ['vendor', 'brand']);
     const vendorCode = extractTag(bodyXml, ['vendorCode', 'sku']);
@@ -110,10 +241,20 @@ export function parseYmlOrCommerceMl(xmlText: string, maxItems = 50_000): Parsed
     const category =
       (catId && categoryMap.get(catId)) || extractTag(bodyXml, ['category']) || 'Каталог YML';
     const price = parsePriceValue(extractTag(bodyXml, ['price']));
-    const description = extractTag(bodyXml, ['description', 'sales_notes']) || title;
+    const offerParams = extractOfferParams(bodyXml);
+    const paramSummary = offerParams
+      .map((p) => (p.name ? `${p.name}: ${p.value}` : p.value))
+      .join(', ');
+    const baseDescription = extractTag(bodyXml, ['description', 'sales_notes']) || title;
+    const description = paramSummary ? `${baseDescription}. ${paramSummary}` : baseDescription;
     const url = extractTag(bodyXml, ['url']) || undefined;
     const picture = extractTag(bodyXml, ['picture', 'image']) || null;
-    const tags = [category, vendor, vendorCode].filter(Boolean);
+    const tags = [
+      category,
+      vendor,
+      vendorCode,
+      ...offerParams.map((p) => p.value),
+    ].filter(Boolean);
 
     items.push({
       id,
