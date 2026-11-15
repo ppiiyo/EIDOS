@@ -142,7 +142,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     }
     clusterCoordinator.setDraining(true);
     clusterCoordinator.close();
-    if (process.env.EIDOS_SNAPSHOT_PATH || !isTestEnv) {
+    if (process.env.EIDOS_SNAPSHOT_PATH || process.env.EIDOS_WAL_PATH || !isTestEnv) {
       vectorStore.saveSnapshotSync();
       if (fastify.storeRegistry) {
         for (const meta of fastify.storeRegistry.listIndexes()) {
@@ -151,12 +151,12 @@ export async function buildServer(): Promise<FastifyInstance> {
           }
         }
       }
-    }
-    await vectorStore.getWAL().flush();
-    if (fastify.storeRegistry) {
-      for (const meta of fastify.storeRegistry.listIndexes()) {
-        if (meta.store !== vectorStore) {
-          await meta.store.getWAL().flush();
+      await vectorStore.getWAL().flush();
+      if (fastify.storeRegistry) {
+        for (const meta of fastify.storeRegistry.listIndexes()) {
+          if (meta.store !== vectorStore) {
+            await meta.store.getWAL().flush();
+          }
         }
       }
     }

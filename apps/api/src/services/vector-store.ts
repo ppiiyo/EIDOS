@@ -85,6 +85,7 @@ export interface VectorStoreOptions {
   tenantId?: string;
   indexName?: string;
   embeddingSpaceId?: string;
+  ephemeral?: boolean;
 }
 
 /**
@@ -104,6 +105,7 @@ export class VectorStore {
   private snapshotPath?: string;
   private tenantId: string;
   private indexName: string;
+  private ephemeral = false;
   private embeddingSpaceId: string;
   private snapshotMismatchError: string | null = null;
   private explicitlyCleared = false;
@@ -118,6 +120,7 @@ export class VectorStore {
     this.options = options;
     this.tenantId = options?.tenantId || 'default';
     this.indexName = options?.indexName || 'default';
+    this.ephemeral = Boolean(options?.ephemeral || this.tenantId === 'demo');
     this.embeddingSpaceId =
       options?.embeddingSpaceId || ServerEmbedder.getInstance().getEmbeddingSpaceId();
     this.hnsw = new HNSWIndex({
@@ -130,16 +133,42 @@ export class VectorStore {
     this.bm25 = new BM25Index();
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
     const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-    this.walPath =
-      options?.walPath ||
-      process.env.EIDOS_WAL_PATH ||
-      (!isTestEnv ? path.resolve(process.cwd(), './data/catalog.wal.jsonl') : undefined);
-    this.snapshotPath = options?.snapshotPath;
+    const isDefaultStore = this.tenantId === 'default' && this.indexName === 'default';
+    this.walPath = this.ephemeral
+      ? undefined
+      : options?.walPath ||
+        (isDefaultStore ? process.env.EIDOS_WAL_PATH : undefined) ||
+        (!isTestEnv
+          ? isDefaultStore
+            ? path.resolve(process.cwd(), './data/catalog.wal.jsonl')
+            : path.resolve(process.cwd(), `./data/${this.tenantId}/${this.indexName}/catalog.wal.jsonl`)
+          : undefined);
+    this.snapshotPath = this.ephemeral ? undefined : options?.snapshotPath;
     this.wal = new WriteAheadLog(
       10000,
-      () => this.writeSnapshotFilesAsync(this.getSnapshotPath()),
+      this.createWalCheckpointCallback(),
       this.walPath
     );
+  }
+
+  private createWalCheckpointCallback(): (() => Promise<void>) | undefined {
+    if (this.ephemeral) {
+      return undefined;
+    }
+    return async () => {
+      if (this.ephemeral) {
+        return;
+      }
+      const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
+      if (isTest && !process.env.EIDOS_SNAPSHOT_PATH && !this.snapshotPath) {
+        return;
+      }
+      const targetPath = this.getSnapshotPath();
+      if (this.items.size === 0 && !this.explicitlyCleared && !fs.existsSync(targetPath)) {
+        return;
+      }
+      await this.writeSnapshotFilesAsync(targetPath);
+    };
   }
 
   public getNamespace(): string {
@@ -273,7 +302,7 @@ export class VectorStore {
     this.hybrid = new HybridSearch(this.hnsw, this.bm25);
     this.wal = new WriteAheadLog(
       10000,
-      () => this.writeSnapshotFilesAsync(this.getSnapshotPath()),
+      this.createWalCheckpointCallback(),
       this.walPath
     );
 
@@ -629,9 +658,22 @@ export class VectorStore {
   }
 
   public getSnapshotPath(customPath?: string): string {
+    if (customPath) {
+      return path.resolve(process.cwd(), customPath);
+    }
+    if (this.snapshotPath) {
+      return path.resolve(process.cwd(), this.snapshotPath);
+    }
+    const isDefaultStore = this.tenantId === 'default' && this.indexName === 'default';
+    if (!isDefaultStore) {
+      const baseDataDir = process.env.EIDOS_DATA_DIR
+        ? path.resolve(process.cwd(), process.env.EIDOS_DATA_DIR)
+        : path.resolve(process.cwd(), './data');
+      return path.join(baseDataDir, this.tenantId, this.indexName, 'catalog.snapshot.json');
+    }
     return path.resolve(
       process.cwd(),
-      customPath || this.snapshotPath || process.env.EIDOS_SNAPSHOT_PATH || './data/catalog.snapshot.json'
+      process.env.EIDOS_SNAPSHOT_PATH || './data/catalog.snapshot.json'
     );
   }
 
@@ -812,6 +854,9 @@ export class VectorStore {
    * Uses atomic write (write to .tmp file, then rename) for both JSON metadata and binary HNSW graph.
    */
   public async saveSnapshotAsync(customPath?: string): Promise<void> {
+    if (this.ephemeral && !customPath) {
+      return;
+    }
     if (
       (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
       !process.env.EIDOS_SNAPSHOT_PATH &&
@@ -839,6 +884,9 @@ export class VectorStore {
       this.snapshotTimer = null;
       try {
         const targetPath = this.getSnapshotPath();
+        if (this.items.size === 0 && !this.explicitlyCleared && !fs.existsSync(targetPath)) {
+          return;
+        }
         await this.writeSnapshotFilesAsync(targetPath);
       } catch (err) {
         console.error('[EIDOS] Failed to save catalog snapshot asynchronously:', err);
@@ -859,6 +907,9 @@ export class VectorStore {
       clearTimeout(this.snapshotTimer);
       this.snapshotTimer = null;
     }
+    if (this.ephemeral && !customPath) {
+      return;
+    }
     if (
       (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
       !process.env.EIDOS_SNAPSHOT_PATH &&
@@ -869,6 +920,9 @@ export class VectorStore {
     }
     try {
       const targetPath = this.getSnapshotPath(customPath);
+      if (!customPath && this.items.size === 0 && !this.explicitlyCleared && !fs.existsSync(targetPath)) {
+        return;
+      }
       this.writeSnapshotFilesSync(targetPath);
     } catch (err) {
       console.error('[EIDOS] Failed to save catalog snapshot synchronously:', err);
@@ -900,6 +954,9 @@ export class VectorStore {
       typeof embedderOrPath === 'string' ? embedderOrPath : maybeCustomPath;
     const embedder = hasExplicitEmbedder ? embedderOrPath : undefined;
 
+    if (this.ephemeral && !customPath) {
+      return 0;
+    }
     if (
       (process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)) &&
       !process.env.EIDOS_SNAPSHOT_PATH &&

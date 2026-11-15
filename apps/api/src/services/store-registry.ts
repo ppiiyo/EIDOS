@@ -106,10 +106,10 @@ export class StoreRegistry {
   }
   private static makeKey(tenantId: string, indexName: string): string { return `${tenantId}:${indexName}`; }
 
-  private static getStorePersistencePaths(tenantId: string, indexName: string): { walPath?: string; snapshotPath?: string } {
+  private static getStorePersistencePaths(tenantId: string, indexName: string): { walPath?: string; snapshotPath?: string; ephemeral?: boolean } {
     if (tenantId === 'demo') {
-      // Demo sandbox is ephemeral: no disk persistence (avoids cross-run 409 DEMO_DISABLED).
-      return {};
+      // Demo sandbox is ephemeral: no disk persistence (avoids cross-run 409 DEMO_DISABLED and default store pollution).
+      return { ephemeral: true };
     }
     const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
     if (isTestEnv && !process.env.EIDOS_WAL_PATH && !process.env.EIDOS_SNAPSHOT_PATH && !process.env.EIDOS_DATA_DIR) return {};

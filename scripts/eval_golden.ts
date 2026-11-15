@@ -11,6 +11,7 @@ interface CheckResult {
 }
 
 async function runGoldenEval(): Promise<void> {
+  process.env.NODE_ENV = 'test';
   process.env.API_KEY = 'golden-eval-admin-key';
   process.env.ADMIN_KEY = 'golden-eval-admin-key';
   process.env.SEARCH_KEY = 'golden-eval-search-key';
@@ -27,7 +28,7 @@ async function runGoldenEval(): Promise<void> {
   if (loadRes.statusCode !== 200) {
     throw new Error(`Failed to load demo catalog: ${loadRes.body}`);
   }
-  const store = server.storeRegistry.resolveRequestStore({ headers: {} } as any).store;
+  const store = server.storeRegistry.getStore('demo', 'demo');
 
   const checks: CheckResult[] = [];
 

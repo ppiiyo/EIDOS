@@ -284,4 +284,27 @@ describe('P0-2: Server Startup Honesty, Real Health Delegation & Demo Singleflig
     expect(html).toContain('Локальная симуляция SQL LIKE по демо-каталогу');
     expect(html).toContain('полнота');
   });
+
+  it('never writes demo:demo items into default catalog.snapshot.json when saveSnapshotSync is called', async () => {
+    const app = await buildServer();
+    try {
+      await app.ready();
+      const loadRes = await app.inject({
+        method: 'POST',
+        url: '/v1/demo/load',
+        payload: { scale: '48' },
+      });
+      expect(loadRes.statusCode).toBe(200);
+
+      const demoStore = app.storeRegistry.getStore('demo', 'demo');
+      expect(demoStore.count()).toBe(48);
+
+      // Even if saveSnapshotSync() is called on demoStore, it must be a no-op and never pollute default store
+      demoStore.saveSnapshotSync();
+      const defaultStore = app.storeRegistry.getStore('default', 'default');
+      expect(defaultStore.count()).toBe(0);
+    } finally {
+      await app.close();
+    }
+  });
 });
