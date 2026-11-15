@@ -17,12 +17,16 @@ export const options = {
 };
 
 const API_BASE = __ENV.API_BASE || 'http://localhost:3000';
-const API_KEY = __ENV.API_KEY || 'eidos_public_demo_key_2026';
+const API_KEY = __ENV.API_KEY || __ENV.EIDOS_API_KEY || 'eidos_dev_key';
+const TENANT_ID = __ENV.TENANT_ID || 'demo';
+const INDEX_NAME = __ENV.INDEX_NAME || 'demo';
 
 export default function () {
   const headers = {
     'Content-Type': 'application/json',
     'x-api-key': API_KEY,
+    'x-tenant-id': TENANT_ID,
+    'x-index-name': INDEX_NAME,
   };
 
   // Mix of cached and unique queries (tests memory eviction in fallback cache)

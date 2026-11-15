@@ -14,7 +14,8 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - EIDOS_STRICT_PROD_BOOT=true
-      - DATA_DIR=/var/lib/eidos
+      - DATA_DIR=${DATA_DIR:-/app/data}
+      - EIDOS_DATA_DIR=${EIDOS_DATA_DIR:-/app/data/db}
       - EIDOS_MASTER_KEY=${EIDOS_MASTER_KEY:-${ADMIN_KEY}}
       - EIDOS_ADMIN_KEY=${EIDOS_ADMIN_KEY:-${ADMIN_KEY}}
       - EIDOS_SEARCH_KEY=${EIDOS_SEARCH_KEY:-${SEARCH_KEY}}
@@ -26,14 +27,15 @@ services:
       - EIDOS_ENABLE_DEMO_MUTATIONS=${EIDOS_ENABLE_DEMO_MUTATIONS:-true}
       - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
       - REDIS_URL=redis://redis:6379
-      - EIDOS_SNAPSHOT_PATH=/var/lib/eidos/snapshots/catalog.snapshot.json
-      - EIDOS_SNAPSHOT_INTERVAL_MS=300000
-      - EIDOS_AUTO_RESTORE_SNAPSHOT=true
+      - EIDOS_SNAPSHOT_PATH=${EIDOS_SNAPSHOT_PATH:-/app/data/snapshots/catalog.snapshot.json}
+      - EIDOS_WAL_PATH=${EIDOS_WAL_PATH:-/app/data/snapshots/catalog.wal.jsonl}
+      - EIDOS_SNAPSHOT_INTERVAL_MS=${EIDOS_SNAPSHOT_INTERVAL_MS:-300000}
+      - EIDOS_AUTO_RESTORE_SNAPSHOT=${EIDOS_AUTO_RESTORE_SNAPSHOT:-true}
       - EIDOS_FAIL_CLOSED_EMPTY_INDEX=true
       - LOG_SUGGEST_RATE=${LOG_SUGGEST_RATE:-0.2}
       - EIDOS_RATE_LIMIT_MAX=${EIDOS_RATE_LIMIT_MAX:-600}
     volumes:
-      - eidos_pilot_snapshots:/var/lib/eidos
+      - eidos_pilot_snapshots:/app/data
     depends_on:
       redis:
         condition: service_healthy

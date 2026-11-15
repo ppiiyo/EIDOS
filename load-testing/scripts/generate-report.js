@@ -1,5 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
+const fs = require('node:fs');
+const path = require('node:path');
 
 const resultsDir = path.resolve(process.cwd(), 'load-testing/results');
 const reportPath = path.resolve(process.cwd(), 'load-testing/LOAD_TEST_REPORT.md');
@@ -21,12 +21,12 @@ const soak = loadJson('soak.json');
 
 const now = new Date().toISOString().split('T')[0];
 
-const md = `# 🚀 EIDOS v3.1 Load Testing Report
+const md = `# 🚀 EIDOS v3.4 Load Testing Report
 
 **Date:** ${now}  
-**Version:** v3.1.0 (with Redis Caching Layer, SingleFlight Coalescing & L1 LRUQueryCache)  
-**Public Demo API Key:** \`eidos_public_demo_key_2026\`  
-**Environment:** Local Container Runtime (Node.js v22, 5,005 384-d Indexed Catalog Items across 9 Categories)
+**Version:** v3.4.0 (with Redis Caching Layer, SingleFlight Coalescing & L1 LRUQueryCache)  
+**Default Dev API Key:** \`${baseline?.apiKeyUsed || 'eidos_dev_key'}\`  
+**Environment:** Local Container Runtime (Node.js v22, 1,048 384-d Indexed Demo Catalog Items across 9 Categories)
 
 ---
 

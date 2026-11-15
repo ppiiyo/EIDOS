@@ -10,7 +10,7 @@
     "packages/sdk"
   ],
   "scripts": {
-    "preinstall": "node -e \"process.exit(0)\" || npx only-allow pnpm",
+    "preinstall": "npx only-allow pnpm",
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "tsc -p packages/core/tsconfig.json && vite build --config apps/workspace/vite.config.ts",
@@ -90,8 +90,7 @@
   },
   "pnpm": {
     "ignoredBuiltDependencies": [
-      "sharp",
-      "onnxruntime-node"
+      "sharp"
     ],
     "overrides": {
       "protobufjs": ">=7.6.1",

@@ -1,57 +1,57 @@
 {
   "scenario": "BASELINE TEST (100 VU Profile)",
-  "apiKeyUsed": "eidos_demo_key_2026_public",
-  "timestamp": "2026-10-24T22:34:44.949Z",
+  "apiKeyUsed": "eidos_dev_key",
+  "timestamp": "2026-11-15T21:22:18.160Z",
   "metrics": {
     "http_reqs": {
       "type": "counter",
       "contains": "default",
       "values": {
         "count": 500,
-        "rate": 448.01
+        "rate": 379.58
       }
     },
     "http_req_duration": {
       "type": "trend",
       "contains": "time",
       "values": {
-        "avg": 50.53,
-        "min": 14.88,
-        "med": 42.28,
-        "max": 150.82,
-        "p(50)": 42.28,
-        "p(90)": 85.43,
-        "p(95)": 92.34,
-        "p(99)": 122.21
+        "avg": 64.43,
+        "min": 5.74,
+        "med": 50.35,
+        "max": 692.2,
+        "p(50)": 50.35,
+        "p(90)": 88.87,
+        "p(95)": 105.78,
+        "p(99)": 586.76
       }
     },
     "search_latency": {
       "type": "trend",
       "contains": "time",
       "values": {
-        "avg": 51.12,
-        "p(50)": 42.36,
-        "p(95)": 92.24,
-        "p(99)": 122.21
+        "avg": 68.32,
+        "p(50)": 51.36,
+        "p(95)": 135.69,
+        "p(99)": 586.76
       }
     },
     "recommend_latency": {
       "type": "trend",
       "contains": "time",
       "values": {
-        "avg": 49.01,
-        "p(50)": 41.71,
-        "p(95)": 95.53,
-        "p(99)": 102.81
+        "avg": 55.6,
+        "p(50)": 45.82,
+        "p(95)": 88.87,
+        "p(99)": 509.7
       }
     },
     "cache_hits": {
       "type": "rate",
       "contains": "default",
       "values": {
-        "rate": 0.954,
-        "passes": 477,
-        "fails": 23
+        "rate": 0.748,
+        "passes": 374,
+        "fails": 126
       }
     },
     "errors": {

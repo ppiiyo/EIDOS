@@ -13,14 +13,14 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testMatch: /full-pipeline\.spec\.ts/,
+      testMatch: /.*\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4173' },
     },
   ],
   webServer: [
     {
-      command: 'npx vite --config apps/workspace/vite.config.ts --port 4173 --host 127.0.0.1',
-      url: 'http://127.0.0.1:4173',
+      command: 'PORT=4173 npx tsx server.ts',
+      url: 'http://127.0.0.1:4173/v1/health/live',
       reuseExistingServer: !process.env.CI,
       timeout: 60000,
     },

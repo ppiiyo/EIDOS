@@ -55,7 +55,8 @@ COPY --from=builder --chown=eidos:nodejs /app/apps/api/node_modules ./apps/api/n
 COPY --from=builder --chown=eidos:nodejs /app/dist ./dist
 COPY --from=builder --chown=eidos:nodejs /app/public ./public
 
-RUN mkdir -p /app/data/db && chown -R eidos:nodejs /app/data
+RUN mkdir -p /app/data/db /app/data/snapshots /var/lib/eidos/snapshots \
+ && chown -R eidos:nodejs /app/data /var/lib/eidos
 
 USER eidos
 

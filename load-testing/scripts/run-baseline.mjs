@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
-const API_BASE = process.env.API_BASE || 'http://localhost:3000';
-const API_KEY = process.env.API_KEY || 'eidos_public_demo_key_2026';
+let API_BASE = process.env.API_BASE || '';
+const API_KEY = process.env.API_KEY || process.env.EIDOS_API_KEY || 'eidos_dev_key';
+const TENANT_ID = process.env.TENANT_ID || 'demo';
+const INDEX_NAME = process.env.INDEX_NAME || 'demo';
 
 const POPULAR_QUERIES = [
   'wireless headphones',
@@ -54,6 +57,8 @@ async function runScenario({
   const headers = {
     'Content-Type': 'application/json',
     'x-api-key': API_KEY,
+    'x-tenant-id': TENANT_ID,
+    'x-index-name': INDEX_NAME,
   };
 
   const allDurations = [];
@@ -98,7 +103,7 @@ async function runScenario({
             headers,
             body: JSON.stringify({
               userId,
-              recentItemIds: [`item_${(idx % 50) + 1}`, `item_${((idx + 7) % 50) + 1}`],
+              recentItemIds: [String((idx % 18) + 1), String(((idx + 7) % 18) + 1)],
               topK: 10,
             }),
           });
@@ -207,66 +212,112 @@ async function runScenario({
   return summary;
 }
 
+async function startEphemeralLoadServer() {
+  const port = 4099;
+  const child = spawn('npx', ['tsx', 'apps/api/src/server.ts'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      PORT: String(port),
+      EIDOS_API_KEY: API_KEY,
+      RATE_LIMIT_MAX: '100000',
+      EIDOS_RATE_LIMIT_MAX: '100000',
+    },
+    stdio: 'ignore',
+  });
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  for (let i = 0; i < 60; i++) {
+    try {
+      const res = await fetch(`${baseUrl}/v1/health/live`);
+      if (res.ok) {
+        return { baseUrl, stop: () => child.kill('SIGTERM') };
+      }
+    } catch {
+      // wait for boot
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  child.kill('SIGTERM');
+  throw new Error('Timed out waiting for ephemeral load-test API server on port ' + port);
+}
+
 async function runAll() {
-  console.log(`🚀 Running EIDOS k6 Load Test Suite against ${API_BASE} (API_KEY=${API_KEY})...`);
+  let stopServer = null;
+  if (!API_BASE) {
+    const ephemeral = await startEphemeralLoadServer();
+    API_BASE = ephemeral.baseUrl;
+    stopServer = ephemeral.stop;
+  }
 
-  await fetch(`${API_BASE}/v1/demo/load`, { method: 'POST' }).catch(() => {});
+  try {
+    console.log(`🚀 Running EIDOS k6 Load Test Suite against ${API_BASE} (API_KEY=${API_KEY})...`);
 
-  // 1. Baseline Test (70% search, 30% recommend, Zipf query distribution)
-  const baseline = await runScenario({
-    name: 'BASELINE TEST (100 VU Profile)',
-    outputFile: 'baseline.json',
-    concurrency: 25,
-    totalRequests: 500,
-    searchRatio: 0.7,
-    queryGenerator: () => getRandomQuery(),
-  });
+    await fetch(`${API_BASE}/v1/demo/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scale: '48' }),
+    }).catch(() => {});
 
-  // 2. Stress Test (High concurrency search ramp)
-  const stress = await runScenario({
-    name: 'STRESS TEST (High Concurrency Profile)',
-    outputFile: 'stress.json',
-    concurrency: 60,
-    totalRequests: 800,
-    searchRatio: 1.0,
-    queryGenerator: () => POPULAR_QUERIES[Math.floor(Math.random() * POPULAR_QUERIES.length)],
-  });
+    // 1. Baseline Test (70% search, 30% recommend, Zipf query distribution)
+    const baseline = await runScenario({
+      name: 'BASELINE TEST (100 VU Profile)',
+      outputFile: 'baseline.json',
+      concurrency: 25,
+      totalRequests: 500,
+      searchRatio: 0.7,
+      queryGenerator: () => getRandomQuery(),
+    });
 
-  // 3. Spike Test (Sudden burst on 5 hot queries to verify SingleFlight)
-  const spike = await runScenario({
-    name: 'SPIKE TEST (SingleFlight Hot-Key Surge)',
-    outputFile: 'spike.json',
-    concurrency: 80,
-    totalRequests: 600,
-    searchRatio: 1.0,
-    queryGenerator: () => HOT_SPIKE_QUERIES[Math.floor(Math.random() * HOT_SPIKE_QUERIES.length)],
-  });
+    // 2. Stress Test (High concurrency search ramp)
+    const stress = await runScenario({
+      name: 'STRESS TEST (High Concurrency Profile)',
+      outputFile: 'stress.json',
+      concurrency: 60,
+      totalRequests: 800,
+      searchRatio: 1.0,
+      queryGenerator: () => POPULAR_QUERIES[Math.floor(Math.random() * POPULAR_QUERIES.length)],
+    });
 
-  // 4. Soak / Eviction Test (80% cached popular queries + 20% unique cold queries)
-  const soak = await runScenario({
-    name: 'SOAK TEST (80% Popular + 20% Unique Eviction Profile)',
-    outputFile: 'soak.json',
-    concurrency: 30,
-    totalRequests: 500,
-    searchRatio: 1.0,
-    queryGenerator: (idx) =>
-      Math.random() < 0.2
-        ? `unique_query_${idx}_${Date.now()}`
-        : `popular_query_${Math.floor(Math.random() * 25)}`,
-  });
+    // 3. Spike Test (Sudden burst on 5 hot queries to verify SingleFlight)
+    const spike = await runScenario({
+      name: 'SPIKE TEST (SingleFlight Hot-Key Surge)',
+      outputFile: 'spike.json',
+      concurrency: 80,
+      totalRequests: 600,
+      searchRatio: 1.0,
+      queryGenerator: () => HOT_SPIKE_QUERIES[Math.floor(Math.random() * HOT_SPIKE_QUERIES.length)],
+    });
 
-  console.log(
-    JSON.stringify(
-      {
-        baseline: baseline.metrics,
-        stress: stress.metrics,
-        spike: spike.metrics,
-        soak: soak.metrics,
-      },
-      null,
-      2
-    )
-  );
+    // 4. Soak / Eviction Test (80% cached popular queries + 20% unique cold queries)
+    const soak = await runScenario({
+      name: 'SOAK TEST (80% Popular + 20% Unique Eviction Profile)',
+      outputFile: 'soak.json',
+      concurrency: 30,
+      totalRequests: 500,
+      searchRatio: 1.0,
+      queryGenerator: (idx) =>
+        Math.random() < 0.2
+          ? `unique_query_${idx}_${Date.now()}`
+          : `popular_query_${Math.floor(Math.random() * 25)}`,
+    });
+
+    console.log(
+      JSON.stringify(
+        {
+          baseline: baseline.metrics,
+          stress: stress.metrics,
+          spike: spike.metrics,
+          soak: soak.metrics,
+        },
+        null,
+        2
+      )
+    );
+  } finally {
+    if (stopServer) stopServer();
+  }
 }
 
 runAll().catch((err) => {

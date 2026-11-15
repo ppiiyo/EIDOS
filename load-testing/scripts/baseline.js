@@ -27,7 +27,9 @@ export const options = {
 
 // Environment variables
 const API_BASE = __ENV.API_BASE || 'http://localhost:3000';
-const API_KEY = __ENV.API_KEY || 'eidos_public_demo_key_2026';
+const API_KEY = __ENV.API_KEY || __ENV.EIDOS_API_KEY || 'eidos_dev_key';
+const TENANT_ID = __ENV.TENANT_ID || 'demo';
+const INDEX_NAME = __ENV.INDEX_NAME || 'demo';
 
 // Realistic search queries (top 20 popular + 80 long-tail)
 const POPULAR_QUERIES = [
@@ -68,6 +70,8 @@ export default function () {
   const headers = {
     'Content-Type': 'application/json',
     'x-api-key': API_KEY,
+    'x-tenant-id': TENANT_ID,
+    'x-index-name': INDEX_NAME,
   };
 
   // 70% search requests, 30% recommend requests (realistic ratio)
@@ -111,8 +115,8 @@ export default function () {
     const payload = JSON.stringify({
       userId,
       recentItemIds: [
-        `item_${Math.floor(Math.random() * 100) + 1}`,
-        `item_${Math.floor(Math.random() * 100) + 1}`,
+        String(Math.floor(Math.random() * 18) + 1),
+        String(Math.floor(Math.random() * 18) + 1),
       ],
       topK: 10,
     });

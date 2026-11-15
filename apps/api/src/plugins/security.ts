@@ -84,7 +84,7 @@ export async function securityPlugin(fastify: FastifyInstance): Promise<void> {
   });
 
   await fastify.register(rateLimit, {
-    max: Number(process.env.RATE_LIMIT_MAX || 300),
+    max: Number(process.env.RATE_LIMIT_MAX || process.env.EIDOS_RATE_LIMIT_MAX || 300),
     timeWindow: process.env.RATE_LIMIT_WINDOW || '1 minute',
     keyGenerator: (req) => {
       const apiKey = req.headers['x-api-key'];

@@ -1,38 +1,38 @@
 {
   "scenario": "SOAK TEST (80% Popular + 20% Unique Eviction Profile)",
-  "apiKeyUsed": "eidos_demo_key_2026_public",
-  "timestamp": "2026-10-24T22:34:47.636Z",
+  "apiKeyUsed": "eidos_dev_key",
+  "timestamp": "2026-11-15T21:22:21.378Z",
   "metrics": {
     "http_reqs": {
       "type": "counter",
       "contains": "default",
       "values": {
         "count": 500,
-        "rate": 421.2
+        "rate": 512.63
       }
     },
     "http_req_duration": {
       "type": "trend",
       "contains": "time",
       "values": {
-        "avg": 70.21,
-        "min": 17.57,
-        "med": 70.19,
-        "max": 184.67,
-        "p(50)": 70.19,
-        "p(90)": 118.53,
-        "p(95)": 139.15,
-        "p(99)": 175.52
+        "avg": 57.1,
+        "min": 7.92,
+        "med": 55.8,
+        "max": 142.89,
+        "p(50)": 55.8,
+        "p(90)": 91.72,
+        "p(95)": 101.06,
+        "p(99)": 114.19
       }
     },
     "search_latency": {
       "type": "trend",
       "contains": "time",
       "values": {
-        "avg": 70.21,
-        "p(50)": 70.19,
-        "p(95)": 139.15,
-        "p(99)": 175.52
+        "avg": 57.1,
+        "p(50)": 55.8,
+        "p(95)": 101.06,
+        "p(99)": 114.19
       }
     },
     "recommend_latency": {
@@ -49,9 +49,9 @@
       "type": "rate",
       "contains": "default",
       "values": {
-        "rate": 0.806,
-        "passes": 403,
-        "fails": 97
+        "rate": 0.722,
+        "passes": 361,
+        "fails": 139
       }
     },
     "errors": {

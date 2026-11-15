@@ -1,38 +1,38 @@
 {
   "scenario": "SPIKE TEST (SingleFlight Hot-Key Surge)",
-  "apiKeyUsed": "eidos_demo_key_2026_public",
-  "timestamp": "2026-10-24T22:34:46.448Z",
+  "apiKeyUsed": "eidos_dev_key",
+  "timestamp": "2026-11-15T21:22:20.402Z",
   "metrics": {
     "http_reqs": {
       "type": "counter",
       "contains": "default",
       "values": {
         "count": 600,
-        "rate": 1049.17
+        "rate": 671.33
       }
     },
     "http_req_duration": {
       "type": "trend",
       "contains": "time",
       "values": {
-        "avg": 73.24,
-        "min": 25.88,
-        "med": 74.06,
-        "max": 134.68,
-        "p(50)": 74.06,
-        "p(90)": 100.07,
-        "p(95)": 125.55,
-        "p(99)": 130.77
+        "avg": 112.61,
+        "min": 24.73,
+        "med": 103.38,
+        "max": 549.35,
+        "p(50)": 103.38,
+        "p(90)": 159.3,
+        "p(95)": 191.71,
+        "p(99)": 326.2
       }
     },
     "search_latency": {
       "type": "trend",
       "contains": "time",
       "values": {
-        "avg": 73.24,
-        "p(50)": 74.06,
-        "p(95)": 125.55,
-        "p(99)": 130.77
+        "avg": 112.61,
+        "p(50)": 103.38,
+        "p(95)": 191.71,
+        "p(99)": 326.2
       }
     },
     "recommend_latency": {
@@ -49,9 +49,9 @@
       "type": "rate",
       "contains": "default",
       "values": {
-        "rate": 1,
-        "passes": 600,
-        "fails": 0
+        "rate": 0.9917,
+        "passes": 595,
+        "fails": 5
       }
     },
     "errors": {
