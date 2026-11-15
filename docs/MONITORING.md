@@ -6,13 +6,13 @@
 |------|------|---------|
 | `GET /v1/health` | public | Liveness + component checks |
 | `GET /v1/ready` / `/ready` | public | Readiness (catalog + embedder; Redis optional) |
-| `GET /metrics` | **public** | Prometheus text exposition |
-| `GET /v1/metrics/prometheus` | API key | Same metrics, authenticated alias |
+| `GET /metrics` | API key / Bearer (or `EIDOS_METRICS_PUBLIC=1`) | Prometheus text exposition |
+| `GET /v1/metrics/prometheus` | API key / Bearer | Same metrics, authenticated alias |
 
 Scrape example:
 
 ```bash
-curl -s http://127.0.0.1:8080/metrics | head
+curl -s -H "Authorization: Bearer $EIDOS_MASTER_KEY" http://127.0.0.1:8080/metrics | head
 ```
 
 ## Optional Prometheus + Grafana
@@ -34,15 +34,9 @@ Configs:
 - `deploy/eidos-alerts.yml` — API down, search p95, 5xx, cache
 - `deploy/grafana/provisioning/` — datasource + overview dashboard
 
-## CI & Smoke Verification
-
-| Workflow | Trigger | Role |
-|----------|---------|------|
-| `ci.yml` | push / pull_request | Build, typecheck, full unit/integration test suite, coverage gate, PHP connectors, Python SDK |
-| `php-connectors.yml` | push / pull_request | PHP syntax lint and Bitrix autoload verification |
-
-Local smoke check:
+## Smoke & widget verification
 
 ```bash
-bash scripts/smoke.sh
+bash scripts/sync_widget.sh --check
+bash scripts/smoke.sh http://127.0.0.1:3000
 ```

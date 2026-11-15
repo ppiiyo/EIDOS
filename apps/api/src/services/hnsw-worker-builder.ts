@@ -22,6 +22,9 @@ const path = require('path');
 
 async function run() {
   const { ids, vectorBuffer, dimension, config, coreDistPath, useSharedOutput } = workerData;
+  if (coreDistPath.endsWith('.ts')) {
+    require('tsx/cjs');
+  }
   const core = require(coreDistPath);
   const { HNSWIndex, HNSWIndexSerializer } = core;
 
@@ -76,6 +79,9 @@ function resolveCoreDistIndex(): string | null {
     path.resolve(process.cwd(), 'packages/core/dist/index.js'),
     path.resolve(__dirname, '../../../../packages/core/dist/index.js'),
     path.resolve(__dirname, '../../../packages/core/dist/index.js'),
+    path.resolve(process.cwd(), 'packages/core/src/index.ts'),
+    path.resolve(__dirname, '../../../../packages/core/src/index.ts'),
+    path.resolve(__dirname, '../../../packages/core/src/index.ts'),
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) {

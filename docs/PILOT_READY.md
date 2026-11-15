@@ -1,45 +1,43 @@
-# EIDOS — Pilot & Production Readiness
+# EIDOS — Pilot Readiness
 
-Last verified: **2026-11-14**
+## Green verification suites
 
-## Green Test & Verification Gates
+| Suite | Result |
+|-------|--------|
+| Full Vitest suite (`npm test`) | 114/114 files (515/515 tests) |
+| P0-1 … P0-5 & P1-1 … P1-3 hardening suites | 28/28 |
+| Self-Hosted Golden Path & WooCommerce/Bitrix parity | 11/11 |
+| Live HTTP Smoke (`bash scripts/smoke.sh`) | 6/6 |
 
-| Gate | Command | Status |
-|------|---------|--------|
-| Workspace Typecheck | `pnpm lint` | **PASS** |
-| Full Test Suite (114+ suites) | `pnpm test` | **PASS** |
-| `@eidos/core` Coverage (`≥80%` lines, `≥75%` branches) | `pnpm test:coverage` | **PASS (84.9% lines / 75.6% branches)** |
-| Live HTTP Smoke Suite | `bash scripts/smoke.sh` | **PASS (6/6 checks)** |
+## Product invariants
 
-## Product Invariants Verified
+1. Streaming Snapshot (`.ndjson` / `.json`) + `.hnsw.bin` SHA-256 verification + bounded WAL (`maxInMemoryOperations`)
+2. Demo tenant **ephemeral** (`demo:demo`, no disk persistence, singleflight load deduplication)
+3. `/metrics` and `/v1/analytics/funnel-event` require authentication by default (`EIDOS_METRICS_PUBLIC=1` opt-in for internal Prometheus)
+4. `StoreError.toJSON` uses standard HTTP error names (`Not Found`, `Conflict`, `Too Many Requests`, `Gateway Timeout`)
+5. RBAC: admin/master demote via `x-eidos-role` (never escalate); JWT `jti` revocation via `POST /v1/admin/jwt/revoke`
+6. Health/ready: `server.ts` delegates `/health` and `/v1/health` to Fastify (`buildServer()`) and returns `503 API_INIT_FAILED` on fatal init error
+7. Security plugin: `CORS` with `Vary: Origin`, bounded rate-limit key rotation, and PII query redaction in request logs
+8. `StoreRegistry` isolates L1/L2 caches and HNSW indexes per `tenantId:indexName`
+9. Storefront widget `public/widget.js` ≡ `apps/workspace/public/widget.js` (`bash scripts/sync_widget.sh --check`) with `ru`/`en` i18n, `Intl.NumberFormat` currency support, and `urlTemplate` resolution
 
-1. **Snapshot → WAL ordering + `whenReady` / `setReadyPromise`**: Streaming 64 KB chunked snapshot reader with `.hnsw.bin` SHA-256 verification and bounded WAL.
-2. **Ephemeral Demo Tenant**: `demo:demo` runs in isolated storage without touching `default:default`, with singleflight seeding on `POST /v1/demo/load` and status polling on `GET /v1/demo/status`.
-3. **Production Security Hardening**:
-   - `/metrics` requires `admin` or `master` key when `EIDOS_REQUIRE_METRICS_AUTH=true` or `NODE_ENV=production`.
-   - `POST /v1/analytics/funnel/event` requires authentication and enforces per-IP rate limiting.
-   - Strict CORS with `Vary: Origin` (never falls back to `origins[0]` for untrusted origins).
-   - Unrecognized API keys share an IP rate-limit bucket (`ip:${req.ip}`).
-   - `install-pilot.sh` and `deploy/pilot/install.sh` create `.env` / `.env.pilot` with `0600` (`umask 077`) permissions.
-4. **Honest Retrieval & Benchmarks**:
-   - Multilingual ONNX default (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`, 384-d) and explicit `EIDOS_EMBEDDER_MODE=lexical-only` mode.
-   - `HNSWIndex.searchExact` & `evaluateRecallAtK` compute true Recall@K against brute-force cosine ground truth.
-   - `PRODUCT_CATEGORY_FAMILIES` separated into `demo-product-category-families.ts` (`EIDOS-104`) and `totalIsApproximate` reported on `/v1/search` (`EIDOS-105`).
-5. **Storefront Widget, SDK & Connectors**:
-   - `public/widget.js` supports `locale` (`ru`/`en`), `currency` (`RUB`/`USD`/`EUR`), and `urlTemplate`, automatically synced with `apps/workspace/public/widget.js` via Vite build plugin and `scripts/sync_widget.sh`.
-   - `@eidos/sdk` and Python SDKs support `tenantId`, `indexName`, `suggest()`, `upsertBatch()`, and `ready()`.
-   - Canonical packagers `pnpm pack:bitrix` and `pnpm pack:woo`.
-
-## Pilot in 15 Minutes
+## Pilot in 15 minutes
 
 ```bash
 git clone https://github.com/ppiiyo/EIDOS.git && cd EIDOS
-chmod +x deploy/pilot/install.sh
-./deploy/pilot/install.sh
-curl -s http://localhost:3001/v1/ready | jq
+chmod +x scripts/install-pilot.sh
+./scripts/install-pilot.sh
+# credentials written to .env.pilot (chmod 600); API on :3000
+bash scripts/smoke.sh http://127.0.0.1:3000
 ```
 
-## Honest Performance Scope
+Or full stack + monitoring:
 
-- Latency depends on hardware CPU, catalog size, `efSearch`, and cache hit rate. Measure on your target host using `pnpm benchmark` and `docs/perf-budgets.md`.
-- Do not claim fixed sub-15ms p95 at 100k SKU without running `pnpm benchmark` on the target hardware.
+```bash
+# .env with EIDOS_MASTER_KEY + JWT_SECRET (≥24 chars)
+docker compose up --build -d
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+# Prometheus :9090  Grafana :3001
+```
+
+Import catalog → connect Bitrix (`packages/connectors/bitrix`) or WooCommerce (`packages/connectors/woocommerce`) or embed `/widget.js`.

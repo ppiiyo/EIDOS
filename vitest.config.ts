@@ -20,7 +20,11 @@ export default defineConfig({
       forks: { minForks: 1, maxForks: 2 },
     },
     // Optional heavy bench — enable with EIDOS_RUN_BENCH=1 in a dedicated job
-    exclude: ['**/node_modules/**', '**/dist/**', '**/epic-production-retrieval.test.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      ...(process.env.EIDOS_RUN_BENCH === '1' ? [] : ['**/epic-production-retrieval.test.ts']),
+    ],
     include: [
       'packages/**/tests/**/*.test.ts',
       'apps/api/tests/**/*.test.ts',
