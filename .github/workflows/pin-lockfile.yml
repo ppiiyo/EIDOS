@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'scripts/lockfile.part*.b64'
-      - 'scripts/restore_pnpm_lock.py'
+      - '.github/workflows/pin-lockfile.yml'
       - 'package.json'
     branches: [main]
 
@@ -18,7 +17,7 @@ concurrency:
 
 jobs:
   pin:
-    name: Restore and commit pnpm-lock.yaml
+    name: Resolve and commit pnpm-lock.yaml
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -29,19 +28,12 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-      - name: Restore lockfile from parts (or regenerate)
-        run: |
-          set -euo pipefail
-          if [ -f scripts/restore_pnpm_lock.py ] && ls scripts/lockfile.part*.b64 >/dev/null 2>&1; then
-            python3 scripts/restore_pnpm_lock.py
-          else
-            pnpm install --no-frozen-lockfile
-          fi
+      - name: Resolve lockfile from package.json
+        run: pnpm install --no-frozen-lockfile
       - name: Verify Fastify 4 swagger pin
         run: |
           set -euo pipefail
           grep -q "@fastify/swagger@8" pnpm-lock.yaml
-          pnpm install --frozen-lockfile
           pnpm list @fastify/swagger | grep -E '8\.'
       - name: Commit lockfile if changed
         run: |
