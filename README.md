@@ -7,12 +7,11 @@
 [![CI](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-[**Studio demo**](https://eidos-demo.vercel.app) ·
+[**Landing**](https://eidos-landing.vercel.app) ·
+[**Studio**](https://eidos-demo.vercel.app) ·
 [API host](https://eidos-semantic-ideation-platform.ai.studio/) ·
-[Pilot guide](./docs/PILOT.md) ·
-[API docs](./docs/API.md) ·
-[Monitoring](./docs/MONITORING.md) ·
-[Vercel deploy](./docs/VERCEL_DEMO.md)
+[Pilot](./docs/PILOT.md) ·
+[API docs](./docs/API.md)
 
 </div>
 
@@ -22,16 +21,26 @@
 
 | Surface | URL | What it is |
 |---------|-----|------------|
-| **Studio (UI)** | [eidos-demo.vercel.app](https://eidos-demo.vercel.app) | Full React Studio + Admin; `/v1/*` proxied to the API host |
-| **API / classic demo** | [eidos-semantic-ideation-platform.ai.studio](https://eidos-semantic-ideation-platform.ai.studio/) | Long-running search API + persistence |
-| **Landing** | Deploy `landing/` (Netlify or any static host) | Product page + one-command pilot CTA |
+| **Landing** | [eidos-landing.vercel.app](https://eidos-landing.vercel.app) | Product page + live demo search + pilot CTA |
+| **Studio (UI)** | [eidos-demo.vercel.app](https://eidos-demo.vercel.app) | Full React Studio + Admin; `/v1/*` → API host |
+| **API host** | [ai.studio demo](https://eidos-semantic-ideation-platform.ai.studio/) | Long-running search API + persistence |
 
-**Demo search (no key):** `POST /v1/demo/search` on the API host (also via Studio proxy).
+**One-liner demo search:**
 
 ```bash
 curl -s -X POST https://eidos-demo.vercel.app/v1/demo/search \
   -H 'Content-Type: application/json' \
   -d '{"query":"наушники для бега","topK":5}'
+```
+
+### Deploy the landing yourself
+
+- **Vercel:** project `eidos-landing` (static `landing/index.html`)
+- **Netlify:** `netlify.toml` → `publish = "landing"`  
+  [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/ppiiyo/EIDOS)
+
+```bash
+npx netlify deploy --dir=landing --prod
 ```
 
 ---
@@ -73,36 +82,14 @@ corepack enable && pnpm install
 docker compose up --build -d
 ```
 
-Optional metrics UI:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
-# Prometheus :9090  Grafana :3001
-```
-
 ### Connect a store
 
-1. **Catalog** — CSV/JSON (`docs/CSV_CONTRACT.md`), YML (`POST /v1/catalog/import-yml`), or CMS sync  
-2. **Bitrix** — `pnpm pack:bitrix` / `packages/connectors/bitrix`  
-3. **WooCommerce** — `pnpm pack:woo` / `connectors/woocommerce`  
+1. **Catalog** — CSV/JSON (`docs/CSV_CONTRACT.md`), YML, or CMS sync  
+2. **Bitrix** — `pnpm pack:bitrix`  
+3. **WooCommerce** — `pnpm pack:woo`  
 4. **Widget** — `<script src="https://YOUR_HOST/widget.js" data-api="..." data-key="SEARCH_KEY" defer></script>`
 
-Details: [docs/PILOT.md](./docs/PILOT.md), [docs/PILOT_READY.md](./docs/PILOT_READY.md).
-
-### Landing + Netlify
-
-Product landing lives in [`landing/`](./landing/). Deploy in one click:
-
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/ppiiyo/EIDOS&base=landing)
-
-Or CLI:
-
-```bash
-# from repo root
-npx netlify deploy --dir=landing --prod
-```
-
-`netlify.toml` points publish to `landing/` and leaves the search API on your Docker/VPS host (same model as Vercel Studio).
+Details: [docs/PILOT.md](./docs/PILOT.md).
 
 ---
 
@@ -114,13 +101,13 @@ apps/workspace    React Studio + Admin UI
 packages/core     HNSW / BM25 / ranking
 packages/sdk      TypeScript client
 packages/connectors/bitrix | woocommerce
-public/widget.js  Storefront embed (kept in sync with workspace copy)
-landing/          Marketing site (static)
+public/widget.js  Storefront embed
+landing/          Product marketing site (static)
 ```
 
-**Persistence:** snapshot + WAL (snapshot applied before WAL replay). Demo tenant is **ephemeral** (does not touch production `default:default`).
+**Persistence:** snapshot + WAL (snapshot before WAL). Demo tenant is ephemeral.
 
-**Security:** API keys / roles (`master`, `admin`, `merchandiser`, `search`), JWT revocation (`POST /v1/admin/jwt/revoke`), per-IP rate limits, strict CORS with `Vary: Origin`, CSP, XXE-safe linear YML parser, and SSRF guards on URL imports. `/metrics` requires `admin` or `master` authentication in production (`EIDOS_REQUIRE_METRICS_AUTH=true`).
+**Security:** API keys / roles, JWT revocation, rate limits, CORS, CSP, XXE-safe YML, SSRF guards.
 
 ---
 
@@ -129,49 +116,10 @@ landing/          Marketing site (static)
 ```bash
 corepack enable && pnpm install
 pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
-pnpm dev                    # unified server
-pnpm lint                   # typecheck all workspaces
-pnpm test                   # full test suite (zero CI patches)
-bash scripts/smoke.sh       # live HTTP smoke verification
+pnpm dev && pnpm lint && pnpm test
 ```
 
-### CI
-
-| Job | Required |
-|-----|----------|
-| Lint, typecheck & build | yes |
-| Full `pnpm test` (Node 20 & 22) | yes |
-| `@eidos/core` coverage (Node 20) | yes |
-| PHP connectors (lint, autoload, PHPUnit, pack) | yes |
-| Python SDK pytest | yes |
-| Production gate (`v35-production-gate` + `p0-p1-final-audit`) | yes |
-
-Workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml). Install uses **`pnpm install --frozen-lockfile`** (lock pinned for Fastify 4 / `@fastify/swagger@8`).
-
----
-
-## API surface (common)
-
-| Method | Path | Notes |
-|--------|------|--------|
-| `POST` | `/v1/search` | Hybrid search + X-Ray |
-| `POST` | `/v1/recommend` | Item / adaptive strategies |
-| `POST` | `/v1/catalog/upsert` | Admin key |
-| `POST` | `/v1/demo/load` | Isolated demo catalog |
-| `GET` | `/v1/health`, `/v1/ready` | Health / readiness |
-| `GET` | `/metrics` | Prometheus |
-
-OpenAPI: `/docs` when the API is running.
-
----
-
-## What we do **not** claim without a bench on your hardware
-
-- Fixed **sub-15 ms p95** at 50k–100k SKU on arbitrary VPS sizes  
-- Parity with Algolia/Constructor **hosted** merchandising suites  
-- Cross-encoder quality unless that path is explicitly enabled and measured  
-
-Measured latency depends on CPU, catalog size, `efSearch`, and cache hit rate. Use `pnpm benchmark` / `load-testing/` and `/metrics` on your pilot box.
+CI uses **`pnpm install --frozen-lockfile`** (Fastify 4 / `@fastify/swagger@8` locked).
 
 ---
 
@@ -182,10 +130,9 @@ Measured latency depends on CPU, catalog size, `efSearch`, and cache hit rate. U
 | [PILOT.md](./docs/PILOT.md) | 15–30 min onboarding |
 | [PRODUCTION.md](./docs/PRODUCTION.md) | Ops / keys / snapshots |
 | [MONITORING.md](./docs/MONITORING.md) | Prometheus + Grafana |
-| [CSV_CONTRACT.md](./docs/CSV_CONTRACT.md) | Import validation |
-| [MIGRATION.md](./docs/MIGRATION.md) | From Algolia / others |
-| [API.md](./docs/API.md) | Endpoint reference |
 | [VERCEL_DEMO.md](./docs/VERCEL_DEMO.md) | Studio on Vercel |
+| [API.md](./docs/API.md) | Endpoint reference |
+| [landing/](./landing/) | Product landing source |
 
 ---
 
