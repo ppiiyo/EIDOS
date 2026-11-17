@@ -35,6 +35,9 @@ class RecommendationItem:
     source: Optional[str] = None
     why_recommended: Optional[str] = None
 
+# Compatibility alias used by packages/python-sdk tests & examples
+Recommendation = RecommendationItem
+
 @dataclass
 class SearchResponse:
     query: str
@@ -125,17 +128,6 @@ class EidosClient:
         mode: str = "hybrid",
         alpha: float = 0.5,
     ) -> SearchResponse:
-        """
-        Unified search with support for Dense (HNSW), Sparse (BM25) or Hybrid (Reciprocal Rank Fusion).
-        
-        Args:
-            query: Natural language search string
-            limit: Maximum items to retrieve (default: 10)
-            min_similarity: Minimum cosine threshold
-            filter_category: Optional category filter
-            mode: Search algorithm - "hybrid" (RRF), "dense" (HNSW), or "sparse" (BM25)
-            alpha: Balance weight: 0.0 (pure BM25) to 1.0 (pure dense HNSW)
-        """
         payload = {
             "query": query,
             "limit": limit,
@@ -176,9 +168,6 @@ class EidosClient:
         exclude_ids: Optional[List[str]] = None,
         filter_category: Optional[str] = None,
     ) -> List[RecommendationItem]:
-        """
-        Item-to-item neural recommendations using Maximal Marginal Relevance (MMR).
-        """
         payload = {
             "itemId": str(item_id),
             "limit": limit,
@@ -212,9 +201,6 @@ class EidosClient:
         limit: int = 5,
         diversity_factor: float = 0.7,
     ) -> List[RecommendationItem]:
-        """
-        Multi-interest personalized recommendations using MIND capsule user tower.
-        """
         payload = {
             "userId": str(user_id),
             "history": [str(x) for x in history],
@@ -236,7 +222,6 @@ class EidosClient:
         ]
 
     def upsert_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        """Upsert a single item dictionary into /v1/catalog/upsert."""
         return self._request("POST", "/v1/catalog/upsert", item)
 
     def ingest_item(
@@ -249,7 +234,6 @@ class EidosClient:
         price: Optional[Union[str, float, int]] = None,
         embedding: Optional[List[float]] = None,
     ) -> Dict[str, Any]:
-        """Index a single product into the vector catalog and BM25 index."""
         payload: Dict[str, Any] = {
             "id": str(item_id),
             "title": title,
@@ -265,7 +249,6 @@ class EidosClient:
         return self._request("POST", "/v1/catalog/upsert", payload)
 
     def ingest_batch(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Batch ingestion for high-throughput product indexing (chunks of up to 500 items)."""
         if not items:
             return {"success": True, "indexedCount": 0, "durationMs": 0}
         total_indexed = 0
@@ -291,9 +274,6 @@ class EidosClient:
         event_type: str = "click",
         timestamp: Optional[int] = None,
     ) -> bool:
-        """
-        Record online interaction feedback to continuously update contextual bandits.
-        """
         if timestamp is None:
             timestamp = int(time.time() * 1000)
 
@@ -314,5 +294,6 @@ __all__ = [
     "EidosException",
     "CatalogItemInput",
     "RecommendationItem",
+    "Recommendation",
     "SearchResponse",
 ]

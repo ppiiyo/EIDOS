@@ -98,11 +98,15 @@ jobs:
           python-version: '3.11'
       - name: Install & Test Python SDKs
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip pytest
+          # Canonical SDK (urllib-based)
           pip install -e packages/sdk/python
           pytest -q packages/sdk/python
+          # Alternate package path: force reinstall so `eidos` resolves to python-sdk if both exist
+          pip uninstall -y eidos-sdk eidos 2>/dev/null || true
           pip install -e "./packages/python-sdk[dev]"
-          pytest packages/python-sdk/tests
+          pytest -q packages/python-sdk/tests
 
   production-gate:
     name: Production Gate & Smoke
