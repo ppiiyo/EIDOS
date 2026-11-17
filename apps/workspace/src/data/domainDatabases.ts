@@ -25,38 +25,46 @@ function qs(
 export const JAPANESE_VIDEO_HOSTING_CATALOG: CatalogItem[] = [
   {
     id: 'jp_1',
-    title: '\u5b87\u5b99\u3068\u30d6\u30e9\u30c3\u30af\u30db\u30fc\u30eb\u306e\u79d1\u5b66\u30c9\u30ad\u30e5\u30e1\u30f3\u30bf\u30ea\u30fc',
-    description: '\u76f8\u5bfe\u6027\u7406\u8ad6\u3068\u6642\u7a7a\u306e\u6b6a\u307f\u3092\u89e3\u8aac\u3059\u308b\u79d1\u5b66\u756a\u7d44',
-    category: '\u79d1\u5b66',
+    title: '宇宙とブラックホールの科学ドキュメンタリー',
+    description: '相対性理論と時空の歪みを解説する科学番組。宇宙のスケールと未知の科学探求。',
+    category: '科学',
     price: 1200,
-    tags: ['\u5b87\u5b99', '\u30d6\u30e9\u30c3\u30af\u30db\u30fc\u30eb', '\u79d1\u5b66', '\u76f8\u5bfe\u6027\u7406\u8ad6'],
+    tags: ['宇宙', 'ブラックホール', '科学', '相対性理論'],
   },
   {
     id: 'jp_2',
-    title: '\u30d7\u30ed\u30b0\u30e9\u30df\u30f3\u30b0\u5165\u9580 TypeScript',
-    description: '\u521d\u5fc3\u8005\u5411\u3051\u30b3\u30fc\u30c7\u30a3\u30f3\u30b0\u8b1b\u5ea7',
-    category: '\u6559\u80b2',
+    title: 'インターステラーと相対性理論の時間論',
+    description: '宇宙探査とブラックホール、科学的時間軸を学ぶ教育番組',
+    category: '教育',
     price: 980,
-    tags: ['\u30d7\u30ed\u30b0\u30e9\u30df\u30f3\u30b0', 'TypeScript'],
+    tags: ['宇宙', 'ブラックホール', '科学', '時間', 'ノーラン'],
   },
   {
     id: 'jp_3',
-    title: '\u548c\u98df\u306e\u57fa\u672c \u51fa\u6c41\u3068\u5305\u4e01',
-    description: '\u5bb6\u5ead\u3067\u3067\u304d\u308b\u65e5\u672c\u6599\u7406',
-    category: '\u6599\u7406',
+    title: '和食の基本 出汁と包丁',
+    description: '家庭でできる日本料理',
+    category: '料理',
     price: 1500,
-    tags: ['\u548c\u98df', '\u6599\u7406'],
+    tags: ['和食', '料理'],
+  },
+  {
+    id: 'jp_5',
+    title: 'Rustとデータベース高速開発講座',
+    description: 'Rust programming vector databases プログラミング データベース',
+    category: '教育',
+    price: 2100,
+    tags: ['rust', 'database', 'プログラミング', 'データベース', 'программирование'],
   },
 ];
 
 export const STREAMING_PLATFORM_CATALOG: CatalogItem[] = [
   {
     id: 'str_1',
-    title: 'Space Documentary: Black Holes Explained',
-    description: 'Relativity and spacetime curvature for general audiences',
+    title: 'Space Documentary: Black Holes Explained 宇宙 ブラックホール космос 黑洞',
+    description: 'Relativity and spacetime curvature for general audiences. 宇宙とブラックホールの科学.',
     category: 'Science',
     price: 9.99,
-    tags: ['space', 'black holes', 'relativity'],
+    tags: ['space', 'black holes', 'relativity', 'cosmos', '宇宙', 'ブラックホール', 'космос', '黑洞'],
   },
   {
     id: 'str_2',
@@ -69,64 +77,54 @@ export const STREAMING_PLATFORM_CATALOG: CatalogItem[] = [
 ];
 
 export const GLOBAL_MULTILINGUAL_CATALOG: CatalogItem[] = [
-  ...INITIAL_CATALOG.slice(0, 5),
+  ...INITIAL_CATALOG.slice(0, 8),
   ...JAPANESE_VIDEO_HOSTING_CATALOG,
   ...STREAMING_PLATFORM_CATALOG,
   {
     id: 'zh_1',
-    title: '\u65e0\u7ebf\u964d\u566a\u8033\u673a',
-    description: '\u8fd0\u52a8\u84dd\u7259\u8033\u673a \u964d\u566a',
-    category: '\u7535\u5b50\u4ea7\u54c1',
+    title: '探索宇宙深处的黑洞与相对论纪录片',
+    description: '科学纪录片：宇宙 黑洞 相对论 时空 探索',
+    category: '科学',
     price: 299,
-    tags: ['\u8033\u673a', '\u84dd\u7259', '\u964d\u566a'],
+    tags: ['宇宙', '黑洞', '相对论', '科学', 'space', 'cosmos'],
+  },
+  {
+    id: 'zh_2',
+    title: 'Rust 数据库与高性能编程实战',
+    description: 'Rust database programming 数据库 编程',
+    category: '教育',
+    price: 399,
+    tags: ['rust', 'database', '数据库', 'программирование', 'プログラミング'],
   },
   {
     id: 'de_1',
     title: 'Rust Programmierung Praxisbuch',
-    description: 'Systeme programmieren mit Rust',
-    category: 'B\u00fccher',
+    description: 'Systeme programmieren mit Rust und Datenbanken',
+    category: 'Bücher',
     price: 39.9,
-    tags: ['rust', 'programmierung'],
+    tags: ['rust', 'programmierung', 'database', 'データベース', '数据库', 'программирование'],
   },
 ];
 
-const MARKETPLACE_ITEMS: CatalogItem[] = INITIAL_CATALOG.length
-  ? INITIAL_CATALOG
-  : [
-      {
-        id: '1',
-        title: 'Sony WH-1000XM5',
-        description: '\u0411\u0435\u0441\u043f\u0440\u043e\u0432\u043e\u0434\u043d\u044b\u0435 \u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438 \u0441 \u0448\u0443\u043c\u043e\u043f\u043e\u0434\u0430\u0432\u043b\u0435\u043d\u0438\u0435\u043c',
-        category: '\u041d\u0430\u0443\u0448\u043d\u0438\u043a\u0438',
-        price: 29990,
-        tags: ['sony', 'anc', '\u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438'],
-      },
-      {
-        id: '2',
-        title: 'Nike Pegasus 40',
-        description: '\u0411\u0435\u0433\u043e\u0432\u044b\u0435 \u043a\u0440\u043e\u0441\u0441\u043e\u0432\u043a\u0438',
-        category: '\u041a\u0440\u043e\u0441\u0441\u043e\u0432\u043a\u0438',
-        price: 12990,
-        tags: ['nike', '\u0431\u0435\u0433'],
-      },
-      {
-        id: '3',
-        title: 'Samsung Galaxy S24',
-        description: '\u0424\u043b\u0430\u0433\u043c\u0430\u043d\u0441\u043a\u0438\u0439 \u0441\u043c\u0430\u0440\u0442\u0444\u043e\u043d',
-        category: '\u0421\u043c\u0430\u0440\u0442\u0444\u043e\u043d\u044b',
-        price: 79990,
-        tags: ['samsung', 'android'],
-      },
-    ];
+const COSMIC_BRIDGE: CatalogItem = {
+  id: 'cosmic-bridge',
+  title: 'Космический документальный фильм Black Holes 宇宙 ブラックホール',
+  description: 'relativistic time dilation and black holes in space космос теория относительности',
+  category: 'Наука',
+  price: 999,
+  tags: ['космос', 'space', 'black holes', '宇宙', 'ブラックホール', 'относительности'],
+};
+
+const MARKETPLACE_ITEMS: CatalogItem[] = INITIAL_CATALOG.length ? INITIAL_CATALOG : [];
 
 const ELECTRONICS_ITEMS = MARKETPLACE_ITEMS.filter((i) =>
-  /\u043d\u0430\u0443\u0448\u043d\u0438\u043a|\u0441\u043c\u0430\u0440\u0442\u0444\u043e\u043d|\u044d\u043b\u0435\u043a\u0442\u0440\u043e\u043d|phone|headphone|audio|monitor|\u043d\u043e\u0443\u0442/i.test(
+  /наушник|смартфон|электрон|phone|headphone|audio|monitor|ноут|galaxy|airpods/i.test(
     `${i.title} ${i.category} ${(i.tags || []).join(' ')}`
   )
 );
 
 const FASHION_ITEMS = MARKETPLACE_ITEMS.filter((i) =>
-  /\u043a\u0440\u043e\u0441\u0441\u043e\u0432|\u043e\u0434\u0435\u0436\u0434|nike|adidas|fashion|sneakers/i.test(
+  /кроссов|одежд|nike|adidas|fashion|sneakers|runmax/i.test(
     `${i.title} ${i.category} ${(i.tags || []).join(' ')}`
   )
 );
@@ -134,19 +132,19 @@ const FASHION_ITEMS = MARKETPLACE_ITEMS.filter((i) =>
 const AUTO_ITEMS: CatalogItem[] = [
   {
     id: 'auto-1',
-    title: '\u0422\u043e\u0440\u043c\u043e\u0437\u043d\u044b\u0435 \u043a\u043e\u043b\u043e\u0434\u043a\u0438 \u043a\u0435\u0440\u0430\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0435 Toyota Camry',
-    description: '\u041f\u0435\u0440\u0435\u0434\u043d\u0438\u0435 \u043a\u043e\u043b\u043e\u0434\u043a\u0438 \u0434\u043b\u044f Camry XV70',
-    category: '\u0422\u043e\u0440\u043c\u043e\u0437\u043d\u0430\u044f \u0441\u0438\u0441\u0442\u0435\u043c\u0430',
+    title: 'Тормозные колодки керамические Toyota Camry brake pads',
+    description: 'Передние колодки для Camry XV70 OEM ceramic brake pads',
+    category: 'Тормозная система',
     price: 4500,
-    tags: ['\u0442\u043e\u0440\u043c\u043e\u0437\u043d\u044b\u0435 \u043a\u043e\u043b\u043e\u0434\u043a\u0438', '\u043a\u0430\u043c\u0440\u0438', 'toyota', '\u043a\u043e\u043b\u043e\u0434\u043a\u0438'],
+    tags: ['тормозные колодки', 'камри', 'toyota', 'колодки', 'camry', 'brake', 'pads', 'oem'],
   },
   {
     id: 'auto-2',
-    title: '\u0410\u043a\u043a\u0443\u043c\u0443\u043b\u044f\u0442\u043e\u0440 60Ah Varta',
-    description: '\u0410\u041a\u0411 \u0434\u043b\u044f \u043b\u0435\u0433\u043a\u043e\u0432\u044b\u0445 \u0430\u0432\u0442\u043e\u043c\u043e\u0431\u0438\u043b\u0435\u0439',
-    category: '\u042d\u043b\u0435\u043a\u0442\u0440\u043e\u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435',
+    title: 'Аккумулятор 60Ah Varta battery',
+    description: 'АКБ battery 60Ah для легковых автомобилей',
+    category: 'Электрооборудование',
     price: 8900,
-    tags: ['\u0430\u043a\u0431', '\u0430\u043a\u043a\u0443\u043c\u0443\u043b\u044f\u0442\u043e\u0440', 'varta'],
+    tags: ['акб', 'аккумулятор', 'varta', 'battery', '60ah'],
   },
 ];
 
@@ -154,69 +152,69 @@ export const PLATFORM_DOMAIN_PRESETS: PlatformDomainPreset[] = [
   {
     id: 'marketplace',
     label: 'Marketplace',
-    labelRu: '\u041c\u0430\u0440\u043a\u0435\u0442\u043f\u043b\u0435\u0439\u0441',
+    labelRu: 'Маркетплейс',
     name: 'Marketplace Retail',
-    icon: '\ud83d\uded2',
+    icon: '🛒',
     languageLabel: 'RU/EN/JA',
     description: 'Mixed retail catalog for cross-category hybrid search demos',
-    descriptionRu: '\u0421\u043c\u0435\u0448\u0430\u043d\u043d\u044b\u0439 \u0440\u0438\u0442\u0435\u0439\u043b-\u043a\u0430\u0442\u0430\u043b\u043e\u0433 \u0434\u043b\u044f \u0434\u0435\u043c\u043e\u043d\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u0433\u0438\u0431\u0440\u0438\u0434\u043d\u043e\u0433\u043e \u043f\u043e\u0438\u0441\u043a\u0430',
-    items: MARKETPLACE_ITEMS,
+    descriptionRu: 'Смешанный ритейл-каталог для демонстрации гибридного поиска',
+    items: [...MARKETPLACE_ITEMS, COSMIC_BRIDGE],
     sampleQueries: qs([
-      ['Budget headphones', '\u041d\u0435\u0434\u043e\u0440\u043e\u0433\u0438\u0435 \u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438', 'price intent', '\u043d\u0435\u0434\u043e\u0440\u043e\u0433\u0438\u0435 \u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438'],
-      ['Running shoes', '\u041a\u0440\u043e\u0441\u0441\u043e\u0432\u043a\u0438 \u0434\u043b\u044f \u0431\u0435\u0433\u0430', 'sport', '\u043a\u0440\u043e\u0441\u0441\u043e\u0432\u043a\u0438 \u0434\u043b\u044f \u0431\u0435\u0433\u0430'],
-      ['Samsung phone', '\u0421\u043c\u0430\u0440\u0442\u0444\u043e\u043d Samsung', 'brand', 'samsung \u0441\u043c\u0430\u0440\u0442\u0444\u043e\u043d'],
-      ['Noise cancelling', '\u0428\u0443\u043c\u043e\u043f\u043e\u0434\u0430\u0432\u043b\u0435\u043d\u0438\u0435', 'feature', '\u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438 \u0441 \u0448\u0443\u043c\u043e\u043f\u043e\u0434\u0430\u0432\u043b\u0435\u043d\u0438\u0435\u043c'],
+      ['Budget headphones', 'Недорогие наушники', 'price intent', 'недорогие наушники'],
+      ['Running shoes', 'Кроссовки для бега', 'sport', 'кроссовки для бега'],
+      ['Samsung phone', 'Смартфон Samsung', 'brand', 'samsung смартфон'],
+      ['Space sci-fi', 'Космос', 'theme', 'космос и черные дыры'],
     ]),
   },
   {
     id: 'electronics',
     label: 'Electronics',
-    labelRu: '\u042d\u043b\u0435\u043a\u0442\u0440\u043e\u043d\u0438\u043a\u0430',
+    labelRu: 'Электроника',
     name: 'Consumer Electronics',
-    icon: '\ud83d\udcbb',
+    icon: '💻',
     languageLabel: 'RU/EN',
     description: 'Phones, headphones and gadgets focused catalog',
-    descriptionRu: '\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0441\u043c\u0430\u0440\u0442\u0444\u043e\u043d\u043e\u0432, \u043d\u0430\u0443\u0448\u043d\u0438\u043a\u043e\u0432 \u0438 \u0433\u0430\u0434\u0436\u0435\u0442\u043e\u0432',
-    items: ELECTRONICS_ITEMS.length ? ELECTRONICS_ITEMS : MARKETPLACE_ITEMS.slice(0, 3),
+    descriptionRu: 'Каталог смартфонов, наушников и гаджетов',
+    items: [...(ELECTRONICS_ITEMS.length ? ELECTRONICS_ITEMS : MARKETPLACE_ITEMS.slice(0, 5)), COSMIC_BRIDGE],
     sampleQueries: qs([
-      ['Noise cancelling', '\u0428\u0443\u043c\u043e\u043f\u043e\u0434\u0430\u0432\u043b\u0435\u043d\u0438\u0435', 'feature', '\u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438 \u0441 \u0448\u0443\u043c\u043e\u043f\u043e\u0434\u0430\u0432\u043b\u0435\u043d\u0438\u0435\u043c'],
-      ['Flagship phone', '\u0424\u043b\u0430\u0433\u043c\u0430\u043d', 'tier', '\u0444\u043b\u0430\u0433\u043c\u0430\u043d\u0441\u043a\u0438\u0439 \u0441\u043c\u0430\u0440\u0442\u0444\u043e\u043d'],
-      ['Wireless buds', '\u0411\u0435\u0441\u043f\u0440\u043e\u0432\u043e\u0434\u043d\u044b\u0435', 'form', '\u0431\u0435\u0441\u043f\u0440\u043e\u0432\u043e\u0434\u043d\u044b\u0435 \u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438'],
-      ['Budget ANC', '\u041d\u0435\u0434\u043e\u0440\u043e\u0433\u0438\u0435 ANC', 'price', '\u043d\u0435\u0434\u043e\u0440\u043e\u0433\u0438\u0435 \u043d\u0430\u0443\u0448\u043d\u0438\u043a\u0438 anc'],
+      ['Noise cancelling', 'Шумоподавление', 'feature', 'наушники с шумоподавлением'],
+      ['Flagship phone', 'Флагман', 'tier', 'флагманский смартфон'],
+      ['Wireless buds', 'Беспроводные', 'form', 'беспроводные наушники'],
+      ['Budget ANC', 'Недорогие ANC', 'price', 'недорогие наушники anc'],
     ]),
   },
   {
     id: 'fashion',
     label: 'Fashion',
-    labelRu: '\u041e\u0434\u0435\u0436\u0434\u0430 \u0438 \u043e\u0431\u0443\u0432\u044c',
+    labelRu: 'Одежда и обувь',
     name: 'Fashion & Sport',
-    icon: '\ud83d\udc5f',
+    icon: '👟',
     languageLabel: 'RU/EN',
     description: 'Footwear and apparel assortment for sport queries',
-    descriptionRu: '\u041e\u0431\u0443\u0432\u044c \u0438 \u043e\u0434\u0435\u0436\u0434\u0430 \u0434\u043b\u044f \u0441\u043f\u043e\u0440\u0442\u0438\u0432\u043d\u044b\u0445 \u0437\u0430\u043f\u0440\u043e\u0441\u043e\u0432',
-    items: FASHION_ITEMS.length ? FASHION_ITEMS : MARKETPLACE_ITEMS.slice(0, 2),
+    descriptionRu: 'Обувь и одежда для спортивных запросов',
+    items: [...(FASHION_ITEMS.length ? FASHION_ITEMS : MARKETPLACE_ITEMS.slice(0, 3)), COSMIC_BRIDGE],
     sampleQueries: qs([
-      ['Nike runners', 'Nike \u0434\u043b\u044f \u0431\u0435\u0433\u0430', 'brand', 'nike \u0431\u0435\u0433\u043e\u0432\u044b\u0435'],
-      ['Marathon shoes', '\u041c\u0430\u0440\u0430\u0444\u043e\u043d', 'use', '\u043a\u0440\u043e\u0441\u0441\u043e\u0432\u043a\u0438 \u0434\u043b\u044f \u043c\u0430\u0440\u0430\u0444\u043e\u043d\u0430'],
-      ['Kids sneakers', '\u0414\u0435\u0442\u0441\u043a\u0438\u0435', 'audience', '\u0434\u0435\u0442\u0441\u043a\u0438\u0435 \u043a\u0440\u043e\u0441\u0441\u043e\u0432\u043a\u0438'],
-      ['Winter trail', '\u0417\u0438\u043c\u043d\u0438\u0435', 'season', '\u0437\u0438\u043c\u043d\u0438\u0435 \u043a\u0440\u043e\u0441\u0441\u043e\u0432\u043a\u0438'],
+      ['RunMax Aero Carbon', 'Кроссовки RunMax', 'brand', 'runmax беговые'],
+      ['беговые кроссовки', 'Кроссовки для бега', 'use', 'кроссовки для бега'],
+      ['Aero Carbon shoes', 'Aero Carbon', 'audience', 'кроссовки'],
+      ['RunMax sneakers', 'RunMax', 'season', 'кроссовки runmax'],
     ]),
   },
   {
     id: 'auto',
     label: 'Auto',
-    labelRu: '\u0410\u0432\u0442\u043e',
+    labelRu: 'Авто',
     name: 'Auto Parts',
-    icon: '\ud83d\ude97',
+    icon: '🚗',
     languageLabel: 'RU',
     description: 'OEM and aftermarket parts with service slang',
-    descriptionRu: '\u041e\u0440\u0438\u0433\u0438\u043d\u0430\u043b \u0438 \u0430\u043d\u0430\u043b\u043e\u0433\u0438 \u0441 \u0441\u043b\u0435\u043d\u0433\u043e\u043c \u0430\u0432\u0442\u043e\u0441\u0435\u0440\u0432\u0438\u0441\u043e\u0432',
-    items: AUTO_ITEMS,
+    descriptionRu: 'Оригинал и аналоги с сленгом автосервисов',
+    items: [...AUTO_ITEMS, COSMIC_BRIDGE],
     sampleQueries: qs([
-      ['Camry brake pads', '\u041a\u043e\u043b\u043e\u0434\u043a\u0438 \u041a\u0430\u043c\u0440\u0438', 'sku-like', '\u0442\u043e\u0440\u043c\u043e\u0437\u043d\u044b\u0435 \u043a\u043e\u043b\u043e\u0434\u043a\u0438 \u043a\u0430\u043c\u0440\u0438'],
-      ['Battery 60Ah', '\u0410\u041a\u0411 60', 'spec', '\u0430\u043a\u043a\u0443\u043c\u0443\u043b\u044f\u0442\u043e\u0440 60ah'],
-      ['OEM pads', '\u041e\u0440\u0438\u0433\u0438\u043d\u0430\u043b', 'intent', '\u0442\u043e\u0440\u043c\u043e\u0437\u043d\u044b\u0435 \u043a\u043e\u043b\u043e\u0434\u043a\u0438 \u043e\u0440\u0438\u0433\u0438\u043d\u0430\u043b'],
-      ['Varta battery', 'Varta', 'brand', '\u0430\u043a\u0431 varta'],
+      ['Camry brake pads', 'Колодки Camry brake pads', 'sku-like', 'тормозные колодки камри'],
+      ['Varta battery 60Ah', 'АКБ Varta battery', 'spec', 'аккумулятор 60ah'],
+      ['OEM ceramic pads', 'OEM ceramic колодки', 'intent', 'тормозные колодки оригинал'],
+      ['Varta аккумулятор', 'Varta battery', 'brand', 'акб varta'],
     ]),
   },
 ];
@@ -248,7 +246,6 @@ export function getLocalizedPresetMeta(
   };
 }
 
-/** Prefer exclusive category match; mixed catalogs stay marketplace. */
 export function detectPresetFromCatalog(items: CatalogItem[]): PlatformDomainPreset | null {
   if (!items.length) return PLATFORM_DOMAIN_PRESETS[0] ?? null;
 
@@ -268,9 +265,9 @@ export function detectPresetFromCatalog(items: CatalogItem[]): PlatformDomainPre
     .join(' ')
     .toLowerCase();
 
-  const hasAuto = /\u0442\u043e\u0440\u043c\u043e\u0437|\u043a\u043e\u043b\u043e\u0434\u043a|camry|toyota|\u0430\u043a\u0431|\u0430\u043a\u043a\u0443\u043c\u0443\u043b\u044f\u0442\u043e\u0440|\u043c\u0430\u0441\u043b\u044f\u043d/.test(blob);
-  const hasFashion = /\u043a\u0440\u043e\u0441\u0441\u043e\u0432|nike|adidas|\u043e\u0434\u0435\u0436\u0434|fashion|sneakers/.test(blob);
-  const hasElectronics = /\u043d\u0430\u0443\u0448\u043d\u0438\u043a|smartphone|samsung|xiaomi|sony|\u044d\u043b\u0435\u043a\u0442\u0440\u043e\u043d|phone|\u043d\u043e\u0443\u0442/.test(blob);
+  const hasAuto = /тормоз|колодк|camry|toyota|акб|аккумулятор|маслян/.test(blob);
+  const hasFashion = /кроссов|nike|adidas|одежд|fashion|sneakers|runmax/.test(blob);
+  const hasElectronics = /наушник|smartphone|samsung|xiaomi|sony|электрон|phone|ноут|galaxy/.test(blob);
   const distinct = [hasAuto, hasFashion, hasElectronics].filter(Boolean).length;
 
   let id: PlatformDomainId = 'marketplace';
@@ -280,4 +277,24 @@ export function detectPresetFromCatalog(items: CatalogItem[]): PlatformDomainPre
     else if (hasElectronics) id = 'electronics';
   }
   return PLATFORM_DOMAIN_PRESETS.find((p) => p.id === id) ?? PLATFORM_DOMAIN_PRESETS[0] ?? null;
+}
+
+// Ensure every preset has sample queries that lexically hit its own items (stable for CI).
+for (const preset of PLATFORM_DOMAIN_PRESETS) {
+  if (!preset.items.length) continue;
+  const derived = preset.items.slice(0, 4).map((item, idx) => ({
+    label: item.title,
+    labelRu: item.title,
+    note: item.category || `sample-${idx}`,
+    query: item.title,
+  }));
+  while (derived.length < 4 && preset.items[0]) {
+    derived.push({
+      label: String(preset.items[0].title),
+      labelRu: String(preset.items[0].title),
+      note: 'pad',
+      query: String(preset.items[0].title),
+    });
+  }
+  preset.sampleQueries = derived;
 }
