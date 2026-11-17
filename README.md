@@ -100,13 +100,14 @@ bash scripts/smoke.sh       # live HTTP smoke verification
 
 | Job | Required |
 |-----|----------|
-| Typecheck (`pnpm lint`) | yes |
+| Lint, typecheck & build | yes |
 | Full `pnpm test` (Node 20 & 22) | yes |
-| `@eidos/core` coverage gate (≥80% lines, ≥75% branches) | yes |
-| PHP connector syntax & PHPUnit | yes |
-| Build & Docker smoke (`scripts/smoke.sh`) | yes |
+| `@eidos/core` coverage (Node 20) | yes |
+| PHP connectors (lint, autoload, PHPUnit, pack) | yes |
+| Python SDK pytest | yes |
+| Production gate (`v35-production-gate` + `p0-p1-final-audit`) | yes |
 
-Workflows: `.github/workflows/ci.yml`, `php-connectors.yml`.
+Workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml). Install uses `pnpm install --no-frozen-lockfile` until the lockfile is re-pinned after the Fastify 4 / `@fastify/swagger@8` alignment; prefer committing a fresh lock and switching back to `--frozen-lockfile`.
 
 ---
 
