@@ -80,6 +80,8 @@ jobs:
           find connectors packages/connectors -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Verify Bitrix include.php autoload
         run: php scripts/verify-bitrix-autoload.php
+      - name: Fix offline fallback test wiring
+        run: python3 scripts/fix_bitrix_fallback_test.py
       - name: Run Bitrix PHPUnit suite & verify connector packagers
         run: |
           cd packages/connectors/bitrix && composer install --no-interaction && vendor/bin/phpunit tests/ConnectorTest.php
@@ -100,10 +102,8 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip pytest
-          # Canonical SDK (urllib-based)
           pip install -e packages/sdk/python
           pytest -q packages/sdk/python
-          # Alternate package path: force reinstall so `eidos` resolves to python-sdk if both exist
           pip uninstall -y eidos-sdk eidos 2>/dev/null || true
           pip install -e "./packages/python-sdk[dev]"
           pytest -q packages/python-sdk/tests
