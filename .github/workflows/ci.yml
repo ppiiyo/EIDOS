@@ -36,7 +36,13 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-      - run: pnpm install --no-frozen-lockfile
+      - name: Install (frozen, fallback once if lock stale)
+        run: |
+          set -euo pipefail
+          if ! pnpm install --frozen-lockfile; then
+            echo "::warning::frozen-lockfile failed; refreshing lock once"
+            pnpm install --no-frozen-lockfile
+          fi
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
       - run: pnpm lint
       - run: bash scripts/check-ui-keys.sh
@@ -58,7 +64,13 @@ jobs:
         with:
           node-version: '${{ matrix.node-version }}'
           cache: 'pnpm'
-      - run: pnpm install --no-frozen-lockfile
+      - name: Install (frozen, fallback once if lock stale)
+        run: |
+          set -euo pipefail
+          if ! pnpm install --frozen-lockfile; then
+            echo "::warning::frozen-lockfile failed; refreshing lock once"
+            pnpm install --no-frozen-lockfile
+          fi
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
       - run: mkdir -p data && pnpm test
       - name: Coverage (@eidos/core)
@@ -122,6 +134,12 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-      - run: pnpm install --no-frozen-lockfile
+      - name: Install (frozen, fallback once if lock stale)
+        run: |
+          set -euo pipefail
+          if ! pnpm install --frozen-lockfile; then
+            echo "::warning::frozen-lockfile failed; refreshing lock once"
+            pnpm install --no-frozen-lockfile
+          fi
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
       - run: mkdir -p data && pnpm exec vitest run apps/api/tests/v35-production-gate.test.ts apps/api/tests/p0-p1-final-audit.test.ts

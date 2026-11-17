@@ -1,0 +1,46 @@
+name: Pin lockfile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pin-lockfile
+  cancel-in-progress: true
+
+jobs:
+  pin:
+    name: pnpm install and commit lockfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Resolve lockfile from package.json
+        run: pnpm install --no-frozen-lockfile
+      - name: Verify Fastify 4 swagger pin
+        run: |
+          set -euo pipefail
+          grep -q "@fastify/swagger@8" pnpm-lock.yaml
+          pnpm list @fastify/swagger | grep -E '8\.'
+      - name: Commit lockfile if changed
+        run: |
+          set -euo pipefail
+          git config user.name "eidos-ci"
+          git config user.email "ci@eidos.local"
+          git add pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "lockfile already up to date"
+          else
+            git commit -m "chore(lockfile): pin deps for @fastify/swagger@8 (Fastify 4)"
+            git push origin HEAD:main
+          fi
