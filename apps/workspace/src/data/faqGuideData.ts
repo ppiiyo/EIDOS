@@ -1,4 +1,8 @@
+import type { ViewId } from '../components/Sidebar';
+
 export type FaqAudienceId = 'seo' | 'smm' | 'sales' | 'bitrix' | 'all';
+
+type LangText = { ru: string; en: string };
 
 export const AUDIENCE_FILTERS: Array<{ id: FaqAudienceId; label: string; labelRu: string }> = [
   { id: 'all', label: 'All', labelRu: 'Все' },
@@ -8,26 +12,82 @@ export const AUDIENCE_FILTERS: Array<{ id: FaqAudienceId; label: string; labelRu
   { id: 'bitrix', label: 'Bitrix', labelRu: 'Битрикс' },
 ];
 
-export const FEATURE_GUIDE_ITEMS: Array<{ id: string; title: string; titleRu: string; body: string; bodyRu: string }> = [
+export interface FeatureGuideItem {
+  id: ViewId | string;
+  emoji: string;
+  badge: LangText;
+  title: LangText;
+  whatIsIt: LangText;
+  whyNeeded: LangText;
+  howItWorks: LangText;
+  realExample: LangText;
+}
+
+export const FEATURE_GUIDE_ITEMS: FeatureGuideItem[] = [
   {
     id: 'search',
-    title: 'Hybrid Search',
-    titleRu: 'Гибридный поиск',
-    body: 'Combines BM25 lexical matching with HNSW semantic vectors via RRF.',
-    bodyRu: 'Сочетает лексический BM25 и семантический HNSW через RRF.',
+    emoji: '🔍',
+    badge: { ru: 'Поиск', en: 'Search' },
+    title: { ru: 'Гибридный поиск', en: 'Hybrid Search' },
+    whatIsIt: {
+      ru: 'Сочетает BM25 и HNSW через RRF.',
+      en: 'Combines BM25 and HNSW via RRF.',
+    },
+    whyNeeded: {
+      ru: 'Точные артикулы + естественный язык в одной выдаче.',
+      en: 'Exact SKUs and natural language in one ranking.',
+    },
+    howItWorks: {
+      ru: 'Лексический и векторный каналы сливаются с настраиваемыми весами.',
+      en: 'Lexical and vector channels fuse with tunable weights.',
+    },
+    realExample: {
+      ru: 'Запрос «недорогие наушники для бега» находит релевантные SKU без точного совпадения названия.',
+      en: 'Query “budget running headphones” finds relevant SKUs without exact title match.',
+    },
   },
   {
-    id: 'xray',
-    title: 'X-Ray ranking',
-    titleRu: 'X-Ray ранжирование',
-    body: 'Per-hit explanation of lexical, semantic, and business boost factors.',
-    bodyRu: 'Пояснение вклада лексики, семантики и бизнес-бустов по каждому хиту.',
+    id: 'dashboard',
+    emoji: '📊',
+    badge: { ru: 'Студия', en: 'Studio' },
+    title: { ru: 'X-Ray ранжирование', en: 'X-Ray ranking' },
+    whatIsIt: {
+      ru: 'Прозрачный разбор вклада факторов в score.',
+      en: 'Transparent factor breakdown of each hit score.',
+    },
+    whyNeeded: {
+      ru: 'Мерчандайзеры видят, почему товар наверху.',
+      en: 'Merchandisers see why an item ranks high.',
+    },
+    howItWorks: {
+      ru: 'В ответе API — lexical/semantic/business boost компоненты.',
+      en: 'API returns lexical/semantic/business boost components.',
+    },
+    realExample: {
+      ru: 'Буст маржинальных SKU без поломки релевантности.',
+      en: 'Boost high-margin SKUs without breaking relevance.',
+    },
   },
   {
-    id: 'connectors',
-    title: 'CMS connectors',
-    titleRu: 'Коннекторы CMS',
-    body: 'Bitrix and WooCommerce modules sync catalog and replace storefront search.',
-    bodyRu: 'Модули Битрикс и WooCommerce синхронизируют каталог и подменяют поиск на витрине.',
+    id: 'integrations',
+    emoji: '🔌',
+    badge: { ru: 'CMS', en: 'CMS' },
+    title: { ru: 'Коннекторы Битрикс/Woo', en: 'Bitrix/Woo connectors' },
+    whatIsIt: {
+      ru: 'Синхронизация каталога и подмена поиска на витрине.',
+      en: 'Catalog sync and storefront search replacement.',
+    },
+    whyNeeded: {
+      ru: 'Пилот без переписывания витрины.',
+      en: 'Pilot without rewriting the storefront.',
+    },
+    howItWorks: {
+      ru: 'Модуль CMS → API EIDOS; fallback на CSearch при аварии.',
+      en: 'CMS module → EIDOS API; falls back to native search on outage.',
+    },
+    realExample: {
+      ru: 'Установка модуля, ключ API, cron-синк 10k SKU.',
+      en: 'Install module, set API key, cron-sync 10k SKUs.',
+    },
   },
 ];
