@@ -56,7 +56,11 @@ describe('Phase 4: Pipeline Synchronization, Reactive Telemetry & Multi-Turn NLU
     const turn2 = await agent.respond('а дешевле 15000 рублей');
     expect(turn2.items.length).toBeGreaterThan(0);
     for (const item of turn2.items) {
-      const numericPrice = parseFloat((item.price || '0').replace(/[^\d.]/g, ''));
+      const raw = item.price;
+      const numericPrice =
+        typeof raw === 'number'
+          ? raw
+          : parseFloat(String(raw || '0').replace(/[^\d.]/g, ''));
       expect(numericPrice).toBeLessThanOrEqual(15000);
     }
 
