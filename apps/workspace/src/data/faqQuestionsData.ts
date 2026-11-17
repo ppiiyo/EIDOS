@@ -1,4 +1,5 @@
 import type { FaqAudienceId } from './faqGuideData';
+import type { ViewId } from '../components/Sidebar';
 
 type LangText = { ru: string; en: string };
 type LangSteps = { ru: string[]; en: string[] };
@@ -11,7 +12,7 @@ export interface FaqQuestionItem {
   shortAnswer: LangText;
   detailedSteps: LangSteps;
   businessImpact: LangText;
-  relatedView?: string;
+  relatedView?: ViewId;
 }
 
 export const FAQ_QUESTIONS_DATA: FaqQuestionItem[] = [
@@ -30,7 +31,7 @@ export const FAQ_QUESTIONS_DATA: FaqQuestionItem[] = [
     detailedSteps: {
       ru: [
         'Индексируйте каталог в EIDOS для витрины',
-        'Сохраняйте классические SEO-страницы и сниппеты',
+        'Сохраняйте классические SEO-страницы',
         'Смотрите zero-result запросы в аналитике',
       ],
       en: [
@@ -73,7 +74,7 @@ export const FAQ_QUESTIONS_DATA: FaqQuestionItem[] = [
       ru: 'Пилот на витрине за часы, не недели.',
       en: 'Storefront pilot in hours, not weeks.',
     },
-    relatedView: 'integrations',
+    relatedView: 'catalog',
   },
   {
     id: 'q3',

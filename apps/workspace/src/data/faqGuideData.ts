@@ -13,7 +13,7 @@ export const AUDIENCE_FILTERS: Array<{ id: FaqAudienceId; label: string; labelRu
 ];
 
 export interface FeatureGuideItem {
-  id: ViewId | string;
+  id: ViewId;
   emoji: string;
   badge: LangText;
   title: LangText;
@@ -42,8 +42,8 @@ export const FEATURE_GUIDE_ITEMS: FeatureGuideItem[] = [
       en: 'Lexical and vector channels fuse with tunable weights.',
     },
     realExample: {
-      ru: 'Запрос «недорогие наушники для бега» находит релевантные SKU без точного совпадения названия.',
-      en: 'Query “budget running headphones” finds relevant SKUs without exact title match.',
+      ru: 'Запрос «недорогие наушники для бега» находит релевантные SKU.',
+      en: 'Query “budget running headphones” finds relevant SKUs.',
     },
   },
   {
@@ -60,7 +60,7 @@ export const FEATURE_GUIDE_ITEMS: FeatureGuideItem[] = [
       en: 'Merchandisers see why an item ranks high.',
     },
     howItWorks: {
-      ru: 'В ответе API — lexical/semantic/business boost компоненты.',
+      ru: 'В ответе API — lexical/semantic/business boost.',
       en: 'API returns lexical/semantic/business boost components.',
     },
     realExample: {
@@ -69,7 +69,7 @@ export const FEATURE_GUIDE_ITEMS: FeatureGuideItem[] = [
     },
   },
   {
-    id: 'integrations',
+    id: 'catalog',
     emoji: '🔌',
     badge: { ru: 'CMS', en: 'CMS' },
     title: { ru: 'Коннекторы Битрикс/Woo', en: 'Bitrix/Woo connectors' },
