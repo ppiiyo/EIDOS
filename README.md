@@ -7,9 +7,32 @@
 [![CI](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-[Live demo](https://eidos-semantic-ideation-platform.ai.studio/) · [Pilot guide](./docs/PILOT.md) · [API](./docs/API.md) · [Monitoring](./docs/MONITORING.md)
+[**Studio demo**](https://eidos-demo.vercel.app) ·
+[API host](https://eidos-semantic-ideation-platform.ai.studio/) ·
+[Pilot guide](./docs/PILOT.md) ·
+[API docs](./docs/API.md) ·
+[Monitoring](./docs/MONITORING.md) ·
+[Vercel deploy](./docs/VERCEL_DEMO.md)
 
 </div>
+
+---
+
+## Live demos
+
+| Surface | URL | What it is |
+|---------|-----|------------|
+| **Studio (UI)** | [eidos-demo.vercel.app](https://eidos-demo.vercel.app) | Full React Studio + Admin; `/v1/*` proxied to the API host |
+| **API / classic demo** | [eidos-semantic-ideation-platform.ai.studio](https://eidos-semantic-ideation-platform.ai.studio/) | Long-running search API + persistence |
+| **Landing** | Deploy `landing/` (Netlify or any static host) | Product page + one-command pilot CTA |
+
+**Demo search (no key):** `POST /v1/demo/search` on the API host (also via Studio proxy).
+
+```bash
+curl -s -X POST https://eidos-demo.vercel.app/v1/demo/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"наушники для бега","topK":5}'
+```
 
 ---
 
@@ -66,6 +89,21 @@ docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 
 Details: [docs/PILOT.md](./docs/PILOT.md), [docs/PILOT_READY.md](./docs/PILOT_READY.md).
 
+### Landing + Netlify
+
+Product landing lives in [`landing/`](./landing/). Deploy in one click:
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/ppiiyo/EIDOS&base=landing)
+
+Or CLI:
+
+```bash
+# from repo root
+npx netlify deploy --dir=landing --prod
+```
+
+`netlify.toml` points publish to `landing/` and leaves the search API on your Docker/VPS host (same model as Vercel Studio).
+
 ---
 
 ## Architecture (short)
@@ -77,6 +115,7 @@ packages/core     HNSW / BM25 / ranking
 packages/sdk      TypeScript client
 packages/connectors/bitrix | woocommerce
 public/widget.js  Storefront embed (kept in sync with workspace copy)
+landing/          Marketing site (static)
 ```
 
 **Persistence:** snapshot + WAL (snapshot applied before WAL replay). Demo tenant is **ephemeral** (does not touch production `default:default`).
@@ -107,7 +146,7 @@ bash scripts/smoke.sh       # live HTTP smoke verification
 | Python SDK pytest | yes |
 | Production gate (`v35-production-gate` + `p0-p1-final-audit`) | yes |
 
-Workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml). Install uses `pnpm install --no-frozen-lockfile` until the lockfile is re-pinned after the Fastify 4 / `@fastify/swagger@8` alignment; prefer committing a fresh lock and switching back to `--frozen-lockfile`.
+Workflow: [`.github/workflows/ci.yml`](./.github/workflows/ci.yml). Install uses **`pnpm install --frozen-lockfile`** (lock pinned for Fastify 4 / `@fastify/swagger@8`).
 
 ---
 
@@ -146,6 +185,7 @@ Measured latency depends on CPU, catalog size, `efSearch`, and cache hit rate. U
 | [CSV_CONTRACT.md](./docs/CSV_CONTRACT.md) | Import validation |
 | [MIGRATION.md](./docs/MIGRATION.md) | From Algolia / others |
 | [API.md](./docs/API.md) | Endpoint reference |
+| [VERCEL_DEMO.md](./docs/VERCEL_DEMO.md) | Studio on Vercel |
 
 ---
 
