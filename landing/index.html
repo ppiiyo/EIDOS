@@ -149,7 +149,7 @@
           <a class="btn btn-ghost" href="#pilot">Запустить пилот</a>
           <a class="btn btn-ghost" href="https://github.com/ppiiyo/EIDOS#readme" target="_blank" rel="noopener">Документация</a>
         </div>
-        <p class="meta">MIT · CPU embeddings · API host + Studio на Vercel</p>
+        <p class="meta">MIT · CPU embeddings · Live search через same-origin proxy</p>
       </div>
       <div class="panel" aria-label="Install snippet">
         <div class="panel-head">
@@ -158,7 +158,7 @@
         </div>
         <pre><span class="cmt"># 30‑минутный пилот</span>
 git clone https://github.com/ppiiyo/EIDOS.git
-cd EIDOS && chmod +x deploy/pilot/install.sh
+cd EIDOS &amp;&amp; chmod +x deploy/pilot/install.sh
 ./deploy/pilot/install.sh
 
 <span class="cmt"># проверка</span>
@@ -166,8 +166,8 @@ curl -s http://localhost:3001/v1/ready
 <span class="ok">→ {"ready":true, ...}</span>
 
 <span class="cmt"># виджет на витрине</span>
-<script src="<span class="kw">https://YOUR_HOST/widget.js</span>"
-  data-api="..." data-key="SEARCH_KEY" defer></script></pre>
+&lt;script src="<span class="kw">https://YOUR_HOST/widget.js</span>"
+  data-api="..." data-key="SEARCH_KEY" defer&gt;&lt;/script&gt;</pre>
       </div>
     </div>
 
@@ -178,7 +178,7 @@ curl -s http://localhost:3001/v1/ready
         <div class="grid3">
           <div class="card"><div class="pill">Hybrid</div><h3>Смысл + точные SKU</h3><p>Семантика для «наушники для бега», лексика для артикулов и брендов.</p></div>
           <div class="card"><div class="pill">X-Ray</div><h3>Почему этот товар сверху</h3><p>Разбор вклада dense / sparse / business boost.</p></div>
-          <div class="card"><div class="pill">CMS</div><h3>Bitrix & Woo</h3><p>Модули, sync каталога, виджет витрины без переписывания front.</p></div>
+          <div class="card"><div class="pill">CMS</div><h3>Bitrix &amp; Woo</h3><p>Модули, sync каталога, виджет витрины без переписывания front.</p></div>
         </div>
       </div>
     </section>
@@ -186,7 +186,7 @@ curl -s http://localhost:3001/v1/ready
     <section id="live">
       <div class="wrap">
         <h2>Проверьте на живом API</h2>
-        <p class="section-lead">Запрос в публичный demo endpoint через Studio proxy.</p>
+        <p class="section-lead">Запрос идёт на <code>/v1/demo/search</code> этого же домена (proxy → API host). Без CORS-ошибок.</p>
         <div class="card">
           <div class="search-box">
             <input id="q" type="search" value="детский смартфон до 15000" placeholder="Запрос…" />
@@ -241,7 +241,8 @@ curl -s http://localhost:3001/v1/ready
     </div>
   </footer>
   <script>
-    const API = 'https://eidos-demo.vercel.app/v1/demo/search';
+    // Same-origin: Netlify/Vercel rewrite /v1/* → API host (avoids CORS)
+    const API = '/v1/demo/search';
     const out = document.getElementById('results');
     async function run() {
       const q = document.getElementById('q').value.trim();
@@ -253,23 +254,24 @@ curl -s http://localhost:3001/v1/ready
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: q, topK: 5 })
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || res.statusText);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || res.status + ' ' + res.statusText);
         const hits = data.results || [];
         if (!hits.length) { out.innerHTML = '<p class="meta">Пусто — другой запрос.</p>'; return; }
         out.innerHTML = hits.map(h => {
           const title = h.title || h.name || h.sku || h.id;
           const price = h.price != null ? Number(h.price).toLocaleString('ru-RU') + ' ₽' : '';
           const brand = h.brand || '';
-          return '<div class="hit"><strong>' + escapeHtml(title) + '</strong><span>' +
+          return '<div class="hit"><strong>' + escapeHtml(String(title)) + '</strong><span>' +
             escapeHtml([brand, price].filter(Boolean).join(' · ')) + '</span></div>';
         }).join('');
       } catch (e) {
-        out.innerHTML = '<p class="err">Ошибка: ' + escapeHtml(String(e.message || e)) + '</p>';
+        out.innerHTML = '<p class="err">Ошибка: ' + escapeHtml(String(e.message || e)) +
+          ' <span class="meta">(если только что задеплоили — подождите 10–20 с и обновите)</span></p>';
       }
     }
     function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
     document.getElementById('go').addEventListener('click', run);
     document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });

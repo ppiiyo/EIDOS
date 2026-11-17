@@ -9,6 +9,13 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
 
+# Browser → same origin → Netlify proxies to long-running API (avoids CORS)
+[[redirects]]
+  from = "/v1/*"
+  to = "https://eidos-semantic-ideation-platform.ai.studio/v1/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/studio"
   to = "https://eidos-demo.vercel.app"
