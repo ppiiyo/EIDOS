@@ -1,9 +1,22 @@
-export const PRESET_DOMAINS = [
-  { id: 'marketplace', label: 'Marketplace', labelRu: 'Маркетплейс' },
-  { id: 'electronics', label: 'Electronics', labelRu: 'Электроника' },
-  { id: 'fashion', label: 'Fashion', labelRu: 'Одежда' },
-  { id: 'auto', label: 'Auto Parts', labelRu: 'Автозапчасти' },
-] as const;
+export const PRESET_DOMAINS = {
+  catalog: {
+    name: 'EIDOS Demo Catalog',
+    description: 'Seed project for Studio vector space',
+    concepts: [
+      'Наушники',
+      'Кроссовки',
+      'Смартфоны',
+      'Бытовая техника',
+      'Книги',
+      'Игрушки',
+    ],
+  },
+  marketplace: {
+    name: 'Marketplace',
+    description: 'General retail',
+    concepts: ['Electronics', 'Fashion', 'Home'],
+  },
+} as const;
 
 export const CLUSTER_COLORS = [
   '#6366f1',

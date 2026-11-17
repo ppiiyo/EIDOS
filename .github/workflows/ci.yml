@@ -101,12 +101,10 @@ jobs:
       - name: Install & Test Python SDKs
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip pytest
-          pip install -e packages/sdk/python
-          pytest -q packages/sdk/python
-          pip uninstall -y eidos-sdk eidos 2>/dev/null || true
-          pip install -e "./packages/python-sdk[dev]"
-          pytest -q packages/python-sdk/tests
+          python -m pip install --upgrade pip pytest pytest-asyncio httpx pydantic
+          # Isolate each package so working-tree folder names cannot shadow imports
+          (cd packages/sdk/python && pip install -e . && PYTHONPATH=. pytest -q tests)
+          (cd packages/python-sdk && pip install -e ".[dev]" && PYTHONPATH=. pytest -q tests)
 
   production-gate:
     name: Production Gate & Smoke

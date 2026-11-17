@@ -1,16 +1,66 @@
-type Listener = () => void;
+export type IndustrySynonymPackId = 'electronics' | 'fashion' | 'auto' | 'general';
 
-const customSynonyms: Array<{ source: string; target: string }> = [];
+export interface IndustrySynonymPack {
+  id: IndustrySynonymPackId;
+  label: string;
+  labelRu: string;
+  pairs: Array<{ source: string; target: string }>;
+}
+
+export const INDUSTRY_SYNONYM_PACKS: IndustrySynonymPack[] = [
+  {
+    id: 'electronics',
+    label: 'Electronics',
+    labelRu: 'Электроника',
+    pairs: [
+      { source: 'наушники', target: 'headphones' },
+      { source: 'earbuds', target: 'наушники' },
+      { source: 'смартфон', target: 'phone' },
+    ],
+  },
+  {
+    id: 'fashion',
+    label: 'Fashion',
+    labelRu: 'Одежда',
+    pairs: [
+      { source: 'кроссовки', target: 'sneakers' },
+      { source: 'sneakers', target: 'кроссовки' },
+    ],
+  },
+  {
+    id: 'auto',
+    label: 'Auto',
+    labelRu: 'Авто',
+    pairs: [
+      { source: 'колодки', target: 'brake pads' },
+      { source: 'камри', target: 'camry' },
+    ],
+  },
+  {
+    id: 'general',
+    label: 'General',
+    labelRu: 'Общие',
+    pairs: [
+      { source: 'недорогие', target: 'budget' },
+      { source: 'cheap', target: 'недорогие' },
+    ],
+  },
+];
+
+type Listener = () => void;
 const listeners = new Set<Listener>();
+const activePackIds = new Set<IndustrySynonymPackId>(['electronics', 'general']);
+const customSynonyms: Array<{ source: string; target: string }> = [];
 
 function notify() {
   for (const l of listeners) l();
 }
 
-/** Subscribe to synonym dictionary changes. Returns unsubscribe. */
 export function subscribeSynonyms(listener: Listener): () => void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function addCustomSynonym(source: string, target: string): void {
@@ -21,27 +71,52 @@ export function addCustomSynonym(source: string, target: string): void {
   notify();
 }
 
-export function listCustomSynonyms(): Array<{ source: string; target: string }> {
+export function getCustomSynonyms(): Array<{ source: string; target: string }> {
   return [...customSynonyms];
 }
 
-const BUILTIN: Record<string, string[]> = {
-  'наушники': ['headphones', 'earbuds', 'гарнитура', 'airpods'],
-  'кроссовки': ['sneakers', 'running shoes', 'кеды'],
-  'смартфон': ['phone', 'mobile', 'телефон'],
-  'недорогие': ['cheap', 'budget', 'доступные'],
-};
+export function listCustomSynonyms(): Array<{ source: string; target: string }> {
+  return getCustomSynonyms();
+}
 
-/** Expand query tokens with industry + custom synonyms (simple bag expansion). */
-export function expandQueryWithSynonyms(query: string): string {
+export function getActiveSynonymPacks(): IndustrySynonymPack[] {
+  return INDUSTRY_SYNONYM_PACKS.filter((p) => activePackIds.has(p.id));
+}
+
+export function toggleSynonymPack(id: IndustrySynonymPackId): void {
+  if (activePackIds.has(id)) activePackIds.delete(id);
+  else activePackIds.add(id);
+  notify();
+}
+
+export function expandQueryWithSynonyms(query: string): {
+  expandedQuery: string;
+  matchedSynonyms: Array<{ source: string; target: string }>;
+} {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   const out = new Set(tokens);
+  const matched: Array<{ source: string; target: string }> = [];
+
+  const pairs = [
+    ...getActiveSynonymPacks().flatMap((p) => p.pairs),
+    ...customSynonyms,
+  ];
+
   for (const t of tokens) {
-    for (const syn of BUILTIN[t] ?? []) out.add(syn);
-    for (const c of customSynonyms) {
-      if (c.source === t) out.add(c.target);
-      if (c.target === t) out.add(c.source);
+    for (const pair of pairs) {
+      if (pair.source === t && !out.has(pair.target)) {
+        out.add(pair.target);
+        matched.push(pair);
+      }
+      if (pair.target === t && !out.has(pair.source)) {
+        out.add(pair.source);
+        matched.push(pair);
+      }
     }
   }
-  return [...out].join(' ');
+
+  return {
+    expandedQuery: [...out].join(' '),
+    matchedSynonyms: matched,
+  };
 }
