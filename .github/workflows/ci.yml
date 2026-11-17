@@ -124,4 +124,4 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
-      - run: pnpm exec vitest run apps/api/tests/v35-production-gate.test.ts apps/api/tests/p0-p1-final-audit.test.ts
+      - run: mkdir -p data && pnpm exec vitest run apps/api/tests/v35-production-gate.test.ts apps/api/tests/p0-p1-final-audit.test.ts
