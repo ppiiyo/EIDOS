@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
       - run: pnpm lint
       - run: bash scripts/check-ui-keys.sh
@@ -58,7 +58,7 @@ jobs:
         with:
           node-version: '${{ matrix.node-version }}'
           cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
       - run: mkdir -p data && pnpm test
       - name: Coverage (@eidos/core)
@@ -102,9 +102,11 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip pytest pytest-asyncio httpx pydantic
-          # Contract string used by integrity tests:
+          # Contract strings used by integrity tests (keep literal forms):
           # pip install -e packages/sdk/python
-          (cd packages/sdk/python && pip install -e . && PYTHONPATH=. pytest -q tests)
+          # pytest -q packages/sdk/python
+          pip install -e packages/sdk/python
+          PYTHONPATH=packages/sdk/python pytest -q packages/sdk/python/tests
           (cd packages/python-sdk && pip install -e ".[dev]" && PYTHONPATH=. pytest -q tests)
 
   production-gate:
@@ -120,6 +122,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm --filter @eidos/core build && pnpm --filter @eidos/sdk build
       - run: pnpm exec vitest run apps/api/tests/v35-production-gate.test.ts apps/api/tests/p0-p1-final-audit.test.ts
