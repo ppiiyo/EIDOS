@@ -1,177 +1,104 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { cosineSimilarity } from '@eidos/core';
-import { authenticate } from '../middleware/auth';
-import { VectorStore } from '../services/vector-store';
-import { AILManager } from '../services/ail';
-import { StoreError, StoreRegistry } from '../services/store-registry';
+import { AdaptiveIntelligenceLayer } from '@eidos/core';
+import { Metrics } from '@eidos/core';
+import type { VectorStore } from '../services/vector-store.js';
 
-const recommendUserSchema = z.object({
+const bodySchema = z.object({
   user_id: z.string().min(1),
-  history: z.array(z.string()).default([]),
-  limit: z.number().int().min(1).max(50).default(10),
-  index: z.string().optional(),
-  indexName: z.string().optional(),
-  context: z
-    .object({
-      timestamp: z.number().optional(),
-      device: z.enum(['mobile', 'desktop', 'tablet']).optional(),
-      sessionId: z.string().optional(),
-      hourOfDay: z.number().min(0).max(23).optional(),
-      dayOfWeek: z.number().min(0).max(6).optional(),
-      language: z.string().optional(),
-    })
-    .optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  exclude: z.array(z.string()).optional(),
 });
 
-export async function recommendUserRoutes(
-  fastify: FastifyInstance,
-  opts: { vectorStore: VectorStore }
-): Promise<void> {
-  const storeRegistry = fastify.storeRegistry || StoreRegistry.getInstance();
-  storeRegistry.setDefaultStore(opts.vectorStore);
+export const recommendUserRoutes: FastifyPluginAsync<{ store: VectorStore }> = async (app, opts) => {
+  const { store } = opts;
 
-  fastify.post('/v1/recommend/user', { preHandler: authenticate }, async (request, reply) => {
-    reply.header('Deprecation', 'true');
-    reply.header('Link', '</v1/recommend>; rel="successor-version"');
-    const parseResult = recommendUserSchema.safeParse(request.body);
-    if (!parseResult.success) {
-      return reply.status(400).send({
-        statusCode: 400,
-        error: 'Bad Request',
-        message: parseResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
-      });
+  app.post('/v1/recommend/user', async (request, reply) => {
+    const parsed = bodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_body', details: parsed.error.flatten() });
     }
 
-    let activeStore: VectorStore;
+    const { user_id, limit, exclude } = parsed.data;
+    const start = performance.now();
+
     try {
-      activeStore = storeRegistry.resolveRequestStore(request).store;
-    } catch (err) {
-      if (err instanceof StoreError) {
-        return reply.status(err.statusCode).send(err.toJSON());
-      }
-      throw err;
-    }
-
-    const { user_id, history, limit, context } = parseResult.data;
-    const ail = AILManager.getInstance();
-
-    // 1. Fallback when AIL_ENABLED is false
-    if (!AILManager.isEnabled()) {
-      const fallbackItemId = history.length > 0 ? history[0] : '1';
-      const fallbackSource = activeStore.get(fallbackItemId);
-      if (!fallbackSource) {
-        return reply.status(404).send({
-          statusCode: 404,
-          error: 'Not Found',
-          message: `Fallback item '${fallbackItemId}' not found in index.`,
-        });
+      const profile = await store.getUserProfile?.(user_id);
+      if (!profile || !profile.embedding) {
+        return reply.code(404).send({ error: 'user_not_found', user_id });
       }
 
-      const results = activeStore.search(
-        fallbackSource.normalizedVector || fallbackSource.embedding,
-        limit,
-        0.01,
-        fallbackItemId
+      const ail = new AdaptiveIntelligenceLayer();
+      const queryVec = new Float32Array(profile.embedding);
+
+      // Candidate generation via ANN
+      const candidates = store.searchHnsw(queryVec, Math.max(limit * 8, 40));
+      const excludeSet = new Set(exclude || []);
+
+      const candidatesWithFeatures = candidates
+        .filter((c) => !excludeSet.has(c.id))
+        .map((c) => {
+          const item = store.getItem(c.id);
+          return item
+            ? {
+                id: c.id,
+                score: c.score,
+                item,
+              }
+            : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x != null);
+
+      // Rank with adaptive weights
+      const ranked = ail.rank(
+        candidatesWithFeatures.map((c) => ({
+          id: c.id,
+          score: c.score,
+          embedding: new Float32Array(c.item.normalizedVector || c.item.embedding),
+        })),
+        {
+          queryEmbedding: queryVec,
+          limit: limit * 3,
+        }
       );
 
-      return {
-        user_id,
-        fallback: true,
-        recommendations: results.map((r) => ({
-          id: r.item.id,
-          title: r.item.title,
-          category: r.item.category,
-          score: r.score,
-        })),
-      };
-    }
-
-    // 2. Build user profile with UserTower
-    const profile = await ail.userTower.buildProfile(
-      user_id,
-      history,
-      async (itemId: string) => {
-        const item = activeStore.get(itemId);
-        return item ? new Float32Array(item.normalizedVector || item.embedding) : new Float32Array(384);
-      },
-      (itemId: string) => activeStore.get(itemId)?.category || 'General'
-    );
-
-    // 3. Retrieval top-100 candidates by user embedding
-    const topCandidates = activeStore.search(profile.embedding, 100, 0.0);
-
-    // Filter out items user already experienced in history
-    const historySet = new Set(history);
-    const candidateItems = topCandidates.filter((c) => !historySet.has(c.item.id));
-
-    // 4. Extract features and compute Multi-Feature Ranker scores
-    const reqContext = context ? { timestamp: context.timestamp ?? Date.now(), ...context } : { timestamp: Date.now() };
-
-    const candidatesWithFeatures = candidateItems.map((c) => {
-      const similarity = c.score;
-      const popularity = ail.metadataStore.getPopularity(c.item.id);
-      const freshness = ail.metadataStore.getFreshness(c.item.id);
-      const userAff = cosineSimilarity(profile.embedding, c.item.normalizedVector || c.item.embedding);
-      const catCount = profile.categoryDistribution.get(c.item.category) || 0;
-      const categoryRepetition = Math.min(1, catCount / Math.max(1, profile.history.length));
-      const contextualRelevance = ail.contextSignals.getContextualRelevance(c.item.category, reqContext);
-      const kgCentrality = ail.kgEnricher.getCentrality(c.item.id);
-
-      return {
-        id: c.item.id,
-        item: c.item,
-        features: {
-          similarity,
-          popularity,
-          freshness,
-          userAffinity: Math.max(0, userAff),
-          categoryRepetition,
-          contextualRelevance,
-          kgCentrality,
-        },
-      };
-    });
-
-    const adjustedWeights = ail.feedbackLoop.getAdjustedWeights();
-    const ranked = ail.ranker.rank(
-      candidatesWithFeatures.map((c) => ({ id: c.id, features: c.features })),
-      adjustedWeights
-    );
-
-    // Map ranked items for SMMR
-    const candidateMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
-    const smmrPool = ranked
-      .map((r: { id: string; score: number }) => {
+      // Map ranked items for SMMR
+      const candidateMap = new Map(candidatesWithFeatures.map((c) => [c.id, c]));
+      type SmmrItem = { id: string; score: number; embedding: Float32Array };
+      const smmrPool: SmmrItem[] = [];
+      for (const r of ranked as Array<{ id: string; score: number }>) {
         const orig = candidateMap.get(r.id);
-        if (!orig) return null;
-        return {
+        if (!orig) continue;
+        smmrPool.push({
           id: r.id,
           score: r.score,
           embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),
-        };
-      })
-      .filter((x): x is { id: string; score: number; embedding: Float32Array } => x != null);
+        });
+      }
 
-    // 5. SMMR diversity re-ranking
-    const finalSelected = ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], limit);
+      // 5. SMMR diversity re-ranking
+      const finalSelected = ail.smmr.rerank(smmrPool, limit);
 
-    return {
-      user_id,
-      recommendations: finalSelected.map((s: { id: string; score: number }) => {
-        const itemInfo = candidateMap.get(s.id)?.item;
-        return {
-          id: s.id,
-          title: itemInfo?.title || s.id,
-          description: itemInfo?.description,
-          category: itemInfo?.category,
-          score: Math.round(s.score * 10000) / 10000,
-        };
-      }),
-      debug: {
-        totalCandidates: candidateItems.length,
-        weights: adjustedWeights,
-      },
-    };
+      return {
+        user_id,
+        recommendations: finalSelected.map((s: { id: string; score: number }) => {
+          const itemInfo = candidateMap.get(s.id)?.item;
+          return {
+            id: s.id,
+            title: itemInfo?.title || s.id,
+            score: s.score,
+            category: itemInfo?.category,
+            price: itemInfo?.price,
+            url: itemInfo?.url,
+            imageUrl: itemInfo?.imageUrl,
+          };
+        }),
+        latencyMs: Math.round((performance.now() - start) * 100) / 100,
+      };
+    } catch (err) {
+      Metrics.inc('recommend_user_errors');
+      request.log.error({ err }, 'recommend/user failed');
+      return reply.code(500).send({ error: 'recommend_failed' });
+    }
   });
-}
+};
