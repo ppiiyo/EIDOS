@@ -7,6 +7,7 @@
 Lexical (BM25) + dense (HNSW, 384-d) + RRF · Explainable ranking · Bitrix & WooCommerce
 
 [![CI](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiiyo/EIDOS/actions/workflows/ci.yml)
+[![Typecheck](https://github.com/ppiiyo/EIDOS/actions/workflows/typecheck.yml/badge.svg)](https://github.com/ppiiyo/EIDOS/actions/workflows/typecheck.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](./package.json)
 [![pnpm](https://img.shields.io/badge/pnpm-9.15.4-orange)](./package.json)
@@ -198,16 +199,22 @@ pnpm pack:bitrix && pnpm pack:woo
 bash scripts/smoke.sh http://127.0.0.1:8080
 ```
 
-**CI** (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
+**CI** runs on every push/PR to `main`:
 
-| Job | What |
-|-----|------|
-| Lint, typecheck & build | `pnpm install --frozen-lockfile`, workspace builds |
-| Full test suite | Node **20** and **22** |
-| Core coverage | Node 20 |
-| PHP connectors | lint, Bitrix autoload, PHPUnit, pack scripts |
-| Python SDK | pytest |
-| Production gate | smoke / audit tests |
+| Workflow / job | What |
+|----------------|------|
+| **Typecheck** | `tsc` for core, sdk, api (Node 20) |
+| **EIDOS CI Pipeline** | frozen lockfile install, lint, build, full vitest on Node 20 + 22, core coverage |
+| **PHP Connectors** | `php -l`, Bitrix autoload, PHPUnit with curl/mbstring/dom |
+| **Security Audit & SAST** | CodeQL + `pnpm run security:check` + critical audit gate |
+| **Performance Benchmark** | optional / non-blocking harness |
+| **Restore API sources** | auto-heal if a source file is reduced to PLACEHOLDER |
+
+Local verification (same gates as CI typecheck + tests):
+
+```bash
+pnpm lint && pnpm test   # expect 0 tsc errors; 500+ unit/integration tests green
+```
 
 ---
 
