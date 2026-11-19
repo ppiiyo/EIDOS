@@ -11,72 +11,173 @@ permissions:
 jobs:
   restore:
     runs-on: ubuntu-latest
-    # Avoid infinite loop: only run when embedder is broken
     steps:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Detect broken embedder
+      - name: Detect broken sources
         id: check
         run: |
           set -euo pipefail
-          SIZE=$(wc -c < apps/api/src/services/embedder.ts)
-          if grep -q 'PLACEHOLDER' apps/api/src/services/embedder.ts || [ "$SIZE" -lt 1000 ]; then
-            echo "broken=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "broken=false" >> "$GITHUB_OUTPUT"
+          broken=false
+          for f in apps/api/src/services/embedder.ts apps/api/src/routes/recommend.ts apps/api/src/routes/recommend-user.ts; do
+            if [ ! -f "$f" ]; then
+              echo "missing $f"
+              broken=true
+              continue
+            fi
+            SIZE=$(wc -c < "$f")
+            if grep -q 'PLACEHOLDER' "$f" || [ "$SIZE" -lt 500 ]; then
+              echo "broken $f size=$SIZE"
+              broken=true
+            fi
+          done
+          # Also flag the known-bad TS 5.9 type-predicate form
+          if grep -q 'x is { id: string; score: number; embedding: Float32Array }' apps/api/src/routes/recommend.ts apps/api/src/routes/recommend-user.ts 2>/dev/null; then
+            echo "needs SMMR typing fix"
+            broken=true
           fi
+          echo "broken=$broken" >> "$GITHUB_OUTPUT"
 
-      - name: Restore embedder + apply TS 5.9 fixes
+      - name: Restore sources and apply real fixes
         if: steps.check.outputs.broken == 'true'
         run: |
           set -euo pipefail
-          # Last known good embedder before placeholder commits
-          git show 2d2366d:apps/api/src/services/embedder.ts > apps/api/src/services/embedder.ts
+
+          restore_file() {
+            local path="$1"
+            if grep -q 'PLACEHOLDER' "$path" 2>/dev/null || [ "$(wc -c < "$path")" -lt 500 ]; then
+              echo "Restoring $path from git history..."
+              # Prefer last non-placeholder blob on main ancestry
+              local sha
+              sha=$(git log --all --pretty=format:%H -- "$path" | while read -r c; do
+                if git show "$c:$path" 2>/dev/null | grep -qv 'PLACEHOLDER'; then
+                  if [ "$(git show "$c:$path" 2>/dev/null | wc -c)" -gt 500 ]; then
+                    echo "$c"
+                    break
+                  fi
+                fi
+              done)
+              if [ -z "${sha:-}" ]; then
+                echo "ERROR: no good revision for $path"
+                exit 1
+              fi
+              echo "Using $sha for $path"
+              git show "$sha:$path" > "$path"
+            fi
+          }
+
+          restore_file apps/api/src/services/embedder.ts
+          restore_file apps/api/src/routes/recommend.ts
+          restore_file apps/api/src/routes/recommend-user.ts
+
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           def fix_embedder(p: Path) -> None:
+              if not p.exists():
+                  return
               s = p.read_text(encoding='utf-8')
               s2 = s.replace(
                   'const vec = new Float32Array(output.data);',
                   'const vec = new Float32Array(output.data as ArrayLike<number>);',
-                  1,
               )
               s2 = s2.replace(
                   'const vec = new Float32Array(output.data.slice(start, end));',
                   'const vec = new Float32Array(output.data.slice(start, end) as ArrayLike<number>);',
-                  1,
               )
-              p.write_text(s2, encoding='utf-8')
-              print('embedder fixed', s2.count('ArrayLike'))
+              if s2 != s:
+                  p.write_text(s2, encoding='utf-8')
+                  print(p, 'embedder ArrayLike applied')
 
-          def fix_recommend(p: Path) -> None:
+          def fix_smmr_pool(p: Path) -> None:
               if not p.exists():
                   return
               s = p.read_text(encoding='utf-8')
-              old = (
-                  '.filter((x: { id: string; score: number; embedding: Float32Array } | null): '
-                  'x is { id: string; score: number; embedding: Float32Array } => x !== null);'
+              if 'type SmmrItem' in s and 'x is { id: string; score: number; embedding: Float32Array }' not in s:
+                  print(p, 'SMMR already fixed')
+                  return
+
+              # Replace map+filter type-predicate blocks with explicit loop (TS 5.9 safe)
+              pat = re.compile(
+                  r'const smmrPool = ranked\n'
+                  r'(?P<ind>[ \t]*)\.map\(\(r: \{ id: string; score: number \}\) => \{\n'
+                  r'(?P=ind)  const (?P<var>\w+) = (?P<map>\w+)\.get\(r\.id\);\n'
+                  r'(?P=ind)  if \(!\1\) return null;\n'.replace(r'\1', r'(?P=var)') +
+                  r'(?P=ind)  return \{\n'
+                  r'(?P=ind)    id: r\.id,\n'
+                  r'(?P=ind)    score: r\.score,\n'
+                  r'(?P=ind)    embedding: (?P<embed>[^\n]+),\n'
+                  r'(?P=ind)  \};\n'
+                  r'(?P=ind)\}\)\n'
+                  r'(?P=ind)\.filter\(\(x\): x is \{ id: string; score: number; embedding: Float32Array \} => x != null\);\n'
+                  r'\n'
+                  r'(?P=ind)(?P<comment>//[^\n]*\n)?'
+                  r'(?P=ind)const finalSelected = ail\.smmr\.rerank\(smmrPool as \{ id: string; score: number; embedding: Float32Array \}\[\], (?P<limit>[^)]+)\);'
               )
-              new = '.filter((x): x is { id: string; score: number; embedding: Float32Array } => x != null);'
-              s2 = s.replace(old, new)
-              s2 = s2.replace(
-                  'ail.smmr.rerank(smmrPool, data.limit)',
-                  'ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], data.limit)',
-              )
-              s2 = s2.replace(
-                  'ail.smmr.rerank(smmrPool, limit)',
-                  'ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], limit)',
-              )
-              p.write_text(s2, encoding='utf-8')
-              print(p, 'as', s2.count('smmrPool as'))
+
+              def repl(m: re.Match) -> str:
+                  ind = m.group('ind')
+                  # outer indent is two spaces less than map indent typically — use line start before const
+                  # Reconstruct with same outer indent as "const smmrPool" (ind without the two spaces of .map)
+                  # The pattern anchors at "const smmrPool"; leading whitespace before it is outside match.
+                  # Use ind for .map level; outer = ind without 2 spaces if present
+                  outer = ind  # finalSelected uses same as const smmrPool's following lines — look at ind
+                  # Actually const smmrPool has no leading in match; ind is spaces before .map
+                  # finalSelected historically aligned with const smmrPool at same column as ranked assignment
+                  base = ind  # e.g. "    " under const body
+                  return (
+                      f'type SmmrItem = {{ id: string; score: number; embedding: Float32Array }};\n'
+                      f'{base}const smmrPool: SmmrItem[] = [];\n'
+                      f'{base}for (const r of ranked as Array<{{ id: string; score: number }}>) {{\n'
+                      f'{base}  const {m.group("var")} = {m.group("map")}.get(r.id);\n'
+                      f'{base}  if (!{m.group("var")}) continue;\n'
+                      f'{base}  smmrPool.push({{\n'
+                      f'{base}    id: r.id,\n'
+                      f'{base}    score: r.score,\n'
+                      f'{base}    embedding: {m.group("embed")},\n'
+                      f'{base}  }});\n'
+                      f'{base}}}\n'
+                      f'\n'
+                      f'{base}{m.group("comment") or ""}'
+                      f'{base}const finalSelected = ail.smmr.rerank(smmrPool, {m.group("limit")});'
+                  )
+
+              s2, n = pat.subn(repl, s)
+              if n == 0:
+                  # Fallback: exact common blocks
+                  blocks = [
+                      (
+                          """  const smmrPool = ranked\n    .map((r: { id: string; score: number }) => {\n      const item = candMap.get(r.id);\n      if (!item) return null;\n      return {\n        id: r.id,\n        score: r.score,\n        embedding: item.embedding,\n      };\n    })\n    .filter((x): x is { id: string; score: number; embedding: Float32Array } => x != null);\n\n  const finalSelected = ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], data.limit);""",
+                          """  type SmmrItem = { id: string; score: number; embedding: Float32Array };\n  const smmrPool: SmmrItem[] = [];\n  for (const r of ranked as Array<{ id: string; score: number }>) {\n    const item = candMap.get(r.id);\n    if (!item) continue;\n    smmrPool.push({\n      id: r.id,\n      score: r.score,\n      embedding: item.embedding,\n    });\n  }\n\n  const finalSelected = ail.smmr.rerank(smmrPool, data.limit);""",
+                      ),
+                      (
+                          """  const smmrPool = ranked\n    .map((r: { id: string; score: number }) => {\n      const orig = candidateMap.get(r.id);\n      if (!orig) return null;\n      return {\n        id: r.id,\n        score: r.score,\n        embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),\n      };\n    })\n    .filter((x): x is { id: string; score: number; embedding: Float32Array } => x != null);\n\n  const finalSelected = ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], data.limit);""",
+                          """  type SmmrItem = { id: string; score: number; embedding: Float32Array };\n  const smmrPool: SmmrItem[] = [];\n  for (const r of ranked as Array<{ id: string; score: number }>) {\n    const orig = candidateMap.get(r.id);\n    if (!orig) continue;\n    smmrPool.push({\n      id: r.id,\n      score: r.score,\n      embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),\n    });\n  }\n\n  const finalSelected = ail.smmr.rerank(smmrPool, data.limit);""",
+                      ),
+                      (
+                          """    const smmrPool = ranked\n      .map((r: { id: string; score: number }) => {\n        const orig = candidateMap.get(r.id);\n        if (!orig) return null;\n        return {\n          id: r.id,\n          score: r.score,\n          embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),\n        };\n      })\n      .filter((x): x is { id: string; score: number; embedding: Float32Array } => x != null);\n\n    // 5. SMMR diversity re-ranking\n    const finalSelected = ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], limit);""",
+                          """    type SmmrItem = { id: string; score: number; embedding: Float32Array };\n    const smmrPool: SmmrItem[] = [];\n    for (const r of ranked as Array<{ id: string; score: number }>) {\n      const orig = candidateMap.get(r.id);\n      if (!orig) continue;\n      smmrPool.push({\n        id: r.id,\n        score: r.score,\n        embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),\n      });\n    }\n\n    // 5. SMMR diversity re-ranking\n    const finalSelected = ail.smmr.rerank(smmrPool, limit);""",
+                      ),
+                  ]
+                  s2 = s
+                  n = 0
+                  for old, new in blocks:
+                      if old in s2:
+                          s2 = s2.replace(old, new)
+                          n += 1
+              if n:
+                  p.write_text(s2, encoding='utf-8')
+                  print(p, f'SMMR fixed x{n}')
+              else:
+                  print(p, 'WARNING: no SMMR pattern matched')
 
           fix_embedder(Path('apps/api/src/services/embedder.ts'))
-          fix_recommend(Path('apps/api/src/routes/recommend.ts'))
-          fix_recommend(Path('apps/api/src/routes/recommend-user.ts'))
+          fix_smmr_pool(Path('apps/api/src/routes/recommend.ts'))
+          fix_smmr_pool(Path('apps/api/src/routes/recommend-user.ts'))
           PY
 
       - name: Commit and push
@@ -84,6 +185,10 @@ jobs:
         run: |
           git config user.name "eidos-ci"
           git config user.email "ci@eidos.local"
-          git add apps/api/src/services/embedder.ts apps/api/src/routes/recommend.ts apps/api/src/routes/recommend-user.ts
-          git commit -m "fix(api): restore embedder from 2d2366d + TS5.9 casts"
-          git push
+          git add apps/api/src/services/embedder.ts apps/api/src/routes/recommend.ts apps/api/src/routes/recommend-user.ts || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix(api): restore PLACEHOLDER sources + TS5.9 SMMR typing"
+            git push
+          fi
