@@ -1,0 +1,44 @@
+name: Restore API sources
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/restore_api_sources.py'
+      - 'scripts/restore_embedder_only.py'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Restore embedder if placeholder
+        run: |
+          set -euo pipefail
+          if grep -q 'PLACEHOLDER' apps/api/src/services/embedder.ts 2>/dev/null || [ "$(wc -c < apps/api/src/services/embedder.ts)" -lt 1000 ]; then
+            if [ -f scripts/restore_api_sources.py ]; then
+              python3 scripts/restore_api_sources.py
+            elif [ -f scripts/restore_embedder_only.py ]; then
+              python3 scripts/restore_embedder_only.py
+            else
+              git show 2d2366d:apps/api/src/services/embedder.ts > apps/api/src/services/embedder.ts
+            fi
+          fi
+          python3 scripts/apply_ts59_ci_fixes.py || true
+      - name: Commit if changed
+        run: |
+          git config user.name "eidos-ci"
+          git config user.email "ci@eidos.local"
+          git add apps/api/src/services/embedder.ts apps/api/src/routes/recommend.ts apps/api/src/routes/recommend-user.ts || true
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "fix(api): restore sources after placeholder + TS5.9 casts"
+            git push
+          fi
