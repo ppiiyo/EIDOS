@@ -631,9 +631,9 @@ export async function userRecommend(
         embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),
       };
     })
-    .filter((x: { id: string; score: number; embedding: Float32Array } | null): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+    .filter((x): x is { id: string; score: number; embedding: Float32Array } => x != null);
 
-  const finalSelected = ail.smmr.rerank(smmrPool, data.limit);
+  const finalSelected = ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], data.limit);
   const latencyMs = Math.round((performance.now() - startTime) * 100) / 100;
   const selectedCategories = finalSelected
     .map((s: { id: string; score: number }) => candidateMap.get(s.id)?.item.category)
