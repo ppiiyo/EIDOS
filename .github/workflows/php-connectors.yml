@@ -15,6 +15,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          extensions: curl, json, mbstring, dom, libxml, xmlwriter, tokenizer, filter
           coverage: none
           tools: composer:v2
 
@@ -36,15 +37,24 @@ jobs:
       - name: PHPUnit (packages with composer.json)
         run: |
           set -euo pipefail
+          found=0
           for d in packages/connectors/bitrix packages/connectors/woocommerce connectors/bitrix connectors/woocommerce; do
             if [ -f "$d/composer.json" ]; then
+              found=1
               echo "::group::$d"
-              (cd "$d" && composer install --no-interaction --prefer-dist --no-progress)
-              if [ -d "$d/tests" ] || [ -d "$d/test" ]; then
-                (cd "$d" && ./vendor/bin/phpunit --colors=always) || exit 1
-              else
-                echo "No tests dir — skip phpunit"
-              fi
+              (
+                cd "$d"
+                composer install --no-interaction --prefer-dist --no-progress
+                if [ -d tests ] || [ -d test ]; then
+                  ./vendor/bin/phpunit --colors=always
+                else
+                  echo "No tests/ directory — nothing to run"
+                fi
+              )
               echo "::endgroup::"
             fi
           done
+          if [ "$found" -eq 0 ]; then
+            echo "No connector composer.json found"
+            exit 1
+          fi
