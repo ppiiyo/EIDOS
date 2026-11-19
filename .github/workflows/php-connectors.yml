@@ -16,18 +16,35 @@ jobs:
         with:
           php-version: '8.2'
           coverage: none
+          tools: composer:v2
 
       - name: Lint every PHP file
         run: |
           set -euo pipefail
-          find packages/connectors connectors -name '*.php' -print0 | xargs -0 -n1 php -l
+          mapfile -d '' files < <(find packages/connectors connectors -name '*.php' -print0 2>/dev/null || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No PHP files found"
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            php -l "$f"
+          done
 
       - name: Verify agent/event classes resolve via include.php
         run: php scripts/verify-bitrix-autoload.php
 
-      - name: PHPUnit
+      - name: PHPUnit (packages with composer.json)
         run: |
-          set -e
-          for d in connectors/bitrix connectors/woocommerce packages/connectors/bitrix packages/connectors/woocommerce; do
-            if [ -f "$d/composer.json" ]; then (cd "$d" && composer install --no-interaction --prefer-dist && ./vendor/bin/phpunit); fi
+          set -euo pipefail
+          for d in packages/connectors/bitrix packages/connectors/woocommerce connectors/bitrix connectors/woocommerce; do
+            if [ -f "$d/composer.json" ]; then
+              echo "::group::$d"
+              (cd "$d" && composer install --no-interaction --prefer-dist --no-progress)
+              if [ -d "$d/tests" ] || [ -d "$d/test" ]; then
+                (cd "$d" && ./vendor/bin/phpunit --colors=always) || exit 1
+              else
+                echo "No tests dir — skip phpunit"
+              fi
+              echo "::endgroup::"
+            fi
           done

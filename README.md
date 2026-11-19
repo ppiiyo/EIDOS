@@ -1,6 +1,6 @@
 <div align="center">
 
-# EIDOS
+# EIDOS v3.4
 
 **Self-hosted hybrid search for e-commerce**
 
@@ -70,6 +70,7 @@ chmod +x deploy/pilot/install.sh
 ./deploy/pilot/install.sh
 
 curl -s http://localhost:3001/v1/ready
+# or: bash scripts/smoke.sh http://127.0.0.1:3001
 ```
 
 Keys and notes are written under `.env.pilot` (see script output).
@@ -86,6 +87,7 @@ corepack enable && pnpm install
 docker compose up --build -d
 
 curl -s http://127.0.0.1:8080/v1/health/ready
+bash scripts/smoke.sh http://127.0.0.1:8080
 ```
 
 API listens on **8080** inside the stack (mapped as in `docker-compose.yml`). OpenAPI UI: `/docs` when the server is up.
@@ -193,6 +195,7 @@ pnpm lint
 pnpm test
 pnpm benchmark                    # optional local harness
 pnpm pack:bitrix && pnpm pack:woo
+bash scripts/smoke.sh http://127.0.0.1:8080
 ```
 
 **CI** (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
