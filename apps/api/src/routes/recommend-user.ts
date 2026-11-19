@@ -151,10 +151,10 @@ export async function recommendUserRoutes(
           embedding: new Float32Array(orig.item.normalizedVector || orig.item.embedding),
         };
       })
-      .filter((x: { id: string; score: number; embedding: Float32Array } | null): x is { id: string; score: number; embedding: Float32Array } => x !== null);
+      .filter((x): x is { id: string; score: number; embedding: Float32Array } => x != null);
 
     // 5. SMMR diversity re-ranking
-    const finalSelected = ail.smmr.rerank(smmrPool, limit);
+    const finalSelected = ail.smmr.rerank(smmrPool as { id: string; score: number; embedding: Float32Array }[], limit);
 
     return {
       user_id,
